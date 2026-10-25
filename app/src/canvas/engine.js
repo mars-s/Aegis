@@ -407,7 +407,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     }
     for (const d of drag.cards) {
       if (drag.kind === 'move') { d.c.x = Math.round(d.x + wdx); d.c.y = Math.round(d.y + wdy); }
-      else if (d.c.id === drag.target) { d.c.w = Math.max(80, Math.round(d.w + wdx)); d.c.h = Math.max(40, Math.round(d.h + wdy)); }
+      else if (d.c.id === drag.target) { const [minW, minH] = WINDOWS.has(d.c.type) ? [200, 120] : [80, 40]; d.c.w = Math.max(minW, Math.round(d.w + wdx)); d.c.h = Math.max(minH, Math.round(d.h + wdy)); }
       const m = mounted.get(d.c.id); if (m) { place(m.el, d.c); m.el.classList.add('dragging'); m.geo = geometry(d.c); }
     }
     drawLinks(); schedule();

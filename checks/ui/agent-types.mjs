@@ -51,7 +51,7 @@ try {
   const stampBox = await page.locator('.card[data-type="stamp"]').boundingBox();
   await page.screenshot({ path: out('agent-stamp.png'), clip: { x: stampBox.x - 20, y: stampBox.y - 20, width: stampBox.width + 40, height: stampBox.height + 40 } });
   await page.screenshot({ path: out('agent-types.png') });
-  await page.locator('.card[data-type="doc"]').dblclick(); await page.locator('.ProseMirror strong').filter({ hasText: 'Continue' }).waitFor();
+  await page.locator('.card[data-type="doc"] .doc-strip').dblclick({ position: { x: 40, y: 18 } }); await page.locator('.ProseMirror strong').filter({ hasText: 'Continue' }).waitFor();
   assert.ok(await page.locator('.ProseMirror strong').filter({ hasText: 'Continue' }).isVisible(), 'Markdown body opens as rich text');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: out('agent-types.png') });

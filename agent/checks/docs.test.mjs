@@ -7,12 +7,12 @@ import { toDocx } from '../../app/src/features/docs/docx.js';
 import JSZip from '../../app/node_modules/jszip/lib/index.js';
 
 const paragraph = text => ({ type: 'paragraph', content: [{ type: 'text', text }] });
-test('doc pills persist rich content and agent-readable text through board commands', () => {
+test('doc windows persist rich content and agent-readable text through board commands', () => {
   const start = emptyBoard('docs', 'Docs');
   const created = applyBatch(start, { commands: [{ op: 'create', type: 'doc', text: 'Project notes', props: { custom: true }, ref: 'doc' }] });
   assert.equal(created.ok, true);
   const id = created.created.doc;
-  assert.deepEqual([created.board.cards[0].w, created.board.cards[0].h], [240, 56]);
+  assert.deepEqual([created.board.cards[0].w, created.board.cards[0].h], [760, 740]);
   const doc = { type: 'doc', content: [{ type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Ideas', marks: [{ type: 'bold' }] }] }, paragraph('Write the brief')] };
   const saved = applyBatch(created.board, { commands: [documentUpdate(id, doc)] });
   assert.equal(saved.ok, true);

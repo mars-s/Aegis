@@ -47,6 +47,7 @@
   .updated { color: var(--color-faint); font-size: var(--text-caption); white-space: nowrap; }
   .content { flex: 1; min-block-size: 0; overflow: auto; padding: 16px 20px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .diagram .content { overflow: auto; }
+  .sheet .content { padding: 0; }
   .unknown { color: var(--color-muted); }
   @media (hover: none), (pointer: coarse) { header { height: 44px; } .win-open { opacity: 1; min-height: 44px; } }
   @media (prefers-reduced-motion: reduce) { .win-open { transition: none; } .win-open:active { transform: none; } }

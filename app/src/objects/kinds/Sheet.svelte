@@ -17,6 +17,7 @@
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * dir;
     });
   });
+  const letter = (c: number) => (c >= 26 ? String.fromCharCode(64 + Math.floor(c / 26)) : '') + String.fromCharCode(65 + (c % 26));
   function toggle(col: number) {
     if (data.rows.length < 3) return;
     sort = sort?.col === col ? (sort.dir === 1 ? { col, dir: -1 } : null) : { col, dir: numeric(data.columns[col]!) ? -1 : 1 };
@@ -26,7 +27,12 @@
 <div class="sheet">
   <table>
     <thead>
+      <tr class="letters" aria-hidden="true">
+        <th class="rn"></th>
+        {#each data.columns as _, c (c)}<th class="letter" class:num={numeric(data.columns[c]!)}>{letter(c)}</th>{/each}
+      </tr>
       <tr>
+        <th class="rn" aria-hidden="true">1</th>
         {#each data.columns as column, c (c)}
           <th class:num={numeric(column)} class:centre={column.kind === 'yes_no' || column.kind === 'rating'}
             aria-sort={sort?.col === c ? (sort.dir === 1 ? 'ascending' : 'descending') : 'none'}>
@@ -39,8 +45,9 @@
       </tr>
     </thead>
     <tbody>
-      {#each order as { row, index } (index)}
+      {#each order as { row, index }, i (index)}
         <tr>
+          <th class="rn" scope="row" aria-hidden="true">{i + 2}</th>
           {#each data.columns as column, c (c)}
             {@const text = row.cells[c] ?? ''}
             <td class:num={numeric(column)} class:centre={column.kind === 'yes_no' || column.kind === 'rating'} class:best={best[c]?.has(index)} class:first={c === 0}>
@@ -60,25 +67,30 @@
 </div>
 
 <style>
-  .sheet { inline-size: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--color-text); font-size: 12.5px; font-variant-numeric: tabular-nums; overflow: auto; max-block-size: 100%; }
+  /* Spreadsheet look from the locked comp: column letters, row numbers, quiet grid, tabular figures. */
+  .sheet { inline-size: max-content; min-inline-size: 100%; color: var(--color-text); font-size: 12.5px; font-variant-numeric: tabular-nums; }
   table { inline-size: 100%; border-collapse: collapse; }
-  th, td { padding: 7px 10px; text-align: start; border-block-end: 1px solid var(--color-border); border-inline-end: 1px solid var(--color-border); white-space: nowrap; }
-  th { position: sticky; inset-block-start: 0; background: var(--inset); color: var(--color-muted); font-size: var(--text-label); font-weight: 500; z-index: 1; }
+  th, td { height: 29px; padding: 0 10px; text-align: start; border-block-end: 1px solid var(--rule, var(--color-border)); border-inline-end: 1px solid var(--rule, var(--color-border)); white-space: nowrap; font-weight: 400; }
+  thead th { color: var(--faint); background: var(--inset); font-size: 12px; }
+  tr.letters th { position: sticky; inset-block-start: 0; z-index: 2; text-align: center; }
+  thead tr:not(.letters) th { color: var(--muted); background: transparent; }
+  th.rn { position: sticky; inset-inline-start: 0; z-index: 1; inline-size: 34px; min-inline-size: 34px; padding: 0 6px; text-align: center; color: var(--faint); background: var(--inset); font-size: 12px; }
+  tr.letters th.rn { z-index: 3; }
   th button { all: unset; display: inline-flex; gap: 4px; align-items: center; cursor: default; }
   th button:focus-visible { outline: 1.5px solid var(--focus); outline-offset: 2px; }
   th button:not(:disabled):hover { color: var(--color-text); }
   .arrow { color: var(--color-text); }
-  .num { text-align: end; font-variant-numeric: tabular-nums; }
+  .num { text-align: end; }
+  th.letter.num { text-align: center; }
   th.num button { flex-direction: row-reverse; }
   .centre { text-align: center; }
-  td.first { font-weight: 600; white-space: normal; min-inline-size: 120px; }
-  td.best { color: var(--chart-3); font-weight: 650; }
+  td { min-inline-size: 86px; }
+  td.best { color: var(--data); }
   .empty { color: var(--color-faint); }
   .yn.yes { color: var(--chart-3); } .yn.no { color: var(--chart-8); } .yn.partial { color: var(--chart-4); } .yn.unknown { color: var(--color-faint); }
   .rating .of { color: var(--color-faint); font-size: 0.85em; }
   .tag { padding: 1px 8px; border-radius: var(--radius-capsule); background: var(--color-fill); font-size: var(--text-label); }
-  .link { all: unset; color: var(--color-term); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--color-border-strong); cursor: pointer; }
+  .link { all: unset; color: var(--data); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--color-border-strong); cursor: pointer; }
   @media (pointer: coarse) { th button, .link { min-height: 44px; min-width: 44px; } }
-  .note { margin: 10px 2px 0; color: var(--color-faint); font-size: var(--text-caption); }
-  tbody tr:hover td { background: var(--color-fill); }
+  .note { margin: 10px 12px; color: var(--color-faint); font-size: var(--text-caption); }
 </style>
