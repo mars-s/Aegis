@@ -87,17 +87,35 @@
 </aside>
 
 <div class="run-strip" id="runStrip" role="status" hidden><p class="run-title" id="runBrief"></p><div class="run-track"><span class="run-fill" id="runFill"></span><i></i><span id="runStep"></span></div></div>
-<button class="ask-orb" id="askPill" type="button" aria-controls="composer" aria-expanded="false" aria-label="Ask the agent. Shortcut slash."><span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span></button>
+<div class="agent-island" id="agentIsland" data-state="idle">
+<div class="island-morph">
+<div class="island-surface" aria-hidden="true"></div>
+<div class="island-content">
+<button class="ask-orb" id="askPill" type="button" aria-controls="composer" aria-expanded="false" aria-label="Ask the agent. Shortcut Command K or slash."><span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span><span class="orb-invite">Ask…</span><span class="orb-status" id="orbStatus" role="status"></span><span class="orb-key">⌘K</span></button>
 <form class="composer agent-composer" id="composer" autocomplete="off" inert>
+  <header class="island-head" hidden>
+    <span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span>
+    <p class="orb-activity" role="status"></p>
+    <button type="button" class="text-btn island-stop" hidden>Stop</button>
+    <button type="button" class="island-icon island-collapse" aria-label="Collapse conversation"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
+  </header>
+  <div class="island-turns" role="log" aria-label="Agent conversation" tabindex="0" hidden></div>
   <textarea id="prompt" rows="1" placeholder="Brain dump, or ask an agent to sort the board…" aria-label="Message"></textarea>
   <div class="composer-row">
-    <select id="model" aria-label="Model"></select>
-    <select id="count" aria-label="Number of agents" title="Agents to start">{#each [1, 2, 3, 4, 5, 6, 7, 8] as count}<option value={count}>{count === 1 ? '1 agent' : `${count} agents`}</option>{/each}</select>
+    <button type="button" class="island-icon" id="orbMenuButton" aria-label="Agent options" aria-haspopup="menu" aria-controls="orbMenu" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/><circle cx="6" cy="4" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="12" r="1.5"/></svg></button>
+    <span class="island-hint">Return to send <span>· Shift Return for a new line</span></span>
     <span class="spacer"></span>
-    <button type="button" class="text-btn" id="dumpBtn" title="Add as notes without an agent (⌘⏎)">Add notes</button>
     <button type="submit" class="send" id="send" aria-label="Start agent"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 12V2M2.5 6.5 7 2l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </div>
 </form>
+</div>
+</div>
+<div class="orb-menu" id="orbMenu" role="menu" aria-label="Agent options" hidden></div>
+<div hidden>
+  <select id="model" aria-label="Model"></select>
+  <select id="count" aria-label="Number of agents">{#each [1, 2, 3, 4, 5, 6, 7, 8] as count}<option value={count}>{count === 1 ? '1 agent' : `${count} agents`}</option>{/each}</select>
+</div>
+</div>
 
 <dialog class="sheet" id="settings">
   <div class="sheet-head"><h2>Settings</h2><button class="text-btn" id="closeSettings">Done</button></div>

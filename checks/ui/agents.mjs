@@ -1,7 +1,7 @@
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -17,6 +17,21 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
 const errors = [], requests = []; page.on('pageerror', e => errors.push(e.message));
 page.on('request', r => { if (r.method() === 'POST' && /\/agents(?:\?|$|\/)/.test(r.url())) requests.push({ path: new URL(r.url()).pathname, data: r.postDataJSON() }); });
+const captureId = Date.now();
+const shot = async name => {
+  for (const width of [1440, 1586, 390]) {
+    await page.setViewportSize({ width, height: width === 1586 ? 992 : 1000 });
+    await page.waitForTimeout(280);
+    await page.screenshot({ path: out(`island-${captureId}-${name}-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(50);
+};
+const choose = async (label, name) => {
+  await page.locator('#orbMenuButton').click();
+  await page.locator('#orbMenu').getByRole('menuitem', { name: label, exact: false }).click();
+  await page.locator('#orbMenu').getByRole('menuitemradio', { name, exact: true }).click();
+};
 const agents = () => page.evaluate(() => aegis.host.get(`/agents?board=${aegis.canvas.board.id}`));
 try {
   await page.goto(`http://127.0.0.1:${5193 + PORT_OFFSET}/?port=${port}&token=${token}`);
@@ -24,41 +39,106 @@ try {
   const orb = page.locator('#askPill'), prompt = page.locator('#prompt');
   const idle = await orb.boundingBox(); assert.equal(idle.width, 44); assert.equal(idle.height, 44);
   assert.equal(await orb.innerText(), ''); assert.equal(await page.locator('#agentsPanel').isVisible(), false);
-  await page.screenshot({ path: out('agents-orb-idle.png') });
-  await page.mouse.move((await orb.boundingBox()).x + 22, (await orb.boundingBox()).y + 22); await page.locator('#composer.open').waitFor();
-  assert.ok((await page.locator('#composer').boundingBox()).width <= 361);
-  await page.waitForTimeout(250); await page.screenshot({ path: out('agents-orb-hovered.png') });
+  await shot('idle');
+  const morphPerformance = await page.evaluate(async () => {
+    const island = document.getElementById('agentIsland'), shell = island.querySelector('.island-morph');
+    const orb = document.getElementById('askPill'), prompt = document.getElementById('prompt'), stage = document.getElementById('stage');
+    const click = () => orb.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    const close = () => { document.querySelector('#composer .island-collapse').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); };
+    const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
+    const results = [];
+    async function sample(name, run) {
+      await frame(); await frame();
+      let last = await frame(); const start = last, deltas = [], widths = [], scales = [];
+      run();
+      do {
+        const now = await frame(); deltas.push(now - last); last = now;
+        widths.push(shell.getBoundingClientRect().width);
+        const a = new DOMMatrix(getComputedStyle(shell).transform), b = new DOMMatrix(getComputedStyle(island.querySelector('.island-content')).transform);
+        scales.push(Math.abs(a.a * b.a - 1), Math.abs(a.d * b.d - 1));
+      } while (last - start < 340);
+      const sorted = [...deltas].sort((a, b) => a - b);
+      results.push({ name, frames: deltas.length, p95ms: +sorted[Math.floor(sorted.length * .95)].toFixed(2), maxms: +Math.max(...deltas).toFixed(2), meanms: +(deltas.reduce((a, b) => a + b) / deltas.length).toFixed(2), maxCounterScaleError: Math.max(...scales), widths });
+    }
+    await sample('orb to hover', () => island.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' })));
+    await sample('hover to input', click);
+    await sample('input grows vertically', () => { prompt.value = 'A thought on its own line\n'.repeat(9); prompt.dispatchEvent(new Event('input')); });
+    prompt.value = ''; prompt.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 280));
+    await sample('close and reverse at 70ms', () => { close(); setTimeout(click, 70); });
+    await sample('input to orb', close);
+    return results;
+  });
+  writeFileSync(out(`island-${captureId}-morph-performance.json`), JSON.stringify(morphPerformance, null, 2));
+  for (const result of morphPerformance) {
+    assert.ok(result.frames >= 10); assert.ok(result.maxCounterScaleError < .02, 'content remains counter-scaled');
+    console.log(`MORPH ${result.name}: p95 ${result.p95ms} ms, max ${result.maxms} ms, mean ${result.meanms} ms, ${result.frames} frames`);
+  }
+  assert.ok(morphPerformance[0].widths.some(w => w > 44 && w < 224), 'hover passes through intermediate shapes');
+  assert.ok(morphPerformance[1].widths.some(w => w > 225 && w < 519), 'input passes through intermediate shapes');
+
+  await orb.hover(); await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'hover');
+  await page.waitForTimeout(300); assert.equal((await orb.boundingBox()).width, 225);
+  await shot('hover');
+  await orb.click(); await page.locator('#composer.open').waitFor();
+  await page.waitForTimeout(300);
+  assert.equal((await page.locator('#composer').boundingBox()).width, 520);
+  await shot('typing');
+  await page.locator('#orbMenuButton').press('Enter');
+  assert.equal(await page.locator('#orbMenu').getAttribute('aria-label'), 'Agent options');
+  await page.keyboard.press('End'); await page.keyboard.press('Home');
+  assert.match(await page.evaluate(() => document.activeElement.textContent), /Agent model/);
+  await page.keyboard.press('s'); await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#orbMenu').getAttribute('aria-label'), 'Status model');
+  assert.equal(await page.locator('#orbMenu [aria-checked="true"]').count(), 1);
+  await page.keyboard.press('f'); await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#toast').isVisible(), false, 'menu type-ahead does not trigger a canvas shortcut');
+  assert.equal(await page.evaluate(() => localStorage.getItem('aegis:status-model')), 'fake|fake');
+  await page.locator('#orbMenuButton').click(); await shot('options');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#orbMenu').isVisible(), false);
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'orbMenuButton');
+
   await prompt.fill('A sentence that grows the prompt across the board as more words are added here');
   assert.ok((await page.locator('#composer').boundingBox()).width > 500);
-  await page.screenshot({ path: out('agents-orb-expanded.png') });
+  await page.waitForTimeout(300); assert.equal((await page.locator('#composer').boundingBox()).width, 520);
+  await shot('typing-text');
   await prompt.fill('Write a useful report with some detail. '.repeat(400));
   const overflow = await prompt.evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
   assert.ok(overflow.height <= 400); assert.ok(overflow.scroll > overflow.height);
-  await page.screenshot({ path: out('agents-orb-scroll.png') });
+  await shot('typing-scroll');
   await prompt.fill('First line'); await prompt.press('Shift+Enter'); await prompt.press('x'); assert.equal(await prompt.inputValue(), 'First line\nx');
   await prompt.press('Escape'); assert.equal(await orb.isVisible(), true);
   await page.keyboard.press('/'); assert.equal(await page.locator('#composer').evaluate(el => getComputedStyle(el).transitionDuration), '0s');
-  await prompt.fill('Note without a model'); await page.locator('#dumpBtn').click();
+  assert.equal(await page.locator('#dumpBtn').count(), 0);
+  await prompt.fill('Note without a model'); await prompt.press('Meta+Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Note without a model'));
   await page.keyboard.press('/');
   const fakeBrief = 'FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'Made by an agent', x: 50, y: 50 }]);
-  await prompt.fill(fakeBrief); await prompt.press('Enter');
+  await prompt.fill(fakeBrief); await page.waitForFunction(() => !document.getElementById('send').disabled); await prompt.press('Enter');
   await page.locator('.agent-window').waitFor();
   await page.waitForFunction(() => document.getElementById('orbStatus').textContent === 'Organising the board into clear groups');
   const first = (await agents())[0].id;
   assert.equal(requests.filter(r => r.path === '/agents').length, 1);
   assert.deepEqual(requests.find(r => r.path === '/agents').data.statusModel, { provider: 'fake', modelId: 'fake' });
   await page.mouse.move(1100, 250); await page.locator('#askPill.working').waitFor();
-  await page.screenshot({ path: out('agents-orb-status.png') });
+  await shot('running');
   assert.equal(await page.locator('#agentsPanel').isVisible(), false);
-  await page.mouse.move((await orb.boundingBox()).x + 22, (await orb.boundingBox()).y + 22); await page.locator('#composer.open').waitFor();
-  assert.equal(await page.locator('.orb-activity').textContent(), 'Organising the board into clear groups');
+  await orb.click(); await page.locator('#composer.open').waitFor();
+  assert.equal(await page.locator('#composer .orb-activity').textContent(), 'Organising the board into clear groups');
+  await prompt.press('Escape');
   // Let the first request complete before continuing the same durable conversation.
   await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running), null, { timeout: 20000 });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'), null, { timeout: 20000 });
   const lineOrigin = await page.evaluate(id => { const win = JSON.parse(localStorage.getItem(`aegis:agent-window:${id}`)), dot = document.querySelector('.agent-line .origin'); return { x: +dot.getAttribute('cx'), y: +dot.getAttribute('cy'), expectedX: win.x + 170, expectedY: win.y + 36 }; }, first);
   assert.equal(lineOrigin.x, lineOrigin.expectedX); assert.equal(lineOrigin.y, lineOrigin.expectedY);
-  await page.keyboard.press('/'); await prompt.fill('Continue on this board'); await prompt.press('Enter');
+  await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'done');
+  await shot('done');
+  await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'idle');
+  await page.keyboard.press('Meta+k');
+  await page.waitForFunction(() => document.querySelector('#composer .island-turn.assistant'));
+  assert.match(await page.locator('#composer .island-turns').textContent(), /Made by an agent|Done: sorted/);
+  await shot('conversation');
+  await prompt.fill('Continue on this board'); await prompt.press('Enter');
   await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`))[0].brief === 'Continue on this board');
   assert.ok(requests.some(r => r.path === `/agents/${first}/message`)); assert.equal((await agents()).length, 1);
   await page.keyboard.press('/'); await prompt.fill(fakeBrief); await prompt.press('Alt+Enter');
@@ -69,8 +149,9 @@ try {
   await page.waitForFunction(async id => !(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).running, second);
   assert.ok(requests.some(r => r.path === `/agents/${second}/stop`));
   // Closing a running window never stops its agent. Reopen and frame from the orb menu.
-  await page.keyboard.press('/'); await page.locator('#orbMenuButton').click(); await page.locator('#orbMenu').getByRole('button', { name: 'New agent', exact: true }).click();
-  await prompt.fill(fakeBrief); await prompt.press('Enter');
+  await page.keyboard.press('/'); await page.locator('#orbMenuButton').click(); await page.locator('#orbMenu').getByRole('menuitem', { name: 'New agent', exact: true }).click();
+  assert.match(await prompt.getAttribute('placeholder'), /Ask about/);
+  await prompt.fill(fakeBrief); await page.waitForFunction(() => !document.getElementById('send').disabled); await prompt.press('Enter');
   await page.waitForFunction(() => document.querySelectorAll('.agent-window').length === 3);
   const third = (await agents()).find(a => ![first, second].includes(a.id)).id;
   const window = page.locator(`.agent-window[data-agent-id="${third}"]`);
@@ -85,12 +166,31 @@ try {
   await page.waitForTimeout(550); assert.equal(await follow.inputValue(), 'Keep working on this board');
   await follow.press('Enter'); await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).brief === 'Keep working on this board', third);
   assert.ok(requests.some(r => r.path === `/agents/${third}/message`));
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).running, third);
+  await page.keyboard.press('Meta+k');
+  await page.locator('#composer .island-stop').click();
+  await page.waitForFunction(async id => !(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).running, third);
+  assert.ok(requests.some(r => r.path === `/agents/${third}/stop`));
+  await prompt.press('Escape');
+
   // Global and OS motion settings freeze both layers, including after reopening the composer.
   await page.mouse.move(1250, 80); await page.evaluate(() => document.getElementById('composer').dispatchEvent(new Event('close-composer')));
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  const gentleOpen = async () => page.evaluate(() => {
+    document.getElementById('askPill').dispatchEvent(new MouseEvent('click', { detail: 1 }));
+    const shell = document.querySelector('#agentIsland .island-morph');
+    return { transform: getComputedStyle(shell).transform, properties: shell.getAnimations({ subtree: true }).flatMap(a => a.effect.getKeyframes().flatMap(k => Object.keys(k))).filter(k => !['offset', 'computedOffset', 'easing', 'composite'].includes(k)) };
+  });
+  let gentle = await gentleOpen();
+  assert.equal(gentle.transform, 'none'); assert.ok(gentle.properties.every(p => p === 'opacity'));
+  await prompt.press('Escape');
+
   assert.equal(await page.locator('#askPill .orb-colours').evaluate(el => getComputedStyle(el).animationName), 'none');
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => document.body.classList.add('motion-off'));
   assert.equal(await page.locator('#askPill .orb-light').evaluate(el => getComputedStyle(el).animationName), 'none');
+  gentle = await gentleOpen(); assert.equal(gentle.transform, 'none'); assert.ok(gentle.properties.every(p => p === 'opacity'));
+  await prompt.press('Escape');
+
   await page.evaluate(() => document.body.classList.remove('motion-off'));
   await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: true }); document.dispatchEvent(new Event('visibilitychange')); });
   assert.equal(await page.locator('#askPill .orb-colours').evaluate(el => getComputedStyle(el).animationPlayState), 'paused');
@@ -102,18 +202,44 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:model')), 'fake|fake');
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:status-model')), 'fake|fake');
   await page.locator('#closeSettings').click();
+  // The full durable transcript appears in both places and survives a page reload.
+  await page.waitForFunction(async id => { const a = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id); return !a.running && a.turns.length >= 4; }, first);
+  const longFollow = page.locator(`.agent-window[data-agent-id="${first}"]`).getByLabel('Follow up with agent');
+  await longFollow.fill('Explain these ideas in more detail. '.repeat(160)); await longFollow.press('Enter');
+  await page.waitForFunction(async id => { const a = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id); return !a.running && a.turns.length >= 6; }, first);
+  await page.keyboard.press('Meta+k');
+  await page.waitForFunction(() => { const el = document.querySelector('#composer .island-turns'); return el.scrollHeight > el.clientHeight; });
+  const chat = await page.locator('#composer .island-turns').evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
+  assert.ok(chat.scroll > chat.height); assert.equal(await prompt.isVisible(), true);
+  await shot('conversation-scroll'); await prompt.press('Escape');
+  const transcript = (await agents()).find(a => a.id === first).turns;
+  assert.equal(await page.locator(`.agent-window[data-agent-id="${first}"] .island-turn`).count(), transcript.length);
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await page.waitForFunction(id => document.querySelector(`.agent-window[data-agent-id="${id}"] .island-turn`), first);
+  assert.equal(await page.locator(`.agent-window[data-agent-id="${first}"] .island-turn`).count(), transcript.length);
+  assert.ok((await page.locator(`.agent-window[data-agent-id="${first}"]`).textContent()).includes('Continue on this board'));
+  // The phone Agents sheet borrows the same composer, including its options menu.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#mobileHub').getByRole('button', { name: 'Agents', exact: true }).click();
+  await choose('Agent count', '1 agent');
+  assert.equal(await prompt.isVisible(), true);
+  await page.getByRole('button', { name: 'Close sheet', exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  assert.equal(await orb.isVisible(), true);
   // Explicit count still spawns multiple agents, and signed-out providers still open Accounts.
-  await page.keyboard.press('/'); await page.locator('#count').selectOption('2'); await prompt.fill(fakeBrief); await prompt.press('Enter');
+  await page.keyboard.press('/'); await choose('Agent count', '2 agents'); await prompt.fill(fakeBrief); await page.waitForFunction(() => !document.getElementById('send').disabled); await prompt.press('Enter');
   await page.waitForFunction(() => document.querySelectorAll('.agent-window').length === 5);
   assert.equal(requests.filter(r => r.path === '/agents').at(-1).data.count, 2);
-  await page.keyboard.press('/'); await page.locator('#count').selectOption('1');
-  await page.locator('#orbMenuButton').click(); await page.locator('#orbMenu').getByRole('button', { name: 'New agent', exact: true }).click();
+  await page.keyboard.press('/'); await choose('Agent count', '1 agent');
+  await page.locator('#orbMenuButton').click(); await page.locator('#orbMenu').getByRole('menuitem', { name: 'New agent', exact: true }).click();
+  assert.match(await prompt.getAttribute('placeholder'), /Ask about/);
   const locked = await page.locator('#model option').evaluateAll(options => options.find(o => o.value.startsWith('openai|')).value);
-  await page.locator('#model').selectOption(locked); await prompt.fill('Write a report'); const beforeSignIn = requests.length; await prompt.press('Enter');
+  const lockedName = await page.locator('#model option').evaluateAll((options, value) => options.find(o => o.value === value).textContent, locked);
+  await choose('Agent model', lockedName); await prompt.fill('Write a report'); const beforeSignIn = requests.length; await prompt.press('Enter');
   await page.locator('#settings[open]').waitFor(); assert.equal(await page.locator('#settings-tab-accounts').getAttribute('aria-selected'), 'true');
   assert.match(await page.locator('#toast').textContent(), /Sign in to ChatGPT first/); assert.equal(requests.length, beforeSignIn);
   await page.locator('#closeSettings').click();
   assert.deepEqual(errors, []);
-  console.log('PASS orb idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models, motion and hidden-page pause');
-} catch (e) { console.error(e); console.error('page errors', errors); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }
+  console.log('PASS island idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models and menu keyboard navigation, fade-only motion, durable chat reload, phone options and hidden-page pause');
+} catch (e) { writeFileSync(out(`island-${captureId}-failure.log`), String(e.stack ?? e)); console.error(e); console.error('page errors', errors); console.error('requests', requests); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }
 finally { await browser.close(); host.kill(); vite.kill(); }

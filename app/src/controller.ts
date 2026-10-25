@@ -267,12 +267,13 @@ const promptEl = $('prompt');
 const agentUi = mountAgents({ canvas, host, toast, showAll: () => showAgents(true) });
 const openComposer = agentUi.open, closeComposer = agentUi.close;
 let forceNewAgent = false;
+let composerViaKey = false;
 promptEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNotes(); }
-  else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); forceNewAgent = e.altKey; $('composer').requestSubmit(); }
+  else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); composerViaKey = true; forceNewAgent = e.altKey; $('composer').requestSubmit(); }
 });
-$('dumpBtn').onclick = addNotes;
-$('send').addEventListener('click', e => { forceNewAgent = e.altKey; });
+$('composer').addEventListener('add-as-notes', addNotes);
+$('send').addEventListener('click', e => { composerViaKey = e.detail === 0; forceNewAgent = e.altKey; });
 // Each line (or paragraph) becomes a note, laid out near the middle of the view.
 function addNotes() {
   const lines = promptEl.value.split(/\n{2,}|\n(?=[-*•]\s)|\n/).map(s => s.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
@@ -281,7 +282,7 @@ function addNotes() {
   const commands = lines.map((text, i) => ({ op: 'create', type: /^https?:\/\/\S+$/.test(text) ? 'link' : 'note', text: /^https?:\/\//.test(text) ? '' : text, url: /^https?:\/\/\S+$/.test(text) ? text : undefined, ref: 'n' + i }));
   commands.push({ op: 'layout', ids: lines.map((_, i) => '$n' + i), shape: 'grid', cols: Math.min(4, lines.length), x: Math.round(c.x - 380), y: Math.round(c.y - 120) });
   apply(commands);
-  promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer();
+  promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer(true);
 }
 $('composer').addEventListener('submit', async e => {
   e.preventDefault();
@@ -297,15 +298,20 @@ $('composer').addEventListener('submit', async e => {
   const sel = canvas.selection();
   const full = sel.length ? `${brief}\n\n(Work on the selected cards: ${sel.join(', ')}.)` : brief;
   $('send').disabled = true;
+  const draft = promptEl.value;
+  if (!current) agentUi.starting();
+  promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer(composerViaKey);
   try {
     if (current) await host.post(`/agents/${current.id}/message`, { content: full });
     else {
       const spawned = await host.post('/agents', { boardId: canvas.board.id, brief: full, model: { provider, modelId }, statusModel: modelChoice(localStorage.getItem('aegis:status-model')), count });
       agentUi.sent(spawned[0]?.id);
     }
-    promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer();
     await refreshAgents();
-  } catch (err) { toast(err.message); }
+  } catch (err) {
+    if (!promptEl.value) { promptEl.value = draft; openComposer(true); }
+    toast(err.message);
+  }
   finally { $('send').disabled = false; }
 });
 async function loadModels() {

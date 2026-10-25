@@ -1,59 +1,100 @@
 import './style.css';
+import { createIslandMorph } from './morph.js';
+import { mountIslandMenu } from './menu.js';
 
 const STAR = '<span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span>';
 const shortTitle = a => (a.title || a.brief?.split('\n')[0] || 'Board assistant').replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 42);
 
+function renderTurns(el, agent) {
+  const turns = [...(agent?.turns ?? [])];
+  if (!turns.length && agent?.brief) turns.push({ id: 'request', role: 'user', text: agent.brief });
+  if (!agent?.turns && agent?.text) turns.push({ id: 'answer', role: 'assistant', text: agent.text });
+  if (agent?.partial) turns.push({ id: 'streaming', role: 'assistant', text: agent.partial });
+  const signature = JSON.stringify(turns);
+  if (el.dataset.turns === signature) return;
+  const follow = el.scrollHeight - el.scrollTop - el.clientHeight < 36;
+  el.dataset.turns = signature;
+  const nodes = turns.map(turn => {
+    const row = document.createElement('div'); row.className = `island-turn ${turn.role}`;
+    const label = document.createElement('span'); label.className = 'turn-author'; label.textContent = turn.role === 'user' ? 'You' : 'Agent';
+    const text = document.createElement('p'); text.textContent = turn.text; row.append(label, text); return row;
+  });
+  el.replaceChildren(...nodes);
+  if (follow) el.scrollTop = el.scrollHeight;
+}
+
 export function mountAgents({ canvas, host, toast, showAll }) {
   const $ = id => document.getElementById(id);
-  const orb = $('askPill'), composer = $('composer'), prompt = $('prompt'), stage = $('stage');
-  orb.className = 'ask-orb'; orb.innerHTML = STAR + '<span class="orb-status" id="orbStatus"></span>';
-  const recent = document.createElement('div'); recent.className = 'orb-recent'; recent.hidden = true;
-  recent.innerHTML = '<p class="orb-activity"></p><p class="orb-answer"></p>'; composer.prepend(recent);
-  const menuButton = document.createElement('button'); menuButton.type = 'button'; menuButton.id = 'orbMenuButton'; menuButton.className = 'text-btn'; menuButton.textContent = 'Options'; menuButton.setAttribute('aria-expanded', 'false'); menuButton.setAttribute('aria-controls', 'orbMenu');
-  const menu = document.createElement('div'); menu.id = 'orbMenu'; menu.className = 'orb-menu'; menu.hidden = true;
-  composer.append(menu); composer.querySelector('.composer-row').prepend(menuButton);
+  const island = $('agentIsland'), orb = $('askPill'), composer = $('composer'), prompt = $('prompt'), stage = $('stage');
+  const head = composer.querySelector('.island-head'), history = composer.querySelector('.island-turns');
   const overlay = document.createElement('div'); overlay.className = 'agent-windows'; stage.append(overlay);
-  const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, restoringFocus = false, hoverSuppressed = false, pointer = null;
-  const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent && windows.has(a.id)) ?? all.find(a => !a.parent);
-  function resize() {
-    const longest = Math.max(...prompt.value.split('\n').map(s => s.length), 0);
-    composer.style.width = `${Math.min(innerWidth - 24, 640, Math.max(360, 240 + longest * 6))}px`;
+  const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, doneTimer = 0, restoringFocus = false, hoverSuppressed = false;
+  const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
+  const morph = createIslandMorph(island);
+  const menu = mountIslandMenu({ island, current, shortTitle, agents: () => all,
+    newAgent: () => { newAgent = true; closeMenu(); renderOrb(); open(true); }, show: id => show(id), showAll });
+  const closeMenu = () => menu.close();
+  const expanded = () => ['typing', 'conversation'].includes(island.dataset.state);
+  function sizeInput() {
     prompt.style.height = '0px';
     prompt.style.height = `${Math.min(Math.floor(innerHeight * .4), Math.max(26, prompt.scrollHeight))}px`;
   }
+  function state(next, instant = false) {
+    clearTimeout(leaveTimer); clearTimeout(doneTimer);
+    const old = island.dataset.state;
+    morph(() => {
+      island.dataset.state = next;
+      const open = expanded();
+      composer.classList.toggle('instant', instant); composer.classList.toggle('open', open); composer.inert = !open;
+      orb.hidden = open; orb.setAttribute('aria-expanded', String(open));
+      if (open) sizeInput(); else closeMenu();
+    }, { instant, crossfade: old !== next });
+    if (next === 'done') doneTimer = setTimeout(() => { if (island.dataset.state === 'done') state('idle'); }, 3600);
+  }
   function open(instant = false, focus = true) {
-    clearTimeout(leaveTimer); composer.classList.toggle('instant', instant); composer.hidden = false; composer.inert = false;
-    composer.classList.add('open'); orb.hidden = true; orb.setAttribute('aria-expanded', 'true'); resize();
+    // The phone's Agents sheet temporarily borrows the composer. Keep its menu with it.
+    const inSheet = !island.contains(composer);
+    island.hidden = inSheet;
+    if (inSheet) composer.append($('orbMenu'));
+    renderOrb(); state(current() ? 'conversation' : 'typing', instant);
+    history.scrollTop = history.scrollHeight;
     if (focus) prompt.focus({ preventScroll: true });
   }
   function close(instant = false) {
-    clearTimeout(leaveTimer); composer.classList.toggle('instant', instant); composer.classList.remove('open'); composer.inert = true;
-    menu.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); orb.hidden = false; orb.setAttribute('aria-expanded', 'false');
-    const r = orb.getBoundingClientRect();
-    hoverSuppressed = !!pointer && pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom;
-    if (composer.contains(document.activeElement)) {
-      restoringFocus = true; orb.focus({ preventScroll: true }); restoringFocus = false;
-    }
+    if (island.contains(composer)) { island.hidden = false; island.append($('orbMenu')); }
+    const hadFocus = island.contains(document.activeElement);
+    state(current()?.running ? 'running' : 'idle', instant);
+    hoverSuppressed = island.matches(':hover');
+    if (hadFocus) { restoringFocus = true; orb.focus({ preventScroll: true }); restoringFocus = false; }
   }
   orb.onclick = e => open(e.detail === 0);
-  document.addEventListener('pointermove', e => { pointer = { x: e.clientX, y: e.clientY }; }, { passive: true });
-  orb.addEventListener('pointerenter', e => { pointer = { x: e.clientX, y: e.clientY }; if (!hoverSuppressed && e.pointerType !== 'touch') open(false, false); });
-  orb.addEventListener('pointerleave', () => { hoverSuppressed = false; });
-  orb.addEventListener('focus', () => { if (!restoringFocus) open(true); });
-  composer.addEventListener('pointerenter', () => clearTimeout(leaveTimer));
-  composer.addEventListener('pointerleave', () => {
-    leaveTimer = setTimeout(() => { if (!prompt.value.trim() && menu.hidden && (current()?.running || !composer.contains(document.activeElement))) close(); }, 280);
+  island.addEventListener('pointerenter', e => {
+    clearTimeout(leaveTimer);
+    if (!hoverSuppressed && e.pointerType !== 'touch' && matchMedia('(hover: hover) and (pointer: fine)').matches && island.dataset.state === 'idle') state('hover');
   });
-  composer.addEventListener('focusout', () => setTimeout(() => {
-    if (!composer.contains(document.activeElement) && !composer.matches(':hover') && !prompt.value.trim()) close();
-  }, 0));
-  stage.addEventListener('pointerdown', () => { if (composer.classList.contains('open')) close(); }, true);
+  island.addEventListener('pointerleave', () => {
+    hoverSuppressed = false;
+    leaveTimer = setTimeout(() => { if (island.dataset.state === 'hover') state('idle'); }, 160);
+  });
+  orb.addEventListener('focus', () => { if (!restoringFocus) open(true); });
+  stage.addEventListener('pointerdown', () => { if (expanded()) close(); }, true);
   composer.addEventListener('open-composer', () => open(true));
   composer.addEventListener('close-composer', () => { if (!prompt.value.trim()) close(true); });
-  prompt.addEventListener('input', resize);
-  addEventListener('resize', resize);
-  composer.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); } });
-  // Hiding the page pauses only the two tiny colour layers, no drawing loop is needed.
+  addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
+      e.preventDefault(); e.stopImmediatePropagation(); open(true);
+    } else if (menu.contains(e.target)) {
+      // Menu keys must reach the menu before the canvas's capture-phase shortcuts.
+      menu.keydown(e); e.stopImmediatePropagation();
+    }
+  }, true);
+  prompt.addEventListener('input', () => morph(sizeInput));
+  addEventListener('resize', () => morph(sizeInput, { instant: true }));
+  composer.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
+  });
+  composer.querySelector('.island-collapse').onclick = e => close(e.detail === 0);
+  composer.querySelector('.island-stop').onclick = () => { const a = current(); if (a) stop(a.id); };
   const visibility = () => document.body.classList.toggle('agents-hidden', document.hidden);
   document.addEventListener('visibilitychange', visibility); visibility();
   function save(w) { localStorage.setItem(`aegis:agent-window:${w.agent.id}`, JSON.stringify({ x: w.x, y: w.y, closed: w.closed })); }
@@ -69,8 +110,12 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     const at = canvas.centre(), offset = [...windows.values()].filter(w => w.agent.boardId === a.boardId).length * 36;
     const w = { agent: a, x: saved?.x ?? at.x - 170 + offset, y: saved?.y ?? at.y - 180 + offset, closed: saved?.closed ?? false, moved: !!saved, el: document.createElement('section') };
     w.el.className = 'agent-window'; w.el.dataset.agentId = a.id; w.el.setAttribute('aria-label', 'Agent window');
-    w.el.innerHTML = `<header class="agent-window-strip">${STAR}<span class="agent-window-title"></span><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><p class="agent-window-status" role="status"></p><p class="agent-window-answer"></p><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
+    w.el.innerHTML = `<header class="agent-window-strip">${STAR}<span class="agent-window-title"></span><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><p class="agent-window-status" role="status"></p><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
     w.el.addEventListener('pointerdown', e => { e.stopPropagation(); selectedId = a.id; newAgent = false; renderOrb(); });
+    w.el.addEventListener('focusin', () => {
+      if (selectedId === a.id && !newAgent) return;
+      selectedId = a.id; newAgent = false; renderOrb(true);
+    });
     for (const type of ['dblclick', 'wheel']) w.el.addEventListener(type, e => e.stopPropagation());
     w.el.addEventListener('keydown', e => { if (['Enter', ' ', 'Backspace', 'Delete'].includes(e.key)) e.stopPropagation(); });
     w.el.querySelector('.agent-close').onclick = () => { w.closed = true; w.el.hidden = true; save(w); };
@@ -100,24 +145,23 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     w.el.hidden = false; paint(); renderOrb();
   }
   async function stop(id) { try { await host.post(`/agents/${id}/stop`); } catch (e) { toast(e.message); } }
-  function renderMenu() {
-    menu.replaceChildren();
-    const add = (label, run) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { run(); menu.hidden = true; menuButton.setAttribute('aria-expanded', 'false'); }; menu.append(b); };
-    add('New agent', () => { newAgent = true; renderOrb(); prompt.focus(); });
-    add('All agents', showAll);
-    const title = document.createElement('p'); title.textContent = 'Agents'; menu.append(title);
-    for (const a of all) add(shortTitle(a), () => show(a.id));
-  }
-  menuButton.onclick = () => { renderMenu(); menu.hidden = !menu.hidden; menuButton.setAttribute('aria-expanded', String(!menu.hidden)); };
-  function renderOrb() {
-    const a = current(), running = !!a?.running;
-    orb.classList.toggle('working', running); $('orbStatus').textContent = running ? a.status || 'Considering your request and the board' : '';
-    recent.hidden = !a; recent.querySelector('.orb-activity').textContent = a?.status || '';
-    recent.querySelector('.orb-answer').textContent = a?.text || '';
-    prompt.placeholder = a ? 'Follow up with this agent…' : 'Ask about your board…';
-    composer.classList.toggle('has-agent', !!a);
+  function renderOrb(instant = false) {
+    morph(() => {
+      const a = current(), running = !!a?.running;
+      orb.classList.toggle('working', running);
+      $('orbStatus').textContent = running ? a.status || 'Considering your request and the board' : a?.error || (a?.text ? a.text.replace(/\s+/g, ' ').slice(0, 130) : 'Ready for your next request');
+      head.hidden = !a; history.hidden = !a;
+      head.querySelector('.orb-activity').textContent = a?.error || a?.status || '';
+      head.querySelector('.island-stop').hidden = !running;
+      island.classList.toggle('failed', !!a?.error);
+      renderTurns(history, a);
+      prompt.placeholder = a ? 'Follow up with this agent…' : 'Ask about your board…';
+      $('send').setAttribute('aria-label', a ? 'Send follow-up' : 'Start agent');
+      if (expanded()) { island.dataset.state = a ? 'conversation' : 'typing'; sizeInput(); }
+    }, { instant });
   }
   function update(agents) {
+    const previous = current();
     all = agents;
     for (const w of windows.values()) w.el.hidden = w.closed || !all.some(a => a.id === w.agent.id);
     for (const a of all) {
@@ -125,10 +169,15 @@ export function mountAgents({ canvas, host, toast, showAll }) {
       w.el.classList.toggle('running', a.running); w.el.classList.toggle('failed', !!a.error);
       w.el.querySelector('.agent-window-title').textContent = `Agent · ${shortTitle(a)}`;
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
-      w.el.querySelector('.agent-window-answer').textContent = a.text || '';
+      renderTurns(w.el.querySelector('.agent-window-answer'), a);
       w.el.querySelector('.agent-stop').hidden = !a.running;
     }
     renderOrb(); paint();
+    const a = current();
+    if (!expanded()) {
+      if (a?.running && island.dataset.state !== 'running') state('running');
+      else if (previous?.running && a && !a.running) state('done');
+    }
   }
   function near(id, ids) {
     const w = windows.get(id); if (!w || w.moved) return;
@@ -138,7 +187,8 @@ export function mountAgents({ canvas, host, toast, showAll }) {
   }
   return { open, close, update, current, show, stop, near,
     wantsNew: () => newAgent,
-    sent(id) { selectedId = id; newAgent = false; },
+    starting() { newAgent = false; },
+    sent(id) { selectedId = id; },
     origin(id) { const w = windows.get(id); return w && !w.closed ? { x: w.x + 170, y: w.y + 36 } : undefined; },
   };
 }

@@ -2,6 +2,9 @@
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
+// item 9: publish durable conversation replies to the island and agent windows.
+import { conversationFromView } from './status.mjs';
+// item 9 end
 import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
@@ -389,15 +392,23 @@ const editBoard = boardTool({
 // end item 10
 // ---------- objects: Zephium-style typed results (create, revise) ----------
 const SCHEMAS = objectSchemas();
+// item 9: object guidance must never turn conversational replies into board content.
+const REPLY_GUIDANCE = 'Chat lives in the island conversation, not on the board. Only create cards or objects when the person asked for content to keep on the board, such as a chart, document, plan or saved note. For "clean up this board", "tidy this board" or "what is on this board", edit or read the existing cards and answer in your final assistant text. Create zero new reply or note cards for those requests. A reply object is only for an explicit request to save an answer as a card. Never add a reply object as a preamble to other objects. Your final assistant text is the conversation reply.';
+const conversationObjectGuide = OBJECT_GUIDE.split('\n').filter(line => !line.startsWith('- reply:')).join('\n') + '\n' + REPLY_GUIDANCE;
+// item 9 end
 const createObject = defineTool({
   name: 'create',
-  description: `Places one object on the board and returns its id. Objects are the result the person came for: a reply, a chart, a sheet, a diagram, a plan, a list or code. The app draws and lays them out.\n${OBJECT_GUIDE}\nWhen it returns a fault, correct the named field and call it again.`,
+  // item 9
+  description: `Places requested content on the board and returns its id: a chart, sheet, diagram, plan, list or code. The app draws and lays them out.\n${conversationObjectGuide}\nWhen it returns a fault, correct the named field and call it again.`,
+  // item 9 end
   parameters: Type.Object({
     kind: Type.Union(OBJECT_KINDS.map(k => Type.Literal(k))),
     title: Type.String({ maxLength: 60, description: 'What the object is, in a few words: Weekly activity, Idea to outcome. Not used for reply.' }),
     data: Type.Object({}, { additionalProperties: true, description: 'The object data, following the schema whose title is the kind. Schemas: ' + JSON.stringify(SCHEMAS) }),
     near: Type.Optional(Type.String({ description: 'An existing card or object id to place it beside.' })),
-    below: Type.Optional(Type.String({ description: 'An existing card or object id to place it under, e.g. the reply.' })),
+    // item 9
+    below: Type.Optional(Type.String({ description: 'An existing card or object id to place the requested content under.' })),
+    // item 9 end
   }),
   execute: async (args, api) => {
     const id = boardOf(api); if (!id) return text('This conversation has no board.');
@@ -505,7 +516,9 @@ const finishPart = defineTool({
   parameters: Type.Object({ summary: Type.String({ maxLength: 60 }), digest: Type.String({ maxLength: 3000 }), found: Type.Boolean() }),
   execute: async (args, api) => {
     const id = String(api.conversationId ?? ''); const meta = run.get(id);
-    if (!meta?.parent) throw new Error('Only a part calls finish. Answer the person with objects instead.');
+    // item 9
+    if (!meta?.parent) throw new Error('Only a part calls finish. Answer the person in your final assistant text.');
+    // item 9 end
     Object.assign(meta, { digest: args.digest, summary: args.summary, found: args.found });
     await atomicJson(runsPath, Object.fromEntries(run));
     return text('Handed to the lead. Stop now.');
@@ -518,16 +531,24 @@ const BoardExtension = defineExtension({
   sections: [section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
     'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',
-    'Two ways to change the board. board_apply moves, groups and edits the person\'s own cards (notes, titles, todos, links) and makes board pieces: documents, shapes, swatches, collections and wireframe screens (its description lists each type and its props). create and revise place objects: typed results the app draws well (charts, sheets, diagrams, plans, lists, code, and a reply on top).',
+    // item 9
+    'Two ways to change the board. board_apply moves, groups and edits the person\'s own cards (notes, titles, todos, links) and makes requested board pieces: documents, shapes, swatches, collections and wireframe screens. create and revise place requested objects: charts, sheets, diagrams, plans, lists and code.',
+    REPLY_GUIDANCE,
+    // item 9 end
     'A wireframe is a frame card with box, text and icon cards inside it, each with parent set to the frame id and placed within its bounds. A long write-up goes in a doc card with Markdown in props.body.',
-    'When the person asks for a result (an answer, an analysis, a comparison, a chart, a flow, a plan), make objects, never imitate them with notes: no text bar charts, no boxes drawn from notes.',
-    'What you make: the one result the person came for, plus a reply on top: a headline and one to three sentences that answer the request. The reply never restates an object beside it. Place the reply first, then each object below or beside it (below: the reply id).',
+    // item 9
+    'When the person asks to create content (a chart, comparison, flow, document or plan), make the requested objects, never imitate them with notes: no text bar charts, no boxes drawn from notes. Questions, explanations, status reports and confirmations belong in conversation. Arrange requested objects beside or below existing content without a reply card.',
+    // item 9 end
     'One object per purpose. Keep text short and exact; cells hold values, not sentences. On a follow-up, revise the objects it changes instead of adding copies.',
-    'Honest results: show only what you found or know. Never invent numbers, sources or links. When values are your own knowledge or made up for a demo, say so in basis (and knowledge true) or in the reply.',
+    // item 9
+    'Honest results: show only what you found or know. Never invent numbers, sources or links. When values are your own knowledge or made up for a demo, say so in basis (and knowledge true) or in your conversation reply.',
+    // item 9 end
     'Sorting a brain dump: group related ideas under a title card, pull tasks into todo cards, connect related cards, and finish with a focus command on what you made.',
     'Big jobs: split independent work into parts with start_part, several in one turn so they run together; a part is one purpose, not one step. Build the result from their digests. A small question needs no parts.',
     'If you are a part (your first message says "Part"), work only toward its goal, place at most one object, then call finish with your digest. Never start parts.',
-    'Australian English. Text outside tool calls is only a short status line; the person reads the board, so every answer goes into objects or cards.',
+    // item 9
+    'Australian English. Give a useful final assistant answer in conversation. After editing the board, briefly explain what changed. For a question, answer it directly. Never save chat to the board unless the person explicitly asks.',
+    // item 9 end
   ].join('\n'), { tag: false }),
   // item 11: layout guidance is deliberately separate from conversational reply policy.
   section('aegis-layout', () => [
@@ -586,14 +607,17 @@ async function watchRun(conversation) {
 function summarise(id, value) {
   const live = value.docs?.['pi.live']; const meta = run.get(id) ?? {};
   const entries = value.entries ?? [];
-  const lastAnswer = entries.findLast(e => e.kind === 'pi.assistant');
-  const answer = lastAnswer?.model?.[0]?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
+  // item 9: retain complete final answers and chat history, not a truncated status excerpt.
+  const conversation = conversationFromView(value);
+  // item 9 end
   const tools = Object.values(live?.tools ?? {}).map(t => t.name ?? t.call?.name).filter(Boolean);
   const partial = live?.generation?.message?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
   return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ?? null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
-    text: (partial || answer).slice(-600), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
+    // item 9
+    ...conversation, error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
+    // item 9 end
 }
 async function spawnAgent({ boardId, brief, model, statusModel, parent, title }) {
   // item 10: include compact context immediately and use low effort for mechanical layout work.
