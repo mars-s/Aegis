@@ -25,10 +25,11 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: https: http://127.0.0.1:*; media-src 'self' blob: https: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: https: http://127.0.0.1:*; media-src 'self' blob: https: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-src https://open.spotify.com"
     }
   },
   "bundle": {
+    "macOS": { "infoPlist": "Info.plist", "entitlements": "Entitlements.plist" },
     "active": true,
     "targets": [
       "app"
@@ -44,6 +45,7 @@
     ],
     "resources": {
       "../agent/server.mjs": "agent/server.mjs",
+      "../app/src/features/media/link-preview.mjs": "app/src/features/media/link-preview.mjs",
       "../agent/package.json": "agent/package.json",
       "../agent/node_modules": "agent/node_modules",
       "../agent/library.mjs": "agent/library.mjs",

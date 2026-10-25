@@ -44,3 +44,8 @@ export const registerPanel = (p: Panel) => put(panels, p);
 export const registerCommand = (c: Command) => put(commands, c);
 export const registerCardMenu = (m: MenuItem) => put(cardMenu, m);
 export const registerBoardMenu = (m: MenuItem) => put(boardMenu, m);
+
+// A feature can add relevant buttons to the floating selection bar. Return a cleanup for editors.
+export type SelectionControl = { id: string; when?(ctx: Ctx): boolean; mount(el: HTMLElement, ctx: Ctx): void | (() => void) };
+export const selectionControls: SelectionControl[] = [];
+export const registerSelectionControl = (control: SelectionControl) => put(selectionControls, control);

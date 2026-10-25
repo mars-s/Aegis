@@ -10,6 +10,7 @@ import { createMenu } from './chrome/menu.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
+import { mountEditing } from './features/editing/main.js';
 
 export async function start() {
 const $ = id => document.getElementById(id);
@@ -32,13 +33,16 @@ const objects = mountObjects({ host, apply: (commands) => apply(commands) });
 // ---------- boards ----------
 let pending = Promise.resolve();
 async function openBoard(id) {
+  await pending;
   const b = await host.get(`/boards/${id}`);
   canvas.setBoard(b); localStorage.setItem('aegis:board', id);
   $('boardName').textContent = b.name; refreshEmpty(); refreshAgents();
   library.render(); layers.update(); hideShow();
 }
 async function reloadBoard(focus) {
-  const b = await host.get(`/boards/${canvas.board.id}`);
+  const id = canvas.board.id;
+  const b = await host.get(`/boards/${id}`);
+  if (canvas.board.id !== id) return;
   if (b.rev <= canvas.board.rev && !focus) return;
   canvas.setBoard(b); refreshEmpty();
   if (focus?.ids?.length) followTo(focus.ids);
@@ -77,7 +81,8 @@ $('sideBtn').onclick = () => panels.toggle();
 const library = createLibrary({ el: document.querySelector('[data-panel="library"]'), host, current: () => canvas.board?.id, openBoard, toast });
 const layers = createLayers({
   el: document.querySelector('[data-panel="layers"]'), count: $('layerCount'), getBoard: () => canvas.board,
-  onPick: (id, add) => { canvas.select(add ? [...new Set([...canvas.selection(), id])] : [id]); if (!add) canvas.frameIds([id], canvas.view.z); },
+  onPick: (id, add) => { canvas.select(add ? canvas.selection().includes(id) ? canvas.selection().filter(key => key !== id) : [...canvas.selection(), id] : [id]); if (!add) canvas.frameIds([id], canvas.view.z); },
+  onUpdate: commands => apply(commands),
   onOrder: (id, to) => apply([{ op: 'order', ids: [id], to }]),
 });
 
@@ -182,7 +187,7 @@ stageEl.addEventListener('drop', e => {
   const v = canvas.view; addMedia(e.dataTransfer.files, { x: (e.clientX - v.x) / v.z, y: (e.clientY - v.y) / v.z });
 });
 addEventListener('paste', async e => {
-  if (e.target.closest?.('textarea, input, [contenteditable]')) return;
+  if (e.defaultPrevented || e.target.closest?.('textarea, input, [contenteditable]')) return;
   if (e.clipboardData.files.length && await addMedia(e.clipboardData.files)) { e.preventDefault(); return; }
   const text = e.clipboardData.getData('text/plain').trim();
   if (/^https?:\/\/\S+$/.test(text)) {
@@ -349,7 +354,7 @@ addEventListener('keydown', e => {
   if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
   if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/' || e.key === 'k') { e.preventDefault(); promptEl.focus(); } return; }
   if (e.key === 'a') showAgents($('agentsPanel').hidden);
-  if (e.key === 'f') setFollow(!follow);
+  if (e.key.toLowerCase() === 'f' && e.shiftKey) setFollow(!follow);
   if (e.key === '\\') panels.toggle();
   if (TOOL_KEYS[e.key]) pickTool(TOOL_KEYS[e.key]);
   else { const t = registry.tools.find(x => x.key === e.key); if (t) pickTool(t.id); }
@@ -359,6 +364,7 @@ addEventListener('keydown', e => {
 // ---------- feature context: what features may use ----------
 const ctx = { apply: (c, done) => apply(c, done), canvas, host, toast: m => toast(m), selection: () => canvas.selection() };
 window.aegisCtx = ctx;
+const editing = mountEditing(ctx);
 // Right-click: feature menu items for the cards under the pointer, or the board's own items on empty canvas.
 const menu = createMenu();
 function showContext(x, y, at, ids) {
@@ -396,7 +402,7 @@ await library.refresh();
 await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
-window.aegis = { canvas, host, apply };
+window.aegis = { canvas, host, apply, editing };
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.
-if (location.protocol === 'http:' && !location.port.startsWith('517')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; if (r !== 'ok') toast(`Native bridge: ${r}`); });
+if (location.protocol === 'http:' && location.pathname.startsWith('/ui/')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; if (r !== 'ok') toast(`Native bridge: ${r}`); });
 }

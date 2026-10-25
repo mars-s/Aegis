@@ -7,12 +7,13 @@
 <header class="bar" data-tauri-drag-region>
   <div class="bar-left" data-tauri-drag-region>
     <button class="icon-btn" id="sideBtn" title="Side bar (\)" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
+    <nav class="board-crumbs" id="boardCrumbs" aria-label="Board breadcrumbs"></nav>
     <span class="board-name" id="boardName" data-tauri-drag-region>Untitled</span>
   </div>
   <div class="bar-right">
     <span class="status" id="status" aria-live="polite"></span>
     <button class="chip" id="showChip" hidden>Show</button>
-    <button class="follow" id="followBtn" role="switch" aria-checked="true" title="Follow agents (F): the camera glides to what agents make"><span class="knob"></span>Follow</button>
+    <button class="follow" id="followBtn" role="switch" aria-checked="true" title="Follow agents (Shift+F): the camera glides to what agents make"><span class="knob"></span>Follow</button>
     <button class="icon-btn" id="agentsBtn" title="Agents (A)" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3M7.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span class="count" id="agentCount" hidden></span></button>
     <button class="icon-btn" id="settingsBtn" title="Settings"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
   </div>
@@ -40,8 +41,9 @@
       <div><kbd>space</kbd><span>+ drag to pan</span></div>
       <div><kbd>⌘</kbd><kbd>scroll</kbd><span>zoom</span></div>
       <div><kbd>0</kbd><span>fit board</span></div>
-      <div><kbd>[</kbd><kbd>]</kbd><span>send back, bring front</span></div>
-      <div><kbd>F</kbd><span>follow agents</span></div>
+      <div><kbd>⌘[</kbd><kbd>⌘]</kbd><span>send backward, bring forward</span></div>
+      <div><kbd>F</kbd><span>focus selection</span></div>
+      <div><kbd>Shift+F</kbd><span>follow agents</span></div>
       <div><kbd>A</kbd><span>agents</span></div>
       <div><kbd>/</kbd><span>composer</span></div>
       <div><kbd>\</kbd><span>side bar</span></div>

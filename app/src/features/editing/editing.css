@@ -1,0 +1,65 @@
+/* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
+.selection-bar { position: fixed; z-index: 70; display: flex; align-items: center; flex-wrap: wrap; gap: 4px; max-width: min(880px, calc(100vw - 24px)); padding: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 6px 25px #0002; font-size: 11px; }
+.selection-bar strong { padding: 0 8px; }
+.selection-bar button,.selection-bar select,.selection-bar input { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px; font: inherit; max-width: 125px; }
+.selection-bar button:hover,.selection-bar button[aria-pressed=true] { background: var(--hover); }
+.editing-outline { position: fixed; pointer-events: none; border: 1px solid var(--focus); z-index: 3; }
+.editing-outline button { pointer-events: auto; position: absolute; background: var(--card); border: 1px solid var(--focus); color: var(--text); }
+.rotation-handle { top: -30px; left: calc(50% - 10px); width: 22px; height: 22px; border-radius: 50%; cursor: grab; }
+.rotation-badge { position: absolute; top: -54px; left: 50%; padding: 3px 6px; color: var(--text); background: var(--card); border-radius: 4px; }
+.selection-resize { width: 12px; height: 12px; right: -6px; bottom: -6px; cursor: nwse-resize; }
+.card.locked .resize { display: none; }
+.card.focus-dim { opacity: .13; }
+.card .card-tag { position: absolute; top: -25px; left: 0; max-width: 100%; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; font: 11px system-ui; white-space: nowrap; overflow: hidden; }
+.card .body { font-size: inherit; }
+.card.title { font-size: 44px; }
+.card.coll { overflow: visible; background: var(--card-fill, var(--card)); border: 1px solid var(--line); border-radius: 12px; }
+.collection-head { padding: 12px; font-weight: 650; min-height: 40px; }
+.card .todo-item { display: flex; gap: 8px; align-items: baseline; }
+.card .todo-item span { flex: 1; min-width: 10px; outline: none; }
+.card .remove-item { border: 0; color: var(--muted); background: transparent; opacity: 0; }
+.card .todo-item:hover .remove-item,.card .remove-item:focus { opacity: 1; }
+.unsorted-list { overflow: auto; min-height: 70px; max-height: 42vh; padding: 8px; }
+.tray-item { display: block; width: 100%; text-align: left; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 7px; padding: 10px; margin: 5px 0; white-space: pre-wrap; cursor: grab; }
+.tray-item.dragging { opacity: .4; }
+.editing-capture { border: 1px solid var(--line); border-radius: 14px; padding: 24px; background: var(--card); color: var(--text); width: min(420px, 90vw); }
+.editing-capture::backdrop { background: #0005; }
+.editing-capture h2 { margin: 0 0 16px; font-size: 18px; }
+.editing-capture input { width: 100%; box-sizing: border-box; margin-bottom: 14px; padding: 12px; background: var(--bg); border: 1px solid var(--line); color: var(--text); border-radius: 8px; }
+.editing-capture form>div { display: flex; justify-content: space-between; align-items: center; }
+.editing-hints { position: fixed; bottom: 18px; left: 16px; z-index: 45; display: flex; flex-direction: column; gap: 5px; font-size: 10px; color: var(--muted); background: var(--card); padding: 10px 25px 10px 12px; border: 1px solid var(--line); border-radius: 10px; pointer-events: none; }
+.editing-hints button { position: absolute; right: 5px; top: 3px; pointer-events: auto; border: 0; background: none; color: inherit; }
+.show-panels { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 150; }
+.just-board .bar,.just-board .side,.just-board .tools,.just-board .composer,.just-board .panel,.just-board .editing-hints,.just-board .selection-bar,.just-board .editing-zoom-menu { display: none!important; }
+.just-board { --side-w: 0px; --right-side-w: 0px; }
+.editing-zoom-menu { position: fixed; z-index: 100; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
+.editing-zoom-menu button { display: block; background: none; border: 0; padding: 8px 18px; color: var(--text); width: 100%; text-align: left; }
+.editing-zoom-menu button:hover { background: var(--hover); }
+.editing-settings>label { display: flex; align-items: center; gap: 9px; margin: 10px 0; }
+.editing-settings select,.editing-settings button { padding: 5px 9px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 5px; }
+.toolbar-options { max-height: 220px; overflow: auto; margin: 10px 0; }
+.toolbar-option { display: flex; align-items: center; gap: 4px; margin: 5px 0; }
+.toolbar-option label { flex: 1; display: flex; gap: 8px; }
+body[data-tool-size=small] .tools [data-tool] { width: 27px; height: 27px; }
+body[data-tool-size=large] .tools [data-tool] { width: 42px; height: 42px; }
+.crisp-zoom .world { -webkit-font-smoothing: antialiased; }
+.layer-row .layer-action { background: none; border: 0; color: var(--muted); padding: 2px 4px; font-size: 10px; }
+.layer-row .name { min-width: 0; }
+.layer-row.is-hidden { opacity: .55; }
+.layer-row .layer-action[aria-pressed=true] { color: var(--focus); }
+.layer-group { font-size: 11px; padding: 6px 8px; color: var(--muted); cursor: pointer; }
+[hidden] { display: none!important; }
+@media (max-height: 650px) { .editing-hints { display: none; } }
+.card.layer-hover { outline: 2px solid var(--focus); }
+.card:has(>.card-tag) { overflow: visible; contain: layout style; }
+.card.title .body { font-size: inherit; font-weight: inherit; }
+.selection-move { pointer-events: auto; position: absolute; cursor: move; }
+.selection-move.top,.selection-move.bottom { height: 8px; left: 8px; right: 8px; }
+.selection-move.left,.selection-move.right { width: 8px; top: 8px; bottom: 8px; }
+.selection-move.top { top: -9px; }.selection-move.bottom { bottom: -9px; }.selection-move.left { left: -9px; }.selection-move.right { right: -9px; }
+.tools [data-overflow],.tools.folded .tools-more { display: none!important; }
+.editing-tool-overflow { position: fixed; z-index: 110; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 5px; max-height: min(500px, 70vh); overflow: auto; }
+.editing-tool-overflow button { display: block; background: none; color: inherit; padding: 8px 12px; width: 100%; text-align: left; }
+.editing-font-picker { position: fixed; z-index: 130; width: 260px; max-height: 300px; overflow: auto; background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 8px; border-radius: 9px; box-shadow: 0 6px 25px #0002; }
+.editing-font-picker input { width: 100%; padding: 8px; background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.editing-font-list button { display: block; padding: 8px; text-align: left; color: inherit; background: transparent; width: 100%; }.editing-font-list button:hover { background: var(--hover); }

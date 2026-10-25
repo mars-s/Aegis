@@ -1,3 +1,5 @@
+// Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+import { descendants } from '../features/editing/model.js';
 // Layers panel: every card, top-most first. Click to jump, drag to restack.
 const ICON = {
   note: '<path d="M4 2.5h6l2.5 2.5v8.5H4z"/><path d="M10 2.5V5h2.5"/>',
@@ -18,28 +20,57 @@ const ICON = {
 };
 const LIMIT = 500;
 const KIND = { reply: 'Answer', plot: 'Chart', sheet: 'Sheet', diagram: 'Diagram', plan: 'Plan', list: 'List', code: 'Code' };
-const labelOf = c => (c.type === 'object' ? (c.kind === 'reply' ? c.data?.headline : c.text) || KIND[c.kind] || 'Object' : null) ?? (c.heading || c.text?.split('\n').find(Boolean) || (c.url ? c.url.replace(/^asset:.*/, '').replace(/^https?:\/\/(www\.)?/, '') : '') || c.type).slice(0, 80);
+const labelOf = c => c.props?.layerName ?? (c.type === 'object' ? (c.kind === 'reply' ? c.data?.headline : c.text) || KIND[c.kind] || 'Object' : null) ?? (c.heading || c.text?.split('\n').find(Boolean) || (c.url ? c.url.replace(/^asset:.*/, '').replace(/^https?:\/\/(www\.)?/, '') : '') || c.type).slice(0, 80);
 
-export function createLayers({ el, count, getBoard, onPick, onOrder }) {
+export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate }) {
   const list = el.querySelector('.layer-list');
   let selection = new Set(), lastSig = '', frame = 0;
+  const folded = new Set();
+  let lastBoard;
 
   function render() {
     frame = 0; const board = getBoard(); if (!board) return;
+    if (lastBoard !== board.id) { folded.clear(); lastBoard = board.id; }
     const cards = board.cards.slice().reverse().slice(0, LIMIT);
-    const sig = JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? ''])) + [...selection].join();
+    const sig = JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? '', c.parent, c.group, c.props])) + [...selection].join() + [...folded].join();
     if (sig === lastSig) return; lastSig = sig;
     count.textContent = board.cards.length || '';
     list.textContent = '';
     const frag = document.createDocumentFragment();
-    for (const c of cards) {
+    const seen = new Set(), groups = new Set();
+    const parentOf = c => c.parent || board.cards.find(p => p.props?.kids?.includes(c.id))?.id;
+    function append(c, depth = 0) {
+      if (seen.has(c.id)) return; seen.add(c.id);
+      const children = cards.filter(k => parentOf(k) === c.id);
       const row = document.createElement('div');
-      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : ''); row.draggable = true; row.dataset.id = c.id;
+      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : '') + (c.props?.hidden ? ' is-hidden' : ''); row.draggable = true; row.dataset.id = c.id; row.style.paddingLeft = `${8 + depth * 14}px`;
       row.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${ICON[c.type === 'object' ? c.kind : c.type] ?? ICON.note}</svg><span class="name"></span>`;
       row.querySelector('.name').textContent = labelOf(c);
       if (c.heading || c.type === 'title' || c.kind === 'reply') row.classList.add('strong');
-      if (c.badge) { const b = document.createElement('span'); b.className = 'mini-badge'; b.textContent = c.badge; row.appendChild(b); }
+      if (children.length) { const toggle = document.createElement('button'); toggle.className = 'layer-action'; toggle.textContent = folded.has(c.id) ? '▸' : '▾'; toggle.setAttribute('aria-label', `Expand ${labelOf(c)}`); toggle.onclick = e => { e.stopPropagation(); folded.has(c.id) ? folded.delete(c.id) : folded.add(c.id); schedule(); }; row.prepend(toggle); }
+      for (const [flag, label, text] of [['hidden', 'Hide', 'Eye'], ['locked', 'Lock', 'Lock']]) {
+        const action = document.createElement('button'); action.className = 'layer-action'; action.textContent = text; action.setAttribute('aria-label', `${label} ${labelOf(c)}`); action.setAttribute('aria-pressed', String(!!c.props?.[flag]));
+        action.onclick = e => { e.stopPropagation(); onUpdate?.(descendants(board, [c.id]).map(k => ({ op: 'update', id: k.id, set: { props: { [flag]: !c.props?.[flag] } } }))); }; row.append(action);
+      }
+      row.querySelector('.name').ondblclick = e => {
+        e.stopPropagation(); const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Layer name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
+        input.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { cancelled = ev.key === 'Escape'; input.blur(); } };
+        input.onblur = () => { if (!cancelled && input.value.trim()) onUpdate?.([{ op: 'update', id: c.id, set: { props: { layerName: input.value.trim() }, ...(c.type === 'coll' ? { text: input.value.trim() } : {}) } }]); lastSig = ''; schedule(); };
+      };
+      row.onmouseenter = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.add('layer-hover');
+      row.onmouseleave = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.remove('layer-hover');
       frag.appendChild(row);
+      if (!folded.has(c.id)) children.forEach(child => append(child, depth + 1));
+    }
+    for (const c of cards.filter(c => !parentOf(c) || !cards.some(p => p.id === parentOf(c)))) {
+      if (c.group) {
+        if (groups.has(c.group)) continue; groups.add(c.group);
+        const members = cards.filter(k => k.group === c.group && !parentOf(k));
+        const header = document.createElement('div'); header.className = 'layer-group'; header.textContent = `${folded.has(c.group) ? '▸' : '▾'} ${c.props?.groupName || 'Group'} (${members.length})`;
+        header.onclick = () => { folded.has(c.group) ? folded.delete(c.group) : folded.add(c.group); schedule(); };
+        header.ondblclick = () => { const input = document.createElement('input'); input.value = c.props?.groupName || 'Group'; input.setAttribute('aria-label', 'Group name'); header.replaceChildren(input); input.focus(); input.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') input.blur(); }; input.onblur = () => onUpdate?.(members.map(m => ({ op: 'update', id: m.id, set: { props: { groupName: input.value.trim() || 'Group' } } }))); };
+        frag.append(header); if (!folded.has(c.group)) members.forEach(member => append(member, 1));
+      } else append(c);
     }
     if (board.cards.length > LIMIT) { const more = document.createElement('p'); more.className = 'muted small pad'; more.textContent = `${board.cards.length - LIMIT} more not shown`; frag.appendChild(more); }
     if (!board.cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'Nothing on this board yet.'; frag.appendChild(p); }
@@ -47,7 +78,7 @@ export function createLayers({ el, count, getBoard, onPick, onOrder }) {
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
 
-  list.addEventListener('click', e => { const row = e.target.closest('.layer-row'); if (row) onPick(row.dataset.id, e.shiftKey || e.metaKey); });
+  list.addEventListener('click', e => { const row = e.target.closest('.layer-row'); if (row && !e.target.closest('button, input')) onPick(row.dataset.id, e.shiftKey || e.metaKey || e.ctrlKey); });
   let dragId = null;
   list.addEventListener('dragstart', e => { const row = e.target.closest('.layer-row'); if (!row) return; dragId = row.dataset.id; e.dataTransfer.setData('application/x-aegis-layer', dragId); e.dataTransfer.effectAllowed = 'move'; });
   const clear = () => list.querySelectorAll('.above, .below').forEach(x => x.classList.remove('above', 'below'));
@@ -59,6 +90,8 @@ export function createLayers({ el, count, getBoard, onPick, onOrder }) {
   list.addEventListener('dragend', () => { dragId = null; clear(); });
   list.addEventListener('drop', e => {
     const row = e.target.closest('.layer-row'); if (!dragId || !row) return; e.preventDefault();
+    const board = getBoard(), source = board.cards.find(c => c.id === dragId), target = board.cards.find(c => c.id === row.dataset.id);
+    if (source?.parent !== target?.parent || source?.group !== target?.group) { dragId = null; clear(); return; }
     const above = row.classList.contains('above'); clear();
     // Rows run top-most first, so "above" a row means "in front of" its card.
     const rest = getBoard().cards.filter(c => c.id !== dragId); const j = rest.findIndex(c => c.id === row.dataset.id);
@@ -68,6 +101,6 @@ export function createLayers({ el, count, getBoard, onPick, onOrder }) {
 
   return {
     update: schedule,
-    select(ids) { selection = new Set(ids); schedule(); },
+    select(ids) { selection = new Set(ids); const board = getBoard(); if (board) for (const card of board.cards.filter(c => selection.has(c.id))) { let c = card; const seen = new Set(); while (c && !seen.has(c.id)) { seen.add(c.id); folded.delete(c.group); const parent = c.parent || board.cards.find(p => p.props?.kids?.includes(c.id))?.id; folded.delete(parent); c = board.cards.find(p => p.id === parent); } } schedule(); },
   };
 }

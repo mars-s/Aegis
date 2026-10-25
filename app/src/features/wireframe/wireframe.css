@@ -1,0 +1,51 @@
+@font-face { font-family: 'Aegis Material Icons'; src: url('./icons/MaterialIconsOutlined-Regular.otf') format('opentype'); font-weight: normal; font-style: normal; font-display: block; }
+.wf-mi { font-family: 'Aegis Material Icons', sans-serif; font-weight: normal; font-style: normal; font-size: 24px; line-height: 1; letter-spacing: normal; text-transform: none; white-space: nowrap; word-wrap: normal; direction: ltr; font-feature-settings: 'liga'; -webkit-font-smoothing: antialiased; }
+.card.wf { padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; contain: layout style; }
+.card.wf[data-color] { background: transparent; }
+.card.wf.selected { outline: 1.5px solid var(--focus); outline-offset: 2px; box-shadow: none; }
+.card.wf .wf-visual { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: var(--wf-radius); overflow: hidden; }
+.wf-surface { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.wf-surface rect { vector-effect: non-scaling-stroke; }
+.wf-visual > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.wf-frame-name { position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 100px; white-space: nowrap; color: var(--text); font: 500 12px/1.4 system-ui; outline: 0; }
+.card.wf.text .wf-text { min-height: 24px; width: 100%; height: auto; white-space: pre-wrap; word-break: break-word; outline: none; cursor: text; }
+.card.wf .wf-icon { display: block; width: max-content; pointer-events: none; }
+.card.wf.font { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow: hidden; }
+.wf-aa { font-size: 64px; line-height: 1.1; }
+.card.wf.font strong, .card.wf.font small { display: block; margin-top: 5px; }
+.card.wf.font small { font: 11px system-ui; color: var(--muted); }
+.wf-specimen { margin-top: 14px; font-size: 16px; }
+.card.wf.section { background: color-mix(in srgb, var(--wf-glass) 12%, transparent); border: 1px solid color-mix(in srgb, var(--wf-glass) 45%, var(--line)); border-radius: var(--wf-radius); backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 #ffffff30; }
+.wf-section-name { position: absolute; top: 14px; left: 18px; font-weight: 600; font-size: 14px; color: var(--text); outline: none; }
+.wf-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #71717a; font: 13px/1.3 system-ui; text-align: center; padding: 10px; }
+.wf-placeholder button { background: white; color: #27272a; border: 1px solid #d4d4d8; border-radius: 6px; padding: 5px 8px; }
+.wf-design { position: fixed; z-index: 25; top: 60px; right: 12px; bottom: 140px; width: 300px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: var(--shadow-lift); font: 12px/1.4 system-ui; }
+.wf-design[hidden], .wf-icon-picker[hidden] { display: none; }
+.wf-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px; border-bottom: 1px solid var(--line); }
+.wf-panel-body { overflow: auto; padding: 12px; }
+.wf-design button { background: var(--hover); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font: inherit; cursor: pointer; }
+.wf-design button:hover { border-color: var(--focus); }
+.wf-design button:focus-visible, .wf-design input:focus-visible, .wf-design select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.wf-design input, .wf-design select { width: 100%; min-width: 0; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px; font: inherit; }
+.wf-tool-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.wf-presets { margin-top: 8px; }
+.wf-hint { color: var(--muted); margin: 9px 0; font-size: 11px; }
+.wf-grid-toggle { display: flex; align-items: center; gap: 7px; margin: 9px 0; }
+.wf-grid-toggle input { width: auto; }
+.wf-properties { border-top: 1px solid var(--line); margin-top: 12px; }
+.wf-properties h3 { font-size: 12px; margin: 12px 0 8px; }
+.wf-property-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: end; }
+.wf-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; color: var(--muted); font-size: 11px; }
+.wf-field input, .wf-field select { color: var(--text); }
+.wf-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.wf-actions button { flex: 1 0 28%; font-size: 10px; }
+.wf-pieces { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.wf-pieces summary { cursor: pointer; font-weight: 600; }
+.wf-piece-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px; margin-top: 8px; }
+.wf-icon-picker { position: absolute; top: 46px; left: -20px; right: 0; max-height: min(620px, 70vh); overflow: auto; background: var(--card); padding: 12px; border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow-lift); }
+.wf-icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 8px; }
+.wf-icon-grid button { min-width: 0; padding: 8px 0; }
+.wf-icon-grid small { grid-column: 1 / -1; color: var(--muted); padding-top: 6px; }
+.wf-image-notice { position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%); z-index: 100; max-width: 440px; padding: 12px 18px; border-radius: 10px; background: var(--card); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-lift); font: 13px/1.4 system-ui; }
+.wf-box-preview { position: absolute; pointer-events: none; border: 1px solid var(--focus); background: color-mix(in srgb, var(--focus) 12%, transparent); z-index: 2147483646; }
+@media (max-width: 700px) { .wf-design { width: 260px; right: 6px; bottom: 115px; } }

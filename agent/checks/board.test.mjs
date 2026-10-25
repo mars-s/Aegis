@@ -110,3 +110,25 @@ test('revise replaces an object in place and counts its version; diagram edges m
   assert.equal(card.ver, 2); assert.equal(card.data.nodes.length, 3);
   assert.match(applyBatch(r.board, { commands: [{ op: 'revise', id, data: { ...d, edges: [{ from: 'a', to: 'zzz' }] } }] }).errors[0].reason, /edges\[0\]\.to: no node "zzz"/);
 });
+
+test('restore puts back an earlier state, and board_set keeps the tray, palette and background', () => {
+  const b0 = board();
+  let r = applyBatch(b0, { commands: [{ op: 'delete', id: 'aaaaaaaa' }] });
+  assert.equal(r.board.cards.length, 1);
+  r = applyBatch(r.board, { commands: [{ op: 'restore', cards: b0.cards, links: b0.links }] });
+  assert.deepEqual(r.board.cards.map(c => c.id), ['aaaaaaaa', 'bbbbbbbb']);
+  r = applyBatch(r.board, { commands: [{ op: 'board_set', set: { tray: [{ id: 't1', type: 'note', text: 'later' }], bg: '#112233' } }] });
+  assert.equal(r.board.tray[0].text, 'later'); assert.equal(r.board.bg, '#112233');
+  assert.equal(applyBatch(r.board, { commands: [{ op: 'board_set', set: { bg: 'red' } }] }).ok, false);
+});
+
+test('props merge, rot and custom colours are kept; a registered type is accepted', async () => {
+  const { registerCardType } = await import('../../app/src/lib/board/commands.js');
+  registerCardType('testthing', { size: [111, 99] });
+  let r = applyBatch(board(), { commands: [{ op: 'create', type: 'testthing', props: { a: 1, b: 2 }, rot: 5, color: '#ff8800', ref: 't' }] });
+  const id = r.created.t; let c = r.board.cards.find(x => x.id === id);
+  assert.deepEqual([c.w, c.h, c.rot, c.color], [111, 99, 5, '#ff8800']);
+  r = applyBatch(r.board, { commands: [{ op: 'update', id, set: { props: { b: null, c: 3 } } }] });
+  c = r.board.cards.find(x => x.id === id);
+  assert.deepEqual(c.props, { a: 1, c: 3 });
+});

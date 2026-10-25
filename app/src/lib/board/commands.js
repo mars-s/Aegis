@@ -68,7 +68,7 @@ function cleanCard(type, o, board, anchor) {
   const id = ID_RE.test(o.newId ?? '') && !board.cards.some(c => c.id === o.newId) ? o.newId : newId(board);
   const card = { id, type, x: pos.x, y: pos.y, w, h, text: str(o.text), color: COLORS.includes(o.color) || /^#[0-9a-f]{6}$/i.test(o.color ?? '') ? o.color : 'plain' };
   if (type === 'todo') card.items = Array.isArray(o.items) ? o.items.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : [];
-  if (type === 'link' || type === 'web' || type === 'image' || type === 'video') card.url = str(o.url, 4000);
+  if (type === 'link' || type === 'web' || type === 'image' || type === 'video' || type === 'spotify') card.url = str(o.url, 4000);
   // Notes can carry a short heading and a badge (e.g. "read me first") above the body.
   if (str(o.heading)) card.heading = str(o.heading, 200);
   if (str(o.badge)) card.badge = str(o.badge, 40);
@@ -155,7 +155,30 @@ export function applyBatch(input, batch) {
         }
         case 'connect': {
           const a = byId(cmd.a), b = byId(cmd.b); if (!a || !b) throw new Error(`connect needs two existing cards (${cmd.a}, ${cmd.b})`);
-          if (!board.links.some(l => l.a === a.id && l.b === b.id)) board.links.push({ id: newId(board), a: a.id, b: b.id, label: str(cmd.label, 200) });
+          if (!board.links.some(l => l.a === a.id && l.b === b.id)) board.links.push({ id: ID_RE.test(cmd.newId ?? '') && ![...board.cards, ...board.links].some(x => x.id === cmd.newId) ? cmd.newId : newId(board), a: a.id, b: b.id, label: str(cmd.label, 200) });
+          break;
+        }
+        case 'link_update': {
+          const link = board.links.find(l => l.id === cmd.id);
+          if (!link) throw new Error(`no link ${cmd.id}`);
+          if (cmd.remove === true) { board.links = board.links.filter(l => l !== link); break; }
+          const set = cmd.set ?? {};
+          for (const k of ['a', 'b']) if (k in set) {
+            const card = byId(set[k]); if (!card) throw new Error(`no card ${set[k]}`);
+            link[k] = card.id;
+          }
+          if (link.a === link.b || board.links.some(l => l !== link && (l.a === link.a && l.b === link.b || l.a === link.b && l.b === link.a))) throw new Error('link needs a distinct, unconnected pair');
+          for (const k of ['label', 'bend', 'dash', 'arrow', 'colour', 'pa', 'pb']) if (k in set) {
+            const v = set[k];
+            if (v === null) { delete link[k]; continue; }
+            if (k === 'label') link[k] = str(v, 200);
+            else if (k === 'bend' && typeof v === 'number' && Number.isFinite(v)) link[k] = clamp(v, -4000, 4000);
+            else if (k === 'dash' && typeof v === 'boolean') link[k] = v;
+            else if (k === 'arrow' && ['none', 'end', 'both'].includes(v)) link[k] = v;
+            else if (k === 'colour' && /^#[0-9a-f]{6}$/i.test(v)) link[k] = v;
+            else if (['pa', 'pb'].includes(k) && v && Number.isFinite(v.u) && Number.isFinite(v.v) && v.u >= 0 && v.u <= 1 && v.v >= 0 && v.v <= 1 && [v.u, v.v].some(n => n === 0 || n === 1)) link[k] = { u: v.u, v: v.v };
+            else throw new Error(`invalid link ${k}`);
+          }
           break;
         }
         case 'layout': {
@@ -175,11 +198,36 @@ export function applyBatch(input, batch) {
           rest.splice(at, 0, ...moving); board.cards = rest;
           moving.forEach(c => touched.add(c.id)); break;
         }
+        case 'restore': {
+          // Undo and redo: put back a whole earlier state of the cards and links (from the person's own history).
+          if (!Array.isArray(cmd.cards) || !Array.isArray(cmd.links)) throw new Error('restore needs cards and links');
+          board.cards = structuredClone(cmd.cards); board.links = structuredClone(cmd.links);
+          if (Array.isArray(cmd.tray)) board.tray = structuredClone(cmd.tray);
+          board.cards.forEach(c => touched.add(c.id)); break;
+        }
+        case 'board_set': {
+          // Board-level fields features use: tray (Unsorted), palette, background.
+          for (const k of ['tray', 'palette', 'bg']) if (k in (cmd.set ?? {})) {
+            const v = cmd.set[k];
+            if (v === null) delete board[k];
+            else if (k === 'bg') board.bg = /^#[0-9a-f]{6}$/i.test(v) ? v : (() => { throw new Error('bg must be a #rrggbb colour'); })();
+            else if (k === 'palette') {
+              if (!Array.isArray(v) || v.length > 256) throw new Error('palette must contain at most 256 colours');
+              board.palette = v.map(p => {
+                if (!p || !/^#[0-9a-f]{6}$/i.test(p.hex) || typeof p.name !== 'string') throw new Error('palette needs hex colours and names');
+                return { hex: p.hex.toLowerCase(), name: p.name.trim().slice(0, 100) || p.hex.toUpperCase() };
+              });
+            }
+            else if (!Array.isArray(v)) throw new Error(`${k} must be a list`);
+            else board[k] = cleanProps({ v }, k).v;
+          }
+          break;
+        }
         case 'focus': {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : [cmd.id]).map(ref).filter(Boolean);
           board.focus = { ids, at: Date.now() }; break;
         }
-        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, revise, move, delete, connect, layout, order or focus`);
+        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, revise, move, delete, connect, link_update, layout, order, focus, restore or board_set`);
       }
     } catch (e) {
       errors.push({ index, reason: e.message, hint: 'read the board again to get current card ids' });
@@ -202,8 +250,8 @@ export function layout(cards, shape, { x, y, cols }) {
 export function describe(board, limit = 400) {
   return {
     id: board.id, name: board.name, rev: board.rev,
-    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}), ...(c.type === 'object' ? { kind: c.kind, data: c.data, ver: c.ver } : {}), ...(c.rot ? { rot: c.rot } : {}), ...(c.parent ? { parent: c.parent } : {}), ...(c.props ? { props: JSON.stringify(c.props).length > 4000 ? { summary: 'large; ask for this card' } : c.props } : {}) })),
-    links: board.links.map(l => ({ a: l.a, b: l.b, label: l.label })),
+    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}), ...(c.type === 'object' ? { kind: c.kind, data: c.data, ver: c.ver } : {}), ...(c.rot ? { rot: c.rot } : {}), ...(c.parent ? { parent: c.parent } : {}), ...(c.props ? { props: JSON.stringify(c.props).length > 4000 ? { summary: 'large; ask for this card', ...(typeof c.props.body === 'string' ? { body: c.props.body } : {}) } : c.props } : {}) })),
+    links: board.links.map(l => ({ ...l })),
     truncated: board.cards.length > limit,
   };
 }

@@ -1,69 +1,92 @@
-// The side bar: a stack of panels that fold, resize and reorder. Layout is per device, kept in localStorage.
+// Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+// Panel positions, visibility, folds and sizes are kept on this device.
 const KEY = 'aegis:panels';
-
+const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
 export function createPanels({ side, onChange }) {
-  const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-  const state = { hidden: !!saved.hidden, width: saved.width ?? 248, order: saved.order ?? [], folded: saved.folded ?? {}, heights: saved.heights ?? {} };
-  const save = () => localStorage.setItem(KEY, JSON.stringify(state));
-  const boxes = () => [...side.querySelectorAll(':scope > .pbox')];
-
-  // Restore order, fold and height.
-  for (const id of state.order) { const b = side.querySelector(`.pbox[data-panel="${id}"]`); if (b) side.insertBefore(b, side.querySelector('.side-resize')); }
-  for (const box of boxes()) {
-    const id = box.dataset.panel, body = box.querySelector('.pbody');
-    if (state.folded[id]) box.classList.add('folded');
-    if (state.heights[id]) body.style.height = state.heights[id] + 'px';
-    const fold = box.querySelector('.fold');
-    const sync = () => { fold.setAttribute('aria-expanded', String(!box.classList.contains('folded'))); fold.title = box.classList.contains('folded') ? 'Show' : 'Fold'; };
-    sync();
-    fold.onclick = () => { box.classList.toggle('folded'); state.folded[id] = box.classList.contains('folded'); sync(); save(); };
-    // Resize from the bottom edge.
+  const saved = read();
+  const state = { hidden: !!saved.hidden, width: saved.width ?? 248, rightWidth: saved.rightWidth ?? 248,
+    columns: saved.columns ?? { left: saved.order ?? [], right: [] }, off: saved.off ?? {}, folded: saved.folded ?? {}, heights: saved.heights ?? {} };
+  const right = document.createElement('aside'); right.className = 'side side-right'; right.id = 'sideRight'; right.setAttribute('aria-label', 'Right side bar'); right.innerHTML = '<div class="side-resize" title="Drag to resize"></div>'; side.after(right);
+  const all = new Map(), defaults = [], save = () => localStorage.setItem(KEY, JSON.stringify(state));
+  const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
+  const persistOrder = () => { state.columns = { left: boxes(side).map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
+  function apply() {
+    for (const [key, col] of [['left', side], ['right', right]]) for (const id of state.columns[key] ?? []) {
+      const box = all.get(id); if (box) col.insertBefore(box, col.querySelector('.side-resize'));
+    }
+    for (const [id, box] of all) {
+      box.hidden = !!state.off[id]; box.classList.toggle('folded', !!state.folded[id]);
+      box.querySelector('.fold')?.setAttribute('aria-expanded', String(!state.folded[id]));
+      box.querySelector('.pbody').style.height = state.heights[id] ? `${state.heights[id]}px` : '';
+    }
+    syncSides(); onChange?.(state);
+  }
+  function syncSides(dragging = false) {
+    side.hidden = state.hidden || (!dragging && !boxes(side).some(b => !b.hidden));
+    right.hidden = state.hidden || (!dragging && !boxes(right).some(b => !b.hidden));
+    document.documentElement.style.setProperty('--side-w', side.hidden ? '0px' : `${state.width}px`);
+    document.documentElement.style.setProperty('--right-side-w', right.hidden ? '0px' : `${state.rightWidth}px`);
+  }
+  const settings = document.getElementById('settings');
+  const section = document.createElement('section'); section.className = 'sheet-sec';
+  section.innerHTML = '<h3>Side bar panels</h3><div class="panel-layout-options"></div><button type="button" class="text-btn" data-reset-panels>Reset layout</button>';
+  settings?.append(section);
+  const options = section.querySelector('.panel-layout-options');
+  section.querySelector('[data-reset-panels]').onclick = () => {
+    state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = {}; state.heights = {}; state.width = state.rightWidth = 248; state.hidden = false;
+    options.querySelectorAll('input').forEach(input => { input.checked = true; }); apply(); save();
+  };
+  function register(box) {
+    const id = box.dataset.panel; if (all.has(id)) return;
+    all.set(id, box); defaults.push(id);
+    if (![...state.columns.left, ...state.columns.right].includes(id)) state.columns.left.push(id);
+    const head = box.querySelector('.phead'), body = box.querySelector('.pbody'), fold = box.querySelector('.fold');
+    if (fold) fold.onclick = () => { state.folded[id] = !box.classList.contains('folded'); apply(); save(); };
+    const label = document.createElement('label'), input = document.createElement('input'); input.type = 'checkbox'; input.checked = !state.off[id]; input.dataset.panelVisibility = id;
+    label.append(input, document.createTextNode(head.querySelector('span')?.childNodes[0]?.textContent?.trim() || id)); options.append(label);
+    input.onchange = () => { state.off[id] = !input.checked; apply(); save(); };
     box.querySelector('.resize-handle')?.addEventListener('pointerdown', e => {
-      e.preventDefault(); const h0 = body.getBoundingClientRect().height, y0 = e.clientY, el = e.currentTarget;
-      el.setPointerCapture(e.pointerId); box.classList.add('sizing');
-      const move = ev => { body.style.height = Math.max(48, Math.min(innerHeight * 0.8, h0 + ev.clientY - y0)) + 'px'; };
-      const up = () => { el.removeEventListener('pointermove', move); box.classList.remove('sizing'); state.heights[id] = Math.round(body.getBoundingClientRect().height); save(); };
-      el.addEventListener('pointermove', move); el.addEventListener('pointerup', up, { once: true });
+      e.preventDefault(); const h0 = body.getBoundingClientRect().height, y0 = e.clientY, handle = e.currentTarget;
+      handle.setPointerCapture(e.pointerId); box.classList.add('sizing');
+      const move = ev => { body.style.height = `${Math.max(48, Math.min(innerHeight * .8, h0 + ev.clientY - y0))}px`; };
+      const up = () => { handle.removeEventListener('pointermove', move); box.classList.remove('sizing'); state.heights[id] = Math.round(body.getBoundingClientRect().height); save(); };
+      handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up, { once: true });
     });
-    // Reorder by dragging the header.
-    const head = box.querySelector('.phead');
     head.addEventListener('pointerdown', e => {
       if (e.button !== 0 || e.target.closest('button, input')) return;
-      const y0 = e.clientY; let dragging = false;
-      head.setPointerCapture(e.pointerId);
+      const x0 = e.clientX, y0 = e.clientY; let dragging = false;
       const move = ev => {
-        if (!dragging && Math.abs(ev.clientY - y0) < 4) return;
-        dragging = true; box.classList.add('lifting');
-        for (const other of boxes()) {
-          if (other === box) continue;
-          const r = other.getBoundingClientRect(), mid = r.top + r.height / 2;
-          const before = box.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING;
-          if (before && ev.clientY > mid) { other.after(box); break; }
-          if (!before && ev.clientY < mid) { other.before(box); break; }
-        }
+        if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+        dragging = true; box.classList.add('lifting'); syncSides(true); side.classList.add('panel-drop'); right.classList.add('panel-drop');
+        const col = ev.clientX > innerWidth / 2 ? right : side;
+        const before = boxes(col).find(other => other !== box && !other.hidden && ev.clientY < other.getBoundingClientRect().top + other.getBoundingClientRect().height / 2);
+        col.insertBefore(box, before ?? col.querySelector('.side-resize'));
       };
-      const up = () => { head.removeEventListener('pointermove', move); box.classList.remove('lifting'); if (dragging) { state.order = boxes().map(b => b.dataset.panel); save(); } };
-      head.addEventListener('pointermove', move); head.addEventListener('pointerup', up, { once: true });
+      const end = keep => {
+        removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel); removeEventListener('keydown', escape, true);
+        box.classList.remove('lifting'); side.classList.remove('panel-drop'); right.classList.remove('panel-drop');
+        if (dragging && keep) persistOrder(); apply();
+      };
+      const up = () => end(true), cancel = () => end(false), escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
+      addEventListener('pointermove', move); addEventListener('pointerup', up, { once: true }); addEventListener('pointercancel', cancel, { once: true }); addEventListener('keydown', escape, true);
     });
   }
-
-  // The side bar's right edge sets its width.
-  const edge = side.querySelector('.side-resize');
-  edge.addEventListener('pointerdown', e => {
-    e.preventDefault(); const w0 = state.width, x0 = e.clientX; edge.setPointerCapture(e.pointerId);
-    const move = ev => { state.width = Math.round(Math.max(200, Math.min(420, w0 + ev.clientX - x0))); apply(); };
-    const up = () => { edge.removeEventListener('pointermove', move); save(); };
-    edge.addEventListener('pointermove', move); edge.addEventListener('pointerup', up, { once: true });
+  for (const box of boxes(side)) register(box);
+  // Feature panels may be mounted after the shell starts.
+  const observer = new MutationObserver(() => {
+    let changed = false;
+    for (const box of [...boxes(side), ...boxes(right)]) if (!all.has(box.dataset.panel)) { register(box); changed = true; }
+    if (changed) apply();
   });
-
-  function apply() {
-    side.hidden = state.hidden;
-    document.documentElement.style.setProperty('--side-w', state.hidden ? '0px' : state.width + 'px');
-    onChange?.(state);
+  observer.observe(side, { childList: true }); observer.observe(right, { childList: true });
+  for (const [col, key, direction] of [[side, 'width', 1], [right, 'rightWidth', -1]]) {
+    const edge = col.querySelector('.side-resize'); edge.addEventListener('pointerdown', e => {
+      e.preventDefault(); const w0 = state[key], x0 = e.clientX; edge.setPointerCapture(e.pointerId);
+      const move = ev => { state[key] = Math.round(Math.max(200, Math.min(420, w0 + direction * (ev.clientX - x0)))); syncSides(); };
+      const up = () => { edge.removeEventListener('pointermove', move); save(); };
+      edge.addEventListener('pointermove', move); edge.addEventListener('pointerup', up, { once: true });
+    });
   }
   apply();
-  return {
-    toggle() { state.hidden = !state.hidden; apply(); save(); },
-    get hidden() { return state.hidden; },
-  };
+  return { toggle() { state.hidden = !state.hidden; apply(); save(); }, get hidden() { return state.hidden; } };
 }

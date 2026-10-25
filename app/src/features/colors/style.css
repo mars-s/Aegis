@@ -1,0 +1,21 @@
+/* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
+.card.swatch { padding: 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+.card.swatch .swatch-chip { width: 100%; flex: 1; min-height: 35px; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
+.swatch-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card.swatch small { color: var(--muted); font: 11px ui-monospace, monospace; }
+.colour-pop { position: fixed; z-index: 10000; width: 260px; max-height: calc(100vh - 16px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 0 8px 35px #0003; display: flex; flex-direction: column; gap: 9px; box-sizing: border-box; }
+.colour-wheel-wrap { position: relative; width: 220px; height: 220px; margin: 0 auto; }
+.colour-wheel { width: 220px; height: 220px; touch-action: none; border-radius: 50%; }
+.colour-ring { position: absolute; pointer-events: none; width: 13px; height: 13px; border: 2px solid white; box-shadow: 0 0 0 1px #222; border-radius: 50%; transform: translate(-50%, -50%); }
+.colour-quick { display: flex; flex-wrap: wrap; gap: 5px; margin: 5px 0; }
+.colour-quick button { width: 23px; height: 23px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+.colour-quick button:not([style]) { width: auto; height: auto; }
+.board-colours { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.colour-actions { display: flex; flex-wrap: wrap; gap: 5px; }
+.palette-row { display: flex; align-items: center; gap: 4px; }
+.palette-row button:first-child { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.palette-row button:first-child::before { content: ''; display: inline-block; width: 15px; height: 15px; background: var(--palette-colour); border: 1px solid var(--line); vertical-align: middle; margin-right: 5px; border-radius: 3px; }
+.board-colours button, .colour-pop button { background-color: var(--hover); color: var(--text); padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
+
+.colour-settings .media-field { margin: 8px 0; }
+.colour-settings input[type=color] { width: 56px; height: 30px; padding: 2px; }

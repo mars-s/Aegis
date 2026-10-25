@@ -1,6 +1,7 @@
 // Aegis agent host: Pi Durable on 127.0.0.1, driving boards through the board commands.
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
+import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
@@ -17,7 +18,7 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 import { applyBatch, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
 import '../app/src/lib/board/types/index.js';
-import { applyLibraryOp, emptyLibrary, tidyLibrary } from './library.mjs';
+import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
 import { createUiUpdater } from './ui-update.mjs';
 
 const DATA = process.env.AEGIS_DATA || join(homedir(), 'Library', 'Application Support', 'Aegis');
@@ -61,7 +62,7 @@ async function loadBoard(id) { return readJson(boardPath(id), null); }
 async function listBoards() {
   const out = [];
   for (const f of await readdir(BOARDS).catch(() => [])) if (f.endsWith('.json')) {
-    const b = await readJson(join(BOARDS, f), null); if (b) out.push({ id: b.id, name: b.name, cards: b.cards.length, rev: b.rev });
+    const b = await readJson(join(BOARDS, f), null); if (b) out.push({ id: b.id, name: b.name, cards: b.cards.length, rev: b.rev, boardParent: b.parent ?? null });
   }
   return out;
 }
@@ -79,27 +80,23 @@ async function commit(boardId, batch, author) {
 
 // ---------- library: projects and folders holding boards ----------
 const libraryPath = join(DATA, 'library.json');
-let libraryChain = Promise.resolve();
 async function library() {
   const boards = await listBoards();
   const lib = tidyLibrary(await readJson(libraryPath, emptyLibrary()), boards.map(b => b.id));
   return { nodes: lib.nodes, boards: boards.map(b => ({ ...b, parent: lib.boards[b.id] ?? null })) };
 }
-function changeLibrary(op) {
-  const task = libraryChain.then(async () => {
-    const ids = (await listBoards()).map(b => b.id);
-    const r = applyLibraryOp(await readJson(libraryPath, emptyLibrary()), op, ids);
-    if (!r.ok) throw Object.assign(new Error(r.error), { status: 400 });
-    await atomicJson(libraryPath, r.library);
-    broadcast({ type: 'library' });
-    return { ok: true, created: r.created ?? null };
-  });
-  libraryChain = task.catch(() => {}); return task;
-}
+const libraryAction = createLibraryActions({
+  listBoards, loadBoard, withBoard, newBoard: emptyBoard, makeId: () => randomBytes(8).toString('hex'),
+  readLibrary: () => readJson(libraryPath, emptyLibrary()), writeLibrary: lib => atomicJson(libraryPath, lib),
+  writeBoard: b => atomicJson(boardPath(b.id), b), removeBoard: id => unlink(boardPath(id)),
+  changed: () => broadcast({ type: 'library' }),
+});
+const changeLibrary = op => libraryAction(op.op === 'delete' && op.recursive === true ? 'delete' : 'change', op);
 
 // ---------- assets: images and video, stored by random name ----------
 // Reading needs no token (img and video tags can't send one); the 128-bit name is the capability.
-const MEDIA = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+const MEDIA = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml', apng: 'image/apng',
+  weba: 'audio/webm', ogg: 'audio/ogg', wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac',
   mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm' };
 const EXT_OF = Object.fromEntries(Object.entries(MEDIA).reverse().map(([e, t]) => [t, e]));
 const ASSET_RE = /^[a-f0-9]{32}\.([a-z0-9]{3,4})$/;
@@ -136,7 +133,7 @@ async function sendAsset(req, res, name) {
 }
 
 // ---------- the UI, served from a folder so it can be replaced without rebuilding the app ----------
-const UI_TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', json: 'application/json', map: 'application/json', woff2: 'font/woff2' };
+const UI_TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', apng: 'image/apng', png: 'image/png', json: 'application/json', map: 'application/json', woff2: 'font/woff2' };
 async function uiRoot() {
   for (const dir of UI_DIRS) { try { if ((await stat(join(dir, 'index.html'))).isFile()) return dir; } catch {} }
   return null;
@@ -551,11 +548,12 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/boards' && m === 'GET') return send(res, 200, await listBoards());
     if (p === '/boards' && m === 'POST') {
-      const { name, parent } = await body(req); const id = randomUUID().slice(0, 8);
-      const b = emptyBoard(id, String(name || 'Untitled').slice(0, 120)); await atomicJson(boardPath(id), b);
-      if (parent) await changeLibrary({ op: 'move', id, parent }).catch(async e => { await unlink(boardPath(id)); throw e; });
-      return send(res, 200, b);
+      const r = await libraryAction('createBoard', await body(req));
+      return send(res, 200, await loadBoard(r.created));
     }
+    if (p === '/library/duplicate' && m === 'POST') return send(res, 200, await libraryAction('duplicate', await body(req)));
+    const deleting = p.match(/^\/boards\/([a-zA-Z0-9-]+)\/delete$/);
+    if (deleting && m === 'POST') return send(res, 200, await libraryAction('delete', { id: deleting[1] }));
     const bm = p.match(/^\/boards\/([a-zA-Z0-9-]+)(\/batch|\/view|\/name)?$/);
     if (bm && m === 'GET' && !bm[2]) { const b = await loadBoard(bm[1]); return b ? send(res, 200, b) : send(res, 404, { error: 'no board' }); }
     if (bm && m === 'POST' && bm[2] === '/batch') return send(res, 200, await commit(bm[1], await body(req), { kind: 'user' }));
@@ -571,6 +569,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/library' && m === 'GET') return send(res, 200, await library());
     if (p === '/library' && m === 'POST') return send(res, 200, await changeLibrary(await body(req)));
+    if (p === '/link-preview' && m === 'GET') return send(res, 200, await linkPreview(url.searchParams.get('url')));
     if (p === '/assets' && m === 'POST') return send(res, 200, await saveAsset(req));
     if (p === '/ui-update' && m === 'GET') return send(res, 200, await ui.status());
     if (p === '/ui-update' && m === 'POST') { const b = await body(req); return send(res, 200, await ui.install(b.from ? { from: String(b.from) } : {})); }

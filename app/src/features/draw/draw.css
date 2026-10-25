@@ -1,0 +1,76 @@
+/* Drawing controls and system emoji. No bundled artwork. */
+.card.ink, .card.shape, .card.path, .card.stamp {
+  padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none;
+  overflow: visible; contain: layout style; pointer-events: none;
+}
+.card.ink.selected, .card.shape.selected, .card.path.selected, .card.stamp.selected { outline: 1px solid var(--focus); outline-offset: 4px; box-shadow: none; }
+.draw-art { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.draw-art path, .draw-art circle { pointer-events: visiblePainted; }
+.card.ink .resize, .card.shape .resize, .card.path .resize, .card.stamp .resize { pointer-events: auto; }
+.draw-text { position: absolute; inset: 20%; display: grid; place-content: center; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; pointer-events: auto; cursor: text; }
+.draw-text:empty { pointer-events: none; }
+.draw-text[contenteditable="plaintext-only"] { pointer-events: auto; background: color-mix(in srgb, var(--card) 80%, transparent); border-radius: 4px; }
+.draw-emoji { width: 100%; height: 100%; display: grid; place-content: center; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-size: 64px; line-height: 1; pointer-events: auto; container-type: size; }
+.card.stamp { container-type: size; }
+.card.stamp .draw-emoji { font-size: min(80cqw, 80cqh); }
+.draw-live, .draw-vector { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 100000; }
+.draw-point { fill: var(--card); stroke: var(--focus); stroke-width: 1.5px; vector-effect: non-scaling-stroke; pointer-events: all; cursor: move; }
+.draw-point.on { fill: var(--focus); }
+.draw-handle { cursor: crosshair; }
+.draw-radius { stroke: #ff5a6e; cursor: nwse-resize; }
+.draw-active { cursor: crosshair; }
+.draw-eraser-ring { position: fixed; transform: translate(-50%, -50%); border: 1px solid var(--text); border-radius: 50%; background: color-mix(in srgb, var(--card) 18%, transparent); pointer-events: none; z-index: 200; }
+.draw-link-editor { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 4; }
+.draw-link-knob { fill: var(--card); stroke: var(--focus); stroke-width: 1.5; pointer-events: all; cursor: crosshair; }
+.draw-link-bend { fill: var(--focus); cursor: move; }
+.draw-drop-target { pointer-events: none; fill: var(--focus); }
+.links { z-index: 1; }
+.links .link-hit { cursor: pointer; }
+.links .link-label { fill: var(--text); font: 12px var(--font); paint-order: stroke; stroke: var(--bg, var(--card)); stroke-width: 5px; stroke-linejoin: round; }
+.draw-inspector { position: fixed; z-index: 15; right: 16px; top: 64px; width: 270px; max-height: calc(100vh - 180px); overflow-y: auto; padding: 12px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); font: 12px var(--font); }
+.draw-inspector[hidden], .draw-eraser-ring[hidden] { display: none; }
+.draw-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.draw-header strong { font-size: 13px; }
+.draw-inspector button { min-height: 28px; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; background: transparent; color: var(--text); cursor: pointer; }
+.draw-inspector button:hover, .draw-inspector button[aria-pressed="true"] { background: var(--hover); border-color: var(--focus); }
+.draw-inspector button:focus-visible, .draw-inspector input:focus-visible, .draw-inspector select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.draw-buttons { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.draw-field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 9px 0; }
+.draw-field > span { flex: 1; }
+.draw-field input, .draw-field select { min-width: 0; max-width: 132px; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 4px; font: inherit; }
+.draw-field input[type="range"] { width: 85px; accent-color: var(--focus); padding: 0; }
+.draw-field input[type="number"] { width: 64px; }
+.draw-field input[type="color"] { padding: 2px; width: 44px; height: 28px; }
+.draw-field output { font-size: 10px; min-width: 30px; }
+.draw-size-dot { display: block; border: 1px solid var(--line); border-radius: 50%; flex: none; }
+.draw-swatches { display: flex; gap: 5px; padding: 8px 0; }
+.draw-swatches button { width: 24px; height: 24px; min-height: 24px; border-radius: 50%; padding: 0; border-color: var(--line); }
+.draw-hint { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 8px 0 3px; }
+.draw-stamp-wheel { position: relative; width: 200px; height: 200px; margin: 0 auto; }
+.draw-stamp-wheel button { position: absolute; width: 36px; height: 36px; padding: 0; font-size: 23px; border-radius: 50%; }
+.draw-stamp-wheel .draw-wheel-centre { left: 82px; top: 82px; font-size: 24px; }
+.draw-emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top: 8px; }
+.draw-emoji-grid button { font-size: 22px; padding: 3px; }
+.draw-inspector summary { cursor: pointer; padding: 8px 0; }
+@media (max-width: 700px) { .draw-inspector { width: 230px; top: 52px; right: 8px; max-height: calc(100vh - 190px); } }
+.draw-emoji { animation: draw-stamp-land .25s ease-out; }
+.draw-emoji[data-motion="wiggle"] { animation: draw-wiggle 1.2s ease-in-out infinite; }
+.draw-emoji[data-motion="pulse"] { animation: draw-pulse 1.5s ease-in-out infinite; }
+.draw-emoji[data-motion="spin"] { animation: draw-spin 5s linear infinite; }
+.draw-emoji[data-motion="shake"] { animation: draw-shake .7s ease-in-out infinite; }
+.draw-emoji[data-motion="float"] { animation: draw-float 2s ease-in-out infinite; }
+.draw-emoji[data-motion="squish"] { animation: draw-squish 1.2s ease-in-out infinite; }
+.draw-emoji[data-motion="hop"] { animation: draw-hop 1.4s ease-in-out infinite; }
+@keyframes draw-stamp-land { from { transform: scale(1.3); } to { transform: scale(1); } }
+@keyframes draw-wiggle { 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
+@keyframes draw-pulse { 50% { transform: scale(1.1); } }
+@keyframes draw-spin { to { transform: rotate(360deg); } }
+@keyframes draw-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+@keyframes draw-float { 50% { transform: translateY(-8px); } }
+@keyframes draw-squish { 50% { transform: scale(1.12, .86); } }
+@keyframes draw-hop { 15% { transform: translateY(-12px); } 30% { transform: translateY(0) scale(1.08, .92); } }
+@media (prefers-reduced-motion: reduce) { .draw-emoji { animation: none !important; } }
+.draw-field:has(.draw-size-preview) { position: relative; }
+.draw-size-preview { position: absolute; display: none; place-items: center; width: 124px; height: 124px; right: 12px; top: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); pointer-events: none; z-index: 2; }
+.draw-size-preview i { border: 1px solid var(--line); border-radius: 50%; }
+.draw-field:has(input[type="range"]:focus) .draw-size-preview, .draw-field:has(input[type="range"]:hover) .draw-size-preview { display: grid; }
