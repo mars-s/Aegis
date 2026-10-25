@@ -7,6 +7,8 @@ import { renderRecording, dropRecording, createRecording } from './recording.js'
 import { mountMedia } from './devices.js';
 import './style.css';
 import { installMediaImports } from './imports.js';
+// item 14: the existing picker accepts every supported canvas file.
+import { chooseImport } from '../imports';
 installMediaImports();
 registerPanel({ id: 'media-devices', title: 'Media devices', mount: mountMedia });
 registerRenderer('image', { render: renderImage, open: caption, interactive: 'button' });
@@ -18,8 +20,7 @@ registerTool({ id: 'voice-memo', title: 'Voice memo', group: 'media', icon: '<re
 registerTool({ id: 'camera-recording', title: 'Camera recording', group: 'media', icon: '<rect x="2" y="4" width="8" height="8" rx="2"/><path d="m10 6 4-2v8l-4-2"/>', place: (at, ctx) => createRecording(ctx, true, at) });
 registerCommand({ id: 'camera-recording', title: 'Camera recording', keys: 'shift+v', run: ctx => createRecording(ctx, true) });
 registerTool({ id: 'import-image', title: 'Import images (I)', key: 'i', group: 'media', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="m3 12 4-4 3 3 2-2 2 3"/>', activate(ctx) {
-  const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
-  input.onchange = () => { if (input.files) void importImages(ctx, input.files); }; input.click();
+  chooseImport(ctx);
 } });
 for (const [id, title, run] of [['image-colours', 'Pull colours', pullColours], ['image-crop', 'Crop image', editCrop], ['image-caption', 'Image caption', caption]] as const) {
   registerCardMenu({ id, title, when: (ctx, ids) => ids.length === 1 && ctx.canvas.board.cards.find((c: { id: string; type: string }) => c.id === ids[0])?.type === 'image', run(ctx, ids) {

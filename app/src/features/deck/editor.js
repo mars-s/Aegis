@@ -1,5 +1,6 @@
 import { deckSlides, slideIndex, slideHTML, escapeHTML, newSlide } from './slides.js';
 import { openSide, centreCardInLeft } from '../docs/side.js';
+import { downloadOriginal } from '../imports/assets.js';
 
 let active = null;
 let keyboardInput = false;
@@ -27,6 +28,14 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   const shell = openDeckPanel(card, ctx, { viaKey, onClose: dispose });
   shell.body.innerHTML = '<div class="deck-ed"><div class="deck-stage" tabindex="0" aria-label="Slides. Scroll to move through them."></div><div class="deck-film" role="tablist" aria-label="Slide strip"></div></div>';
   const { panel } = shell, stage = panel.querySelector('.deck-stage'), film = panel.querySelector('.deck-film');
+  // item 14: retain the original file alongside the editable slide deck.
+  if (card.props?.import?.original) {
+    const source = document.createElement('a'); source.className = 'deck-source'; source.textContent = 'Original file';
+    source.href = ctx.host.assetUrl(card.props.import.original); source.download = card.props.import.name || 'Presentation';
+    source.onclick = event => { event.preventDefault(); void downloadOriginal(ctx, card.props.import); };
+    panel.querySelector('.side-editor-tools').prepend(source);
+  }
+  // end item 14
   const status = panel.querySelector('[data-saved]');
   const boardStage = document.getElementById('stage');
   const state = { id: card.id, boardId, close: shell.close, focus: () => stage.focus({ preventScroll: true }) };

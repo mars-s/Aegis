@@ -8,6 +8,7 @@ Each slide has a stable `id`, a `layout`, `title`, `sub` and `body`. The layouts
 - `chart`: title and subtitle above `chart: { values: number[], target?: number, label?: string }`. The label describes the chart for assistive technology. Zero is a valid target.
 - `three`: title and subtitle beside three overlapping circles. The first three lines of `body` label the circles.
 - `text`: title, subtitle and plain body text.
+- `image`: editable title and body beside `images: [{src: 'asset:…', alt}]`. `imageOnly: true` fits the pictures to the full slide for Keynote previews. Images are contained without cropping. Imported decks keep `props.import: {format, name, original}` and expose the original asset in the window and editor.
 
 Agents use `create { type: 'deck', text, props: { slides, current: 0 } }` and `update { id, set: { props: { slides, current } } }`. Send the complete ordered slide list when editing. Pictures must be the person's own media. These layouts draw HTML and SVG, with no external photos or assets.
 

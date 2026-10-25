@@ -59,9 +59,12 @@ function three(body) {
     <text x="52" y="58">${escapeHTML(labels[0])}</text><text x="148" y="58">${escapeHTML(labels[1])}</text><text x="100" y="150">${escapeHTML(labels[2])}</text></svg>`;
 }
 
-export function slideHTML(slide, editable = false, number = 1) {
-  const layout = ['title', 'chart', 'three', 'text'].includes(slide.layout) ? slide.layout : 'text';
+export function slideHTML(slide, editable = false, number = 1, resolveUrl = url => globalThis.aegisCtx?.host.assetUrl(url) || url) {
+  const layout = ['title', 'chart', 'three', 'text', 'image'].includes(slide.layout) ? slide.layout : 'text';
   const field = (key, label) => `<p class="s-${key}" data-k="${key}"${editable ? ` contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-label="Slide ${number} ${label}" data-placeholder="${label}"` : ''}>${escapeHTML(slide[key])}</p>`;
-  const art = layout === 'title' ? ridges : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : '';
-  return `<div class="deck-slide l-${layout}" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div>`;
+  // item 14: imported pictures stay as asset references, separate from editable text.
+  const images = Array.isArray(slide.images) ? slide.images : [];
+  const art = layout === 'title' ? ridges : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
+  return `<div class="deck-slide l-${layout}${slide.imageOnly ? ' image-only' : ''}" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div>`;
+  // end item 14
 }

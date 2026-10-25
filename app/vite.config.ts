@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { readFileSync } from 'node:fs';
+// item 14: local PDF fonts, CMaps and decoders for development and the packaged UI.
+import { pdfResources } from './src/features/imports/pdf-resources.ts';
 
 // The native app's version, shown in Settings > About. A copied UI without the Tauri folder says 'dev'.
 function nativeVersion() {
@@ -9,7 +11,7 @@ function nativeVersion() {
 
 // Relative asset paths: the same build loads from the app bundle, from the host's ui folder, or from a preview.
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [svelte(), pdfResources()],
   define: { __AEGIS_VERSION__: JSON.stringify(nativeVersion()) },
   base: './',
   clearScreen: false,

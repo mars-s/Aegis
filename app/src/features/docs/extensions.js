@@ -5,7 +5,8 @@ import { TextStyleKit } from '@tiptap/extension-text-style';
 import { TableKit } from '@tiptap/extension-table';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
-import Image from '@tiptap/extension-image';
+// item 14: stable local image references, resolved only in rendered HTML.
+import { AssetImage as Image } from '../imports/assets.js';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
 import Placeholder from '@tiptap/extension-placeholder';

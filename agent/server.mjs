@@ -130,6 +130,9 @@ const changeLibrary = op => libraryAction(op.op === 'delete' && op.recursive ===
 // ---------- assets: images and video, stored by random name ----------
 // Reading needs no token (img and video tags can't send one); the 128-bit name is the capability.
 const MEDIA = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml', apng: 'image/apng',
+  // item 14: originals remain downloadable through the existing asset capability.
+  pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', key: 'application/vnd.apple.keynote',
+  // end item 14
   weba: 'audio/webm', ogg: 'audio/ogg', wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac',
   mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm' };
 const EXT_OF = Object.fromEntries(Object.entries(MEDIA).reverse().map(([e, t]) => [t, e]));
@@ -137,9 +140,12 @@ const ASSET_RE = /^[a-f0-9]{32}\.([a-z0-9]{3,4})$/;
 async function saveAsset(req) {
   const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
   const ext = EXT_OF[type]; if (!ext) throw Object.assign(new Error(`unsupported file type ${type || '(none)'}`), { status: 415 });
+  // item 14: cap original imported documents, independent of the media allowance.
+  const limit = ['pdf', 'pptx', 'key'].includes(ext) ? 64 * 1024 ** 2 : 1024 ** 3;
+  // end item 14
   const name = `${randomBytes(16).toString('hex')}.${ext}`, tmp = join(ASSETS, `${name}.tmp`);
   let size = 0;
-  req.on('data', c => { size += c.length; if (size > 1024 ** 3) req.destroy(new Error('file is over 1 GB')); });
+  req.on('data', c => { size += c.length; if (size > limit) req.destroy(new Error(`file is over ${limit === 1024 ** 3 ? '1 GB' : '64 MB'}`)); });
   await pipeline(req, createWriteStream(tmp, { mode: 0o600 }));
   if (!size) { await unlink(tmp).catch(() => {}); throw new Error('empty file'); }
   await rename(tmp, join(ASSETS, name));
@@ -167,7 +173,9 @@ async function sendAsset(req, res, name) {
 }
 
 // ---------- the UI, served from a folder so it can be replaced without rebuilding the app ----------
-const UI_TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', apng: 'image/apng', png: 'image/png', json: 'application/json', map: 'application/json', woff2: 'font/woff2' };
+// item 14: pdf.js uses a same-origin ES module worker in the packaged UI.
+const UI_TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8', wasm: 'application/wasm', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', apng: 'image/apng', png: 'image/png', json: 'application/json', map: 'application/json', woff2: 'font/woff2' };
+// end item 14
 async function uiRoot() {
   for (const dir of UI_DIRS) { try { if ((await stat(join(dir, 'index.html'))).isFile()) return dir; } catch {} }
   return null;

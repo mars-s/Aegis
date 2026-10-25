@@ -2,21 +2,29 @@ import { mediaContext } from './context.js';
 import { importImages } from './images.js';
 import { importVideo } from './recording.js';
 import { normaliseLink, spotifyOf } from './links.js';
+// item 14: one route for mixed image, video and document imports.
+import { fileFormat, importDocument } from '../imports';
+import { keynotePackages } from '../imports/keynote-package';
+import { pointerImport } from '../imports/motion';
+export async function importFiles(ctx, input, at = ctx.canvas.centre(), boardId = ctx.canvas.board.id) {
+  const files = [...input];
+  if (files.every(file => file.type.startsWith('image/'))) return importImages(ctx, files, at);
+  // Start before yielding so every item captures the destination board.
+  await Promise.all(files.map((file, i) => {
+    const position = { x: at.x + i * 600, y: at.y };
+    if (fileFormat(file)) return importDocument(ctx, file, position, boardId);
+    if (file.type.startsWith('video/')) return importVideo(ctx, file, position);
+    if (file.type.startsWith('image/')) return importImages(ctx, [file], position);
+    ctx.toast(`Could not import ${file.name}. Choose an image, video, PDF, PowerPoint (.pptx) or Keynote (.key) file.`);
+  }));
+}
+// end item 14
 export function installMediaImports() {
-  const mediaFiles = files => files.length && [...files].every(f => /^(image|video)\//.test(f.type));
-  const importFiles = async (ctx, input, at = ctx.canvas.centre()) => {
-    const files = [...input];
-    if (files.every(file => file.type.startsWith('image/'))) return importImages(ctx, files, at);
-    // Start each operation before yielding so every item captures the same destination board.
-    await Promise.all(files.map((file, i) => {
-      const position = { x: at.x + i * 464, y: at.y };
-      return file.type.startsWith('video/') ? importVideo(ctx, file, position) : importImages(ctx, [file], position);
-    }));
-  };
+  const mediaFiles = files => files.length && [...files].some(f => /^(image|video)\//.test(f.type) || fileFormat(f));
   const editing = target => target.closest?.('textarea, input, select, [contenteditable]');
   addEventListener('change', e => {
     const ctx = mediaContext(), files = e.target.files;
-    if (e.target.id !== 'mediaFile' || !ctx?.canvas.board || !files || !mediaFiles(files)) return;
+    if (e.target.id !== 'mediaFile' || !ctx?.canvas.board || !files?.length) return;
     e.stopImmediatePropagation(); void importFiles(ctx, files); e.target.value = '';
   }, true);
   addEventListener('paste', e => {
@@ -31,8 +39,17 @@ export function installMediaImports() {
   }, true);
   addEventListener('drop', e => {
     const ctx = mediaContext(); if (!ctx?.canvas.board || editing(e.target) || !e.target.closest?.('#stage')) return;
+    pointerImport();
     const files = e.dataTransfer?.files, at = ctx.canvas.screenToWorld(e.clientX, e.clientY);
-    if (files && mediaFiles(files)) { e.preventDefault(); e.stopImmediatePropagation(); document.getElementById('stage')?.classList.remove('dropping'); void importFiles(ctx, files, at); return; }
+    // item 14: Finder may drop .key as a package directory.
+    const packages = e.dataTransfer && keynotePackages(e.dataTransfer);
+    if (packages) {
+      e.preventDefault(); e.stopImmediatePropagation(); document.getElementById('stage')?.classList.remove('dropping');
+      const boardId = ctx.canvas.board.id; ctx.toast('Reading Keynote package…');
+      void packages.then(files => importFiles(ctx, files, at, boardId)).catch(error => ctx.toast(`Could not import the Keynote package. ${error.message}`)); return;
+    }
+    // end item 14
+    if (files?.length) { e.preventDefault(); e.stopImmediatePropagation(); document.getElementById('stage')?.classList.remove('dropping'); void importFiles(ctx, files, at); return; }
     if (files?.length) return;
     const text = (e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '').split('\n').find(s => s && !s.startsWith('#'))?.trim();
     if (!text || !/^https?:\/\/|^spotify:/i.test(text)) return;

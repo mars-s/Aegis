@@ -19,6 +19,9 @@ import { repairBatch } from './features/settings/preferences.js';
 import { createSaveQueue } from './features/settings/save.js';
 import { createOnboarding } from './features/onboarding/index.js';
 import { installNativeDownloads } from './lib/native-files';
+// item 14: shared import hook, installed once the canvas context exists.
+import { importFiles } from './features/media/imports.js';
+import { installImports } from './features/imports';
 
 export async function start() {
 const $ = id => document.getElementById(id);
@@ -219,29 +222,11 @@ function place(tool, at) {
   apply([{ op: 'create', text: '', ...spec, ref: 'n' }, { op: 'order', ids: ['$n'], to: 'front' }], created => { canvas.select([created.n]); canvas.edit(created.n); });
 }
 
-// ---------- media: drop, paste or pick images and video ----------
+// item 14: media, documents and presentations share the same drop/paste path.
 async function addMedia(files, at) {
-  files = [...files].filter(f => /^(image|video)\//.test(f.type)); if (!files.length) return false;
-  at ??= canvas.centre();
-  let dx = 0;
-  for (const f of files) {
-    try {
-      toast(`Adding ${f.name || 'media'}…`);
-      const size = await mediaSize(f); const { url } = await host.upload(f);
-      const w = Math.round(Math.max(160, Math.min(480, size.w))), h = Math.round(w * size.h / size.w) + (f.type.startsWith('video') ? 30 : 0);
-      apply([{ op: 'create', type: f.type.startsWith('video') ? 'video' : 'image', url, text: f.name?.replace(/\.[^.]+$/, '') ?? '', x: Math.round(at.x - w / 2 + dx), y: Math.round(at.y - h / 2), w, h, ref: 'm' }, { op: 'order', ids: ['$m'], to: 'front' }]);
-      dx += w + 24;
-    } catch (e) { toast(e.message); }
-  }
+  if (!files.length) return false;
+  await importFiles(ctx, files, at);
   return true;
-}
-function mediaSize(file) {
-  const url = URL.createObjectURL(file);
-  return new Promise(resolve => {
-    const done = (w, h) => { URL.revokeObjectURL(url); resolve(w && h ? { w, h } : { w: 480, h: 270 }); };
-    if (file.type.startsWith('video')) { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => done(v.videoWidth, v.videoHeight); v.onerror = () => done(); v.src = url; }
-    else { const i = new Image(); i.onload = () => done(i.naturalWidth, i.naturalHeight); i.onerror = () => done(); i.src = url; }
-  });
 }
 $('mediaFile').onchange = async e => { await addMedia(e.target.files); e.target.value = ''; };
 const stageEl = $('stage');
@@ -261,6 +246,7 @@ addEventListener('paste', async e => {
     apply([{ op: 'create', type: isImg ? 'image' : 'link', url: text, x: Math.round(c.x - 130), y: Math.round(c.y - 40), ref: 'l' }, { op: 'order', ids: ['$l'], to: 'front' }]);
   }
 });
+// end item 14
 
 // ---------- composer ----------
 const promptEl = $('prompt');
@@ -485,6 +471,9 @@ addEventListener('keydown', e => {
 }, true);
 const ctx = { apply: (c, done) => apply(c, done), canvas, host, toast: m => toast(m), selection: () => canvas.selection() };
 window.aegisCtx = ctx;
+// item 14 / 15: importer state and original motion assets, isolated from the chrome.
+installImports(ctx);
+// end item 14 / 15
 const editing = mountEditing(ctx);
 // Right-click: feature menu items for the cards under the pointer, or the board's own items on empty canvas.
 const menu = createMenu();
