@@ -1,0 +1,10 @@
+// One fictional, clearly labelled subject exercises every demo window in one atomic batch.
+export const demoBatch = [
+  { op: 'create', type: 'object', kind: 'reply', text: 'A calmer working week', ref: 'answer', data: { headline: 'Protect the morning for focused work', text: 'Keep meetings together and leave room to review. These figures are illustrative.' } },
+  { op: 'create', type: 'object', kind: 'plot', text: 'Focused hours', ref: 'plot', data: { style: 'bar', x: { kind: 'category', label: 'Day' }, y: { format: 'number', label: 'Hours' }, series: [{ name: 'Focus', points: [{ x: 'Mon', y: 3 }, { x: 'Tue', y: 4 }, { x: 'Wed', y: 2 }, { x: 'Thu', y: 4 }, { x: 'Fri', y: 2 }] }], basis: 'Demo data', knowledge: true } },
+  { op: 'create', type: 'object', kind: 'diagram', text: 'Idea to decision', ref: 'flow', data: { direction: 'right', nodes: [{ id: 'idea', name: 'Collect', kind: 'step' }, { id: 'test', name: 'Try it', kind: 'step' }, { id: 'decide', name: 'Decide', kind: 'step' }], edges: [{ from: 'idea', to: 'test' }, { from: 'test', to: 'decide' }] } },
+  { op: 'create', type: 'object', kind: 'sheet', text: 'Weekly balance', ref: 'values', data: { columns: [{ label: 'Day', kind: 'text' }, { label: 'Focus', kind: 'number' }, { label: 'Meetings', kind: 'number' }], rows: [{ cells: ['Mon', '3', '1'] }, { cells: ['Tue', '4', '2'] }, { cells: ['Wed', '2', '3'] }], note: 'Illustrative hours, not tracked activity.' } },
+  { op: 'create', type: 'object', kind: 'plan', text: 'Make room', ref: 'plan', data: { checkable: true, steps: [{ when: '09:00', title: 'Choose one outcome', kind: 'task', detail: 'Name the result before opening messages.' }, { when: '11:00', title: 'Try the smallest version', kind: 'task', detail: 'Test it while the idea is fresh.' }, { when: '16:00', title: 'Review and stop', kind: 'milestone' }] } },
+  { op: 'layout', shape: 'grid', ids: ['$answer', '$plot', '$flow', '$values', '$plan'], cols: 12, spans: [12, 6, 6, 7, 5], columnWidth: 84, gap: 24, fit: true, x: 40, y: 40 },
+  { op: 'focus', ids: ['$answer', '$plot', '$flow', '$values', '$plan'] },
+];

@@ -175,7 +175,7 @@ try {
     { op: 'create', newId: 'toolobject', type: 'object', kind: 'sheet', text: 'Sleep log', x: 0, y: 240, w: 420, h: 240, data: { columns: [{ label: 'Night', kind: 'text' }, { label: 'Hours', kind: 'number' }], rows: [{ cells: ['Monday', '7.4'] }, { cells: ['Tuesday', '7.8'] }], note: 'Fictional test data' } },
   ]); aegis.canvas.setView({ x: 450, y: 300, z: 1 }); }); await saved(); await pause();
   await select(['toolnote']); await pause();
-  const toolbar = page.locator('#selectionBar'), toolbarBox = () => toolbar.boundingBox();
+  const toolbar = page.locator('#selectionBar').filter({ has: page.locator('.selection-inline') }), toolbarBox = () => toolbar.boundingBox();
   const actions = () => page.locator('.selection-inline > button, .selection-inline > details > summary').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
   assert.deepEqual(await actions(), ['Bold', 'Italic', 'Align', 'Colour', 'More selection controls']);
   assert.equal(await page.locator('.selection-inline > select').count(), 0); assert.ok((await toolbarBox()).width < 340);

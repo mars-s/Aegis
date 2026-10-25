@@ -16,7 +16,7 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
-import { applyBatch, cardTypeGuide, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
+import { applyBatch, cardTypeGuide, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
 import '../app/src/lib/board/types/index.js';
 import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
@@ -68,16 +68,46 @@ async function listBoards() {
   return out;
 }
 async function commit(boardId, batch, author) {
+  // item 10: optional timing records contain sizes and durations, never board contents.
+  const started = performance.now();
   return withBoard(boardId, async () => {
     const board = await loadBoard(boardId);
     if (!board) return { ok: false, errors: [{ index: -1, reason: `no board ${boardId}`, hint: 'list boards first' }] };
+    const loaded = performance.now();
     const result = applyBatch(board, batch);
+    const applied = performance.now();
     if (!result.ok) return { ok: false, rev: board.rev, errors: result.errors };
     await atomicJson(boardPath(boardId), result.board);
-    broadcast({ type: 'board', boardId, rev: result.board.rev, author, touched: result.touched, focus: result.board.focus ?? null });
+    const saved = performance.now();
+    // item 10: publish the committed diff before the tool returns or the next model turn starts.
+    const before = new Map(board.cards.map(c => [c.id, c]));
+    const after = new Set(result.board.cards.map(c => c.id));
+    const touched = new Set(result.touched);
+    const patch = {
+      cards: result.board.cards.filter(c => touched.has(c.id) && (!before.has(c.id) || JSON.stringify(before.get(c.id)) !== JSON.stringify(c))),
+      removed: board.cards.filter(c => !after.has(c.id)).map(c => c.id),
+      ...(JSON.stringify(board.links) !== JSON.stringify(result.board.links) ? { links: result.board.links } : {}),
+      ...(board.cards.map(c => c.id).join(',') !== result.board.cards.map(c => c.id).join(',') ? { order: result.board.cards.map(c => c.id) } : {}),
+      fields: Object.fromEntries(['tray', 'palette', 'bg'].filter(k => JSON.stringify(board[k]) !== JSON.stringify(result.board[k])).map(k => [k, result.board[k] ?? null])),
+    };
+    broadcast({ type: 'board', boardId, baseRev: board.rev, rev: result.board.rev, patch, author, touched: result.touched, focus: result.board.focus ?? null, sentAt: Date.now() });
+    timing({ kind: 'batch', boardId, commands: batch.commands.length, loadMs: loaded - started, applyMs: applied - loaded, saveMs: saved - applied, totalMs: performance.now() - started });
     return { ok: true, rev: result.board.rev, created: result.created };
   });
 }
+// item 10: checks opt in; the normal host pays no serialisation or logging cost.
+function timing(value) { if (process.env.AEGIS_PROFILE_TOOLS) console.log(JSON.stringify({ aegis: 'timing', ...value })); }
+function boardTool(definition) {
+  return defineTool({ ...definition, execute: async (args, api) => {
+    const startedAt = Date.now(), started = performance.now();
+    try {
+      const result = await definition.execute(args, api);
+      if (process.env.AEGIS_PROFILE_TOOLS) timing({ kind: 'tool', name: definition.name, conversationId: String(api.conversationId ?? ''), startedAt, durationMs: performance.now() - started, outputBytes: Buffer.byteLength(JSON.stringify(result)) });
+      return result;
+    } catch (error) { timing({ kind: 'tool', name: definition.name, startedAt, durationMs: performance.now() - started, failed: true }); throw error; }
+  } });
+}
+// end item 10
 
 // ---------- library: projects and folders holding boards ----------
 const libraryPath = join(DATA, 'library.json');
@@ -186,6 +216,9 @@ if (process.env.AEGIS_FAKE_MODEL) {
   fake = fauxProvider({ provider: 'fake', models: [{ id: 'fake', name: 'Fake (checks only)' }] });
   const step = async (ctx) => {
     fake.appendResponses([step]);
+    // item 10: profile only sizes, so the harness proves context arrives on the first turn.
+    timing({ kind: 'model', inputBytes: Buffer.byteLength(JSON.stringify(ctx.messages)), hasBoardSummary: JSON.stringify(ctx.messages).includes('Current board summary') });
+    // end item 10
     if (process.env.AEGIS_FAKE_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Math.min(5000, Number(process.env.AEGIS_FAKE_DELAY_MS) || 0)));
     const msgs = ctx.messages;
     const brief = msgs.find(m => m.role === 'user'); const briefText = typeof brief?.content === 'string' ? brief.content : brief?.content?.find?.(c => c.type === 'text')?.text ?? '';
@@ -264,8 +297,11 @@ async function authState() {
 function modelList() {
   // Current families only, newest first: GPT-6.x and the latest Claude lines.
   const pick = (provider, re) => models.getModels(provider).filter(m => re.test(m.id)).map(m => ({ provider, modelId: m.id, name: m.name })).reverse();
-  return [...(fake ? [{ provider: 'fake', modelId: 'fake', name: 'Fake' }] : []),
-    ...pick('openai', /^gpt-6/), ...pick('anthropic', /^claude-(opus|sonnet|haiku)-5|^claude-fable-5/)];
+  // item 10: the first connected model is the UI default. Keep saved, explicit choices intact.
+  const current = [...pick('openai', /^gpt-6/), ...pick('anthropic', /^claude-(opus|sonnet|haiku)-5|^claude-fable-5/)];
+  const speedRank = m => /luna/.test(m.modelId) ? 0 : /haiku/.test(m.modelId) ? 1 : 2;
+  return [...(fake ? [{ provider: 'fake', modelId: 'fake', name: 'Fake' }] : []), ...current.sort((a, b) => speedRank(a) - speedRank(b))];
+  // end item 10
 }
 
 // ---------- one-shot text rewrite for the document editor (no board access, no tools) ----------
@@ -294,23 +330,50 @@ const boardOf = api => run.get(String(api.conversationId ?? api.conversation?.id
 const text = value => ({ output: [{ type: 'text', text: typeof value === 'string' ? value : JSON.stringify(value) }] });
 const Command = Type.Object({}, { additionalProperties: true, description: 'One board command, e.g. {"op":"create","type":"note","text":"..."}' });
 
-const readBoard = defineTool({
+// item 10: layout context omits document bodies, drawing paths and object datasets.
+function compactBoard(board, { ids, offset = 0, limit = 100, detail = false } = {}) {
+  const chosen = ids?.length ? board.cards.filter(c => ids.includes(c.id)) : board.cards;
+  const cards = chosen.slice(offset, offset + limit);
+  if (detail) return { id: board.id, name: board.name, rev: board.rev, cards, links: board.links, total: chosen.length, truncated: offset + cards.length < chosen.length };
+  return { id: board.id, name: board.name, rev: board.rev, total: chosen.length, offset,
+    cards: cards.map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h,
+      text: c.text.slice(0, /read me first/i.test(c.badge ?? '') ? 2000 : 120),
+      ...(c.kind ? { kind: c.kind } : {}), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}),
+      ...(c.parent ? { parent: c.parent } : {}), ...(c.items ? { items: c.items.length } : {}),
+    })), links: board.links.map(({ a, b, label }) => ({ a, b, ...(label ? { label: label.slice(0, 80) } : {}) })),
+    truncated: offset + cards.length < chosen.length,
+  };
+}
+function boardInput(brief, board) {
+  const summary = JSON.stringify(compactBoard(board));
+  timing({ kind: 'context', summaryBytes: Buffer.byteLength(summary), cards: board.cards.length });
+  return [{ type: 'text', text: brief }, { type: 'text', text: 'Current board summary (use these ids directly; board_read is only needed for details or later changes):\n' + summary }];
+}
+const layoutWork = brief => /\b(sort|tidy|organis[ez]|arrange|align|layout|lay out|clean up)\b/i.test(brief) && !/\b(research|analyse|analyze|investigate)\b/i.test(brief);
+const layoutThinking = (brief, target) => layoutWork(brief) && target.reasoning && target.thinkingLevelMap?.low !== null ? 'low' : null;
+// end item 10
+
+// item 10: compact reads and immediate, atomic batches share the timing wrapper.
+const readBoard = boardTool({
   name: 'board_read',
-  description: 'Read the current board: every card with id, type, position, size, text and links. Read before editing; ids are needed for update, move, delete, connect and layout.',
-  parameters: Type.Object({}),
+  description: 'Read a compact board summary: ids, types, positions, sizes and short text. The current summary is already in your first message, so use those ids without a read round trip. Use detail:true with ids to read full card content before changing it; offset and limit page through large boards.',
+  parameters: Type.Object({ detail: Type.Optional(Type.Boolean()), ids: Type.Optional(Type.Array(Type.String(), { maxItems: 100 })), offset: Type.Optional(Type.Integer({ minimum: 0 })), limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 400 })) }),
   replay: 'safe',
-  execute: async (_args, api) => {
+  execute: async (args, api) => {
     const id = boardOf(api); const b = id && await loadBoard(id);
-    return b ? text(describe(b)) : text('This conversation has no board.');
+    return b ? text(compactBoard(b, args)) : text('This conversation has no board.');
   },
 });
-const editBoard = defineTool({
+const editBoard = boardTool({
   name: 'board_apply',
   description: [
     'Change the board with an ordered batch of commands, applied together or not at all (one undo step).',
+    // item 10: one model round trip per meaningful step, including every move in that step.
+    'Send ONE large batch per step, up to 500 commands. Put all moves, edits, creates, layout and focus in it. Independent tool calls in the same turn run in parallel; dependent creates use ref and "$name" in the same batch. Each successful batch is saved and sent to the canvas immediately.',
     'Ops: create {type, text, heading?, badge?, color?, x?, y?, w?, h?, rot?, items? (todo), url? (link/image/video/web; https: or asset:), group?, parent? (card id), props? (type-specific, listed below), near? (card id), ref? (name to reuse as "$name" later in the batch)};',
     'update {id, set: {text|heading|badge|color|x|y|w|h|rot|items|url|group|parent|props}} (props merges; a null value removes that key); move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
-    'layout {ids, shape: grid|column|row, x?, y?, cols?}; order {ids, to: front|back|index} (stacking; cards are listed back to front); focus {ids} (show the user what you made; end every batch that adds things with focus).',
+    // item 11: spans share one grid and content fitting, rather than hand-picked window positions.
+    'layout {ids, shape: grid|column|row, x?, y?, cols?, spans?, columnWidth?, gap?, fit?}. For a composed demo use shape:"grid", cols:12, spans:[12,6,6,7,5] (one span per id), columnWidth:84, gap:24, fit:true. Rows wrap in reading order, share top edges, and start 24px below the tallest window above. Content fitting sizes objects and refuses columns too narrow for their contents. order {ids, to: front|back|index} changes stacking; focus {ids} shows the result.',
     'A note with a heading and a badge such as "read me first" explains how the board works.',
     'Colors: plain gray blue green yellow orange red purple, or "#rrggbb". Omit x/y to let the board find free space. Titles label groups; put a title above each cluster.',
     'Basic types: note, title, todo, link, image, video, web. More types:\n' + cardTypeGuide(),
@@ -323,6 +386,7 @@ const editBoard = defineTool({
     return text({ ok: true, rev: result.rev, created: result.created });
   },
 });
+// end item 10
 // ---------- objects: Zephium-style typed results (create, revise) ----------
 const SCHEMAS = objectSchemas();
 const createObject = defineTool({
@@ -464,7 +528,15 @@ const BoardExtension = defineExtension({
     'Big jobs: split independent work into parts with start_part, several in one turn so they run together; a part is one purpose, not one step. Build the result from their digests. A small question needs no parts.',
     'If you are a part (your first message says "Part"), work only toward its goal, place at most one object, then call finish with your digest. Never start parts.',
     'Australian English. Text outside tool calls is only a short status line; the person reads the board, so every answer goes into objects or cards.',
+  ].join('\n'), { tag: false }),
+  // item 11: layout guidance is deliberately separate from conversational reply policy.
+  section('aegis-layout', () => [
+    'Compose demos as one tidy block on a 12-column grid with 24px gutters. Load show-what-you-can-do for a demo.',
+    'Create the whole composition with board_apply, refs and a final grid layout in ONE batch. Use spans to give each window the columns it needs, fit:true to size its height to content, and focus on the result.',
+    'Keep top and left edges aligned, gaps consistent, and reading order left to right then down. Use varied typed components for one subject. Never stretch a short diagram to a huge empty height or squeeze a reply so its text clips. If a span is too narrow, widen it or shorten the content, then retry the batch.',
+    'The board summary arrives with the request. Read only missing details. Independent tools may run together, but every dependent edit belongs in the same batch using refs.',
   ].join('\n'), { tag: false })],
+  // end item 11
 });
 
 const registry = createRegistry();
@@ -524,15 +596,23 @@ function summarise(id, value) {
     text: (partial || answer).slice(-600), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
 }
 async function spawnAgent({ boardId, brief, model, statusModel, parent, title }) {
-  if (!(await loadBoard(boardId))) throw new Error('no such board');
-  const selection = model ?? modelList()[0];
+  // item 10: include compact context immediately and use low effort for mechanical layout work.
+  const board = await loadBoard(boardId); if (!board) throw new Error('no such board');
+  const choices = modelList();
+  const ready = [];
+  for (const choice of choices) if (choice.provider === 'fake' || await credentials.read(choice.provider)) ready.push(choice);
+  const selection = model ?? (layoutWork(brief) ? ready[0] : ready.find(m => /6\.1-sol|opus/.test(m.modelId)) ?? ready[0]) ?? choices[0];
   if (!selection) throw new Error('no models');
-  const conversation = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model: { provider: selection.provider, modelId: selection.modelId } } }, context);
+  const target = models.getModel(selection.provider, selection.modelId);
+  const level = layoutThinking(brief, target), thinking = level ? { thinkingLevel: level } : {};
+  timing({ kind: 'policy', model: selection.modelId, thinkingLevel: level });
+  const conversation = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model: { provider: selection.provider, modelId: selection.modelId }, ...thinking } }, context);
   const id = String(conversation.id);
   run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, statusModel, created: Date.now(), ...(parent ? { parent, title } : {}) });
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
-  await conversation.submit({ type: 'input', content: brief, requestId: randomUUID() }, context);
+  await conversation.submit({ type: 'input', content: boardInput(brief, board), requestId: randomUUID() }, context);
+  // end item 10
   return { id };
 }
 async function message(id, content) {
@@ -541,7 +621,11 @@ async function message(id, content) {
   const meta = run.get(String(id)); meta.brief = content.slice(0, 2000); meta.stopped = false; statuses.delete(String(id));
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
-  await conversation.submit({ type: 'input', content, requestId: randomUUID() }, context);
+  // item 10: follow-ups also receive the latest revision, so they need no speculative board_read.
+  const board = await loadBoard(meta.boardId);
+  await conversation.configure({ thinkingLevel: layoutThinking(content, models.getModel(meta.model.provider, meta.model.modelId)) }, context);
+  await conversation.submit({ type: 'input', content: board ? boardInput(content, board) : content, requestId: randomUUID() }, context);
+  // end item 10
 }
 async function stop(id) {
   const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);

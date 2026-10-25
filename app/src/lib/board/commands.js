@@ -198,7 +198,7 @@ export function applyBatch(input, batch) {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : []).map(ref);
           const cards = ids.map(id => board.cards.find(c => c.id === id)).filter(Boolean);
           if (cards.length !== ids.length) throw new Error('layout lists a card that does not exist');
-          layout(cards, cmd.shape ?? 'grid', { x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, 3), 1, 20) });
+          layout(cards, cmd.shape ?? 'grid', { ...cmd, x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, cmd.spans ? 12 : 3), 1, 20) });
           cards.forEach(c => touched.add(c.id)); break;
         }
         case 'order': {
@@ -270,13 +270,71 @@ export function applyBatch(input, batch) {
   return { ok: true, board, created, touched: [...touched], errors: [] };
 }
 
-export function layout(cards, shape, { x, y, cols }) {
+// item 11: spans opt into a fixed-column composition; existing layouts keep their sizes.
+export function layout(cards, shape, { x, y, cols, spans, columnWidth = 84, gap = GAP, fit = false }) {
+  if (shape === 'grid' && spans) {
+    if (!Number.isInteger(cols) || !Array.isArray(spans) || spans.length !== cards.length || spans.some(s => !Number.isInteger(s) || s < 1 || s > cols)) throw new Error('grid needs one whole column span per card, between 1 and cols');
+    if (!Number.isFinite(columnWidth) || columnWidth < 24 || columnWidth > 300 || !Number.isFinite(gap) || gap < 0 || gap > 120) throw new Error('grid columnWidth must be 24..300 and gap 0..120');
+    let column = 0, rowY = y, rowHeight = 0;
+    cards.forEach((c, i) => {
+      const span = spans[i], width = span * columnWidth + (span - 1) * gap;
+      if (width > 4000) throw new Error('grid window exceeds 4000px; use narrower columns');
+      if (column + span > cols) { rowY += rowHeight + gap; column = 0; rowHeight = 0; }
+      const size = fit && c.type === 'object' ? objectContentSize(c, width) : { w: 40, h: c.h };
+      if (size.w > width) throw new Error(`${c.kind ?? c.type} needs at least ${size.w}px; give it more columns or shorten its content`);
+      if (size.h > 4000) throw new Error('content exceeds 4000px; split it into smaller objects');
+      Object.assign(c, { x: x + column * (columnWidth + gap), y: rowY, w: width, h: Math.ceil(size.h), rot: 0 });
+      rowHeight = Math.max(rowHeight, c.h); column += span;
+    });
+    return;
+  }
   if (shape === 'column') { let cy = y; for (const c of cards) { c.x = x; c.y = cy; cy += c.h + GAP; } return; }
   if (shape === 'row') { let cx = x; for (const c of cards) { c.x = cx; c.y = y; cx += c.w + GAP; } return; }
   // grid: equal cells sized to the largest card
   const cw = Math.max(...cards.map(c => c.w)) + GAP, ch = Math.max(...cards.map(c => c.h)) + GAP;
   cards.forEach((c, i) => { c.x = x + (i % cols) * cw; c.y = y + Math.floor(i / cols) * ch; });
 }
+
+// Content metrics include the 36px strip, padding and borders. Text estimates are conservative;
+// the browser check also measures the rendered content rather than trusting these estimates.
+export function objectContentSize(card, width = card.w) {
+  const d = card.data, inner = Math.max(80, width - 42), chrome = 70;
+  const lines = (text, available, char = 8) => String(text ?? '').split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length * char / Math.max(40, available))), 0);
+  switch (card.kind) {
+    case 'diagram': {
+      // Renderer node metrics: 28px horizontal padding, 18px title lines, 16px note lines.
+      const boxes = d.nodes.map(n => {
+        const w = Math.max(120, Math.min(220, Math.ceil(Math.max(n.name.length, Math.min(n.note?.length ?? 0, 34)) * 7.2 + 28)));
+        const perLine = Math.floor((w - 28) / 7.2);
+        return { w, h: 22 + Math.min(2, Math.ceil(n.name.length / perLine)) * 18 + (n.note ? Math.min(3, Math.ceil(n.note.length / perLine)) * 16 : 0) };
+      });
+      const incoming = new Map(d.nodes.map(n => [n.id, 0])), outgoing = new Map(incoming);
+      for (const e of d.edges) { incoming.set(e.to, incoming.get(e.to) + 1); outgoing.set(e.from, outgoing.get(e.from) + 1); }
+      const roots = d.nodes.filter(n => !incoming.get(n.id));
+      const chain = d.edges.length === d.nodes.length - 1 && roots.length === 1 && [...incoming.values(), ...outgoing.values()].every(n => n <= 1);
+      const across = d.direction === 'right';
+      const width = chain ? across ? boxes.reduce((n, b) => n + b.w, 0) + 56 * (boxes.length - 1) + 12 : Math.max(...boxes.map(b => b.w)) + 12 : Math.max(...boxes.map(b => b.w));
+      const height = chain && across ? Math.max(...boxes.map(b => b.h)) + 12 : boxes.reduce((n, b) => n + b.h, 0) + (chain ? 56 : 72) * (boxes.length - 1) + 12;
+      // Layer bands can extend 24px above and 12px below their nodes.
+      return { w: 200, h: chrome + Math.ceil(height * (chain ? Math.min(1, inner / width) : 1)) + (d.layers?.length ? 48 : 0) };
+    }
+    case 'reply': {
+      const reading = Math.min(inner, 520); // the renderer caps the reading column at 64ch
+      const figures = d.figures?.length ? 20 + Math.ceil(d.figures.length / Math.max(1, Math.floor(reading / 170))) * 78 : 0;
+      return { w: 280, h: chrome + lines(d.headline, reading, 13) * 31 + 14 + lines(d.text, reading) * 24 + figures + (d.points?.length ? 16 + d.points.reduce((n, p) => n + lines(p, reading - 18) * 22 + 8, 0) : 0) };
+    }
+    case 'sheet': {
+      const w = 48 + d.columns.reduce((sum, col, i) => sum + Math.max(106, Math.ceil(Math.max(col.label.length + (col.unit?.length ?? 0) + 3, ...d.rows.map(r => String(r.cells[i] ?? '').length)) * 7 + 22)), 0);
+      return { w, h: 38 + (d.rows.length + 2) * 30 + (d.note ? 20 + lines(d.note, width - 24, 6) * 18 : 0) };
+    }
+    case 'plan': return { w: 340, h: chrome + d.steps.reduce((n, s) => n + lines(s.title, inner - 114) * 18 + (s.detail ? 3 + lines(s.detail, inner - 114) * 20 : 0) + (s.place || s.cost ? 22 : 0) + 14, 0) + (d.total ? 40 : 0) };
+    case 'list': return { w: 280, h: chrome + d.items.reduce((n, s) => n + lines(s.title, inner - 80) * 18 + (s.detail ? 3 + lines(s.detail, inner - 80) * 20 : 0) + 17, 0) };
+    case 'code': return { w: Math.max(280, 90 + Math.max(...d.text.split('\n').map(s => s.length)) * 7.5), h: chrome + d.text.split('\n').length * 20 + (d.notes ?? []).reduce((n, s) => n + lines(s.text, inner - 50, 7) * 20 + 16, 0) };
+    case 'plot': return { w: 420, h: chrome + (d.style === 'radar' ? 280 : ['donut', 'radial'].includes(d.style) ? 188 : d.style === 'bar_horizontal' ? Math.max(140, d.series[0].points.length * 28) : 220) + (d.headline ? 66 : 0) + 40 + lines(d.basis, inner, 6) * 18 + (d.series.length > 1 ? Math.ceil(d.series.length / 3) * 28 : 0) };
+    default: return { w: OBJECT_SIZE[card.kind]?.[0] ?? 520, h: OBJECT_SIZE[card.kind]?.[1] ?? 360 };
+  }
+}
+// end item 11
 
 // A compact view of a board for a model: ids, types, positions, text. Cards are listed back to front.
 export function describe(board, limit = 400) {

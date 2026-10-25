@@ -361,20 +361,52 @@ function renderAgents() {
 }
 
 // ---------- live events ----------
+// item 10: committed diffs arrive in revision order. Only a gap/reconnect needs a full read.
+let boardEvents = Promise.resolve(), libraryRefreshTimer = 0;
+async function agentBoardEvent(ev) {
+  if (ev.boardId !== canvas.board?.id) return;
+  if (saves.pending) await saves.settled;
+  if (canvas.busy()) await new Promise(resolve => {
+    const stage = $('stage');
+    const done = () => { stage.removeEventListener('pointerup', done); stage.removeEventListener('pointercancel', done); resolve(); };
+    stage.addEventListener('pointerup', done); stage.addEventListener('pointercancel', done);
+  });
+  if (ev.boardId !== canvas.board?.id || saves.pending) return;
+  if (ev.rev <= canvas.board.rev) return;
+  const focus = ev.focus && Date.now() - ev.focus.at < 5000 ? ev.focus : null;
+  if (ev.patch && ev.baseRev === canvas.board.rev) {
+    const removed = new Set(ev.patch.removed), changed = new Map(ev.patch.cards.map(c => [c.id, c]));
+    const cards = canvas.board.cards.filter(c => !removed.has(c.id)).map(c => {
+      const next = changed.get(c.id); changed.delete(c.id); return next ?? c;
+    });
+    cards.push(...changed.values());
+    const byId = ev.patch.order && new Map(cards.map(c => [c.id, c]));
+    const next = { ...canvas.board, rev: ev.rev, focus: ev.focus, cards: byId ? ev.patch.order.map(id => byId.get(id)).filter(Boolean) : cards, links: ev.patch.links ?? canvas.board.links };
+    for (const [key, value] of Object.entries(ev.patch.fields)) { if (value === null) delete next[key]; else next[key] = value; }
+    canvas.setBoard(next, { animate: true, agentIds: [...ev.patch.cards.map(c => c.id), ...ev.patch.removed] }); refreshEmpty();
+    if (focus?.ids?.length) followTo(focus.ids);
+  } else await reloadBoard(focus);
+  clearTimeout(libraryRefreshTimer); libraryRefreshTimer = setTimeout(() => library.refresh(), 200);
+  if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId)); }
+}
+// end item 10
 function listen() {
   const es = host.events();
   es.onmessage = async m => {
     const ev = JSON.parse(m.data);
     if (ev.type === 'board' && ev.boardId === canvas.board?.id && ev.author?.kind === 'agent') {
-      await reloadBoard(ev.focus && Date.now() - ev.focus.at < 5000 ? ev.focus : null);
-      library.refresh();
-      if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId)); }
+      // item 10: serialise board revisions without blocking streamed agent status messages.
+      boardEvents = boardEvents.then(() => agentBoardEvent(ev)).catch(e => toast(`Could not update the board: ${e.message}`));
+      // end item 10
     }
     if (ev.type === 'agent') { agentState.set(ev.id, ev); renderAgents(); }
     if (ev.type === 'auth') { renderAccounts(); loadModels(); }
     if (ev.type === 'library') library.refresh();
   };
+  // item 10: SSE has no replay buffer, so reconcile once after reconnecting.
+  es.onopen = () => { boardEvents = boardEvents.then(() => reloadBoard()).catch(() => {}); };
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
+  // end item 10
 }
 
 // ---------- settings ----------

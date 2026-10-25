@@ -85,8 +85,67 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let lineCards = new Map(), lineTimer = 0;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   function settleAgentLine() { agentSvg.getAnimations({ subtree: true }).forEach(a => a.finish()); }
-  reduced.addEventListener('change', () => { if (reduced.matches) settleAgentLine(); });
-  new MutationObserver(() => { if (document.body.classList.contains('motion-off')) settleAgentLine(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  // item 10: only agent batches enter this queue. No per-card work on the pan/zoom path.
+  let agentMotionQueue = [];
+  const cardMotions = new Map(), exitingCards = new Set();
+  const motionAllowed = () => !reduced.matches && !document.body.classList.contains('motion-off');
+  function settleCardMotion() {
+    agentMotionQueue = [];
+    for (const animation of cardMotions.values()) { animation.finish(); animation.cancel(); }
+    cardMotions.clear();
+    for (const el of exitingCards) removeEl(el);
+    exitingCards.clear();
+  }
+  function cancelCardMotion(el) {
+    const animation = cardMotions.get(el);
+    if (animation) { animation.cancel(); cardMotions.delete(el); }
+  }
+  function animateAgentBatch() {
+    const queue = agentMotionQueue; agentMotionQueue = [];
+    if (!motionAllowed()) { settleCardMotion(); return; }
+    queue.forEach(({ id, before, exit }, i) => {
+      const el = exit ?? mounted.get(id)?.el; if (!el || el.classList.contains('dragging') || drag?.cards?.some(d => d.c.id === id)) return;
+      cancelCardMotion(el);
+      const target = el.style.transform;
+      const frames = exit ? [{ transform: before.transform, opacity: before.opacity }, { transform: before.transform, opacity: 0 }]
+        : before ? [{ transform: before.transform, opacity: before.opacity }, { transform: target, opacity: 1 }]
+        : [{ transform: `${target} scale(0.96)`, opacity: 0 }, { transform: target, opacity: 1 }];
+      const animation = el.animate(frames, { duration: exit ? 180 : before ? 320 : 240, delay: i * 30, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' });
+      animation.id = 'aegis-agent-card';
+      cardMotions.set(el, animation);
+      const done = () => {
+        if (cardMotions.get(el) !== animation) return;
+        cardMotions.delete(el); animation.cancel();
+        if (exit) { exitingCards.delete(el); removeEl(el); }
+      };
+      animation.onfinish = done;
+    });
+  }
+  function prepareAgentBatch(next, ids) {
+    // Start at the live presentation transform, including when the previous batch is mid-flight.
+    const after = new Map(next.cards.map(c => [c.id, c]));
+    const beforeCards = new Map(board.cards.map(c => [c.id, c]));
+    const r = visibleRect(); let count = 0;
+    for (const id of new Set(ids ?? [...beforeCards.keys(), ...after.keys()])) {
+      const c = after.get(id), old = beforeCards.get(id), el = mounted.get(id)?.el;
+      if (old && c && geometry(old) === geometry(c)) continue;
+      if (!el && (!c || c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0)) continue;
+      if (count++ >= 12) { if (el) cancelCardMotion(el); continue; }
+      const style = el && getComputedStyle(el);
+      const before = style ? { transform: style.transform, opacity: Number(style.opacity) } : null;
+      if (el) cancelCardMotion(el);
+      let exit;
+      if (!c && el) {
+        exit = el; mounted.delete(id); exitingCards.add(el);
+        el.inert = true; el.setAttribute('aria-hidden', 'true'); el.style.pointerEvents = 'none';
+        el.removeAttribute('data-id');
+      }
+      agentMotionQueue.push({ id, before, exit });
+    }
+  }
+  reduced.addEventListener('change', () => { if (reduced.matches) { settleAgentLine(); settleCardMotion(); } });
+  new MutationObserver(() => { if (!motionAllowed()) { settleAgentLine(); settleCardMotion(); } }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  // end item 10
   let frame = 0, dirtyAll = true;
   let tool = null;                // armed tool: the next click on empty canvas places it
   const ctx = grid.getContext('2d');
@@ -115,11 +174,17 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     drawGrid();
     // Far out, cards are drawn as shapes on the grid canvas instead of mounted as DOM.
     if (far) { unmountAll(); drawShapes(); } else mountVisible();
+    // item 10: WAAPI does the interpolation on the compositor after this one paint.
+    if (agentMotionQueue.length) animateAgentBatch();
+    // end item 10
     drawLinks();
     stage.dispatchEvent(new CustomEvent('canvaspaint'));
     dirtyAll = false;
   }
   function removeEl(el) {
+    // item 10: release compositor animations when a card leaves the mounted viewport.
+    cancelCardMotion(el);
+    // end item 10
     if (el.classList.contains('object')) dropObject?.(el.querySelector('.object-host'));
     RENDERERS.get(el.dataset.type)?.drop?.(el);
     el.remove();
@@ -378,6 +443,15 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       selected.clear(); ids.forEach(id => selected.add(id));
       onSelect?.([...selected]);
       const start = screenToWorld(e.clientX, e.clientY);
+      // item 10: taking hold of a moving card hands over its live position to the pointer.
+      for (const sid of selected) {
+        const el = mounted.get(sid)?.el, card = board.cards.find(c => c.id === sid);
+        if (!el || !card || !cardMotions.has(el)) continue;
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+        cancelCardMotion(el); card.x = matrix.m41; card.y = matrix.m42;
+        place(el, card); mounted.get(sid).geo = geometry(card);
+      }
+      // end item 10
       const resize = e.target.classList.contains('resize');
       let cards = [...selected].map(sid => board.cards.find(c => c.id === sid)).filter(Boolean);
       if (!resize) for (const h of DRAG_HANDLERS.values()) cards = h.start?.(cards, board, e) ?? cards;
@@ -566,8 +640,16 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
 
   return {
-    setBoard(next, { keepView = true } = {}) {
+    setBoard(next, { keepView = true, animate = false, agentIds } = {}) {
       const first = !board || board.id !== next.id;
+      // item 10: local edits, keyboard actions, board switches and a person's drag stay instant.
+      if (first || !animate || !motionAllowed() || drag) settleCardMotion();
+      else {
+        // Paint an earlier batch first if two SSE events arrived before the next display frame.
+        if (agentMotionQueue.length) { mountVisible(); animateAgentBatch(); }
+        prepareAgentBatch(next, agentIds);
+      }
+      // end item 10
       if (lineCards.size) {
         const byId = new Map(next.cards.map(c => [c.id, c]));
         if (first || [...lineCards].some(([id, geo]) => !byId.has(id) || geometry(byId.get(id)) !== geo)) clearAgentLine();
