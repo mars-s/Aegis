@@ -28,6 +28,17 @@
 .genui .data-grid td:first-child input { padding-left: 0; }
 .genui .data-grid td:last-child input { padding-right: 0; }
 .genui .data-grid input:focus-visible { outline: none; }
+/* R4 polish: plain values become a single field only while editing. */
+.genui .inline-value { position: relative; display: inline-grid; vertical-align: baseline; min-width: 1ch; }
+.genui .inline-value .value-trigger { font: inherit; letter-spacing: inherit; line-height: inherit; color: inherit; text-align: inherit; border: 0; border-radius: 2px; background: transparent; box-shadow: none; padding: 0; min-height: 0; transition: none; transform: none; }
+.genui .inline-value.editing .value-trigger { visibility: hidden; }
+.genui .inline-value input { position: absolute; inset: -3px -4px; width: calc(100% + 8px); height: calc(100% + 6px); min-height: 0; padding: 2px 3px; font: inherit; letter-spacing: inherit; line-height: inherit; text-align: inherit; border-radius: 2px; outline: none; border: 1px solid var(--text); appearance: textfield; }
+.genui .inline-value input::-webkit-inner-spin-button, .genui .inline-value input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.genui .kind-more { position: absolute; top: 4px; right: -8px; width: 44px; height: 44px; min-height: 44px; padding: 14px; background: transparent; border: 0; box-shadow: none; color: var(--muted); opacity: 0; }
+.genui .kind-more svg { display: block; width: 16px; height: 16px; fill: currentColor; }
+.genui :is(.ticket, .stages li):focus-within .kind-more, .genui .kind-more[aria-expanded=true] { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .genui :is(.ticket, .stages li):hover .kind-more { opacity: 1; } }
+@media (hover: none), (pointer: coarse) { .genui .kind-more { opacity: 1; } .genui .inline-value .value-trigger { min-height: 44px; min-width: 44px; } }
 @media (pointer: coarse), (hover: none) { .genui .data-grid td { height: 44px; } .genui .data-grid input { min-height: 0; } }
 .genui .track { display: block; height: 4px; background: var(--line); overflow: hidden; }
 .genui .track > span { display: block; height: 100%; background: var(--data); }

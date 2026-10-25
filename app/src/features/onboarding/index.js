@@ -31,6 +31,9 @@ export function createOnboarding({ mobile, panels, openComposer, closeComposer }
       if (target) {
         const stepIndex = index;
         const hidden = target.hidden, folded = target.classList.contains('folded'), parent = target.closest('.side');
+        // R4 sidebar: the tour temporarily reveals grouped panels and restores the disclosure.
+        const tools = target.closest('[data-panel="tools"]'), toolsFolded = tools?.classList.contains('folded');
+        if (toolsFolded) { tools.classList.remove('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'true'); }
         const key = parent?.id === 'sideRight' ? 'right' : 'left', wasOpen = panels.isOpen(key);
         const composerOpen = document.getElementById('composer').classList.contains('open');
         if (index === 0 && !phone) document.body.classList.add('tour-tools');
@@ -41,6 +44,7 @@ export function createOnboarding({ mobile, panels, openComposer, closeComposer }
         restore = () => {
           document.body.classList.remove('tour-tools');
           target.hidden = hidden; target.classList.toggle('folded', folded);
+          if (toolsFolded) { tools.classList.add('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'false'); }
           if (parent) panels.setOpen(key, wasOpen, true);
           if (stepIndex === 5 && !composerOpen) closeComposer(true);
         };

@@ -46,6 +46,7 @@ try {
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('#boardName').click();
   const palette = page.locator('[data-panel="board-colours"]');
+  await page.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
   await palette.locator('.fold').click();
   await palette.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByLabel('Colour name', { exact: true }).fill('Saved sky'); await page.getByLabel('Colour name', { exact: true }).press('Tab');

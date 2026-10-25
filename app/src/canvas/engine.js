@@ -5,6 +5,8 @@ import { effectiveFlag } from '../features/editing/model.js';
 import { drawGridMotif } from '../features/editing/grid.js';
 import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
+// R4 orientation: names stay in screen space and reuse visible-card culling.
+import { createOrientation } from './orientation.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
@@ -51,6 +53,7 @@ export function registerDragHandler(id, handler) { DRAG_HANDLERS.set(id, handler
 export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
+  const orientation = createOrientation(stage, () => view, () => schedule());
   const guides = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   guides.classList.add('drag-guides');
   Object.assign(guides.style, { position: 'absolute', inset: '0', width: '1px', height: '1px', overflow: 'visible', pointerEvents: 'none', zIndex: '2147483647', color: 'var(--focus, #ed65a6)' });
@@ -185,8 +188,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     stage.classList.toggle('far', far);
     stage.style.backgroundColor = board?.bg || '';
     drawGrid();
+    // R4 orientation: no name collection on an idle board or at working zoom.
+    orientation.begin();
     // Far out, cards are drawn as shapes on the grid canvas instead of mounted as DOM.
     if (far) { unmountAll(); drawShapes(); } else mountVisible();
+    orientation.paint();
     // item 10: WAAPI does the interpolation on the compositor after this one paint.
     if (agentMotionQueue.length) animateAgentBatch();
     // end item 10
@@ -219,6 +225,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     for (const c of board.cards) {
       if (effectiveFlag(board, c, 'hidden')) continue;
       if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) continue;
+      // R4 orientation: this card already passed the existing visibility checks.
+      if (orientation.active) orientation.consider(c);
       const x = c.x * z + view.x, y = c.y * z + view.y, w = c.w * z, h = (c.type === 'title' ? 56 : c.h) * z;
       if (c.type === 'title') { ctx.fillStyle = text; ctx.fillRect(x, y + h * 0.3, Math.min(w, (c.text.length || 4) * 14 * z), Math.max(2, h * 0.4)); continue; }
       ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : fills[c.color] || fills.plain;
@@ -272,6 +280,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     board.cards.forEach((c, z) => {
       if (effectiveFlag(board, c, 'hidden')) return;
       if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) return;
+      // R4 orientation: share the mounted-card culling path too.
+      if (orientation.active) orientation.consider(c);
       keep.add(c.id);
       const sig = signature(c), geo = geometry(c);
       let m = mounted.get(c.id);

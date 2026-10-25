@@ -27,14 +27,21 @@ export function createPanels({ side, onChange }) {
   addEventListener('blur', () => { for (const key of ['left', 'right']) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); } });
   const all = new Map(), defaults = [], save = () => localStorage.setItem(KEY, JSON.stringify(state));
   const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
-  const persistOrder = () => { state.columns = { left: boxes(side).map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
+  // R4 sidebar: one persistent disclosure holds occasional panels, with their own controls intact.
+  const occasional = new Set(['wireframe', 'board-colours', 'media-devices', 'draw', 'unsorted', 'keys']);
+  const tools = document.createElement('section'); tools.className = 'pbox'; tools.dataset.panel = 'tools';
+  tools.innerHTML = '<div class="phead"><span>Tools</span><button type="button" class="fold" aria-label="Toggle Tools"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div><div class="pbody tools-panels"></div>';
+  side.insertBefore(tools, side.querySelector('.side-resize'));
+  const toolsBody = tools.querySelector('.pbody');
+  const persistOrder = () => { state.columns = { left: [...boxes(side), ...boxes(toolsBody)].map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
   function apply() {
     // Round 3 navigation: Windows leads its board, with a compact Library beneath it.
     const windows = state.columns.left.includes('layers') ? ['layers'] : [];
-    state.columns.left = [...windows, 'library', ...state.columns.left.filter(id => id !== 'library' && id !== 'layers')];
-    state.columns.right = state.columns.right.filter(id => id !== 'library');
+    state.columns.left = [...windows, 'library', 'tools', ...state.columns.left.filter(id => !['library', 'layers', 'tools'].includes(id))];
+    state.columns.right = state.columns.right.filter(id => !['library', 'tools'].includes(id));
     for (const [key, col] of [['left', side], ['right', right]]) for (const id of state.columns[key] ?? []) {
-      const box = all.get(id); if (box) col.insertBefore(box, col.querySelector('.side-resize'));
+      const box = all.get(id);
+      if (box) { const parent = key === 'left' && occasional.has(id) ? toolsBody : col; parent.insertBefore(box, parent.querySelector(':scope > .side-resize')); }
     }
     for (const [id, box] of all) {
       box.hidden = !!state.off[id]; box.classList.toggle('folded', !!state.folded[id]);
@@ -114,7 +121,7 @@ export function createPanels({ side, onChange }) {
       handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up, { once: true });
     });
     head.addEventListener('pointerdown', e => {
-      if (e.button !== 0 || e.pointerType === 'touch' || id === 'library' || e.target.closest('button, input')) return;
+      if (e.button !== 0 || e.pointerType === 'touch' || ['library', 'tools'].includes(id) || e.target.closest('button, input')) return;
       const x0 = e.clientX, y0 = e.clientY, pointer = e.pointerId;
       const home = box.parentNode, next = box.nextSibling, style = box.style.cssText;
       let dragging = false, slots = [], pick;
@@ -124,7 +131,7 @@ export function createPanels({ side, onChange }) {
         Object.assign(box.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, maxHeight: '320px', overflow: 'hidden', zIndex: '400', pointerEvents: 'none', margin: '0' });
         document.body.append(box); document.body.classList.add('panel-arranging');
         syncSides(true); side.classList.add('panel-drop'); right.classList.add('panel-drop');
-        for (const col of [side, right]) {
+        for (const col of [side, toolsBody, right]) {
           const insertSlot = before => {
             const slot = document.createElement('div'); slot.className = 'panel-slot'; slot.setAttribute('aria-hidden', 'true');
             col.insertBefore(slot, before); slots.push(slot);
@@ -155,13 +162,22 @@ export function createPanels({ side, onChange }) {
         if (keep && pick) pick.before(box); else home.insertBefore(box, next?.parentNode === home ? next : home.querySelector('.side-resize'));
         slots.forEach(slot => slot.remove()); box.style.cssText = style;
         box.classList.remove('panel-lifted'); document.body.classList.remove('panel-arranging'); side.classList.remove('panel-drop'); right.classList.remove('panel-drop');
-        if (keep) { state.open[box.parentNode === right ? 'right' : 'left'] = true; persistOrder(); } apply();
+        if (keep) { state.open[right.contains(box) ? 'right' : 'left'] = true; persistOrder(); } apply();
       };
       const up = ev => { if (ev.pointerId === pointer) end(true); }, cancel = ev => { if (ev.pointerId === pointer) end(false); };
       const escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
       addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', cancel); addEventListener('keydown', escape, true);
     });
   }
+  // The whole Tools heading is reachable, while each nested panel retains its own fold state.
+  tools.querySelector('.phead').addEventListener('click', event => { if (!event.target.closest('button')) tools.querySelector('.fold').click(); });
+  addEventListener('panelreveal', event => {
+    const box = event.target.closest('.pbox'); if (!box || all.get(box.dataset.panel) !== box) return;
+    state.folded[box.dataset.panel] = false;
+    box.classList.remove('folded'); box.querySelector('.fold')?.setAttribute('aria-expanded', 'true');
+    if (toolsBody.contains(box)) { state.folded.tools = false; tools.classList.remove('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'true'); }
+    save();
+  });
   for (const box of boxes(side)) register(box);
   // Feature panels may be mounted after the shell starts.
   const observer = new MutationObserver(() => {

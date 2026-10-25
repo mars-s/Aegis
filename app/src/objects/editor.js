@@ -87,6 +87,8 @@ window.addEventListener('keydown', event => {
   if (!active || !(event.target instanceof Element) || !active.el.contains(event.target)) return;
   // Table cells own their navigation and first Escape while editing.
   if (event.target.closest('[role="gridcell"]') && (event.key !== 'Escape' || event.target.closest('input'))) return;
+  // R4 polish: inline values own their draft keys; icon menus own their activation keys.
+  if (event.target.closest('.inline-value, .kind-more') && (event.key !== 'Escape' || event.target.closest('.inline-value input'))) return;
   if (event.key === 'Escape') {
     event.preventDefault(); event.stopImmediatePropagation(); active.close({ keyboard: true });
   } else if (!event.target.closest('input, textarea, select, [contenteditable]')) {

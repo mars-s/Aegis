@@ -25,6 +25,14 @@
 .side > .pbox[data-panel=library] { flex: 0 1 auto; }
 .side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 144px; max-height: 24vh; }
 .side > .pbox[data-panel=keys] > .pbody { max-height: 24vh; }
+/* R4 sidebar: occasional panels share one quiet heading and a bounded scroller. */
+.side > .pbox[data-panel=tools] { background: transparent; border-color: transparent; box-shadow: none; flex: 0 1 auto; }
+.side > .pbox[data-panel=tools] > .phead { cursor: pointer; }
+.side > .pbox[data-panel=tools] > .tools-panels { max-height: 36vh; padding: 0; }
+.tools-panels > .pbox { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.tools-panels > .pbox > .phead { color: var(--muted); }
+.tools-panels > .pbox > .pbody { max-height: 24vh; }
+.side .tools-panels .pbox.folded > .pbody { display: none; }
 .side .pbox.folded { flex: none; }
 .side .tree { overscroll-behavior: contain; scroll-behavior: smooth; }
 @media (hover: none), (pointer: coarse) { :is(.tree-row, .layer-row) .row-more { opacity: 1; } .tree-row .meta { display: none; } }

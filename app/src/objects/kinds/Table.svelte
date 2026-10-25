@@ -6,6 +6,14 @@
   let { data, onset }: { data: { columns: Column[]; rows: { cells: Cell[] }[]; note?: string }; onset: (path: (string | number)[], value: unknown) => void } = $props();
   let grid: HTMLTableElement;
   let editing = $state<{ r: number; c: number; draft: string } | null>(null);
+  let overflow = $state(false);
+  function scrollCue(node: HTMLElement) {
+    const update = () => overflow = node.scrollWidth - node.clientWidth - node.scrollLeft > 1;
+    const observer = new ResizeObserver(update);
+    observer.observe(node); observer.observe(grid);
+    update();
+    return { destroy: () => observer.disconnect() };
+  }
   const cellAt = (r: number, c: number) => grid.querySelector<HTMLTableCellElement>(`[data-row="${r}"][data-column="${c}"]`);
   function controls(node: HTMLTableElement) {
     // Handle keys before the shared object shell stops native control events.
@@ -69,7 +77,8 @@
     }
   }
 </script>
-<div class="table-scroll">
+<div class="table-viewport" class:overflow>
+<div class="table-scroll" use:scrollCue onscroll={event => overflow = event.currentTarget.scrollWidth - event.currentTarget.clientWidth - event.currentTarget.scrollLeft > 1}>
   <table bind:this={grid} use:controls class="data-grid" role="grid" aria-label="Data table">
     <thead><tr>{#each data.columns as column}<th role="columnheader" class:numeric={column.kind !== 'text'} scope="col">{column.label}</th>{/each}</tr></thead>
     <tbody>{#each data.rows as row, r}<tr>{#each data.columns as column, c}
@@ -84,9 +93,13 @@
     {/each}</tr>{:else}<tr><td role="gridcell" colspan={data.columns.length} class="empty">No rows yet</td></tr>{/each}</tbody>
   </table>
 </div>
+</div>
 {#if data.note}<p class="footnote">{data.note}</p>{/if}
 <style>
   .table-scroll { overflow-x: auto; }
+  .table-viewport { position: relative; }
+  .table-viewport::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 28px; background: linear-gradient(to right, transparent, var(--card)); pointer-events: none; opacity: 0; }
+  .table-viewport.overflow::after { opacity: 1; }
   .numeric :global(.trend) { margin-left: auto; }
   .track { margin-top: 4px; }
 </style>

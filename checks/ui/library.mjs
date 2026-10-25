@@ -43,7 +43,11 @@ try {
   await page.locator('#boardName').click();
   await page.locator('#side').waitFor({ state: 'visible' });
   // Round 3 hierarchy: active windows get the available space, reference stays folded.
-  const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]'), keys = page.locator('#side > [data-panel="keys"]');
+  const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]'), keys = page.locator('#side [data-panel="keys"]');
+  const tools = page.locator('#side > [data-panel="tools"]'), toolsToggle = tools.getByRole('button', { name: 'Toggle Tools', exact: true });
+  assert.deepEqual(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel)), ['layers', 'library', 'tools']);
+  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'occasional tools start behind one quiet disclosure');
+  assert.deepEqual((await tools.locator('.tools-panels > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel))).sort(), ['board-colours', 'draw', 'keys', 'media-devices', 'unsorted', 'wireframe']);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
   assert.match(await windows.locator('.phead').textContent(), /^Windows/);
   assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, JSON.stringify(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => ({ id: el.dataset.panel, height: el.offsetHeight, flex: getComputedStyle(el).flex, body: el.querySelector('.pbody').offsetHeight })))));
@@ -68,13 +72,20 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-panel="library"] .tree').scrollTop > 0);
   assert.equal(await scrollWindows.evaluate(el => el.scrollTop), windowScroll, 'Library scrolling does not move Windows');
   assert.equal(await page.locator('#side').evaluate(el => el.scrollTop), 0, 'the outer sidebar does not scroll');
+  await toolsToggle.click();
+  await page.waitForTimeout(220);
+  await page.screenshot({ path: out(`r4-tools-expanded-${Date.now()}.png`) });
   await keys.locator('.fold').press('Enter');
   await keys.locator('.pbody').hover(); await page.mouse.wheel(0, 320);
   await page.waitForFunction(() => document.querySelector('[data-panel="keys"] .pbody').scrollTop > 0);
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'true', 'an explicit expansion survives reload');
+  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'true', 'Tools disclosure remembers pointer expansion');
   await keys.locator('.fold').press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false', 'an explicit collapse survives reload');
+  await toolsToggle.press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'Tools disclosure remembers keyboard collapse');
+  await page.screenshot({ path: out(`r4-tools-collapsed-${Date.now()}.png`) });
   // Upgrade an older layout without a saved reference preference.
   await page.evaluate(() => { const state = JSON.parse(localStorage.getItem('aegis:panels')); state.columns.left = ['library', 'layers', 'keys']; state.folded = {}; localStorage.setItem('aegis:panels', JSON.stringify(state)); });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -352,6 +363,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.tray-item').length === 5);
   const trayNote = brainData.tray[0].text;
   if (await page.locator('#boardName').getAttribute('aria-expanded') !== 'true') await page.locator('#boardName').click();
+  if (await toolsToggle.getAttribute('aria-expanded') !== 'true') await toolsToggle.click();
   await page.locator('.tray-item').first().click();
   await waitForAsync(page, async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.cards.length === 3 && b.tray.length === 4; });
   assert.ok((await api(`/boards/${brainDump}`)).cards.some(c => c.text === trayNote));

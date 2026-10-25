@@ -2,6 +2,9 @@ import { createPopup } from './dropdown.js';
 import './rows.css';
 
 // Action menus and radio choices share the value picker's theme and input handling.
+// R4 polish: declare the live item factory used by generated-window menus.
+/** @typedef {{ title: string, run: () => unknown, checked?: boolean, section?: string, shortcut?: string, disabled?: boolean, destructive?: boolean }} MenuItem */
+/** @param {{ trigger?: HTMLElement, menu?: HTMLElement, items?: MenuItem[] | (() => MenuItem[]), label?: string, portal?: boolean, onToggle?: (open: boolean) => void, bindTrigger?: boolean }} [options] */
 export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
   menu.classList.add('aegis-action-menu');
   if (label) menu.setAttribute('aria-label', label);

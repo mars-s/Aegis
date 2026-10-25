@@ -98,6 +98,7 @@ try {
   await select(ids); await clickControl('Collect'); await pause(); const parent=(await saved()).cards.find(c=>c.type==='coll');
   const corner=await page.getByRole('button',{name:'Resize selection',exact:true}).boundingBox(); await page.mouse.move(corner.x+corner.width/2,corner.y+corner.height/2); await page.mouse.down(); await page.mouse.move(corner.x+350,corner.y+40,{steps:6}); await page.mouse.up(); await pause(); assert.ok((await saved()).cards.find(c=>c.id===parent.id).props.cols>=2); console.log('collection resize updates columns and child layout');
   // Fold other panels with their own controls so Unsorted is available for an ordinary pointer drop.
+  if (await page.getByRole('button', { name: 'Toggle Tools', exact: true }).getAttribute('aria-expanded') !== 'true') await page.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
   for(const id of ['library','layers','keys','wireframe','draw']) { const panel=page.locator(`[data-panel="${id}"]`); if(await panel.count() && !(await panel.evaluate(el=>el.classList.contains('folded')))) await panel.locator('.fold').click(); }
   await select([parent.id]); await page.evaluate(id=>aegis.canvas.frameIds([id],1),parent.id); await pause(); const beforeTray=await board();
   const tray=page.locator('[data-panel="unsorted"]'); const tr=await tray.boundingBox(), co=await page.locator(`#world [data-id="${parent.id}"]`).boundingBox();

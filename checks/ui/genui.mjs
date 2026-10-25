@@ -134,9 +134,22 @@ try {
       return box.left >= 0 && box.right <= innerWidth;
     });
     await page.screenshot({ path: out(`genui-open-${kind}-${width}-${stamp}.png`) });
+    if (width === 390 && kind === 'table') {
+      const scroll = editor.locator('.table-scroll'), viewport = editor.locator('.table-viewport');
+      assert.ok(await scroll.evaluate(el => el.scrollWidth > el.clientWidth), 'narrow table retains horizontal scrolling');
+      assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'right-edge fade reveals more columns');
+      await page.screenshot({ path: out(`r4-table-overflow-start-${stamp}.png`) });
+      await scroll.hover(); await page.mouse.wheel(800, 0);
+      await page.waitForFunction(() => { const el = document.querySelector('.object-editor .table-scroll'); return el.scrollWidth - el.clientWidth - el.scrollLeft <= 1; });
+      assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '0', 'fade disappears at the last column after real horizontal wheel input');
+      await page.screenshot({ path: out(`r4-table-overflow-end-${stamp}.png`) });
+      await page.mouse.wheel(-800, 0);
+      await page.waitForFunction(() => document.querySelector('.object-editor .table-scroll').scrollLeft === 0);
+      assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'fade returns when scrolling back');
+    }
     await page.keyboard.press('Escape');
     assert.equal(await editor.count(), 0, 'Escape removes the editor immediately');
-    assert.equal(await open.evaluate(el => el === document.activeElement), true, 'Escape restores focus to Open');
+    assert.equal(await open.evaluate(el => el === document.activeElement), true, `${kind} at ${width}: Escape restores focus to Open`);
     checkedOpen.add(kind);
   };
   for (const kind of Object.keys(samples)) {
@@ -144,7 +157,16 @@ try {
     assert.ok(await card.locator('.genui').isVisible(), `${kind} renders`);
     assert.equal(await card.locator('.unknown').count(), 0);
     if (kind === 'stats') assert.equal(await card.getByLabel('Tasks completed', { exact: true }).evaluate(el => getComputedStyle(el).fontSize), '30px', 'editable stats retain the same hierarchy as read-only values');
-    if (kind === 'progress') assert.ok((await card.locator('input').first().boundingBox()).width <= 110, 'goal input leaves room for its label');
+    if (kind === 'progress') {
+      assert.equal(await card.locator('input').count(), 0, 'resting goals have plain values');
+      await card.getByRole('button', { name: 'Current: Read the source material', exact: true }).click();
+      assert.ok((await card.locator('input').first().boundingBox()).width <= 110, 'goal input leaves room for its label');
+      assert.equal(await card.locator('.goals .edit').count(), 0, 'current value has no duplicate editing row');
+      await page.keyboard.press('Escape');
+      await card.locator('.win-strip h3').click();
+      assert.equal(await card.getByRole('button', { name: 'Current: Read the source material', exact: true }).evaluate(el => getComputedStyle(el).borderWidth), '0px', 'resting current value has no input frame');
+    }
+    if (kind === 'stats') assert.equal(await card.locator('input').count(), 0, 'resting stats have plain values');
     if (kind === 'gallery') assert.ok(await card.locator('img').evaluateAll(images => images.every(img => img.complete && img.naturalWidth > 0)), 'local gallery assets loaded');
     if (kind === 'form') {
       const radio = await card.getByRole('radio').first().boundingBox();
@@ -165,10 +187,19 @@ try {
   await frame('kanban');
   await page.getByRole('button', { name: 'Drag Write the brief', exact: true }).dragTo(page.locator('.kanban .lane[aria-label="In progress"]'));
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'doing');
-  await page.locator('.ticket').filter({ hasText: 'Write the brief' }).locator('summary').click();
-  const move = page.getByRole('button', { name: 'Move Write the brief to Done', exact: true });
+  const moveTrigger = page.getByRole('button', { name: 'Move Write the brief', exact: true });
+  await page.mouse.move(1000, 800);
+  assert.equal(await moveTrigger.evaluate(el => getComputedStyle(el).opacity), '0', 'ticket actions are quiet at rest');
+  await page.getByRole('button', { name: 'Drag Write the brief', exact: true }).hover();
+  assert.equal(await moveTrigger.evaluate(el => getComputedStyle(el).opacity), '1', 'pointer hover reveals the icon');
+  assert.equal((await moveTrigger.boundingBox()).width, 44, 'Move retains a reachable target');
+  await moveTrigger.focus();
+  await page.keyboard.press('ArrowDown');
+  const move = page.getByRole('menuitemradio', { name: 'Move Write the brief to Done', exact: true });
   await move.focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'done');
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Move Write the brief' && document.activeElement.closest('.lane')?.getAttribute('aria-label') === 'Done');
+  assert.equal(await moveTrigger.evaluate(el => el === document.activeElement), true, 'keyboard Move keeps focus on the ticket in its new lane');
   console.log('pass genui: kanban drag and keyboard Move saved');
 
   await frame('form');
@@ -198,13 +229,34 @@ try {
   await page.getByLabel('Done: Agree on the brief', { exact: true }).check();
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'timeline').data.events[0].done === true);
   await frame('progress');
-  await page.getByLabel('Current: Read the source material', { exact: true }).fill('7');
-  await page.getByLabel('Current: Draft the report', { exact: true }).focus();
-  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'progress').data.goals[0].current === 7);
-  await frame('stats');
-  await page.getByLabel('Tasks completed', { exact: true }).fill('20');
+  await page.getByRole('button', { name: 'Current: Read the source material', exact: true }).click();
+  await page.getByRole('spinbutton', { name: 'Current: Read the source material', exact: true }).fill('7');
   await page.keyboard.press('Tab');
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'progress').data.goals[0].current === 7);
+  assert.equal(await page.getByRole('button', { name: 'Current: Draft the report', exact: true }).evaluate(el => el === document.activeElement), true, 'Tab commits and reaches the next current value');
+  await page.keyboard.press('Enter');
+  await page.getByRole('spinbutton', { name: 'Current: Draft the report', exact: true }).fill('99');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.card.kind-progress input').count(), 0, 'Escape restores plain progress values');
+  assert.notEqual(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'progress').data.goals[1].current), 99, 'Escape cancels progress edits');
+  await page.getByRole('button', { name: 'Current: Read the source material', exact: true }).click();
+  const current = page.getByRole('spinbutton', { name: 'Current: Read the source material', exact: true });
+  await current.fill(''); await page.keyboard.press('Tab');
+  assert.equal(await current.evaluate(el => el === document.activeElement && !el.validity.valid), true, 'an empty current value stays active rather than saving invalid data');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'progress').data.goals[0].current), 7, 'cancelling an empty draft keeps the saved current value');
+  await frame('stats');
+  const stat = page.getByRole('button', { name: 'Tasks completed', exact: true });
+  await stat.press('Enter');
+  await page.getByRole('textbox', { name: 'Tasks completed', exact: true }).fill('20');
+  await page.screenshot({ path: out(`r4-stats-active-${stamp}.png`) });
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'stats').data.tiles[0].value === '20');
+  assert.equal(await stat.evaluate(el => el === document.activeElement && getComputedStyle(el).borderWidth === '0px'), true, 'Enter commits and returns to an unboxed stat');
+  await stat.click(); await page.getByRole('textbox', { name: 'Tasks completed', exact: true }).fill('Cancelled'); await page.keyboard.press('Escape');
+  assert.equal(await stat.textContent(), '20', 'Escape cancels a stat draft');
+  await stat.click(); await page.getByRole('textbox', { name: 'Tasks completed', exact: true }).fill('20'); await page.keyboard.press('Tab');
+  assert.equal(await page.locator('.card.kind-stats input').count(), 0, 'Tab commits stats and removes the field');
   await frame('table');
   const grid = page.locator('.card.kind-table').getByRole('grid', { name: 'Data table' });
   assert.equal(await grid.locator('input').count(), 0, 'resting table has plain values, without input borders');
@@ -238,8 +290,15 @@ try {
   await page.screenshot({ path: out(`genui-table-quiet-${stamp}.png`) });
   console.log('pass genui: quiet focusable table cells; click, Enter and typing edit; Escape cancels; Enter, Tab and blur commit with keyboard movement');
   await frame('stages');
-  await page.locator('.stages details').first().locator('summary').click();
-  await page.getByRole('button', { name: 'Brief: Blocked', exact: true }).click();
+  const stageTrigger = page.getByRole('button', { name: 'Set status for Brief', exact: true });
+  await stageTrigger.focus();
+  assert.equal(await stageTrigger.evaluate(el => getComputedStyle(el).opacity), '1', 'keyboard focus reveals the status icon');
+  await stageTrigger.press('ArrowDown'); await page.keyboard.press('Escape');
+  assert.equal(await stageTrigger.evaluate(el => el === document.activeElement), true, 'menu Escape restores the status trigger');
+  await stageTrigger.click();
+  await page.waitForTimeout(180);
+  await page.screenshot({ path: out(`r4-stages-menu-${stamp}.png`) });
+  await page.getByRole('menuitemradio', { name: 'Brief: Blocked', exact: true }).click();
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'stages').data.steps[0].status === 'blocked');
   console.log('pass genui: timeline ticks, stats, table, progress and stage values saved');
 
@@ -252,6 +311,13 @@ try {
     await page.waitForFunction(() => document.querySelector('.side-editor.is-open').getBoundingClientRect().right <= innerWidth);
     return { editor, open };
   };
+  const statEditor = await openEditor('stats', true);
+  await statEditor.editor.getByRole('button', { name: 'Tasks completed', exact: true }).press('Enter');
+  await statEditor.editor.getByRole('textbox', { name: 'Tasks completed', exact: true }).fill('Cancelled expanded draft');
+  await page.keyboard.press('Escape');
+  assert.equal(await statEditor.editor.isVisible(), true, 'first Escape cancels an inline draft without closing its editor');
+  assert.equal(await statEditor.editor.getByRole('button', { name: 'Tasks completed', exact: true }).textContent(), '20');
+  await page.keyboard.press('Escape');
   let expanded = await openEditor('table', true);
   assert.equal(await expanded.editor.evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'keyboard opening is instant');
   const expandedDay = expanded.editor.getByRole('gridcell', { name: 'Day, row 1', exact: true });
@@ -275,8 +341,8 @@ try {
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'form').data.fields[1].value === 'Expanded edits save on Escape.');
 
   expanded = await openEditor('kanban');
-  await expanded.editor.locator('.ticket').filter({ hasText: 'Write the brief' }).locator('summary').click();
-  await expanded.editor.getByRole('button', { name: 'Move Write the brief to In progress', exact: true }).press('Enter');
+  await expanded.editor.getByRole('button', { name: 'Move Write the brief', exact: true }).press('ArrowDown');
+  await page.getByRole('menuitemradio', { name: 'Move Write the brief to In progress', exact: true }).press('Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'doing');
   // Let the board finish grouping the first edit before testing a separate gesture's undo.
   await page.waitForTimeout(400);
@@ -321,6 +387,9 @@ try {
   await page.reload();
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'form').data.fields[0].value), 'A useful result');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'stats').data.tiles[0].value), '20', 'committed plain stat survives reload');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'progress').data.goals[0].current), 7, 'committed inline progress value survives reload');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'stages').data.steps[0].status), 'blocked', 'the themed status menu saves through reload');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column), 'done');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0]), 'Monday review');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[1]), 12, 'Enter-committed number survives reload');

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Trend from './Trend.svelte';
+  import Value from './Value.svelte';
   type Tile = { label: string; value: string; delta?: string; sparkline?: number[]; editable?: boolean };
   let { data, onset }: { data: { tiles: Tile[]; note?: string }; onset: (path: (string | number)[], value: unknown) => void } = $props();
 </script>
@@ -8,7 +9,7 @@
     <div class="stat">
       <dt>{tile.label}</dt>
       <dd>
-        {#if tile.editable}<input class="value" aria-label={tile.label} value={tile.value} maxlength="40" onchange={e => onset(['tiles', i, 'value'], e.currentTarget.value)} />{:else}<span class="value">{tile.value}</span>{/if}
+        <span class="value">{#if tile.editable}<Value value={tile.value} label={tile.label} onchange={value => onset(['tiles', i, 'value'], value)} />{:else}{tile.value}{/if}</span>
         {#if tile.delta}<span class="meta">{tile.delta}</span>{/if}
         {#if tile.sparkline}<Trend values={tile.sparkline} label={`${tile.label} trend`} />{/if}
       </dd>
@@ -22,5 +23,4 @@
   dt { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
   dd { display: grid; gap: 8px; margin: 0; }
   .value { font-size: 30px; font-weight: 500; letter-spacing: -.025em; line-height: 1.2; overflow-wrap: anywhere; }
-  .stats input.value { font-size: 30px; padding: 0 4px; }
 </style>

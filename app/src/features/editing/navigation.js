@@ -17,7 +17,8 @@ export function mountNavigation(ctx, { exportBoard }) {
     const link = /^https?:\/\/\S+$/i.test(text);
     const item = { id: uid(), type: link ? 'link' : 'note', text: link ? '' : text, ...(link ? { url: text } : {}), color: 'plain', x: 0, y: 0, w: link ? 260 : 220, h: 96 };
     apply([{ op: 'board_set', set: { tray: [item, ...(canvas.board.tray ?? [])] } }]);
-    const panel = document.querySelector('[data-panel="unsorted"]'); panel?.classList.remove('folded');
+    // R4 sidebar: reveal the captured idea through its containing disclosure too.
+    const panel = document.querySelector('[data-panel="unsorted"]'); panel?.dispatchEvent(new CustomEvent('panelreveal', { bubbles: true }));
     if (panel?.hidden || panel?.closest('aside')?.hidden) ctx.toast('Saved to Unsorted. Show it in Settings, Side bar panels.');
     capture.close(); stage.focus();
   };

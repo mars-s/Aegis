@@ -176,6 +176,35 @@ try {
 
     }
   }
+  if (!reproduce) {
+    await page.setViewportSize({ width: 1586, height: 992 });
+    await apply([
+      ...Array.from({ length: 40 }, (_, i) => ({ op: 'create', newId: `orientation${i}`, type: 'note', heading: `Research window ${i + 1}`, text: 'Overview fixture', x: 10000 + i % 8 * 1400, y: 10000 + Math.floor(i / 8) * 1200, w: 500 + i * 5, h: 300 + i * 3 })),
+      { op: 'create', newId: 'orientationhidden', type: 'note', text: 'Hidden window', x: 10000, y: 10000, w: 5000, h: 5000, props: { hidden: true } },
+      { op: 'create', newId: 'orientationoutside', type: 'note', text: 'Outside viewport', x: 50000, y: 50000, w: 5000, h: 5000 },
+    ]);
+    await page.locator('#boardName').focus(); await page.mouse.move(1000, 700);
+    await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.setView({ x: -400, y: -400, z: .05 }); }); await settle();
+    const orientation = page.locator('.canvas-orientation');
+    verify('far zoom names are absent from an idle board', !await orientation.isVisible());
+    await page.mouse.move(4, 450); await orientation.waitFor({ state: 'visible' });
+    verify('pointer edge approach reveals only the largest 30 visible window names', await orientation.locator('span').evaluateAll(nodes => nodes.length > 0 && nodes.length <= 30 && nodes.every(el => /^orientation\d+$/.test(el.dataset.cardId) && Number(el.dataset.cardId.slice(11)) >= 10)));
+    verify('orientation labels keep at least 11 px screen type and pass pointer input through', await orientation.locator('span').evaluateAll(nodes => nodes.every(el => parseFloat(getComputedStyle(el).fontSize) >= 11 && getComputedStyle(el).pointerEvents === 'none')));
+    await page.screenshot({ path: out(`r4-orientation-edge-${Date.now()}.png`) });
+    await page.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
+    verify('orientation clears when the pointer leaves the edge', !await orientation.isVisible());
+    await page.keyboard.press('Tab'); await page.locator('#stage').focus(); await orientation.waitFor({ state: 'visible' });
+    verify('keyboard canvas focus reveals far zoom names', await orientation.locator('span').count() > 0 && await orientation.locator('span').count() <= 30);
+    await page.locator('#boardName').focus(); await orientation.waitFor({ state: 'hidden' });
+    await page.evaluate(() => aegis.canvas.setView({ x: -1400, y: -1400, z: .2 })); await settle(); await page.mouse.move(4, 450);
+    verify('orientation stays hidden at working zoom', !await orientation.isVisible());
+    // Exercise the crowded, canvas-drawn culling route as well as mounted windows.
+    await apply(Array.from({ length: 401 }, (_, i) => ({ op: 'create', newId: `orientationcrowd${i}`, type: 'note', text: `Small window ${i}`, x: 10000 + i % 30 * 80, y: 10000 + Math.floor(i / 30) * 60, w: 40, h: 30 })));
+    await page.evaluate(() => aegis.canvas.setView({ x: -400, y: -400, z: .05 })); await orientation.waitFor({ state: 'visible' });
+    verify('crowded far view uses the same bounded labels without mounting all cards', await page.locator('#stage').evaluate(el => el.classList.contains('far')) && await orientation.locator('span').count() > 0 && await orientation.locator('span').count() <= 30 && (await page.evaluate(() => aegis.canvas.stats().mounted)) < 400);
+    await page.screenshot({ path: out(`r4-orientation-crowded-${Date.now()}.png`) });
+    await page.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
+  }
   writeFileSync(out(`canvas-${reproduce ? 'reproduction' : 'results'}-${Date.now()}.json`), JSON.stringify({ results, errors }, null, 2));
   verify('no browser errors', errors.length === 0);
 } catch (e) { console.error(e); if (page) await page.screenshot({ path: out(`canvas-fail-${Date.now()}.png`) }); process.exitCode = 1; }
