@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBatch, emptyBoard, describe } from '../../web/board/commands.js';
+import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
 
 const board = () => applyBatch(emptyBoard('b1', 'Test'), { commands: [
   { op: 'create', type: 'note', text: 'one', newId: 'aaaaaaaa', x: 0, y: 0 },
@@ -87,4 +87,26 @@ test('video cards keep their url and get a 16:9 default size', () => {
   const r = applyBatch(board(), { commands: [{ op: 'create', type: 'video', url: 'asset:0123456789abcdef0123456789abcdef.mp4', ref: 'v' }] });
   const v = r.board.cards.find(c => c.id === r.created.v);
   assert.equal(v.url, 'asset:0123456789abcdef0123456789abcdef.mp4'); assert.deepEqual([v.w, v.h], [480, 270]);
+});
+
+test('object cards hold checked data, and a bad field is named exactly', () => {
+  const plot = { style: 'bar', x: { kind: 'category' }, y: { format: 'number' }, basis: 'Tasks done', series: [{ name: 'Tasks', points: [{ x: 'Mon', y: 8 }, { x: 'Tue', y: 12 }] }] };
+  const r = applyBatch(board(), { commands: [{ op: 'create', type: 'object', kind: 'plot', text: 'Weekly', data: plot, ref: 'p' }] });
+  assert.equal(r.ok, true, r.errors?.[0]?.reason);
+  const card = r.board.cards.find(c => c.id === r.created.p);
+  assert.equal(card.kind, 'plot'); assert.equal(card.data.series[0].points[1].y, 12);
+  const bad = structuredClone(plot); bad.series[0].points[1].y = 'lots';
+  assert.match(applyBatch(board(), { commands: [{ op: 'create', type: 'object', kind: 'plot', data: bad }] }).errors[0].reason, /plot\.series\[0\]\.points\[1\]\.y/);
+  const extra = { ...plot, colour: 'red' };
+  assert.match(applyBatch(board(), { commands: [{ op: 'create', type: 'object', kind: 'plot', data: extra }] }).errors[0].reason, /unknown field "colour"/);
+});
+
+test('revise replaces an object in place and counts its version; diagram edges must name real nodes', () => {
+  const d = { nodes: [{ id: 'a', name: 'Brief', kind: 'step' }, { id: 'b', name: 'Ship', kind: 'step' }], edges: [{ from: 'a', to: 'b' }] };
+  let r = applyBatch(board(), { commands: [{ op: 'create', type: 'object', kind: 'diagram', data: d, ref: 'd' }] });
+  const id = r.created.d;
+  r = applyBatch(r.board, { commands: [{ op: 'revise', id, data: { ...d, nodes: [...d.nodes, { id: 'c', name: 'Review', kind: 'step' }] } }] });
+  const card = r.board.cards.find(c => c.id === id);
+  assert.equal(card.ver, 2); assert.equal(card.data.nodes.length, 3);
+  assert.match(applyBatch(r.board, { commands: [{ op: 'revise', id, data: { ...d, edges: [{ from: 'a', to: 'zzz' }] } }] }).errors[0].reason, /edges\[0\]\.to: no node "zzz"/);
 });

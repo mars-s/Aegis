@@ -63,15 +63,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: def
 .card.dragging { box-shadow: var(--shadow-lift); }
 .card.glow { animation: glow 1.4s ease-out; }
 @keyframes glow { 0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 45%, transparent), var(--shadow-lift); } 100% { box-shadow: var(--shadow); } }
-.card .body { white-space: pre-wrap; word-break: break-word; outline: none; min-height: 1em; }
-.card .body:empty::before { content: "Write something"; color: var(--faint); }
+.card:not(.object) .body { white-space: pre-wrap; word-break: break-word; outline: none; min-height: 1em; }
+.card:not(.object) .body:empty::before { content: "Write something"; color: var(--faint); }
 .card.title { background: transparent; border-color: transparent; box-shadow: none; padding: 4px 2px; }
 .card.title .body { font-size: 24px; font-weight: 650; letter-spacing: -.02em; }
 .card.title.selected { border-color: var(--focus); }
-.card .label { font-weight: 600; margin-bottom: 6px; }
-.card .todo-item { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
-.card .todo-item input { margin: 3px 0 0; accent-color: var(--accent); }
-.card .todo-item.done span { color: var(--faint); text-decoration: line-through; }
+.card:not(.object) .label { font-weight: 600; margin-bottom: 6px; }
+.card:not(.object) .todo-item { display: flex; gap: 8px; align-items: flex-start; padding: 2px 0; }
+.card:not(.object) .todo-item input { margin: 3px 0 0; accent-color: var(--accent); }
+.card:not(.object) .todo-item.done span { color: var(--faint); text-decoration: line-through; }
 .card.link .body:empty::before { content: none; }
 .card.link a, .card.web .url { color: var(--muted); font-size: 12px; text-decoration: none; word-break: break-all; }
 .card.web { padding: 0; display: flex; flex-direction: column; }
@@ -81,27 +81,27 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: def
 /* heading and badge, e.g. a "read me first" note */
 .card.has-head { overflow: visible; contain: layout style; display: flex; flex-direction: column; }
 .card.has-head .body { flex: 1; min-height: 0; overflow: hidden; }
-.card .heading { font-weight: 650; font-size: 15px; letter-spacing: -.01em; line-height: 1.3; margin-bottom: 4px; outline: none; }
-.card .badge { position: absolute; top: -10px; left: 12px; padding: 2px 9px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; outline: none; box-shadow: var(--shadow); }
+.card:not(.object) .heading { font-weight: 650; font-size: 15px; letter-spacing: -.01em; line-height: 1.3; margin-bottom: 4px; outline: none; }
+.card:not(.object) .badge { position: absolute; top: -10px; left: 12px; padding: 2px 9px; border-radius: 999px; background: var(--text); color: var(--canvas); font-size: 11px; font-weight: 600; letter-spacing: .01em; white-space: nowrap; outline: none; box-shadow: var(--shadow); }
 .card.has-head .badge + .heading { margin-top: 4px; }
-.card .heading:empty::before { content: "Heading"; color: var(--faint); }
+.card:not(.object) .heading:empty::before { content: "Heading"; color: var(--faint); }
 /* media */
 .card.image { padding: 0; background: var(--hover); }
 .card.image img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; pointer-events: none; user-select: none; }
 .card.video { padding: 0; display: flex; flex-direction: column; background: #000; }
 .card.video .media-head { height: 30px; flex: none; display: flex; align-items: center; padding: 0 10px; background: var(--card); color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .card.video video { flex: 1; min-height: 0; width: 100%; background: #000; }
-.card .url-input, .card .add-item { width: 100%; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; padding: 2px 0; }
-.card .url-input { border-bottom: 1px solid var(--line-strong); padding: 6px 0; }
-.card .add-item { color: var(--muted); margin-top: 2px; }
-.card .add-item::placeholder, .card .url-input::placeholder { color: var(--faint); }
-.far .card .heading, .far .card .badge, .far .card .add-item { visibility: hidden; }
+.card:not(.object) .url-input, .card:not(.object) .add-item { width: 100%; border: 0; outline: none; background: transparent; color: var(--text); font: inherit; padding: 2px 0; }
+.card:not(.object) .url-input { border-bottom: 1px solid var(--line-strong); padding: 6px 0; }
+.card:not(.object) .add-item { color: var(--muted); margin-top: 2px; }
+.card:not(.object) .add-item::placeholder, .card:not(.object) .url-input::placeholder { color: var(--faint); }
+.far .card:not(.object) .heading, .far .card:not(.object) .badge, .far .card:not(.object) .add-item { visibility: hidden; }
 .stage.dropping::after { content: "Drop to add"; position: absolute; inset: 12px; border: 2px dashed var(--focus); border-radius: 16px; display: grid; place-content: center; color: var(--focus); font-weight: 600; pointer-events: none; }
 .card .resize { position: absolute; right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
-.far .card .body, .far .card .todo-item, .far .card .label { visibility: hidden; }
-.far .card .ghost { display: block; }
-.card .ghost { display: none; position: absolute; inset: 12px 14px; }
-.card .ghost i { display: block; height: 7px; margin-bottom: 7px; border-radius: 4px; background: var(--line-strong); }
+.far .card:not(.object) .body, .far .card:not(.object) .todo-item, .far .card:not(.object) .label { visibility: hidden; }
+.far .card:not(.object) .ghost { display: block; }
+.card:not(.object) .ghost { display: none; position: absolute; inset: 12px 14px; }
+.card:not(.object) .ghost i { display: block; height: 7px; margin-bottom: 7px; border-radius: 4px; background: var(--line-strong); }
 .agent-ring { outline: 2px solid var(--ring, var(--focus)); outline-offset: 3px; }
 
 /* composer: floating at the bottom, like a chat box */
@@ -249,3 +249,15 @@ kbd { font: 10.5px var(--mono); min-width: 18px; height: 18px; padding: 0 4px; b
 .reticle.labelled .cur-label { display: block; }
 body.fancy-cursor:not(.cur-native), body.fancy-cursor:not(.cur-native) * { cursor: none !important; }
 @media (prefers-reduced-motion: reduce) { .reticle i, .follow .knob::after, .twisty svg, .tools .tools-fold svg { transition: none; } }
+
+/* object cards: typed results drawn by Svelte inside the canvas card */
+.card.object { padding: 18px 20px 16px; display: flex; flex-direction: column; background: var(--color-surface); }
+.card.object .object-host { flex: 1; min-height: 0; }
+.card.object .drag-strip { position: absolute; inset: 0 0 auto 0; height: 14px; cursor: grab; }
+.card.object.kind-reply { background: transparent; border-color: transparent; box-shadow: none; padding: 6px 4px; }
+.card.object.kind-reply.selected { border-color: var(--focus); }
+.card.object.kind-diagram .content { overflow: auto; }
+.far .card.object .object-host { visibility: hidden; }
+.card.object .object-host { overflow: hidden; }
+.agent-row.part { margin-left: 18px; padding: 7px 10px; border-style: dashed; }
+.agent-row.part .out, .agent-row.part .actions { display: none; }

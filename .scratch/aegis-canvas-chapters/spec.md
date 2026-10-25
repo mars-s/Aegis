@@ -321,3 +321,29 @@ Not yet checked by hand in the native window: dropping or pasting media, panel d
 Known gap: the first launch after a rebuild once took over 15 seconds for the host to listen, and the window gave up. Root cause not proven (likely macOS checking the new files). The window now waits up to two minutes and says "Starting Aegis…".
 
 Next: Chapter 2 views, starting with the catalogue, the A2UI-shaped view spec and `view_set` and `view_patch` in the board commands.
+
+### Change of plan, 2026-10-25: Svelte, and Zephium's Work objects instead of a component catalogue
+
+After reading Zephium's Work mode, Chapter 2 now follows it: agents fill purpose-sized typed objects
+(reply, plot, sheet, diagram, plan, list, code) with `create` and `revise`, the app draws and lays them out, and a
+bad field comes back named exactly. This replaces the A2UI-shaped catalogue of small parts. The frontend moved to
+Vite + Svelte 5 + TypeScript; the canvas engine stays plain code underneath.
+
+Landed (local commit, not pushed):
+- Frontend in `app/` (Vite 8, Svelte 5); Tauri builds it and uses the Vite dev server in development.
+- Object cards and the `object` card type, `revise` and `object_set` commands; Zephium's chart ported under MPL-2.0;
+  sheet (sortable, best values), plan and list (tickable), diagram (dagre layout, fits its card), code, reply.
+- Agent tools `create`, `revise`, `start_part` (helpers in parallel, at most four), `finish`, `load_skill`;
+  five skills; Zephium's work rules in the prompt.
+- Self-update: the host serves an installed UI from the data folder; `POST /ui-update` checks, builds, verifies and
+  swaps; rollback keeps three versions; `AEGIS_SAFE=1` loads the bundled UI. The host-served page can call the app's
+  own commands through a remote capability for `http://127.0.0.1:*`.
+- The host now exits when the app dies, even by force.
+
+Checked: 30 host and board checks; svelte-check clean; headless Chromium run of every object kind, sorting, ticking
+and a live component edit (22 ms, no reload, board and camera kept); bench p95 9.4 ms on 5,000 cards; native app:
+bundled UI, host-served UI, native link opening from it, force-kill takes the host; a real GPT-6.1 Sol run made
+two charts, a sheet, a diagram and a reply from one request.
+
+Not yet: data sets from CSV with shared filters, picks, media objects in the object model, the update button in
+the UI (the endpoint exists), lane-based self-edits.

@@ -113,3 +113,75 @@ test('media uploads come back by name, with byte ranges for video, and no token 
   assert.equal((await fetch(base + '/assets/..%2fauth.json')).status, 404);
   assert.equal((await fetch(base + '/assets', { method: 'POST', headers: { 'content-type': 'image/png' }, body: bytes })).status, 401);
 });
+
+test('an agent places a reply and a chart through create, and a bad chart is refused with the field named', async () => {
+  const { body: board } = await call('POST', '/boards', { name: 'Objects' });
+  const plot = { style: 'bar', x: { kind: 'category', label: 'Day' }, y: { format: 'number', label: 'Tasks' }, basis: 'Demo data', knowledge: true,
+    series: [{ name: 'Tasks', points: [{ x: 'Mon', y: 8 }, { x: 'Tue', y: 12 }, { x: 'Wed', y: 6 }] }] };
+  const r = await call('POST', `/boards/${board.id}/batch`, { commands: [
+    { op: 'create', type: 'object', kind: 'reply', data: { headline: 'Thursday was busiest', text: 'You did **56 tasks**.' }, ref: 'r' },
+    { op: 'create', type: 'object', kind: 'plot', text: 'Tasks completed', data: plot, ref: 'p' },
+  ] });
+  assert.equal(r.body.ok, true, JSON.stringify(r.body.errors));
+  const { body: saved } = await call('GET', `/boards/${board.id}`);
+  assert.deepEqual(saved.cards.map(c => c.kind), ['reply', 'plot']);
+  const bad = await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'create', type: 'object', kind: 'plot', data: { ...plot, style: 'pie' } }] });
+  assert.equal(bad.body.ok, false); assert.match(bad.body.errors[0].reason, /plot\.style: must be one of bar/);
+});
+
+test('the host does not serve a UI until one is installed, and never serves files outside it', async () => {
+  const r = await fetch(base + '/ui/index.html');
+  assert.equal(r.status, 404);
+  assert.equal((await fetch(base + '/ui/..%2f..%2fauth.json')).status, 404);
+});
+
+test('a UI update installs beside the old one, swaps in, refuses a broken build and rolls back', async () => {
+  const { mkdtemp, mkdir, writeFile } = await import('node:fs/promises');
+  const good = async label => {
+    const dir = await mkdtemp(join(tmpdir(), 'aegis-ui-'));
+    await mkdir(join(dir, 'assets'));
+    await writeFile(join(dir, 'assets', 'app.js'), `document.title=${JSON.stringify(label)}`);
+    await writeFile(join(dir, 'index.html'), `<!doctype html><title>${label}</title><script type="module" src="./assets/app.js"></script>`);
+    return dir;
+  };
+  const one = await call('POST', '/ui-update', { from: await good('one') });
+  assert.equal(one.body.ok, true, JSON.stringify(one.body));
+  assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>one</);
+  assert.equal((await fetch(base + '/ui/assets/app.js')).status, 200);
+  await call('POST', '/ui-update', { from: await good('two') });
+  assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>two</);
+  // A build whose script is missing is refused and the working UI stays.
+  const broken = await good('broken'); const { rm } = await import('node:fs/promises'); await rm(join(broken, 'assets', 'app.js'));
+  const bad = await call('POST', '/ui-update', { from: broken });
+  assert.equal(bad.body.ok, false); assert.match(bad.body.out, /missing assets\/app.js/);
+  assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>two</);
+  await call('POST', '/ui-update/rollback');
+  assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>one</);
+});
+
+test('a lead runs two parts at once; each places an object and hands back a digest; the lead adds a reply', async () => {
+  const { body: board } = await call('POST', '/boards', { name: 'Parts' });
+  const part = (name, y) => 'FAKETOOLS ' + JSON.stringify([
+    ['create', { kind: 'plot', title: name, data: { style: 'bar', x: { kind: 'category' }, y: { format: 'number' }, basis: 'demo', knowledge: true, series: [{ name, points: [{ x: 'a', y }, { x: 'b', y: y + 3 }] }] } }],
+    ['finish', { summary: name + ' done', digest: `${name}: a=${y}`, found: true }],
+  ]);
+  const lead = 'FAKETOOLS ' + JSON.stringify([
+    [['start_part', { title: 'One', goal: 'first numbers', brief: part('One', 1) }], ['start_part', { title: 'Two', goal: 'second numbers', brief: part('Two', 5) }]],
+    ['create', { kind: 'reply', title: '', data: { headline: 'Both parts finished', text: 'Two charts from two helpers.' } }],
+  ]);
+  await call('POST', '/agents', { boardId: board.id, brief: lead, model: { provider: 'fake', modelId: 'fake' } });
+  const final = await until(async () => { const { body } = await call('GET', `/boards/${board.id}`); return body.cards.filter(c => c.type === 'object').length === 3 ? body : null; }, 20000);
+  assert.deepEqual(final.cards.map(c => c.kind).sort(), ['plot', 'plot', 'reply']);
+  const agents = await until(async () => { const { body } = await call('GET', `/agents?board=${board.id}`); return body.length === 3 && body.every(a => !a.running) ? body : null; }, 20000);
+  const parts = agents.filter(a => a.parent);
+  assert.equal(parts.length, 2);
+  assert.deepEqual(parts.map(p => p.title).sort(), ['One', 'Two']);
+  assert.ok(parts.every(p => p.summary?.endsWith('done')));
+});
+
+test('an agent can load a built-in skill, and an unknown skill names the ones that exist', async () => {
+  const { body: board } = await call('POST', '/boards', { name: 'Skills' });
+  await call('POST', '/agents', { boardId: board.id, brief: 'FAKETOOLS ' + JSON.stringify([['load_skill', { name: 'analyse-data' }], ['load_skill', { name: 'nope' }]]), model: { provider: 'fake', modelId: 'fake' } });
+  const a = await until(async () => { const { body } = await call('GET', `/agents?board=${board.id}`); return body[0] && !body[0].running && body[0].text ? body[0] : null; });
+  assert.equal(a.error, null);
+});

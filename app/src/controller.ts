@@ -1,56 +1,29 @@
+// @ts-nocheck -- moved from the plain-JS app as it was; new code lives in typed modules beside it.
 // Aegis app: boards, composer, agents and settings, talking to the local agent host.
-import { createCanvas } from './canvas.js';
-import { applyBatch } from './board/commands.js';
+import { createCanvas } from './canvas/engine.js';
+import { applyBatch } from './lib/board/commands.js';
+import { connect as connectHost } from './lib/host';
+import { mountObjects } from './objects/mount';
 import { createCursor } from './chrome/cursor.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
 
+export async function start() {
 const $ = id => document.getElementById(id);
-const host = await connect();
+const host = await connectHost(waiting => { $('status').textContent = waiting ? 'Starting Aegis…' : ''; });
+if (!host) { document.body.innerHTML = '<p style="font:14px system-ui;padding:60px 40px">The Aegis agent host did not start. Quit Aegis and open it again.</p>'; return; }
 const canvas = createCanvas({
   stage: $('stage'), world: $('world'), grid: $('grid'), links: $('links'), marquee: $('marquee'),
   onBatch: { apply: (commands, done) => apply(commands, done), view: v => host.post(`/boards/${canvas.board.id}/view`, { view: v }).catch(() => {}) },
   onSelect: ids => layers?.select(ids),
-  onOpenUrl: url => host.openUrl(url),
+  onOpenUrl: url => host.openUrl(url).catch(e => toast(`Could not open the link: ${e?.message ?? e}`)),
   onPlace: (tool, at) => place(tool, at),
   resolveUrl: url => host.assetUrl(url),
+  renderObject: (el, card) => objects.render(el, card),
+  dropObject: el => objects.drop(el),
 });
-
-// ---------- host connection: Tauri gives us the port and token; a browser uses ?port=&token= ----------
-async function connect() {
-  let port, token;
-  if (window.__TAURI_INTERNALS__) {
-    // The first launch after an update can take a while (macOS checks the new files), so wait up to two minutes.
-    for (let i = 0; i < 480 && !port; i++) {
-      const info = await window.__TAURI_INTERNALS__.invoke('agent_info').catch(() => null);
-      if (info?.port) ({ port, token } = info); else await new Promise(r => setTimeout(r, 250));
-      if (i === 8) document.getElementById('status').textContent = 'Starting Aegis…';
-    }
-    document.getElementById('status').textContent = '';
-  } else {
-    const q = new URLSearchParams(location.search); port = q.get('port') || localStorage.getItem('aegis:port'); token = q.get('token') || localStorage.getItem('aegis:token');
-    if (port) { localStorage.setItem('aegis:port', port); localStorage.setItem('aegis:token', token); }
-  }
-  if (!port) { document.body.innerHTML = '<p style="font:14px system-ui;padding:60px 40px">The Aegis agent host did not start. Quit Aegis and open it again.</p>'; throw new Error('no host'); }
-  const base = `http://127.0.0.1:${port}`;
-  const call = async (method, path, body) => {
-    const r = await fetch(base + path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
-    const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
-  };
-  return {
-    get: p => call('GET', p), post: (p, b) => call('POST', p, b ?? {}),
-    events: () => new EventSource(`${base}/events?token=${encodeURIComponent(token)}`),
-    // Boards store "asset:<name>"; the host serves it on this launch's port.
-    assetUrl: url => (typeof url === 'string' && url.startsWith('asset:') ? `${base}/assets/${encodeURIComponent(url.slice(6))}` : url),
-    upload: async file => {
-      const r = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': file.type }, body: file });
-      const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
-    },
-    openUrl: url => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('open_url', { url }) : open(url, '_blank'),
-    copy: text => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('copy_text', { text }) : navigator.clipboard.writeText(text),
-  };
-}
+const objects = mountObjects({ host, apply: (commands) => apply(commands) });
 
 // ---------- boards ----------
 let pending = Promise.resolve();
@@ -248,7 +221,10 @@ async function refreshAgents() {
   renderAgents();
 }
 function renderAgents() {
-  const list = $('agentList'); const mine = [...agentState.values()].filter(a => a.boardId === canvas.board.id).reverse();
+  const list = $('agentList'); const all = [...agentState.values()].filter(a => a.boardId === canvas.board.id).reverse();
+  // Parts sit under their lead, like Zephium's rows under a request.
+  const mine = all.filter(a => !a.parent).flatMap(a => [a, ...all.filter(p => p.parent === a.id).reverse()]);
+  for (const orphan of all.filter(p => p.parent && !all.some(a => a.id === p.parent))) mine.push(orphan);
   const running = mine.filter(a => a.running).length;
   $('agentCount').hidden = !running; $('agentCount').textContent = running;
   $('status').textContent = running ? `${running} agent${running > 1 ? 's' : ''} working` : '';
@@ -257,10 +233,10 @@ function renderAgents() {
   if (open.size) return; // don't rebuild while someone is typing a follow-up
   list.innerHTML = '';
   for (const a of mine) {
-    const row = document.createElement('div'); row.className = 'agent-row' + (a.running ? ' running' : '') + (a.error ? ' failed' : ''); row.dataset.id = a.id;
+    const row = document.createElement('div'); row.className = 'agent-row' + (a.running ? ' running' : '') + (a.error ? ' failed' : '') + (a.parent ? ' part' : ''); row.dataset.id = a.id;
     row.innerHTML = '<div class="top"><span class="dot"></span><span class="brief"></span></div><div class="meta"></div><div class="out"></div><form class="actions"><input placeholder="Follow up…"><button type="button" class="text-btn stop">Stop</button></form>';
     row.querySelector('.dot').style.background = a.running ? colourOf(a.id) : '';
-    row.querySelector('.brief').textContent = a.brief?.split('\n')[0] ?? 'Agent';
+    row.querySelector('.brief').textContent = a.parent ? `${a.title ?? 'Part'}${a.summary ? ' · ' + a.summary : ''}` : (a.brief?.split('\n')[0] ?? 'Agent');
     row.querySelector('.meta').textContent = `${a.model?.modelId ?? ''} · ${a.error ?? a.step}`;
     row.querySelector('.out').textContent = a.text || '';
     row.querySelector('.stop').hidden = !a.running;
@@ -357,7 +333,7 @@ $('fancyCursor').onchange = e => { cursor.enabled = e.target.checked; localStora
 applyTheme(localStorage.getItem('aegis:theme') || 'system');
 setFollow(follow);
 const benchCount = Number(new URLSearchParams(location.search).get('bench'));
-if (benchCount) { (await import('./bench.js')).bench(canvas, benchCount); throw new Error('bench mode: boards untouched'); }
+if (benchCount) { (await import('./canvas/bench.js')).bench(canvas, benchCount); return; }
 let boards = await host.get('/boards');
 if (!boards.length) boards = [await host.post('/boards', { name: 'First board' })];
 const saved = localStorage.getItem('aegis:board');
@@ -366,3 +342,6 @@ await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
 window.aegis = { canvas, host, apply };
+// Loaded from the host (an installed UI), say plainly if the native bridge is missing.
+if (location.protocol === 'http:' && !location.port.startsWith('517')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; if (r !== 'ok') toast(`Native bridge: ${r}`); });
+}

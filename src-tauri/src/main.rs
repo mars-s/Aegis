@@ -97,7 +97,9 @@ fn start_agent(app: &tauri::AppHandle) -> Result<(), String> {
         .env("AEGIS_DATA", &data)
         .env("AEGIS_PORT", "0")
         .env("AEGIS_TOKEN", &token)
-        .stdin(Stdio::null())
+        // The host watches this pipe and exits when it closes, so it never outlives the app.
+        .env("AEGIS_PARENT_PIPE", "1")
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
@@ -112,6 +114,14 @@ fn start_agent(app: &tauri::AppHandle) -> Result<(), String> {
                 if v.get("aegis").and_then(|x| x.as_str()) == Some("ready") {
                     let port = v.get("port").cloned().unwrap_or(Value::Null);
                     *handle.state::<Agent>().info.lock().unwrap() = Some(json!({ "port": port, "token": token }));
+                    // An installed UI in the data folder replaces the bundled one, so the app can update itself
+                    // without a rebuild. AEGIS_SAFE=1 always keeps the bundled factory UI.
+                    if v.get("ui").and_then(|x| x.as_bool()) == Some(true) && std::env::var_os("AEGIS_SAFE").is_none() {
+                        if let (Some(p), Some(win)) = (port.as_u64(), handle.get_webview_window("main")) {
+                            let target = format!("http://127.0.0.1:{p}/ui/index.html?port={p}&token={token}");
+                            if let Ok(url) = tauri::Url::parse(&target) { let _ = win.navigate(url); }
+                        }
+                    }
                     continue;
                 }
             }

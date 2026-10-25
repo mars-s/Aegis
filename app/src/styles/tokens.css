@@ -1,0 +1,41 @@
+/* Design tokens. Names and values follow Zephium's frame/src/styles/tokens.css (MPL-2.0), so ported
+   object components read the same variables. Dark is set by data-theme="dark" on <html>. */
+:root {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --text-caption: 11px; --text-label: 12px; --text-body: 13px; --text-title: 22px;
+  --text-overview-label: 22px; --text-overview-figure: 40px; --text-headline: 26px; --text-reading: 15px;
+  --radius-inset: 4px;
+  --radius-capsule: 999px; --radius-swatch: 3px; --radius-control-compact: 10px;
+  --motion-instant: 0ms; --motion-fast: 120ms; --motion-base: 200ms; --motion-slow: 300ms; --motion-page: 400ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* light */
+  --color-text: #1c1c1f; --color-muted: rgb(28 28 31 / 0.62); --color-faint: rgb(28 28 31 / 0.42);
+  --color-label-secondary: #55555c; --color-lit: #222226;
+  --color-surface: #ffffff; --color-float: #ffffff;
+  --color-fill: rgb(24 24 27 / 0.05); --color-fill-hover: rgb(24 24 27 / 0.08);
+  --color-border: rgb(24 24 27 / 0.07); --color-border-strong: rgb(24 24 27 / 0.13);
+  --color-ring: rgb(24 24 27 / 0.4); --color-tint-graphite: #5e5e64;
+  --color-term: #2b5ea7; --color-code-chip: rgb(24 24 27 / 0.06); --color-code-chip-ink: #3a3a40;
+  --shadow-float: 0 6px 22px rgb(24 24 27 / 0.16), 0 0 0 0.5px rgb(24 24 27 / 0.1);
+  --chart-1: #5d8fcc; --chart-2: #a6531e; --chart-3: #449d7a; --chart-4: #7f5f0a;
+  --chart-5: #bc6082; --chart-6: #3e6f25; --chart-7: #7b68af; --chart-8: #9d4547;
+}
+:root[data-theme="dark"] {
+  --color-text: #f4f4f6; --color-muted: rgb(244 244 246 / 0.68); --color-faint: rgb(244 244 246 / 0.44);
+  --color-label-secondary: #d8d8db; --color-lit: #ededf0;
+  --color-surface: #26262a; --color-float: #3d3d44;
+  --color-fill: rgb(255 255 255 / 0.05); --color-fill-hover: rgb(255 255 255 / 0.08);
+  --color-border: rgb(255 255 255 / 0.07); --color-border-strong: rgb(255 255 255 / 0.13);
+  --color-ring: rgb(255 255 255 / 0.5); --color-tint-graphite: #8e8e95;
+  --color-term: #9cc0f0; --color-code-chip: rgb(255 255 255 / 0.08); --color-code-chip-ink: #e2e2e6;
+  --shadow-float: 0 6px 22px rgb(0 0 0 / 0.34), 0 0 0 0.5px rgb(255 255 255 / 0.08);
+  --chart-1: #6193db; --chart-2: #b37046; --chart-3: #2da58f; --chart-4: #a47d00;
+  --chart-5: #b77094; --chart-6: #679936; --chart-7: #7e68ab; --chart-8: #c6685b;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-base: 0ms; --motion-slow: 0ms; --motion-page: 0ms; }
+}

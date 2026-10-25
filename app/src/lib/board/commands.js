@@ -1,11 +1,12 @@
 // Board commands: the one way anything changes a board, for people and agents alike.
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
+import { checkObject, OBJECT_SIZE } from './objects.js';
 
-export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent'];
+export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent', 'object'];
 const COLORS = ['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple'];
 const DEFAULT_SIZE = {
   note: [220, 96], title: [360, 56], todo: [260, 160], link: [260, 76],
-  image: [320, 220], video: [480, 270], web: [480, 340], agent: [300, 160],
+  image: [320, 220], video: [480, 270], web: [480, 340], agent: [300, 160], object: [520, 360],
 };
 const GAP = 24;
 
@@ -42,7 +43,9 @@ export function findSpace(board, w, h, near) {
 const ID_RE = /^[a-z0-9]{6,16}$/;
 function cleanCard(type, o, board, anchor) {
   if (!CARD_TYPES.includes(type)) throw new Error(`unknown card type "${type}". Use one of: ${CARD_TYPES.join(', ')}`);
-  const [dw, dh] = DEFAULT_SIZE[type];
+  // An object card holds typed data of one kind (a chart, a sheet...), checked against its shape.
+  const object = type === 'object' ? { kind: o.kind, data: checkObject(o.kind, o.data) } : null;
+  const [dw, dh] = object ? OBJECT_SIZE[object.kind] : DEFAULT_SIZE[type];
   const w = clamp(num(o.w, dw), 40, 4000), h = clamp(num(o.h, dh), 24, 4000);
   const pos = (typeof o.x === 'number' && typeof o.y === 'number') ? { x: o.x, y: o.y } : findSpace(board, w, h, anchor);
   // A caller may choose the id (the canvas does, so its optimistic copy matches the saved board).
@@ -54,6 +57,7 @@ function cleanCard(type, o, board, anchor) {
   if (str(o.heading)) card.heading = str(o.heading, 200);
   if (str(o.badge)) card.badge = str(o.badge, 40);
   if (type === 'agent') card.agent = str(o.agent, 100);
+  if (object) { card.kind = object.kind; card.data = object.data; card.ver = 1; }
   if (o.group) card.group = str(o.group, 100);
   return card;
 }
@@ -95,6 +99,25 @@ export function applyBatch(input, batch) {
           }
           touched.add(c.id); break;
         }
+        case 'revise': {
+          // A newer version of an object, standing where it stood. data is the complete new data of the same kind.
+          const c = byId(cmd.id); if (!c) throw new Error(`no card ${cmd.id}`);
+          if (c.type !== 'object') throw new Error(`card ${c.id} is a ${c.type}, not an object; use update`);
+          c.data = checkObject(c.kind, cmd.data);
+          if (typeof cmd.text === 'string') c.text = str(cmd.text, 200);
+          c.ver = (c.ver ?? 1) + 1; c.updated = Date.now();
+          touched.add(c.id); break;
+        }
+        case 'object_set': {
+          // A person's in-place change to one field of an object (a ticked step, a sort). Path is a list of keys.
+          const c = byId(cmd.id); if (!c || c.type !== 'object') throw new Error(`no object ${cmd.id}`);
+          const path = Array.isArray(cmd.path) ? cmd.path : [];
+          if (!path.length) throw new Error('object_set needs a path');
+          const next = structuredClone(c.data); let at = next;
+          for (const k of path.slice(0, -1)) { if (at?.[k] === undefined) throw new Error(`object_set: no ${path.join('.')}`); at = at[k]; }
+          at[path.at(-1)] = cmd.value;
+          c.data = checkObject(c.kind, next); touched.add(c.id); break;
+        }
         case 'move': {
           const c = byId(cmd.id); if (!c) throw new Error(`no card ${cmd.id}`);
           c.x = num(cmd.x, c.x); c.y = num(cmd.y, c.y); touched.add(c.id); break;
@@ -133,7 +156,7 @@ export function applyBatch(input, batch) {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : [cmd.id]).map(ref).filter(Boolean);
           board.focus = { ids, at: Date.now() }; break;
         }
-        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, move, delete, connect, layout, order or focus`);
+        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, revise, move, delete, connect, layout, order or focus`);
       }
     } catch (e) {
       errors.push({ index, reason: e.message, hint: 'read the board again to get current card ids' });
@@ -156,7 +179,7 @@ export function layout(cards, shape, { x, y, cols }) {
 export function describe(board, limit = 400) {
   return {
     id: board.id, name: board.name, rev: board.rev,
-    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}) })),
+    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}), ...(c.type === 'object' ? { kind: c.kind, data: c.data, ver: c.ver } : {}) })),
     links: board.links.map(l => ({ a: l.a, b: l.b, label: l.label })),
     truncated: board.cards.length > limit,
   };

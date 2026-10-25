@@ -1,12 +1,9 @@
-<!doctype html>
-<html lang="en-AU">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aegis</title>
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { start } from './controller';
+  onMount(() => { void start(); });
+</script>
+
 <header class="bar" data-tauri-drag-region>
   <div class="bar-left" data-tauri-drag-region>
     <button class="icon-btn" id="sideBtn" title="Side bar (\)" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
@@ -129,6 +126,3 @@
 </dialog>
 
 <div class="toast" id="toast" role="status" hidden></div>
-<script type="module" src="app.js"></script>
-</body>
-</html>

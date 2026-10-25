@@ -1,0 +1,21 @@
+{
+  "name": "@aegis/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json --threshold error"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tsconfig/svelte": "5.0.8",
+    "svelte": "5.57.2",
+    "svelte-check": "4.7.7",
+    "typescript": "5.9.3",
+    "vite": "8.3.5"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "3.1.3"
+  }
+}

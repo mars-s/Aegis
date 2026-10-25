@@ -1,0 +1,5 @@
+# Aegis's own commands, so a capability can grant them (needed for the UI served by the local host).
+[[permission]]
+identifier = "app-commands"
+description = "Agent host info, opening a link in the browser and copying text."
+commands.allow = ["agent_info", "open_url", "copy_text"]

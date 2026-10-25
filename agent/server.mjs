@@ -5,7 +5,7 @@ import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
-import { join, dirname } from 'node:path';
+import { join, dirname, normalize } from 'node:path';
 import { homedir } from 'node:os';
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context';
 import { Type } from '@earendil-works/pi-ai';
@@ -14,12 +14,16 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
-import { applyBatch, describe, emptyBoard } from '../web/board/commands.js';
+import { applyBatch, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
+import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
 import { applyLibraryOp, emptyLibrary, tidyLibrary } from './library.mjs';
+import { createUiUpdater } from './ui-update.mjs';
 
 const DATA = process.env.AEGIS_DATA || join(homedir(), 'Library', 'Application Support', 'Aegis');
 const BOARDS = join(DATA, 'boards');
 const ASSETS = join(DATA, 'assets');
+// The UI the window loads: AEGIS_UI (a built app folder), else DATA/ui/current once an update has installed one.
+const UI_DIRS = [process.env.AEGIS_UI, join(DATA, 'ui', 'current')].filter(Boolean);
 const PORT = Number(process.env.AEGIS_PORT || 4790);
 await mkdir(BOARDS, { recursive: true, mode: 0o700 });
 await mkdir(ASSETS, { recursive: true, mode: 0o700 });
@@ -130,6 +134,28 @@ async function sendAsset(req, res, name) {
   return pipeline(createReadStream(path), res).catch(() => {});
 }
 
+// ---------- the UI, served from a folder so it can be replaced without rebuilding the app ----------
+const UI_TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', json: 'application/json', map: 'application/json', woff2: 'font/woff2' };
+async function uiRoot() {
+  for (const dir of UI_DIRS) { try { if ((await stat(join(dir, 'index.html'))).isFile()) return dir; } catch {} }
+  return null;
+}
+async function sendUi(req, res, rel) {
+  const root = await uiRoot(); if (!root) return send(res, 404, { error: 'no ui installed' });
+  const clean = normalize('/' + decodeURIComponent(rel || 'index.html')).replace(/^\/+/, '');
+  if (clean.includes('..')) return send(res, 404, { error: 'not found' });
+  const path = join(root, clean || 'index.html');
+  if (!path.startsWith(root)) return send(res, 404, { error: 'not found' });
+  let info; try { info = await stat(path); } catch { return send(res, 404, { error: 'not found' }); }
+  if (!info.isFile()) return send(res, 404, { error: 'not found' });
+  const ext = path.split('.').pop();
+  res.writeHead(200, { 'content-type': UI_TYPES[ext] ?? 'application/octet-stream', 'cache-control': clean === 'index.html' ? 'no-store' : 'private, max-age=31536000, immutable', 'x-content-type-options': 'nosniff' });
+  return pipeline(createReadStream(path), res).catch(() => {});
+}
+
+const APP_DIR = process.env.AEGIS_APP_SRC || join(dirname(new URL(import.meta.url).pathname), '..', 'app');
+const ui = createUiUpdater({ data: DATA, appDir: APP_DIR, onChange: () => broadcast({ type: 'ui' }) });
+
 // ---------- events to the canvas ----------
 const clients = new Set();
 function broadcast(event) { const line = `data: ${JSON.stringify(event)}\n\n`; for (const res of clients) res.write(line); }
@@ -164,6 +190,14 @@ if (process.env.AEGIS_FAKE_MODEL) {
     const msgs = ctx.messages;
     const brief = msgs.find(m => m.role === 'user'); const briefText = typeof brief?.content === 'string' ? brief.content : brief?.content?.find?.(c => c.type === 'text')?.text ?? '';
     const results = msgs.filter(m => m.role === 'toolResult').length;
+    // FAKETOOLS [[name, args], ...]: call these tools in order (one per turn; a nested list runs together), then stop.
+    const script = /FAKETOOLS (\[[\s\S]+\])$/.exec(briefText)?.[1];
+    if (script) {
+      const turns = JSON.parse(script); const turn = msgs.filter(m => m.role === 'assistant').length;
+      if (turn >= turns.length) return fauxAssistantMessage('Done.');
+      const calls = Array.isArray(turns[turn][0]) ? turns[turn] : [turns[turn]];
+      return fauxAssistantMessage(calls.map(([name, args]) => fauxToolCall(name, args)), { stopReason: 'toolUse' });
+    }
     const batch = /^FAKE ([\s\S]+)$/.exec(briefText)?.[1];
     if (!batch) return fauxAssistantMessage('Fake model: start the brief with FAKE and a JSON command list.');
     if (results === 0) return fauxAssistantMessage(fauxToolCall('board_read', {}), { stopReason: 'toolUse' });
@@ -268,14 +302,146 @@ const editBoard = defineTool({
     return text({ ok: true, rev: result.rev, created: result.created });
   },
 });
+// ---------- objects: Zephium-style typed results (create, revise) ----------
+const SCHEMAS = objectSchemas();
+const createObject = defineTool({
+  name: 'create',
+  description: `Places one object on the board and returns its id. Objects are the result the person came for: a reply, a chart, a sheet, a diagram, a plan, a list or code. The app draws and lays them out.\n${OBJECT_GUIDE}\nWhen it returns a fault, correct the named field and call it again.`,
+  parameters: Type.Object({
+    kind: Type.Union(OBJECT_KINDS.map(k => Type.Literal(k))),
+    title: Type.String({ maxLength: 60, description: 'What the object is, in a few words: Weekly activity, Idea to outcome. Not used for reply.' }),
+    data: Type.Object({}, { additionalProperties: true, description: 'The object data, following the schema whose title is the kind. Schemas: ' + JSON.stringify(SCHEMAS) }),
+    near: Type.Optional(Type.String({ description: 'An existing card or object id to place it beside.' })),
+    below: Type.Optional(Type.String({ description: 'An existing card or object id to place it under, e.g. the reply.' })),
+  }),
+  execute: async (args, api) => {
+    const id = boardOf(api); if (!id) return text('This conversation has no board.');
+    const board = await loadBoard(id);
+    const [w, h] = OBJECT_SIZE[args.kind] ?? [520, 360];
+    const anchor = board?.cards.find(c => c.id === (args.below ?? args.near));
+    const pos = anchor ? findSpace(board, w, h, args.below ? { x: anchor.x, y: anchor.y + anchor.h + 32 } : { x: anchor.x + anchor.w + 32, y: anchor.y }) : null;
+    const result = await commit(id, { commands: [{ op: 'create', type: 'object', kind: args.kind, text: args.title ?? '', data: args.data, ref: 'o', ...(pos ?? {}) }, { op: 'focus', ids: ['$o'] }] }, { kind: 'agent', conversationId: String(api.conversationId ?? '') });
+    if (!result.ok) throw new Error(`Nothing was placed. ${result.errors.map(e => e.reason).join('; ')}`);
+    const meta = run.get(String(api.conversationId ?? '')); if (meta?.parent) { meta.placed = result.created.o; await atomicJson(runsPath, Object.fromEntries(run)); }
+    return text({ ok: true, id: result.created.o });
+  },
+});
+const reviseObject = defineTool({
+  name: 'revise',
+  description: 'Replaces an object with a newer version that stands where it stood; the person sees it was updated. data is the complete new data of the same kind. Use it for follow-ups that change something already made (a step added to the plan, a series added to the chart). Read the board first.',
+  parameters: Type.Object({
+    id: Type.String(),
+    data: Type.Object({}, { additionalProperties: true }),
+    title: Type.Optional(Type.String({ maxLength: 60 })),
+  }),
+  execute: async (args, api) => {
+    const id = boardOf(api); if (!id) return text('This conversation has no board.');
+    const result = await commit(id, { commands: [{ op: 'revise', id: args.id, data: args.data, ...(args.title ? { text: args.title } : {}) }, { op: 'focus', ids: [args.id] }] }, { kind: 'agent', conversationId: String(api.conversationId ?? '') });
+    if (!result.ok) throw new Error(`Nothing changed. ${result.errors.map(e => e.reason).join('; ')}`);
+    return text({ ok: true, id: args.id });
+  },
+});
+
+// ---------- skills: how to do a kind of job, loaded on demand (names in the prompt, bodies by load_skill) ----------
+// Built-ins ship with the app; the person's own in DATA/skills/<name>/SKILL.md override one of the same name.
+const SKILL_DIRS = [join(DATA, 'skills'), join(dirname(new URL(import.meta.url).pathname), 'skills')];
+async function skills() {
+  const out = new Map();
+  for (const root of [...SKILL_DIRS].reverse()) for (const name of await readdir(root).catch(() => [])) {
+    const raw = await readFile(join(root, name, 'SKILL.md'), 'utf8').catch(() => null); if (!raw) continue;
+    const fm = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(raw); if (!fm) continue;
+    const field = k => new RegExp(`^${k}:\\s*(.+)$`, 'm').exec(fm[1])?.[1]?.trim();
+    if (!field('name') || !field('description')) continue;
+    out.set(field('name'), { name: field('name'), description: field('description').slice(0, 200), body: fm[2].slice(0, 16000) });
+  }
+  return out;
+}
+const loadSkill = defineTool({
+  name: 'load_skill',
+  description: 'Loads a skill: how to do one kind of job well. Load the matching skill before you start that kind of job.',
+  parameters: Type.Object({ name: Type.String() }),
+  replay: 'safe',
+  execute: async ({ name }) => {
+    const all = await skills(); const sk = all.get(name);
+    if (!sk) throw new Error(`no skill "${name}". Skills: ${[...all.keys()].join(', ')}`);
+    return text(sk.body);
+  },
+});
+
+// ---------- parts: a lead agent splits work into helpers, as Zephium's Work does ----------
+// A part is a child conversation on the same board with one purpose. The lead's start_part waits for it to finish
+// and gets back its digest. Several start_part calls in one turn run in parallel (tool execution is parallel).
+const MAX_PARTS_AT_ONCE = 4;
+let partsRunning = 0; const partQueue = [];
+const partSlot = () => new Promise(r => { if (partsRunning < MAX_PARTS_AT_ONCE) { partsRunning++; r(); } else partQueue.push(r); });
+const freeSlot = () => { const next = partQueue.shift(); if (next) next(); else partsRunning--; };
+function waitForIdle(id, ms = 15 * 60 * 1000) {
+  return new Promise((resolve, reject) => {
+    const view = watching.get(id); if (!view) return reject(new Error('part is not running'));
+    let seenRun = false;
+    const timer = setTimeout(() => { off(); reject(new Error('part took too long')); }, ms);
+    const check = () => {
+      const v = view.value; const live = v?.docs?.['pi.live'];
+      if (live?.run) { seenRun = true; return; }
+      if (!seenRun && !(v?.entries ?? []).some(e => e.kind === 'pi.assistant' || e.kind === 'pi.error')) return;
+      clearTimeout(timer); off(); resolve(summarise(id, v));
+    };
+    const off = view.subscribe(check); check();
+  });
+}
+const startPart = defineTool({
+  name: 'start_part',
+  description: 'Starts a part: a helper agent that does one purpose of the job on its own (Research, Numbers, Copy, Images) and returns a digest of what it found or made, and the id of at most one object it placed. Start several in one turn to run them in parallel; at most four run at once and the rest wait. Build the result from the digests. A small question needs no parts.',
+  parameters: Type.Object({
+    title: Type.String({ maxLength: 24, description: 'The part\'s short name: Research, Numbers, Flow.' }),
+    goal: Type.String({ maxLength: 200, description: 'What the part finds or does, shown to the person.' }),
+    brief: Type.String({ maxLength: 2000, description: 'Every fact the helper needs and what to return.' }),
+    model: Type.Optional(Type.String({ description: 'A model id for the helper, such as gpt-6.1-sol or claude-sonnet-5-5. Default: the lead\'s own model.' })),
+  }),
+  execute: async (args, api) => {
+    const leadId = String(api.conversationId ?? ''); const lead = run.get(leadId);
+    if (!lead) return text('This conversation has no board.');
+    if (lead.parent) throw new Error('A part cannot start parts. Do the work yourself and call finish.');
+    const pick = args.model ? modelList().find(m => m.modelId === args.model) : null;
+    if (args.model && !pick) throw new Error(`no model ${args.model}. Use one of: ${modelList().map(m => m.modelId).join(', ')}`);
+    await partSlot();
+    try {
+      const brief = `Part "${args.title}" of a bigger job. Goal: ${args.goal}\n\n${args.brief}`;
+      const { id } = await spawnAgent({ boardId: lead.boardId, brief, model: pick ?? lead.model, parent: leadId, title: args.title });
+      const done = await waitForIdle(id);
+      const meta = run.get(id) ?? {};
+      return text({ part: args.title, id, digest: meta.digest ?? done.text ?? '', object: meta.placed ?? null, found: meta.found ?? !!(done.text), error: done.error });
+    } finally { freeSlot(); }
+  },
+});
+const finishPart = defineTool({
+  name: 'finish',
+  description: 'Ends your part and hands your digest to the lead. digest: the facts, numbers and findings the lead needs, at most 14 short lines, no prose. found: false only when you found nothing usable.',
+  parameters: Type.Object({ summary: Type.String({ maxLength: 60 }), digest: Type.String({ maxLength: 3000 }), found: Type.Boolean() }),
+  execute: async (args, api) => {
+    const id = String(api.conversationId ?? ''); const meta = run.get(id);
+    if (!meta?.parent) throw new Error('Only a part calls finish. Answer the person with objects instead.');
+    Object.assign(meta, { digest: args.digest, summary: args.summary, found: args.found });
+    await atomicJson(runsPath, Object.fromEntries(run));
+    return text('Handed to the lead. Stop now.');
+  },
+});
+
 const BoardExtension = defineExtension({
   name: 'aegis-board',
-  tools: [readBoard, editBoard],
-  sections: [section('aegis', () => [
+  tools: [readBoard, editBoard, createObject, reviseObject, startPart, finishPart, loadSkill],
+  sections: [section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
     'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',
-    'Work through board_read and board_apply. Group related ideas under a title card, pull tasks into todo cards, connect related cards, and finish with a focus command on what you made.',
-    'Keep card text short and plain. Australian English. Reply in one or two sentences saying what you changed.',
+    'Two ways to change the board. board_apply moves, groups and edits the person\'s own cards (notes, titles, todos, links). create and revise place objects: typed results the app draws well (charts, sheets, diagrams, plans, lists, code, and a reply on top).',
+    'When the person asks for a result (an answer, an analysis, a comparison, a chart, a flow, a plan), make objects, never imitate them with notes: no text bar charts, no boxes drawn from notes.',
+    'What you make: the one result the person came for, plus a reply on top: a headline and one to three sentences that answer the request. The reply never restates an object beside it. Place the reply first, then each object below or beside it (below: the reply id).',
+    'One object per purpose. Keep text short and exact; cells hold values, not sentences. On a follow-up, revise the objects it changes instead of adding copies.',
+    'Honest results: show only what you found or know. Never invent numbers, sources or links. When values are your own knowledge or made up for a demo, say so in basis (and knowledge true) or in the reply.',
+    'Sorting a brain dump: group related ideas under a title card, pull tasks into todo cards, connect related cards, and finish with a focus command on what you made.',
+    'Big jobs: split independent work into parts with start_part, several in one turn so they run together; a part is one purpose, not one step. Build the result from their digests. A small question needs no parts.',
+    'If you are a part (your first message says "Part"), work only toward its goal, place at most one object, then call finish with your digest. Never start parts.',
+    'Australian English. Text outside tool calls is only a short status line; the person reads the board, so every answer goes into objects or cards.',
   ].join('\n'), { tag: false })],
 });
 
@@ -310,17 +476,17 @@ function summarise(id, value) {
   const tools = Object.values(live?.tools ?? {}).map(t => t.name ?? t.call?.name).filter(Boolean);
   const partial = live?.run?.partial?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
-  return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, running: !!live?.run,
+  return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, running: !!live?.run, parent: meta.parent ?? null, title: meta.title ?? null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
     text: (live?.run ? partial : answer).slice(-600), error: failed ? 'The run stopped. Check the model sign-in.' : null };
 }
-async function spawnAgent({ boardId, brief, model }) {
+async function spawnAgent({ boardId, brief, model, parent, title }) {
   if (!(await loadBoard(boardId))) throw new Error('no such board');
   const selection = model ?? modelList()[0];
   if (!selection) throw new Error('no models');
   const conversation = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model: { provider: selection.provider, modelId: selection.modelId } } }, context);
   const id = String(conversation.id);
-  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, created: Date.now() });
+  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, created: Date.now(), ...(parent ? { parent, title } : {}) });
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
   await conversation.submit({ type: 'input', content: brief, requestId: randomUUID() }, context);
@@ -367,7 +533,10 @@ const server = http.createServer(async (req, res) => {
   const host = String(req.headers.host ?? '');
   if (!/^(127\.0\.0\.1|localhost):\d+$/.test(host)) return send(res, 403, { error: 'loopback only' });
   const url = new URL(req.url, 'http://127.0.0.1');
-  if (url.pathname === '/health') return send(res, 200, { ok: true, runtime: 'Pi Durable 1.3.0' });
+  if (url.pathname === '/health') return send(res, 200, { ok: true, runtime: 'Pi Durable 1.3.0', ui: !!(await uiRoot()) });
+  // The UI is public static files; data still needs the token, which the shell passes in the address.
+  const uiPath = url.pathname.match(/^\/ui\/(.*)$/);
+  if (uiPath && req.method === 'GET') return sendUi(req, res, uiPath[1]);
   const asset = url.pathname.match(/^\/assets\/([^/]+)$/);
   if (asset && (req.method === 'GET' || req.method === 'HEAD')) return sendAsset(req, res, asset[1]);
   const sseToken = url.searchParams.get('token');
@@ -402,6 +571,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/library' && m === 'GET') return send(res, 200, await library());
     if (p === '/library' && m === 'POST') return send(res, 200, await changeLibrary(await body(req)));
     if (p === '/assets' && m === 'POST') return send(res, 200, await saveAsset(req));
+    if (p === '/ui-update' && m === 'GET') return send(res, 200, await ui.status());
+    if (p === '/ui-update' && m === 'POST') { const b = await body(req); return send(res, 200, await ui.install(b.from ? { from: String(b.from) } : {})); }
+    if (p === '/ui-update/rollback' && m === 'POST') return send(res, 200, await ui.rollback());
     if (p === '/agents' && m === 'GET') return send(res, 200, await agents(url.searchParams.get('board')));
     if (p === '/agents' && m === 'POST') {
       const { boardId, brief, model, count } = await body(req);
@@ -424,9 +596,12 @@ const server = http.createServer(async (req, res) => {
     send(res, 404, { error: 'not found' });
   } catch (e) { send(res, e.status ?? 400, { error: e.message }); }
 });
-server.listen(PORT, '127.0.0.1', () => {
-  // The shell reads this line to learn the port and token.
-  console.log(JSON.stringify({ aegis: 'ready', port: server.address().port, token: process.env.AEGIS_PRINT_TOKEN ? TOKEN : undefined }));
+server.listen(PORT, '127.0.0.1', async () => {
+  // The shell reads this line to learn the port, and whether an installed UI should replace the bundled one.
+  console.log(JSON.stringify({ aegis: 'ready', port: server.address().port, ui: !!(await uiRoot()), token: process.env.AEGIS_PRINT_TOKEN ? TOKEN : undefined }));
 });
-for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, async () => { server.close(); await harness.close(context).catch(() => {}); process.exit(0); });
+async function shutdown() { server.close(); await harness.close(context).catch(() => {}); process.exit(0); }
+for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, shutdown);
+// The app holds our stdin open. When the app dies, even by force, stdin closes and the host follows it.
+if (process.env.AEGIS_PARENT_PIPE) { process.stdin.on('end', shutdown); process.stdin.on('error', shutdown); process.stdin.resume(); }
 export { fake };

@@ -4,7 +4,10 @@
   "version": "0.1.0",
   "identifier": "app.aegis.canvas",
   "build": {
-    "frontendDist": "../web"
+    "frontendDist": "../app/dist",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeDevCommand": "npm --prefix app run dev",
+    "beforeBuildCommand": "npm --prefix app run build"
   },
   "app": {
     "windows": [
@@ -22,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:*; img-src 'self' data: blob: https: http://127.0.0.1:*; media-src 'self' blob: https: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob: https: http://127.0.0.1:*; media-src 'self' blob: https: http://127.0.0.1:*; style-src 'self' 'unsafe-inline'; script-src 'self'"
     }
   },
   "bundle": {
@@ -43,8 +46,10 @@
       "../agent/server.mjs": "agent/server.mjs",
       "../agent/package.json": "agent/package.json",
       "../agent/node_modules": "agent/node_modules",
-      "../web/board": "web/board",
-      "../agent/library.mjs": "agent/library.mjs"
+      "../agent/library.mjs": "agent/library.mjs",
+      "../app/src/lib/board": "app/src/lib/board",
+      "../agent/ui-update.mjs": "agent/ui-update.mjs",
+      "../agent/skills": "agent/skills"
     }
   }
 }

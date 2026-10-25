@@ -4,7 +4,7 @@ const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom, cards show as outlines
 const MIN_Z = 0.05, MAX_Z = 4;
 
-export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, resolveUrl = u => u }) {
+export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
   const mounted = new Map();      // id -> { el, sig }
@@ -35,8 +35,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     drawLinks();
     dirtyAll = false;
   }
+  function removeEl(el) { if (el.classList.contains('object')) dropObject?.(el.querySelector('.object-host')); el.remove(); }
   function unmountAll() {
-    for (const [id, m] of mounted) { if (m.el.contains(document.activeElement)) continue; m.el.remove(); mounted.delete(id); }
+    for (const [id, m] of mounted) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
   function drawShapes() {
     if (!board) return;
@@ -84,7 +85,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       else if (m.sig !== sig && !(m.el.contains(document.activeElement) && document.activeElement.isContentEditable)) {
         // Content changed: redraw the card. Moves and resizes only re-place it, so a playing video keeps playing.
         const refocus = m.el.contains(document.activeElement) && document.activeElement.matches('.add-item');
-        const el = renderCard(c); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
+        const el = renderCard(c); if (m.el.classList.contains('object')) dropObject?.(m.el.querySelector('.object-host')); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
         if (refocus) el.querySelector('.add-item')?.focus();
       }
       m.sig = sig;
@@ -94,10 +95,10 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       el.classList.toggle('selected', selected.has(c.id));
       if (rings.has(c.id)) { el.classList.add('agent-ring'); el.style.setProperty('--ring', rings.get(c.id)); } else el.classList.remove('agent-ring');
     });
-    for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; m.el.remove(); mounted.delete(id); }
+    for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url]);
+  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null]);
   const geometry = c => `${c.x},${c.y},${c.w},${c.h}`;
   function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
 
@@ -106,6 +107,13 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     el.className = `card ${c.type}`; el.dataset.id = c.id; el.dataset.color = c.color || 'plain';
     place(el, c);
     const ghost = '<div class="ghost"><i style="width:70%"></i><i style="width:90%"></i><i style="width:50%"></i></div>';
+    if (c.type === 'object') {
+      // A typed object: Svelte draws it into the host element; the canvas still owns drag, resize and select.
+      el.classList.add(`kind-${c.kind}`);
+      el.innerHTML = '<div class="drag-strip" title="Drag to move"></div><div class="object-host"></div><div class="resize"></div>';
+      renderObject?.(el.querySelector('.object-host'), c);
+      return el;
+    }
     if (c.badge || c.heading) el.classList.add('has-head');
     if (c.badge) { const b = document.createElement('span'); b.className = 'badge'; b.contentEditable = 'plaintext-only'; b.textContent = c.badge; el.appendChild(b); }
     if (c.heading) { const h = document.createElement('div'); h.className = 'heading'; h.contentEditable = 'plaintext-only'; h.textContent = c.heading; el.appendChild(h); }
@@ -196,6 +204,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   stage.addEventListener('pointerdown', e => {
     if (e.button !== 0 && e.button !== 1) return;
     const cardEl = e.target.closest('.card');
+    // Inside an object, controls (buttons, inputs, sort headers) and text selection work as normal.
+    if (cardEl?.classList.contains('object') && !e.target.closest('.drag-strip, .resize') && e.target.closest('button, input, select, a, summary, details, th, .sheet, pre')) return;
     if (e.target.isContentEditable && document.activeElement === e.target) return;
     if (e.target.closest('input, a, video')) return;
     stage.focus({ preventScroll: true });
@@ -260,6 +270,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     });
   });
   stage.addEventListener('wheel', e => {
+    const scroller = !e.ctrlKey && !e.metaKey && e.target.closest?.('.card.object.selected .content');
+    if (scroller && scroller.scrollHeight > scroller.clientHeight + 1) return; // a selected object scrolls its own content
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) {           // pinch or ⌘-scroll: zoom about the pointer
       const z = Math.min(MAX_Z, Math.max(MIN_Z, view.z * Math.exp(-e.deltaY * 0.01)));
@@ -299,9 +311,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const cards = board.cards.filter(c => ids.includes(c.id)); if (!cards.length) return;
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y));
     const x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
-    const W = stage.clientWidth, H = stage.clientHeight - 160, pad = 80;
+    // Frame inside the free area: right of the side bar and tool bar, above the composer.
+    const left = Math.max(0, ...[...document.querySelectorAll('.side:not([hidden]) .pbox, .tools')].map(el => el.getBoundingClientRect().right)) + 24;
+    const W = stage.clientWidth - left, H = stage.clientHeight - 160, pad = 56;
     const z = Math.min(maxZ, (W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
-    glideTo({ x: W / 2 - ((x0 + x1) / 2) * z, y: 44 + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) });
+    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: 44 + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) });
   }
   function fit() { if (board?.cards.length) frameIds(board.cards.map(c => c.id)); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
   function glow(ids) {
@@ -312,7 +326,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     setBoard(next, { keepView = true } = {}) {
       const first = !board || board.id !== next.id;
       board = next;
-      if (first) { for (const m of mounted.values()) m.el.remove(); mounted.clear(); selected.clear(); view = next.view ?? { x: 0, y: 0, z: 1 }; if (!next.view || (next.view.x === 0 && next.view.y === 0)) view = { x: stage.clientWidth / 2 - 200, y: stage.clientHeight / 3, z: 1 }; }
+      if (first) { for (const m of mounted.values()) removeEl(m.el); mounted.clear(); selected.clear(); view = next.view ?? { x: 0, y: 0, z: 1 }; if (!next.view || (next.view.x === 0 && next.view.y === 0)) view = { x: stage.clientWidth / 2 - 200, y: stage.clientHeight / 3, z: 1 }; }
       schedule(true);
       return first;
     },

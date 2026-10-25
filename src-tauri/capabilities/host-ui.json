@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "host-ui",
+  "description": "The UI served by the local agent host may call the app's own commands (agent info, open link, copy). Tauri matches the page's origin, which has no path, so the pattern names only the loopback host.",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "http://127.0.0.1:*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "app-commands"
+  ]
+}
