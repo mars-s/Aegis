@@ -1,6 +1,6 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerTool, registerPanel, registerCommand, registerCardMenu } from '../registry';
-import { svg, SHAPES, INKS, colour } from './geometry.js';
+import { svg, SHAPES, INKS, colour, outlineStyle } from './geometry.js';
 import { inkTool, PEN_RANGE } from './ink.js';
 import { vectorEditor } from './vector.js';
 import { connectorEditor } from './connectors.js';
@@ -8,7 +8,7 @@ import './renderers.js';
 
 const EMOJI = ['⭐', '❤️', '👍', '🎉', '🌱', '💡', '🔥', '✅', '😀', '😂', '🥹', '😍', '🤔', '😎', '😴', '👀', '👋', '👏', '🙌', '💪', '🧠', '✨', '💯', '❓', '❗', '🚀', '🎯', '🏆', '🎨', '📌', '📚', '☕', '🍎', '🍓', '🌈', '☀️', '🌙', '🌻', '🌳', '🍀', '🐈', '🐕', '🦊', '🐝', '🦋', '🐢', '🐙', '🦉', '🎵', '🎸', '⚽', '🏀', '🎲', '🎁', '🛠️', '🔑', '💎', '💬', '📍', '🏠', '🌏', '✈️', '🚲', '🧩'];
 const defaultFavourites = EMOJI.slice(0, 8);
-const state = { pen: 'pen', ink: 'ink', sizes: { pen: 9, marker: 8, hi: 24, eraser: 28 }, shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, emoji: '⭐', favourites: [...defaultFavourites], recent: [] };
+const state = { pen: 'pen', ink: 'ink', sizes: { pen: 9, marker: 8, hi: 24, eraser: 28 }, shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐', favourites: [...defaultFavourites], recent: [] };
 try {
   const saved = JSON.parse(localStorage.getItem('aegis:draw') || '{}');
   if (saved.pen in PEN_RANGE) state.pen = saved.pen;
@@ -23,7 +23,7 @@ function arm(id) { vector?.finish(); vector?.endEdit(); ctx.canvas.select([]); c
 registerTool({ id: 'draw-ink', activate: () => arm('draw-ink'), title: 'Draw ink', key: 'p', group: 'draw', icon: '<path d="m3 11 8-8 2 2-8 8-3 1zM9 5l2 2"/>', pointer: { down: (...args) => ink.down(...args), move: (...args) => ink.move(...args), up: (...args) => ink.up(...args) } });
 registerTool({ id: 'draw-shape', activate: () => arm('draw-shape'), title: 'Shapes', key: 's', group: 'draw', icon: '<rect x="2" y="2" width="8" height="8" rx="1"/><circle cx="10" cy="10" r="4"/>', place(at, context) {
   const line = state.shape === 'line', w = line ? 200 : 180, h = line ? 24 : 140;
-  context.apply([{ op: 'create', type: 'shape', x: at.x - w / 2, y: at.y - h / 2, w, h, props: { shape: state.shape, fill: state.fill, stroke: state.stroke, sw: state.sw }, ref: 'shape' }], ids => context.canvas.select([ids.shape])); return true;
+  context.apply([{ op: 'create', type: 'shape', x: at.x - w / 2, y: at.y - h / 2, w, h, props: { shape: state.shape, fill: state.fill, stroke: state.stroke, sw: state.sw, sdash: state.sdash, dl: state.dl, dg: state.dg }, ref: 'shape' }], ids => context.canvas.select([ids.shape])); return true;
 } });
 registerTool({ id: 'vector', activate: () => arm('vector'), title: 'Vector Pen (Shift+P)', group: 'draw', icon: '<path d="m8 1 5 8-5 6-5-6zM8 1v7"/><circle cx="8" cy="9" r="1"/>', pointer: { down: (...args) => vector.pointer.down(...args), move: (...args) => vector.pointer.move(...args), up: (...args) => vector.pointer.up(...args) } });
 registerTool({ id: 'draw-stamp', activate: () => arm('draw-stamp'), title: 'Emoji stamps', key: 'e', group: 'draw', icon: '<circle cx="8" cy="8" r="6"/><path d="M5 6h.1M11 6h.1M5 9q3 4 6 0"/>', place(at, context) {
@@ -95,12 +95,25 @@ function inkControls(parent, c) {
 function shapeControls(parent, c, mode) {
   const p = c?.props || {}, shape = p.shape || state.shape, line = shape === 'line' && mode === 'shape';
   if (mode === 'shape') select(parent, 'Shape', SHAPES, shape, value => { state.shape = value; if (c?.type === 'shape') updateCard({ shape: value, points: null }); refresh(true); });
-  input(parent, line ? 'Line colour' : 'Outline colour', 'color', /^#[0-9a-f]{6}$/i.test(p.stroke) ? p.stroke : (/^#/.test(state.stroke) ? state.stroke : '#494848'), value => { state.stroke = value; updateCard({ stroke: value }); });
-  number(parent, 'Thickness', p.lw ?? p.sw ?? state.sw, 1, 24, value => { state.sw = value; updateCard({ sw: value, lw: value }); });
-  select(parent, 'Outline', { solid: 'Solid', dashed: 'Dashed' }, p.dash ? 'dashed' : 'solid', value => updateCard({ dash: value === 'dashed' }));
+  input(parent, line ? 'Line colour' : 'Outline colour', 'color', /^#[0-9a-f]{6}$/i.test(p.stroke) ? p.stroke : (/^#/.test(state.stroke) ? state.stroke : '#494848'), value => { state.stroke = value; const now = selectedCard()?.props || state; const restore = !line && (outlineStyle(now) === 'none' || !(now.sw > 0)); if (restore) { state.sdash = 'solid'; state.sw ||= 2; } updateCard({ stroke: value, ...(restore ? { sdash: 'solid', sw: state.sw } : {}) }); if (restore) refresh(true); });
+  number(parent, 'Thickness', (line ? p.lw : undefined) ?? p.sw ?? state.sw, line ? 1 : 0, 24, value => { state.sw = value; const restore = !line && value > 0 && outlineStyle(selectedCard()?.props || state) === 'none'; if (restore) state.sdash = 'solid'; updateCard({ sw: value, ...(line ? { lw: value } : {}), ...(restore ? { sdash: 'solid' } : {}) }); if (restore) refresh(true); });
+  if (!line) {
+    select(parent, 'Outline', { solid: 'Solid', dash: 'Dashed', dot: 'Dotted', none: 'None' }, c ? outlineStyle(p) : state.sdash, value => {
+      state.sdash = value;
+      if (value !== 'none' && !(selectedCard()?.props?.sw ?? state.sw)) state.sw = 2;
+      updateCard({ sdash: value, dash: null, sw: value === 'none' ? 0 : selectedCard()?.props?.sw || state.sw }); refresh(true);
+    });
+    number(parent, 'Dash length', p.dl ?? state.dl, 1, 40, value => { state.dl = value; updateCard({ dl: value }); });
+    number(parent, 'Dash gap', p.dg ?? state.dg, 1, 40, value => { state.dg = value; updateCard({ dg: value }); });
+  }
   if (!line) {
     input(parent, 'Fill colour', 'color', /^#[0-9a-f]{6}$/i.test(p.fill) ? p.fill : (state.fill === 'none' ? '#aed3ff' : state.fill), value => { state.fill = value; updateCard({ fill: value }); });
-    button(parent, 'No fill', () => { state.fill = 'none'; updateCard({ fill: 'none', sw: p.sw || state.sw, stroke: p.stroke && p.stroke !== 'none' ? p.stroke : state.stroke }); });
+    button(parent, 'No fill', () => {
+      state.fill = 'none'; const now = selectedCard()?.props || state;
+      const missing = outlineStyle(now) === 'none' || !(now.sw > 0) || now.stroke === 'none';
+      if (missing) { state.sdash = 'solid'; state.sw ||= 2; }
+      updateCard({ fill: 'none', ...(missing ? { sdash: 'solid', dash: null, sw: state.sw, stroke: now.stroke && now.stroke !== 'none' ? now.stroke : 'ink' } : {}) }); refresh(true);
+    });
     number(parent, 'Corners', vector.active ? vector.radiusValue : p.radius || 0, 0, 300, value => { if (vector.active) vector.radius(value); else updateCard({ radius: value }); });
     if (c) {
       input(parent, 'Shape text', 'text', c.text, text => ctx.apply([{ op: 'update', id: c.id, set: { text } }]));
@@ -118,7 +131,7 @@ function shapeControls(parent, c, mode) {
 }
 function stampControls(parent, c) {
   const current = c?.props?.emoji || state.emoji;
-  const choose = emoji => { state.emoji = emoji; if (c?.type === 'stamp' && !ctx.canvas.tool) updateCard({ emoji }); else ctx.canvas.setTool('draw-stamp'); refresh(true); };
+  const choose = (emoji, fromPicker = false) => { state.emoji = emoji; if (fromPicker && !state.favourites.includes(emoji)) state.favourites = [emoji, ...state.favourites].slice(0, 8); state.recent = [emoji, ...state.recent.filter(e => e !== emoji)].slice(0, 12); save(); if (c?.type === 'stamp' && !ctx.canvas.tool) updateCard({ emoji }); else ctx.canvas.setTool('draw-stamp'); refresh(true); };
   if (c?.type === 'stamp') select(parent, 'Stamp motion', { none: 'Still', wiggle: 'Wiggle', pulse: 'Pulse', spin: 'Spin', shake: 'Shake', float: 'Float', squish: 'Squish', hop: 'Hop' }, c.props?.mv || 'none', value => updateCard({ mv: value === 'none' ? null : value }));
   const wheel = document.createElement('div'); wheel.className = 'draw-stamp-wheel'; wheel.setAttribute('aria-label', 'Favourite emoji');
   state.favourites.forEach((emoji, i) => { const b = button(wheel, emoji, () => choose(emoji), 'Stamp ' + emoji); const angle = i * Math.PI / 4; b.style.left = 82 + Math.sin(angle) * 64 + 'px'; b.style.top = 82 - Math.cos(angle) * 64 + 'px'; });
@@ -127,7 +140,7 @@ function stampControls(parent, c) {
   button(parent, favourite ? 'Remove favourite' : 'Add favourite', () => { state.favourites = favourite ? state.favourites.filter(e => e !== current) : [...state.favourites.slice(-7), current]; save(); refresh(true); });
   if (state.recent.length) { hint(parent, 'Recent'); const recent = document.createElement('div'); recent.className = 'draw-emoji-grid'; for (const emoji of state.recent) button(recent, emoji, () => choose(emoji), 'Recent ' + emoji); parent.append(recent); }
   const details = document.createElement('details'), summary = document.createElement('summary'); summary.textContent = 'All emoji'; details.append(summary);
-  const grid = document.createElement('div'); grid.className = 'draw-emoji-grid'; for (const emoji of EMOJI) button(grid, emoji, () => choose(emoji), 'Stamp ' + emoji); details.append(grid); parent.append(details);
+  const grid = document.createElement('div'); grid.className = 'draw-emoji-grid'; for (const emoji of EMOJI) button(grid, emoji, () => choose(emoji, true), 'Stamp ' + emoji); details.append(grid); parent.append(details);
   hint(parent, 'Click repeatedly to stamp. Esc, right-click or another tool finishes.');
 }
 function connectorControls(parent, link) {

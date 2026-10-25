@@ -48,3 +48,6 @@
 .card.video[data-type="video"] .recorder-choices,
 .card.video[data-type="video"] .media-actions,
 .card.video[data-type="video"] .media-status { background: var(--card); color: var(--text); flex-shrink: 0; }
+
+.link-loading-status { padding: 8px 10px; color: var(--muted); font-size: 12px; }
+.card.link.link-loading .media-head { color: var(--muted); }

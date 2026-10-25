@@ -32,9 +32,13 @@ export function cardContent(card) {
     case 'todo': return [...title(card.text), ...(card.items?.length ? [{ type: 'taskList', content: card.items.map(item => ({ type: 'taskItem', attrs: { checked: !!item.done }, content: [paragraph(item.text ?? item.t)] })) }] : [])];
     case 'title': return title(card.text);
     case 'doc': return [...title(card.text), ...(p.doc?.content ?? String(p.body ?? '').split('\n').map(paragraph))];
-    case 'link': return [{ type: 'paragraph', content: card.url ? [{ ...text(card.text || card.url), marks: [{ type: 'link', attrs: { href: card.url } }] }] : [] }];
+    case 'link': {
+      const label = p.title || card.text || p.preview?.title || card.title || card.url;
+      const description = p.description ?? p.preview?.description ?? p.desc ?? card.desc;
+      return [{ type: 'paragraph', content: card.url ? [{ ...text(label), marks: [{ type: 'link', attrs: { href: card.url } }] }] : [] }, ...(description ? [paragraph(description)] : [])];
+    }
     case 'audio': return [...title(p.title), ...String(card.text || p.body || '').split('\n').map(paragraph)];
-    case 'spotify': return [...title(p.title || card.text), paragraph(p.desc || '')];
+    case 'spotify': return [...title(p.title || card.text || p.preview?.title || card.title), paragraph(p.description ?? p.preview?.description ?? p.desc ?? card.desc ?? '')];
     case 'swatch': {
       const hex = p.hex ?? card.color;
       return [{ type: 'paragraph', content: [ { ...text('■ '), marks: [{ type: 'textStyle', attrs: { color: hex } }] }, text(`${p.label ?? card.text ?? ''} ${hex ?? ''}`.trim())] }];

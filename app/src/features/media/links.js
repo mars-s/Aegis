@@ -22,13 +22,14 @@ function loadPreview(c, api) {
   const ctx = mediaContext(), boardId = api.board.id, key = `${boardId}:${c.id}:${c.url}`;
   if (!ctx || pending.has(key) || c.props?.previewFor === c.url || !c.url) return;
   pending.add(key);
+  const url = c.url;
   ctx.host.get('/link-preview?url=' + encodeURIComponent(c.url)).then(preview => {
     const current = api.board.cards.find(v => v.id === c.id);
-    if (api.board.id !== boardId || current?.url !== c.url) return;
+    if (api.board.id !== boardId || current?.url !== url) return;
     const sp = spotifyOf(c.url), h = sp ? spotifyHeight(sp.kind) : preview.image ? 270 : 130;
-    api.apply([{ op: 'update', id: c.id, set: { ...(c.h <= 76 || c.h === 130 || sp && c.h < spotifyHeight(sp.kind) ? { h } : {}), props: { preview, previewFor: c.url, previewError: null } } }]);
+    api.apply([{ op: 'update', id: c.id, set: { ...(c.h <= 76 || c.h === 130 || sp && c.h < spotifyHeight(sp.kind) ? { h } : {}), props: { preview, previewFor: url, previewError: null } } }]);
   }).catch(error => {
-    if (api.board.id === boardId && api.board.cards.find(v => v.id === c.id)?.url === c.url) api.setProps(c.id, { previewFor: c.url, previewError: error.message });
+    if (api.board.id === boardId && api.board.cards.find(v => v.id === c.id)?.url === url) api.setProps(c.id, { previewFor: url, previewError: error.message });
   }).finally(() => pending.delete(key));
 }
 export function editLink(c, api) {
@@ -43,10 +44,16 @@ export function editLink(c, api) {
 export function renderLink(el, c, api) {
   if (!c.url) {
     const input = node('input', 'url-input'); input.placeholder = 'Paste a link'; input.setAttribute('aria-label', 'Link address'); el.append(input);
-    input.onkeydown = e => { e.stopPropagation(); if (e.key !== 'Enter') return;
+    input.onkeydown = e => {
+      e.stopPropagation();
+      if (e.key === 'Escape') { input.blur(); if (!input.value.trim() && !c.text && !c.props?.title) api.apply([{ op: 'delete', ids: [c.id] }]); return; }
+      if (e.key !== 'Enter' || !input.value.trim()) return;
       try { const url = normaliseLink(input.value.trim()), sp = spotifyOf(url); api.apply([{ op: 'update', id: c.id, set: { url, h: sp ? spotifyHeight(sp.kind) : 130, ...(sp ? { w: 340 } : {}) } }]); } catch (error) { report(error); }
     }; return;
   }
+  const loading = c.props?.previewFor !== c.url;
+  el.classList.toggle('link-loading', loading); el.setAttribute('aria-busy', String(loading));
+  if (loading) { const status = node('div', 'link-loading-status', 'Loading preview…'); status.setAttribute('role', 'status'); el.append(status); }
   const s = spotifyOf(c.url), p = c.props?.preview || {}, title = node('div', 'media-head');
   if (p.favicon && !s) { const icon = node('img', 'link-favicon'); icon.src = p.favicon; icon.alt = ''; icon.referrerPolicy = 'no-referrer'; icon.onerror = () => icon.remove(); title.append(icon); }
   title.append(node('strong', '', c.props?.title || c.text || p.title || (s ? 'Spotify' : new URL(c.url).hostname))); el.append(title);

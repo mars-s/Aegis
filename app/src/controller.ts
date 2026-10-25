@@ -16,6 +16,7 @@ import { mountSettings } from './features/settings/index.js';
 import { repairBatch } from './features/settings/preferences.js';
 import { createSaveQueue } from './features/settings/save.js';
 import { createOnboarding } from './features/onboarding/index.js';
+import { installNativeDownloads } from './lib/native-files';
 
 export async function start() {
 const $ = id => document.getElementById(id);
@@ -416,6 +417,7 @@ listen();
 const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
 const onboarding = createOnboarding({ mobile });
 const settings = mountSettings({ canvas, replayTour: () => onboarding.welcome() });
+installNativeDownloads(toast);
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.

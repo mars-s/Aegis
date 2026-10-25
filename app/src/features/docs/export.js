@@ -1,4 +1,5 @@
 import { escapeHTML, plainText } from './content.js';
+import { printHtml } from '../../lib/native-files';
 
 export function downloadBlob(blob, title, extension) {
   const url = URL.createObjectURL(blob);
@@ -14,13 +15,11 @@ export async function downloadWord(editor, title, paper) {
   downloadBlob(new Blob([bytes], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), title, 'docx');
 }
 
-// Browser printing also works in the desktop webview without a native PDF operation.
+// The desktop app uses its native print sheet; browsers print the same HTML in an iframe.
 export async function printPDF(editor, title, paper) {
-  const frame = document.createElement('iframe');
-  frame.title = 'Document print preview'; frame.className = 'docs-print-frame';
   const first = plainText(editor.getJSON().content?.[0] ?? {}).trim();
   const heading = first.toLowerCase() === title.trim().toLowerCase() ? '' : `<h1>${escapeHTML(title)}</h1>`;
-  frame.srcdoc = `<!doctype html><html><head><title>${escapeHTML(title)}</title><style>
+  const html = `<!doctype html><html><head><title>${escapeHTML(title)}</title><style>
     @page { size: ${paper === 'letter' ? 'letter' : 'A4'}; margin: 20mm; }
     body { font: 12pt/1.5 Arial,sans-serif; color:#25252b; background:white; }
     h1,h2,h3 { line-height:1.2; break-after:avoid; } img { max-width:100%; height:auto; }
@@ -32,6 +31,9 @@ export async function printPDF(editor, title, paper) {
     ul[data-type=taskList] { list-style:none; padding-left:0; }
     li[data-type=taskItem] { display:flex; gap:8px; } li[data-type=taskItem] p { margin:0; }
   </style></head><body>${heading}${editor.getHTML()}</body></html>`;
+  if (await printHtml(html)) return;
+  const frame = document.createElement('iframe');
+  frame.title = 'Document print preview'; frame.className = 'docs-print-frame'; frame.srcdoc = html;
   const loaded = new Promise((resolve, reject) => {
     frame.onload = resolve; frame.onerror = () => reject(new Error('Could not prepare the print page'));
   });

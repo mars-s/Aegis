@@ -37,6 +37,39 @@ fn copy_text(text: String) -> Result<(), String> {
     Ok(())
 }
 
+// WKWebView ignores <a download>, so the page hands file bytes here and the shell saves them to
+// Downloads like a browser would: same name, or "name (2).ext" when that is taken.
+#[tauri::command]
+fn save_download(request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("expected the file's bytes".into()) };
+    let asked = request.headers().get("x-file-name").and_then(|v| v.to_str().ok()).map(percent_decode).unwrap_or_default();
+    let clean: String = asked.chars().map(|c| if matches!(c, '/' | '\\' | ':' | '\0') || c.is_control() { '-' } else { c }).collect();
+    let clean = clean.trim().trim_start_matches('.').to_string();
+    let name = if clean.is_empty() { "Download".to_string() } else { clean };
+    let dir = dirs::download_dir().or_else(dirs::home_dir).ok_or("no Downloads folder")?;
+    let (stem, ext) = match name.rfind('.') { Some(i) if i > 0 => (name[..i].to_string(), name[i..].to_string()), _ => (name.clone(), String::new()) };
+    let mut path = dir.join(&name);
+    for n in 2.. { if !path.exists() { break; } path = dir.join(format!("{stem} ({n}){ext}")); }
+    std::fs::write(&path, bytes).map_err(|e| format!("could not save {}: {e}", path.display()))?;
+    Ok(path.to_string_lossy().into_owned())
+}
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes(); let mut out = Vec::with_capacity(b.len()); let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'%' && i + 2 < b.len() {
+            if let Some(v) = std::str::from_utf8(&b[i + 1..i + 3]).ok().and_then(|h| u8::from_str_radix(h, 16).ok()) { out.push(v); i += 3; continue; }
+        }
+        out.push(b[i]); i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+// window.print() inside an iframe does nothing in WKWebView; this opens the macOS print sheet for the page.
+#[tauri::command]
+fn print_page(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.print().map_err(|e| e.to_string())
+}
+
 fn data_dir() -> PathBuf {
     std::env::var_os("AEGIS_DATA").map(PathBuf::from)
         .unwrap_or_else(|| dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Aegis"))
@@ -150,7 +183,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text])
+        .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text, save_download, print_page])
         .setup(|app| {
             if let Err(e) = start_agent(app.handle()) { eprintln!("aegis: {e}"); }
             Ok(())

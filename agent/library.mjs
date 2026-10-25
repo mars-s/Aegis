@@ -50,6 +50,15 @@ export function applyLibraryOp(input, op, boardIds = []) {
       if (!name(op.name)) return fail('a name is needed');
       n.name = name(op.name); return { ok: true, library: lib };
     }
+    case 'cover': {
+      const n = node(op.id); if (!n || n.kind !== 'project') return fail('covers belong to projects');
+      if (op.cover == null) delete n.cover;
+      else {
+        if (typeof op.cover !== 'string' || op.cover.length > 8 * 1024 * 1024 || !/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(op.cover)) return fail('choose a JPEG project cover');
+        n.cover = op.cover;
+      }
+      return { ok: true, library: lib };
+    }
     case 'move': {
       const parent = op.parent ?? null;
       if (boardIds.includes(op.id)) {
@@ -68,7 +77,7 @@ export function applyLibraryOp(input, op, boardIds = []) {
       if (busy) return fail(`${n.name} is not empty. Move or delete what is inside first.`);
       lib.nodes = lib.nodes.filter(x => x.id !== n.id); return { ok: true, library: lib };
     }
-    default: return fail('op must be create, rename, move or delete');
+    default: return fail('op must be create, rename, cover, move or delete');
   }
 }
 

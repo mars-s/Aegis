@@ -1,5 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-export { collectionLayout } from '../../lib/board/collection.js';
+export { collectionLayout, collectionDrop } from './collections.js';
 export const uid = () => Math.random().toString(36).slice(2, 12).padEnd(8, '0');
 export const bounds = cards => ({
   x: Math.min(...cards.map(c => c.x)), y: Math.min(...cards.map(c => c.y)),
@@ -113,4 +113,15 @@ export function stackCommands(board, ids, direction) {
     if (j >= 0 && j < ordered.length && !ids.includes(ordered[j].id)) [ordered[i], ordered[j]] = [ordered[j], ordered[i]];
   }
   return ordered.map((c, to) => ({ op: 'order', ids: [c.id], to }));
+}
+
+export const lineHeightDefault = type => ({ note: 1.45, title: 1, todo: 1.35, shape: 1.3, coll: 1.2 }[type] ?? 1.4);
+export function snapRotation(degrees, shift = false, single = false) {
+  const angle = ((degrees % 360) + 540) % 360 - 180, near = Math.round(angle / 15) * 15;
+  return shift || Math.abs(angle - near) < (single ? 4 : 2) ? near || 0 : angle;
+}
+export function toolbarOrder(defaults, saved = []) {
+  const order = [...new Set(saved.filter(id => defaults.includes(id)))];
+  defaults.forEach((id, index) => { if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id); });
+  return order;
 }

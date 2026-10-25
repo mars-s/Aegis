@@ -1,5 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-import { uid } from './model.js';
+import { uid, toolbarOrder } from './model.js';
 import { gridShapes } from './grid.js';
 export function mountNavigation(ctx, { exportBoard }) {
   const { canvas, apply } = ctx, stage = document.getElementById('stage'), settings = document.getElementById('settings');
@@ -75,8 +75,11 @@ export function mountNavigation(ctx, { exportBoard }) {
   addEventListener('pointerdown', e => { if (!tools.contains(e.target) && !overflow.contains(e.target)) overflow.hidden = true; });
   addEventListener('resize', fitTools); document.getElementById('toolsFold').addEventListener('click', fitTools);
   let config = read('aegis:toolbar');
+  const defaults = [...tools.querySelectorAll('[data-tool]')].map(b => b.dataset.tool);
   function applyToolbar() {
-    const buttons = [...tools.querySelectorAll('[data-tool]')], ids = buttons.map(b => b.dataset.tool), order = [...(config.order ?? []).filter(id => ids.includes(id)), ...ids.filter(id => !(config.order ?? []).includes(id))];
+    const buttons = [...tools.querySelectorAll('[data-tool]')], ids = buttons.map(b => b.dataset.tool);
+    for (const id of ids) if (!defaults.includes(id)) defaults.push(id);
+    const order = toolbarOrder(defaults, config.order);
     const anchor = more;
     tools.querySelectorAll('.tools-sep').forEach(el => { el.hidden = true; });
     for (const id of order) { const b = buttons.find(b => b.dataset.tool === id); anchor.before(b); b.hidden = (config.hidden ?? []).includes(id); }

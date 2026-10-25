@@ -11,6 +11,9 @@ export function createPanels({ side, onChange }) {
   const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
   const persistOrder = () => { state.columns = { left: boxes(side).map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
   function apply() {
+    // The library is the fixed anchor, including when restoring an older saved layout.
+    state.columns.left = ['library', ...state.columns.left.filter(id => id !== 'library')];
+    state.columns.right = state.columns.right.filter(id => id !== 'library');
     for (const [key, col] of [['left', side], ['right', right]]) for (const id of state.columns[key] ?? []) {
       const box = all.get(id); if (box) col.insertBefore(box, col.querySelector('.side-resize'));
     }
@@ -53,22 +56,52 @@ export function createPanels({ side, onChange }) {
       handle.addEventListener('pointermove', move); handle.addEventListener('pointerup', up, { once: true });
     });
     head.addEventListener('pointerdown', e => {
-      if (e.button !== 0 || e.target.closest('button, input')) return;
-      const x0 = e.clientX, y0 = e.clientY; let dragging = false;
+      if (e.button !== 0 || e.pointerType === 'touch' || id === 'library' || e.target.closest('button, input')) return;
+      const x0 = e.clientX, y0 = e.clientY, pointer = e.pointerId;
+      const home = box.parentNode, next = box.nextSibling, style = box.style.cssText;
+      let dragging = false, slots = [], pick;
+      const lift = () => {
+        const rect = box.getBoundingClientRect();
+        dragging = true; box.classList.add('panel-lifted');
+        Object.assign(box.style, { position: 'fixed', left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, maxHeight: '320px', overflow: 'hidden', zIndex: '400', pointerEvents: 'none', margin: '0' });
+        document.body.append(box); document.body.classList.add('panel-arranging');
+        syncSides(true); side.classList.add('panel-drop'); right.classList.add('panel-drop');
+        for (const col of [side, right]) {
+          const insertSlot = before => {
+            const slot = document.createElement('div'); slot.className = 'panel-slot'; slot.setAttribute('aria-hidden', 'true');
+            col.insertBefore(slot, before); slots.push(slot);
+          };
+          for (const other of boxes(col)) if (!other.hidden && other.dataset.panel !== 'library') insertSlot(other);
+          insertSlot(col.querySelector('.side-resize'));
+        }
+        return { x: x0 - rect.left, y: y0 - rect.top };
+      };
+      let grip;
       const move = ev => {
-        if (!dragging && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
-        dragging = true; box.classList.add('lifting'); syncSides(true); side.classList.add('panel-drop'); right.classList.add('panel-drop');
-        const col = ev.clientX > innerWidth / 2 ? right : side;
-        const before = boxes(col).find(other => other !== box && !other.hidden && ev.clientY < other.getBoundingClientRect().top + other.getBoundingClientRect().height / 2);
-        col.insertBefore(box, before ?? col.querySelector('.side-resize'));
+        if (ev.pointerId !== pointer) return;
+        if (!dragging) {
+          if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 5) return;
+          grip = lift();
+        }
+        ev.preventDefault();
+        box.style.left = `${ev.clientX - grip.x}px`; box.style.top = `${ev.clientY - grip.y}px`;
+        const nearest = slots.reduce((best, slot) => {
+          const r = slot.getBoundingClientRect(), distance = Math.hypot(ev.clientX - r.left - r.width / 2, ev.clientY - r.top - r.height / 2);
+          return !best || distance < best.distance ? { slot, distance } : best;
+        }, null)?.slot;
+        if (pick !== nearest) { pick?.classList.remove('on'); pick = nearest; pick?.classList.add('on'); }
       };
       const end = keep => {
         removeEventListener('pointermove', move); removeEventListener('pointerup', up); removeEventListener('pointercancel', cancel); removeEventListener('keydown', escape, true);
-        box.classList.remove('lifting'); side.classList.remove('panel-drop'); right.classList.remove('panel-drop');
-        if (dragging && keep) persistOrder(); apply();
+        if (!dragging) return;
+        if (keep && pick) pick.before(box); else home.insertBefore(box, next?.parentNode === home ? next : home.querySelector('.side-resize'));
+        slots.forEach(slot => slot.remove()); box.style.cssText = style;
+        box.classList.remove('panel-lifted'); document.body.classList.remove('panel-arranging'); side.classList.remove('panel-drop'); right.classList.remove('panel-drop');
+        if (keep) persistOrder(); apply();
       };
-      const up = () => end(true), cancel = () => end(false), escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
-      addEventListener('pointermove', move); addEventListener('pointerup', up, { once: true }); addEventListener('pointercancel', cancel, { once: true }); addEventListener('keydown', escape, true);
+      const up = ev => { if (ev.pointerId === pointer) end(true); }, cancel = ev => { if (ev.pointerId === pointer) end(false); };
+      const escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
+      addEventListener('pointermove', move, { passive: false }); addEventListener('pointerup', up); addEventListener('pointercancel', cancel); addEventListener('keydown', escape, true);
     });
   }
   for (const box of boxes(side)) register(box);

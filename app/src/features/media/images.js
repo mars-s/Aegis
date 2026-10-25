@@ -1,6 +1,6 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { node, button, field, dialog } from './dom.js';
-import { paletteFromPixels, colorName } from '../colors/model.js';
+import { paletteFromPixels } from '../colors/model.js';
 import { mediaContext, report } from './context.js';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 export function cropBox(start, handle, dx, dy) {
@@ -19,7 +19,7 @@ export async function pullColours(c, api) {
     const g = cv.getContext('2d'); g.drawImage(img, 0, 0, cv.width, cv.height);
     const colours = paletteFromPixels(g.getImageData(0, 0, cv.width, cv.height).data);
     if (api.board.id !== boardId) return;
-    if (colours.length) api.apply(colours.map((hex, i) => ({ op: 'create', type: 'swatch', x: c.x + c.w + 30 + i * 180, y: c.y + (i % 2) * 18, props: { hex, label: colorName(hex), autoName: true, role: ['main','second','accent','shadow','pop'][i] } })));
+    if (colours.length) api.apply(colours.map((hex, i) => ({ op: 'create', type: 'swatch', x: c.x + c.w + 30 + i * 180, y: c.y + (i % 2) * 18, props: { hex, label: ['main','second','accent','shadow','pop'][i], autoName: false, role: ['main','second','accent','shadow','pop'][i] } })));
     mediaContext()?.toast(`Pulled ${colours.length} colours from the image`);
   } catch (e) { report(new Error(`Could not read image colours. ${e.message}`)); }
 }
@@ -57,24 +57,38 @@ export function renderImage(el, c, api) {
   if (c.props?.tagText) el.append(node('div', 'image-caption', c.props.tagText));
   button('Pull colours', () => pullColours(c, api), actions); button('Crop', () => editCrop(c, api), actions); button('Caption', () => caption(c, api), actions); el.append(actions);
 }
+// Shared by board imports and the capture tray. The caller owns uploading and placement.
+export async function prepareImage(file) {
+  if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
+  const source = URL.createObjectURL(file), img = new Image();
+  try {
+    img.src = source; await img.decode();
+    const animated = ['image/gif', 'image/webp', 'image/apng'].includes(file.type);
+    if (animated && file.size <= 12e6) return { file, width: img.naturalWidth, height: img.naturalHeight, flattened: false };
+    const scale = Math.min(1, 2800 / Math.max(img.naturalWidth, img.naturalHeight)), cv = node('canvas');
+    cv.width = Math.max(1, Math.round(img.naturalWidth * scale)); cv.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    const encode = type => new Promise((resolve, reject) => cv.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not prepare this image')), type, .9));
+    let blob;
+    if (['image/png', 'image/svg+xml'].includes(file.type)) {
+      blob = await encode('image/png');
+      // Match the reference's six-million-character PNG data URL limit.
+      if ('data:image/png;base64,'.length + Math.ceil(blob.size / 3) * 4 >= 6e6) blob = await encode('image/jpeg');
+    } else blob = await encode('image/jpeg');
+    const name = file.name.replace(/\.[^.]+$/, '') + (blob.type === 'image/png' ? '.png' : '.jpg');
+    return { file: new File([blob], name, { type: blob.type }), width: cv.width, height: cv.height, flattened: animated };
+  } finally { URL.revokeObjectURL(source); }
+}
 export async function importImages(ctx, files, at = ctx.canvas.centre()) {
   const boardId = ctx.canvas.board.id; let dx = 0;
   for (const file of files) {
     try {
       if (!file.type.startsWith('image/')) continue;
-      const original = URL.createObjectURL(file), img = new Image(); let upload = file;
-      try {
-        img.src = original; await img.decode();
-        if (!['image/gif','image/webp','image/apng'].includes(file.type) || file.size > 12e6) {
-          const scale = Math.min(1, 2800 / Math.max(img.naturalWidth, img.naturalHeight)), cv = node('canvas'); cv.width = Math.round(img.naturalWidth * scale); cv.height = Math.round(img.naturalHeight * scale); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-          const blob = await new Promise(resolve => cv.toBlob(resolve, ['image/png','image/svg+xml'].includes(file.type) ? 'image/png' : 'image/jpeg', .9));
-          if (!blob) throw new Error('Could not prepare this image'); upload = new File([blob], file.name, { type: blob.type });
-          if (['image/gif','image/webp','image/apng'].includes(file.type)) ctx.toast('This animated file is over 12 MB. A still image was imported.');
-        }
-        const saved = await ctx.host.upload(upload), w = 320, h = Math.max(60, w * img.naturalHeight / img.naturalWidth);
-        const commands = [{ op: 'create', type: 'image', url: saved.url, text: file.name.replace(/\.[^.]+$/, ''), x: at.x + dx, y: at.y, w, h }];
-        if (ctx.canvas.board.id === boardId) ctx.apply(commands); else await ctx.host.post(`/boards/${boardId}/batch`, { commands }); dx += w + 24;
-      } finally { URL.revokeObjectURL(original); }
+      const prepared = await prepareImage(file);
+      if (prepared.flattened) ctx.toast('This animated file is over 12 MB. A still image was imported.');
+      const saved = await ctx.host.upload(prepared.file), w = 320, h = Math.max(60, w * prepared.height / prepared.width);
+      const commands = [{ op: 'create', type: 'image', url: saved.url, text: file.name.replace(/\.[^.]+$/, ''), x: at.x + dx, y: at.y, w, h }];
+      if (ctx.canvas.board.id === boardId) ctx.apply(commands); else await ctx.host.post(`/boards/${boardId}/batch`, { commands }); dx += w + 24;
     } catch (error) { report(error); }
   }
 }

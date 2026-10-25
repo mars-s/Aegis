@@ -87,3 +87,56 @@ test('history waits until a drag has settled before recording a snapshot', async
   board = batch(board, [{ op: 'move', id: 'aaaaaa', x: 120, y: 100 }]); dragging = false; history.observe(board);
   await new Promise(r => setTimeout(r, 25)); assert.equal(history.status.length, 2); history.travel(-1); assert.equal(board.cards[0].x, 0);
 });
+
+test('collections retain drop columns, insert by drop height, add side columns and detach cleanly', async () => {
+  const { collectionDrop } = await import('../../app/src/features/editing/model.js');
+  let board = seed();
+  board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: 0, y: 0, w: 530, props: { kids: [] } }]);
+  const card = id => board.cards.find(c => c.id === id);
+  board = batch(board, collectionDrop(board, [card('aaaaaa')], { x: 400, y: 100 }));
+  assert.deepEqual(collectionDrop(board, [card('collaa'), card('aaaaaa')], { x: 400, y: 100 }), []);
+  assert.equal(card('collaa').props.colOf.aaaaaa, 1); assert.equal(card('aaaaaa').parent, 'collaa');
+  board = batch(board, collectionDrop(board, [card('bbbbbb')], { x: 400, y: 80 }));
+  assert.deepEqual(card('collaa').props.kids, ['bbbbbb', 'aaaaaa']); assert.equal(card('aaaaaa').x, card('bbbbbb').x); assert.ok(card('aaaaaa').y > card('bbbbbb').y);
+  board = batch(board, collectionDrop(board, [card('aaaaaa')], { x: 20, y: 100 }));
+  assert.equal(card('collaa').props.colOf.aaaaaa, 0); assert.notEqual(card('aaaaaa').x, card('bbbbbb').x);
+  board = batch(board, collectionDrop(board, [card('cccccc')], { x: 550, y: 80 }));
+  assert.equal(card('collaa').props.cols, 3); assert.equal(card('collaa').props.colOf.cccccc, 2);
+  board = batch(board, collectionDrop(board, [card('aaaaaa')], { x: -500, y: -500 }));
+  assert.equal(card('aaaaaa').parent || '', ''); assert.equal(card('collaa').props.kids.includes('aaaaaa'), false); assert.equal('aaaaaa' in card('collaa').props.colOf, false);
+});
+test('collection layout uses shortest unassigned column, preserves image ratio and removes header space', () => {
+  let board = seed(); board.cards[0].h = 400; board.cards[1].h = 80;
+  const coll = { id: 'collaa', type: 'coll', x: 0, y: 0, w: 530, h: 180, props: { kids: ['aaaaaa', 'bbbbbb', 'cccccc'] } };
+  board = batch(board, [{ ...coll, op: 'create', newId: coll.id }, ...collectionLayout(board, coll)]);
+  let parent = board.cards.find(c => c.id === coll.id); assert.equal(parent.props.colOf.cccccc, 1);
+  const before = board.cards.find(c => c.id === 'aaaaaa').y;
+  parent = { ...parent, props: { ...parent.props, head: false } };
+  board = batch(board, [{ op: 'update', id: parent.id, set: { props: { head: false } } }, ...collectionLayout(board, parent)]);
+  assert.equal(board.cards.find(c => c.id === 'aaaaaa').y, before - 60);
+  const image = board.cards.find(c => c.id === 'aaaaaa'); image.type = 'image'; image.w = 400; image.h = 200;
+  const command = collectionLayout(board, parent).find(c => c.id === image.id); assert.equal(command.set.w / command.set.h, 2);
+});
+test('layer parents use the smallest section, preserve collection ownership and carry geometric descendants', async () => {
+  const { layerParents, layerDescendants } = await import('../../app/src/features/editing/layer-model.js');
+  const board = { cards: [
+    { id: 'outer', type: 'section', x: 0, y: 0, w: 1000, h: 1000 },
+    { id: 'inner', type: 'section', x: 100, y: 100, w: 400, h: 400 },
+    { id: 'note', type: 'note', x: 200, y: 200, w: 100, h: 100 },
+    { id: 'coll', type: 'coll', x: 600, y: 200, w: 100, h: 100, props: { kids: ['child'] } },
+    { id: 'child', type: 'note', x: 200, y: 200, w: 50, h: 50 },
+  ] };
+  const parents = layerParents(board); assert.equal(parents.get('inner'), 'outer'); assert.equal(parents.get('note'), 'inner'); assert.equal(parents.get('child'), 'coll');
+  assert.deepEqual(layerDescendants(board, ['inner']).map(c => c.id), ['inner', 'note']);
+  board.cards[2].x = 700; assert.equal(layerParents(board).get('note'), 'outer');
+});
+test('near-angle rotation snaps without Shift and Shift snaps farther angles', async () => {
+  const { snapRotation, lineHeightDefault } = await import('../../app/src/features/editing/model.js');
+  assert.equal(snapRotation(14), 15); assert.equal(snapRotation(12, false, true), 15); assert.equal(snapRotation(12), 12); assert.equal(snapRotation(22, true), 15); assert.equal(snapRotation(359), 0); assert.equal(snapRotation(-29), -30);
+  assert.equal(lineHeightDefault('title'), 1); assert.equal(lineHeightDefault('note'), 1.45); assert.equal(lineHeightDefault('todo'), 1.35);
+});
+test('new toolbar tools enter at default positions without losing custom order or resurrecting old tools', async () => {
+  const { toolbarOrder } = await import('../../app/src/features/editing/model.js');
+  assert.deepEqual(toolbarOrder(['pointer', 'note', 'coll', 'image', 'draw'], ['draw', 'note', 'pointer', 'image', 'removed']), ['draw', 'note', 'coll', 'pointer', 'image']);
+  assert.deepEqual(toolbarOrder(['pointer', 'note', 'image']), ['pointer', 'note', 'image']);
+});

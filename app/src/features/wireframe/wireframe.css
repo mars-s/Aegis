@@ -16,7 +16,7 @@
 .card.wf.font small { font: 11px system-ui; color: var(--muted); }
 .wf-specimen { margin-top: 14px; font-size: 16px; }
 .card.wf.section { background: color-mix(in srgb, var(--wf-glass) 12%, transparent); border: 1px solid color-mix(in srgb, var(--wf-glass) 45%, var(--line)); border-radius: var(--wf-radius); backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 #ffffff30; }
-.wf-section-name { position: absolute; top: 14px; left: 18px; font-weight: 600; font-size: 14px; color: var(--text); outline: none; }
+.wf-section-name { position: absolute; bottom: calc(100% - 50px); left: 22px; transform-origin: 0 100%; transform: scale(var(--wf-label-scale, 1)); padding: 6px 14px 7px; border-radius: 999px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; cursor: grab; font-weight: 600; font-size: 14px; color: var(--text); outline: none; }
 .wf-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #71717a; font: 13px/1.3 system-ui; text-align: center; padding: 10px; }
 .wf-placeholder button { background: white; color: #27272a; border: 1px solid #d4d4d8; border-radius: 6px; padding: 5px 8px; }
 .wf-design { position: fixed; z-index: 25; top: 60px; right: 12px; bottom: 140px; width: 300px; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); box-shadow: var(--shadow-lift); font: 12px/1.4 system-ui; }
@@ -49,3 +49,9 @@
 .wf-image-notice { position: fixed; bottom: 140px; left: 50%; transform: translateX(-50%); z-index: 100; max-width: 440px; padding: 12px 18px; border-radius: 10px; background: var(--card); color: var(--text); border: 1px solid var(--line); box-shadow: var(--shadow-lift); font: 13px/1.4 system-ui; }
 .wf-box-preview { position: absolute; pointer-events: none; border: 1px solid var(--focus); background: color-mix(in srgb, var(--focus) 12%, transparent); z-index: 2147483646; }
 @media (max-width: 700px) { .wf-design { width: 260px; right: 6px; bottom: 115px; } }
+
+.card.wf.section { cursor: crosshair; }
+.card.wf.section.selected { cursor: move; }
+.wf-placeholder-pattern { border-radius: inherit; color: #334155; background: repeating-linear-gradient(135deg, #f1f5f9 0 12px, #e2e8f0 12px 24px); }
+.wf-placeholder-pattern > span:not(.wf-mi), .wf-placeholder-pattern > small { max-width: 100%; overflow-wrap: anywhere; background: #f8fafce8; border-radius: 4px; padding: 3px 6px; }
+.wf-placeholder-pattern > small { font-size: 11px; }

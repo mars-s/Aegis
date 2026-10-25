@@ -1,18 +1,20 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerRenderer, registerDragHandler, registerCardDropTarget } from '../../canvas/engine.js';
-import { registerTool, registerPanel, registerCardMenu, registerBoardMenu, selectionControls, onRegistryChange } from '../registry';
-import { uid, bounds, descendants, effectiveFlag, makeClip, cloneCommands, createHistory, arrange, stackCommands, collectionLayout } from './model.js';
+import { registerTool, registerPanel, registerCardMenu, registerBoardMenu, selectionControls, onRegistryChange, cardMenu } from '../registry';
+import { uid, bounds, descendants, effectiveFlag, makeClip, cloneCommands, createHistory, arrange, stackCommands, collectionLayout, collectionDrop, lineHeightDefault, snapRotation } from './model.js';
 import '../../lib/board/types/editing.js';
 import { mountNavigation } from './navigation.js';
 import { exportBoard } from './export.js';
 import { fontPicker } from './fonts.js';
+import { selectionPosition, selectionOverflow } from './selection.js';
+import { createMenu } from '../../chrome/menu.js';
 
 registerTool({ id: 'coll', title: 'Collection', key: 'g', group: 'editing', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/>', place(at, ctx) { ctx.apply([{ op: 'create', type: 'coll', text: 'Collection', x: at.x, y: at.y, props: { kids: [] }, ref: 'collection' }], ids => ctx.canvas.select([ids.collection])); } });
 registerRenderer('coll', { render(el, card, api) {
   const header = document.createElement('div'); header.className = 'collection-head'; header.contentEditable = 'plaintext-only'; header.textContent = card.text || 'Collection';
   header.onblur = () => { if (header.textContent !== card.text) api.apply([{ op: 'update', id: card.id, set: { text: header.textContent } }]); };
   header.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); header.blur(); } };
-  el.append(header);
+  header.hidden = card.props?.head === false; el.append(header);
 } });
 let trayMount;
 registerPanel({ id: 'unsorted', title: 'Unsorted', side: 'right', mount(el, ctx) { trayMount?.(el, ctx); } });
@@ -20,7 +22,8 @@ registerPanel({ id: 'unsorted', title: 'Unsorted', side: 'right', mount(el, ctx)
 const SQUARE_TYPES = new Set(['stamp', 'icon']);
 export function mountEditing(ctx) {
   const { canvas, apply, toast } = ctx, stage = document.getElementById('stage');
-  const selectedCards = () => canvas.board?.cards.filter(c => canvas.selection().includes(c.id)) ?? [];
+  let indexedCards, byId = new Map();
+  const selectedCards = () => { const ids = canvas.selection(); if (!ids.length) return []; if (indexedCards !== canvas.board?.cards) { indexedCards = canvas.board?.cards; byId = new Map((indexedCards ?? []).map(c => [c.id, c])); } return ids.map(id => byId.get(id)).filter(Boolean); };
   const editableCards = () => selectedCards().filter(c => !effectiveFlag(canvas.board, c, 'locked'));
   const history = createHistory({ read: () => canvas.board, apply, busy: () => canvas.busy() || gesture });
   stage.addEventListener('boardchange', e => { history.observe(e.detail.board); if (e.detail.first) { focus = null; } renderTray(); renderBar(true); });
@@ -86,6 +89,8 @@ export function mountEditing(ctx) {
     else handled = false;
     if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
+  let lastPointer = { x: 0, y: 0 };
+  stage.addEventListener('pointerup', e => { lastPointer = { x: e.clientX, y: e.clientY }; }, true);
   registerDragHandler('editing', {
     select(ids, id, board, e) {
       if (e.metaKey || e.ctrlKey) return ids;
@@ -102,12 +107,7 @@ export function mountEditing(ctx) {
       const commands = [];
       for (const c of cards.filter(c => c.type === 'coll')) if (kind === 'resize') commands.push(...collectionLayout(board, c));
       if (kind === 'move') {
-        for (const c of cards) if (c.parent && !cards.some(p => p.id === c.parent)) {
-          const parent = board.cards.find(p => p.id === c.parent);
-          if (parent?.type === 'coll') commands.push({ op: 'update', id: c.id, set: { parent: '' } }, ...collectionLayout(board, parent, (parent.props?.kids ?? []).filter(id => id !== c.id)));
-        }
-        const target = [...board.cards].reverse().find(p => p.type === 'coll' && !cards.some(c => c.id === p.id) && cards.every(c => c.x + c.w / 2 > p.x && c.x + c.w / 2 < p.x + p.w && c.y + c.h / 2 > p.y && c.y + c.h / 2 < p.y + p.h));
-        if (target) commands.push(...collectionLayout(board, target, [...new Set([...(target.props?.kids ?? []), ...cards.map(c => c.id)])]));
+        if (cards.length) { commands.push(...collectionDrop(board, cards, canvas.screenToWorld(lastPointer.x, lastPointer.y))); }
       }
       return commands;
     },
@@ -116,38 +116,24 @@ export function mountEditing(ctx) {
   const bar = document.createElement('div'); bar.id = 'selectionBar'; bar.className = 'selection-bar'; bar.setAttribute('aria-label', 'Selection controls'); document.body.append(bar);
   const outline = document.createElement('div'); outline.className = 'editing-outline'; outline.innerHTML = '<i class="selection-move top"></i><i class="selection-move bottom"></i><i class="selection-move left"></i><i class="selection-move right"></i><button class="rotation-handle" title="Rotate selection" aria-label="Rotate selection">↻</button><output class="rotation-badge" hidden></output><button class="selection-resize" aria-label="Resize selection"></button>'; stage.append(outline);
   let barKey = '', cleanups = [], gesture = false;
+  const positionBar = selectionPosition(canvas, bar, outline);
   function button(label, action, title = label) { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = title; b.setAttribute('aria-label', title); b.onclick = action; bar.append(b); return b; }
   function input(label, value, action, type = 'text') { const el = document.createElement('input'); el.type = type; el.setAttribute('aria-label', label); el.title = label; el.placeholder = label; el.value = value ?? ''; if (type === 'number') { el.min = '6'; el.max = '400'; el.style.width = '54px'; } el.onchange = () => action(el.value); bar.append(el); return el; }
   function select(label, values, value, action) { const el = document.createElement('select'); el.setAttribute('aria-label', label); el.title = label; for (const [v, text] of values) { const option = new Option(text, v); el.append(option); } el.value = value ?? ''; el.onchange = () => action(el.value); bar.append(el); return el; }
   function renderBar(force = false) {
     const cards = selectedCards().filter(c => !effectiveFlag(canvas.board, c, 'hidden'));
     const invisible = !cards.length || gesture;
-    bar.hidden = invisible; outline.hidden = !cards.length;
-    if (!cards.length) return;
-    let b = bounds(cards), p = canvas.worldToScreen(b.x, b.y), q = canvas.worldToScreen(b.right, b.bottom);
-    // Use what is really on screen when every selected card is mounted (a card may lay itself out taller than its saved size).
-    const rects = cards.map(c => canvas.mountedEl(c.id)?.getBoundingClientRect()).filter(r => r && r.width);
-    if (rects.length === cards.length && cards.every(c => !c.rot)) {
-      p = { x: Math.min(...rects.map(r => r.left)), y: Math.min(...rects.map(r => r.top)) };
-      q = { x: Math.max(...rects.map(r => r.right)), y: Math.max(...rects.map(r => r.bottom)) };
-    }
-    Object.assign(outline.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${q.x - p.x}px`, height: `${q.y - p.y}px` });
-    // A grab strip only works where the selection is what you see: where another card is stacked on top, it steps aside.
-    const chosen = new Set(cards.map(c => c.id));
-    outline.querySelectorAll('.selection-move').forEach(strip => {
-      strip.style.pointerEvents = '';
-      const r = strip.getBoundingClientRect(); if (!r.width) return;
-      const samples = [0.1, 0.3, 0.5, 0.7, 0.9].map(t => r.width > r.height ? [r.left + r.width * t, r.top + r.height / 2] : [r.left + r.width / 2, r.top + r.height * t]);
-      const blocked = samples.some(([x, y]) => { const top = document.elementsFromPoint(x, y).find(el => !outline.contains(el)); const card = top?.closest?.('#world .card'); return card && !chosen.has(card.dataset.id); });
-      if (blocked) strip.style.pointerEvents = 'none';
-    });
+    if (bar.hidden !== invisible) bar.hidden = invisible;
+    if (outline.hidden !== !cards.length) outline.hidden = !cards.length;
+    if (!cards.length) { document.body.classList.toggle('editing-context', false); return; }
     const locked = cards.some(c => effectiveFlag(canvas.board, c, 'locked'));
-    outline.querySelector('.rotation-handle').hidden = locked || cards.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type));
-    outline.querySelector('.selection-resize').hidden = locked;
-    outline.querySelectorAll('.selection-move').forEach(el => { el.hidden = locked; });
-    const key = JSON.stringify(cards.map(c => [c.id, c.type, c.group, c.heading, c.props]));
+    positionBar(cards, locked);
+    document.body.classList.toggle('editing-context', true);
+    const key = JSON.stringify(cards.map(c => [c.id, c.type, c.group, c.heading, c.rot, c.props]));
     if (force || key !== barKey) {
-      if (bar.contains(document.activeElement)) return;
+      const ids = cards.map(c => c.id).join();
+      if (bar.dataset.ids === ids && (bar.contains(document.activeElement) || bar.querySelector('.selection-more[open]'))) return;
+      bar.dataset.ids = ids;
       barKey = key; cleanups.forEach(f => f()); cleanups = []; bar.replaceChildren();
       const label = document.createElement('strong'); label.textContent = cards.length === 1 ? ({ todo: 'Checklist', coll: 'Collection' }[cards[0].type] || cards[0].type[0].toUpperCase() + cards[0].type.slice(1)) : `${cards.length} cards`; bar.append(label);
       if (!locked) {
@@ -160,12 +146,17 @@ export function mountEditing(ctx) {
           button('Fonts…', e => { const close = fontPicker(e.currentTarget, textCards(), ctx, value => format('font', value)); cleanups.push(close); });
           if (!textCards().every(c => (c.props?.font || '') === (textCards()[0].props?.font || ''))) font.prepend(new Option('Mixed fonts', '__mixed', true, true));
           font.onkeydown = e => { if (e.key === 'Escape') { canvas.redraw(); font.blur(); } };
-          select('Spacing', [['', 'Spacing'], ['compact', 'Compact'], ['normal', 'Normal'], ['open', 'Open']], '', v => { if (v) { format('lh', { compact: 1.1, normal: 1.4, open: 1.8 }[v]); } });
+          const firstText = textCards()[0], lineHeight = lineHeightDefault(firstText.type);
+          const spacing = (label, type) => { const control = input(label, firstText.props?.lh ?? lineHeight, v => { const n = Number(v); if (Number.isFinite(n)) { const value = Math.round(Math.max(.8, Math.min(3, n)) * 100) / 100; format('lh', value); for (const other of bar.querySelectorAll('[data-line-height]')) other.value = String(value); } }, type); control.min = '.8'; control.max = '3'; control.step = '.05'; control.dataset.lineHeight = '1'; control.oninput = control.onchange; return control; };
+          spacing('Line height', 'number'); spacing('Line height slider', 'range');
+          select('Spacing', [['', 'Spacing'], ['compact', 'Compact'], ['normal', 'Normal'], ['open', 'Open']], '', v => { if (v) { if (v === 'normal') apply(textCards().map(c => ({ op: 'update', id: c.id, set: { props: { lh: null } } }))); else format('lh', { compact: 1.1, open: 1.8 }[v]); } });
           input('Letter spacing', cards[0].props?.ls || 0, v => { const n = Number(v); if (Number.isFinite(n)) format('ls', Math.max(-10, Math.min(50, n))); }, 'text');
           select('Display case', [['', 'As typed'], ['upper', 'UPPERCASE'], ['lower', 'lowercase'], ['title', 'Title Case']], cards[0].props?.tcase || '', v => format('tcase', v || null));
         }
         if (cards.length === 1 && cards[0].type === 'note') input('Note name', cards[0].heading, v => apply([{ op: 'update', id: cards[0].id, set: { heading: v } }]));
-        if (cards.length === 1 && !['coll', 'swatch', 'ink'].includes(cards[0].type)) input(cards[0].type === 'image' ? 'Caption' : 'Label', cards[0].props?.tag, v => apply([{ op: 'update', id: cards[0].id, set: { props: { tag: v || null } } }]));
+        if (cards.length === 1 && !['coll', 'swatch', 'ink'].includes(cards[0].type)) input(cards[0].type === 'image' ? 'Caption' : 'Label', cards[0].type === 'image' ? cards[0].props?.tagText ?? cards[0].props?.tag : cards[0].props?.tag, v => apply([{ op: 'update', id: cards[0].id, set: { props: cards[0].type === 'image' ? { tagText: v || null, tag: null } : { tag: v || null } } }]));
+        if (cards.length === 1 && cards[0].type === 'coll') button(cards[0].props?.head === false ? 'Show header' : 'Hide header', () => { const coll = { ...cards[0], props: { ...cards[0].props, head: cards[0].props?.head === false } }; apply([{ op: 'update', id: coll.id, set: { props: { head: coll.props.head } } }, ...collectionLayout(canvas.board, coll)]); });
+        if (!cards.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type))) button('Tilt', e => openTilt(e.currentTarget));
         if (cards.length > 1) {
           const align = select('Align selection', [['', 'Align'], ...['left', 'centre', 'right', 'top', 'middle', 'bottom'].map(v => [v, v[0].toUpperCase() + v.slice(1)]), ...(new Set(cards.map(c => c.group || c.id)).size >= 3 ? [['distribute-x', 'Distribute horizontally'], ['distribute-y', 'Distribute vertically']] : [])], '', v => { const commands = arrange(canvas.board, canvas.selection(), v); if (commands.length) apply(commands); }); align.value = '';
           button('Group', () => group());
@@ -176,25 +167,9 @@ export function mountEditing(ctx) {
         button('Duplicate', duplicate); button('Delete', remove);
       }
       button('PNG', () => exportBoard(ctx, true)); button('PDF', () => exportBoard(ctx, true, 'pdf'));
+      cleanups.push(selectionOverflow(bar, () => canvas.redraw()));
     }
-    // Keep clear of the side bar and tool bar on the left, and the panels on the right.
-    const leftEdge = Math.max(12, ...[...document.querySelectorAll('.side:not(.side-right):not([hidden]) .pbox, .tools')].map(el => el.getBoundingClientRect().right + 12));
-    const rightEdge = Math.min(innerWidth - 12, ...[...document.querySelectorAll('.side-right:not([hidden]) .pbox, .panel:not([hidden])')].map(el => el.getBoundingClientRect().left - 12));
-    const width = Math.min(bar.offsetWidth || 600, rightEdge - leftEdge);
-    bar.style.maxWidth = `${Math.max(240, rightEdge - leftEdge)}px`;
-    bar.style.left = `${Math.max(leftEdge, Math.min(rightEdge - width, (p.x + q.x - width) / 2))}px`;
-    // Float above the selection when that spot covers nothing on the board; otherwise dock just above the composer,
-    // where it can never hide a card.
-    const h = bar.offsetHeight, left = parseFloat(bar.style.left), wBar = bar.offsetWidth, above = p.y - h - 42;
-    const covers = top => [...document.querySelectorAll('#world .card, #world .card *')].some(el => { const r = el.getBoundingClientRect(); return r.width && r.right > left && r.left < left + wBar && r.bottom > top && r.top < top + h; });
-    const composer = document.getElementById('composer')?.getBoundingClientRect();
-    const dock = (composer?.top ?? innerHeight - 90) - h - 12;
-    const hitsSelection = top => top < q.y + 8 && top + h > p.y - 32;
-    const floating = above >= 50 && !covers(above);
-    // Docked above the composer unless that would cover the selection; then pin to the top edge.
-    const top = floating ? above : !hitsSelection(dock) ? dock : 50;
-    bar.classList.toggle('docked', !floating);
-    bar.style.top = `${top}px`;
+
   }
   stage.addEventListener('canvaspaint', () => renderBar()); onRegistryChange(() => renderBar(true));
   outline.addEventListener('pointerdown', e => {
@@ -204,7 +179,8 @@ export function mountEditing(ctx) {
     const badge = outline.querySelector('output'); badge.hidden = !rotate;
     let last = [];
     const move = ev => { const p = canvas.screenToWorld(ev.clientX, ev.clientY);
-      let deg = (Math.atan2(p.y - centre.y, p.x - centre.x) - angle) * 180 / Math.PI; if (ev.shiftKey) deg = Math.round(deg / 15) * 15; badge.textContent = `${Math.round(deg)}°`;
+      const raw = (Math.atan2(p.y - centre.y, p.x - centre.x) - angle) * 180 / Math.PI, base = cards.length === 1 ? cards[0].rot || 0 : 0;
+      const deg = snapRotation(raw + base, ev.shiftKey, cards.length === 1) - base; badge.textContent = `${Math.round(deg)}°`;
       const t = deg * Math.PI / 180;
       let sx = Math.max(.1, (p.x - b.x) / Math.max(1, start.x - b.x)), sy = Math.max(.1, (p.y - b.y) / Math.max(1, start.y - b.y)); if (ev.shiftKey || cards.some(c => SQUARE_TYPES.has(c.type))) sx = sy = Math.max(sx, sy);
       last = cards.map(c => { const dx = c.x + c.w / 2 - centre.x, dy = c.y + c.h / 2 - centre.y;
@@ -217,6 +193,20 @@ export function mountEditing(ctx) {
     const up = () => end(true), cancel = () => end(false), escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
     addEventListener('pointermove', move); addEventListener('pointerup', up, { once: true }); addEventListener('pointercancel', cancel, { once: true }); addEventListener('keydown', escape, true);
   });
+
+  const tiltPop = document.createElement('div'); tiltPop.className = 'editing-tilt'; tiltPop.hidden = true; tiltPop.setAttribute('aria-label', 'Tilt controls'); document.body.append(tiltPop);
+  const setTilt = value => { const degrees = Math.max(-180, Math.min(180, Math.round(Number(value) || 0))); const cards = editableCards().filter(c => !['frame', 'section', 'coll', 'ink'].includes(c.type)); if (cards.length) apply(cards.map(c => ({ op: 'update', id: c.id, set: { rot: degrees } }))); tiltPop.querySelector('input').value = String(degrees); tiltPop.querySelectorAll('[data-deg]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.deg) === degrees))); };
+  function openTilt(anchor) {
+    tiltPop.replaceChildren(); const input = document.createElement('input'); input.type = 'number'; input.min = '-180'; input.max = '180'; input.step = '1'; input.value = String(Math.round(selectedCards()[0]?.rot || 0)); input.setAttribute('aria-label', 'Tilt in degrees'); input.oninput = () => { if (input.value !== '' && input.value !== '-') setTilt(input.value); }; tiltPop.append(input);
+    for (const [label, deg] of [['Reset tilt', 0], ...[0, 5, 10, 15, 30, 45, 90, -5, -10, -15, -30, -45, -90].map(deg => [`${deg}°`, deg])]) { const b = document.createElement('button'); b.textContent = label; b.dataset.deg = String(deg); b.onclick = () => setTilt(deg); tiltPop.append(b); }
+    const r = anchor.getBoundingClientRect(); Object.assign(tiltPop.style, { left: `${Math.max(10, Math.min(innerWidth - 290, r.left))}px`, top: `${Math.min(innerHeight - 200, r.bottom + 8)}px` }); tiltPop.hidden = false; input.focus(); input.select();
+  }
+  tiltPop.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape' || e.key === 'Enter') tiltPop.hidden = true; });
+  addEventListener('pointerdown', e => { if (!tiltPop.contains(e.target) && !e.target.closest('[aria-label="Tilt"]')) tiltPop.hidden = true; });
+  let tiltSelection = '';
+  stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPop.hidden = true; tiltSelection = ids; } });
+  const layerMenu = createMenu();
+  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.run(ctx, ids) })), { title: 'Bring to front', section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', section: 'Arrange', run: () => stack('back') }]); });
 
   let trayEl, traySig = '';
   trayMount = el => { trayEl = el; el.classList.add('unsorted-list'); renderTray(); };
@@ -247,6 +237,7 @@ export function mountEditing(ctx) {
     return () => { const clip = makeClip(canvas.board, cards.map(c => c.id)), first = clip.cards[0]; if (!first) return; const item = { ...first, id: uid(), bundle: { cards: clip.cards, links: clip.links } }; apply([{ op: 'board_set', set: { tray: [...(canvas.board.tray ?? []), item] } }, { op: 'delete', ids: clip.cards.map(c => c.id) }], () => canvas.select([])); };
   });
   for (const [id, title, run] of [['duplicate', 'Duplicate', duplicate], ['copy', 'Copy', () => copy()], ['cut', 'Cut', () => copy(null, true)], ['group', 'Group', () => group()], ['ungroup', 'Ungroup', () => group(true)], ['forward', 'Bring forward', () => stack('forward')], ['backward', 'Send backward', () => stack('backward')], ['export', 'Export selection as PNG', () => exportBoard(ctx, true)], ['export-pdf', 'Export selection as PDF', () => exportBoard(ctx, true, 'pdf')]]) registerCardMenu({ id: `editing-${id}`, title, section: 'Editing', run });
+  registerCardMenu({ id: 'editing-reset-tilt', title: 'Reset tilts', section: 'Editing', when: () => editableCards().some(c => c.rot && !['frame', 'section', 'coll', 'ink'].includes(c.type)), run: () => { const cards = editableCards().filter(c => !['frame', 'section', 'coll', 'ink'].includes(c.type)); apply(cards.map(c => ({ op: 'update', id: c.id, set: { rot: 0 } }))); } });
   registerBoardMenu({ id: 'editing-export-board', title: 'Export board as PNG', section: 'Export', run: () => exportBoard(ctx, false) });
   registerBoardMenu({ id: 'editing-export-board-pdf', title: 'Export board as PDF', section: 'Export', run: () => exportBoard(ctx, false, 'pdf') });
   return { history, copy, paste, duplicate, group, arrange: how => { const commands = arrange(canvas.board, canvas.selection(), how); if (commands.length) apply(commands); }, stack, toggleFocus };

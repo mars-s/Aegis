@@ -10,6 +10,7 @@ const data = mkdtempSync(join(tmpdir(), 'aegis-wireframe-'));
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((r, reject) => { const timer = setTimeout(() => reject(Error('host startup timeout')), 20000); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) { clearTimeout(timer); r(m[1]); } }); });
+writeFileSync(out('wireframe-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { host: '127.0.0.1', port: 5184, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
 const vite = spawn(process.execPath, [out('wireframe-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -84,10 +85,19 @@ try {
   await prop('Fill', '#dbeafe'); await prop('Border width', 3); await prop('Border colour', '#2563eb');
   await panel.getByLabel('Border style', { exact: true }).selectOption('dash'); await panel.locator('.wf-panel-head strong').click();
   await prop('Dash length', 12); await prop('Dash gap', 7); await prop('Corner radius', 20); await prop('Image placeholder label', 'Account photo');
-  let imageRequested = false;
   await page.evaluate(() => document.addEventListener('aegis:wireframe-image-request', e => { window.__imageHook = e.detail.cardId; e.preventDefault(); }, { once: true }));
   await panel.getByRole('button', { name: 'Fill image', exact: true }).click();
   assert.equal(await page.evaluate(() => window.__imageHook), box.id);
+  assert.equal((await snapshot()).cards.find(c => c.id === box.id).props.placeholder, undefined, 'cancelled host hook does not apply a placeholder');
+  await page.waitForTimeout(250);
+  await panel.getByRole('button', { name: 'Fill image', exact: true }).click();
+  await page.waitForFunction(id => aegis.canvas.board.cards.find(c => c.id === id)?.props.placeholder === true, box.id);
+  const placeholder = page.locator(`[data-id="${box.id}"] .wf-placeholder-pattern`); await placeholder.waitFor();
+  assert.equal(await placeholder.getByText('Account photo', { exact: true }).count(), 1);
+  assert.equal(await placeholder.getByText('Placeholder, not AI-generated', { exact: true }).count(), 1);
+  assert.match(await placeholder.evaluate(el => getComputedStyle(el).backgroundImage), /repeating-linear-gradient/);
+  assert.equal((await snapshot()).cards.find(c => c.id === box.id).props.src, undefined);
+  await page.screenshot({ path: out('wireframe-placeholder.png') });
   const styled = (await snapshot()).cards.find(c => c.id === box.id); assert.equal(styled.props.sdash, 'dash'); assert.equal(styled.parent, frame.id);
   assert.equal(await page.locator(`[data-id="${box.id}"] rect`).getAttribute('stroke-dasharray'), '12 7');
   await panel.getByLabel('Border style', { exact: true }).selectOption('dot'); await panel.locator('.wf-panel-head strong').click();
@@ -180,6 +190,62 @@ try {
   assert.equal(saved.cards.find(c => c.id === box.id).props.dg, 7); assert.equal(saved.cards.find(c => c.id === box.id).props.fill, '#dbeafe');
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal((await snapshot()).cards.length, saved.cards.length);
+  assert.equal((await snapshot()).cards.find(c => c.id === box.id).props.placeholder, true, 'placeholder persists after reload');
+  // R is occupied by the core Read-me tool. Keep the existing box chord.
+  await page.locator('#stage').focus(); await page.keyboard.press('r');
+  assert.equal(await page.evaluate(() => aegis.canvas.tool), 'readme');
+  await page.keyboard.press('Escape'); await page.keyboard.press('Shift+r');
+  assert.equal(await page.evaluate(() => aegis.canvas.tool), 'wireframe');
+  await page.keyboard.press('Escape');
+  // An isolated section fixture makes pointer behaviour observable without moving other cards.
+  await page.evaluate(() => {
+    aegis.apply([
+      { op: 'create', type: 'section', newId: 'glasssec', x: 3000, y: 2000, w: 800, h: 500, text: 'Glass section', props: { fill: '#cbd5e1', radius: 24 } },
+      { op: 'create', type: 'box', newId: 'glassbox', x: 3100, y: 2100, w: 160, h: 100, props: { fill: '#dbeafe', img: 'Landscape', placeholder: true } },
+      { op: 'create', type: 'title', newId: 'glasstitle', x: 3400, y: 2100, w: 260, h: 60, text: 'Hollow title' },
+    ]);
+    aegis.canvas.setView({ x: 450 - 3000 * .75, y: 140 - 2000 * .75, z: .75 }); aegis.canvas.select([]);
+  });
+  await page.waitForTimeout(300); await drag(3050, 2070, 250, 180);
+  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['glassbox'], 'unselected glass starts a marquee through the section body');
+  assert.equal((await snapshot()).cards.find(c => c.id === 'glasssec').x, 3000, 'marquee does not move the section');
+  await page.evaluate(() => aegis.canvas.select([])); await clickAt(3050, 2300);
+  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['glasssec'], 'a tap selects the section');
+  const sectionBeforeDrag = (await snapshot()).cards.filter(c => c.id.startsWith('glass'));
+  await drag(3050, 2300, 30, 35);
+  const sectionAfterDrag = (await snapshot()).cards.find(c => c.id === 'glasssec');
+  const sectionDx = sectionAfterDrag.x - 3000, sectionDy = sectionAfterDrag.y - 2000;
+  assert.ok(sectionDx || sectionDy, 'selected body drags the section');
+  for (const c of sectionBeforeDrag) { const next = (await snapshot()).cards.find(k => k.id === c.id); assert.deepEqual([next.x - c.x, next.y - c.y], [sectionDx, sectionDy]); }
+  await page.evaluate(() => aegis.canvas.select([])); await page.waitForTimeout(250);
+  const name = page.locator('[data-id="glasssec"] .wf-section-name');
+  const nameRect = await name.boundingBox();
+  await page.mouse.move(nameRect.x + 20, nameRect.y + 10); await page.mouse.down(); await page.mouse.move(nameRect.x + 50, nameRect.y + 40, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(250);
+  assert.notEqual((await snapshot()).cards.find(c => c.id === 'glasssec').x, sectionAfterDrag.x, 'name drags an unselected section');
+  let labelWidth;
+  for (const z of [1, .5, 2]) {
+    await page.evaluate(z => aegis.canvas.setView({ x: 450 - 3000 * z, y: 140 - 2000 * z, z }), z); await page.waitForTimeout(250);
+    const width = (await name.boundingBox()).width;
+    if (z === 1) labelWidth = width;
+    else assert.ok(Math.abs(width - labelWidth * (z === .5 ? 1 : 2)) < 2, 'labels counter-scale below 100% and retain natural scale above it');
+  }
+  await page.evaluate(() => aegis.canvas.setView({ x: 450 - 3000 * .75, y: 140 - 2000 * .75, z: .75 }));
+  await select('glasstitle');
+  await panel.getByRole('button', { name: 'Hollow letters', exact: true }).click();
+  await prop('Letter outline width', 2); await prop('Letter outline colour', '#2563eb');
+  const titleBody = page.locator('[data-id="glasstitle"] .body');
+  assert.equal(await titleBody.evaluate(el => getComputedStyle(el).color), 'rgba(0, 0, 0, 0)');
+  assert.equal(await titleBody.evaluate(el => getComputedStyle(el).webkitTextStrokeWidth), '2px');
+  assert.equal(await titleBody.evaluate(el => getComputedStyle(el).webkitTextStrokeColor), 'rgb(37, 99, 235)');
+  await panel.getByRole('button', { name: 'Filled letters', exact: true }).click();
+  await page.waitForTimeout(250);
+  assert.notEqual(await titleBody.evaluate(el => getComputedStyle(el).color), 'rgba(0, 0, 0, 0)', 'filled letters restores the fill');
+  await panel.getByRole('button', { name: 'Hollow letters', exact: true }).click();
+  await page.waitForTimeout(250); await page.screenshot({ path: out('wireframe-gap-options.png') });
+  await page.waitForFunction(async () => JSON.stringify((await aegis.host.get('/boards/' + aegis.canvas.board.id)).cards) === JSON.stringify(aegis.canvas.board.cards));
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board); await page.waitForTimeout(250);
+  assert.equal((await snapshot()).cards.find(c => c.id === 'glasstitle').props.hollow, true);
+  assert.equal(await page.locator('[data-id="glasstitle"] .body').evaluate(el => getComputedStyle(el).webkitTextStrokeWidth), '2px', 'hollow title renders after reload');
   assert.equal(errors.length, 0, errors.join('\n'));
   log('PASS: board persisted and reloaded;', saved.cards.length, 'cards; no browser errors; temporary data', data);
 } catch (error) { await page.screenshot({ path: out('wireframe-fail.png') }); console.error(error.stack); console.error('browser errors', errors); process.exitCode = 1; }

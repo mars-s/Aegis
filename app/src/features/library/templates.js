@@ -1,5 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-// Keep the source layouts. Titles, sample prompts and instructions use Aegis wording.
+// Independently implemented layouts and prompts. Frameworks use the shared collection model.
 const title = text => ({ t: 'title', x: 0, y: 0, text });
 const group = (x, y, text, color, notes) => ({ t: 'group', x, y, text, color, notes });
 const note = (x, y, text, color = 'plain', key) => ({ t: 'note', x, y, text, color, key });
@@ -15,7 +15,7 @@ export const frameworks = {
 export const starters = {
   Moodboard: [title('Moodboard'), note(0, 60, 'Describe the mood in a few words.', 'yellow'), note(250, 60, 'Drop visual references onto this board.', 'red'), note(500, 60, 'Choose a colour palette.', 'green'), { t: 'swatch', x: 0, y: 260, text: 'Blush', hex: '#ff9ec4' }, { t: 'swatch', x: 130, y: 260, text: 'Cream', hex: '#fff5c8' }, { t: 'swatch', x: 260, y: 260, text: 'Mint', hex: '#7ad3a3' }, { t: 'todo', x: 500, y: 240, text: 'Next steps', items: ['Gather references', 'Choose typefaces', 'Review with the team'] }],
   'App plan': [title('App plan'), note(0, 60, 'Describe the intended audience.', 'blue'), note(250, 60, 'What problem needs solving?', 'red'), note(500, 60, 'What is the main benefit?', 'yellow'), { t: 'todo', x: 0, y: 260, text: 'Screens to plan', items: ['Welcome', 'Main screen', 'Preferences'] }, note(280, 260, 'Compare existing options and their gaps.', 'purple')],
-  'Brain dump': [title('Brain dump'), note(0, 60, 'Write everything down. Ask an agent to organise the notes when you are ready.', 'yellow'), ...['A task to finish', 'An idea to explore', 'Something to follow up', 'A reference to find', 'A question to answer'].map((text, i) => note((i % 3) * 250, 260 + Math.floor(i / 3) * 170, text))],
+  'Brain dump': [title('Brain dump'), note(0, 60, 'Capture with ⌘K. Move ideas from Unsorted onto the board.', 'yellow')],
 };
 export function templateCommands(key, board, makeId = () => Math.random().toString(36).slice(2, 12).padEnd(8, '0')) {
   const framework = frameworks[key], items = framework?.items ?? starters[key];
@@ -27,9 +27,9 @@ export function templateCommands(key, board, makeId = () => Math.random().toStri
   for (const it of items) {
     const pos = { x: x0 + it.x, y: y0 + it.y };
     if (it.t === 'group') {
-      const height = Math.max(200, 50 + it.notes.length * 120);
-      const id = add('template-group', { ...pos, w: 288, h: height, text: it.text, color: it.color, props: { template: key } });
-      it.notes.forEach((text, i) => add('note', { x: pos.x + 14, y: pos.y + 44 + i * 120, w: 260, h: 106, text, color: it.color, parent: id }));
+      const id = add('coll', { ...pos, w: 288, text: it.text, color: it.color, props: { kids: [], cols: 1 } });
+      const kids = it.notes.map(text => add('note', { ...pos, w: 264, h: 106, text, color: it.color }));
+      commands.push({ op: 'update', id, set: { props: { kids, cols: 1 } } });
     } else {
       const id = add(it.t, { ...pos, text: it.text, color: it.color ?? 'plain', ...(it.t === 'todo' ? { items: it.items.map(text => ({ text, done: false })) } : {}), ...(it.t === 'swatch' ? { w: 120, h: 150, props: { hex: it.hex, label: it.text } } : {}) });
       if (it.key) keyed[it.key] = id;
@@ -39,6 +39,10 @@ export function templateCommands(key, board, makeId = () => Math.random().toStri
   for (const [a, b] of framework?.links ?? []) {
     const id = makeId();
     commands.push({ op: 'connect', newId: id, a: keyed[a], b: keyed[b] }, { op: 'link_update', id, set: { arrow: 'end' } });
+  }
+  if (starters[key]) {
+    const tray = key === 'Brain dump' ? ['A task to finish', 'An idea to explore', 'Something to follow up', 'A reference to find', 'A question to answer'].map(text => ({ id: makeId(), type: 'note', text, x: 0, y: 0, w: 220, h: 140, color: 'plain' })) : [];
+    commands.push({ op: 'board_set', set: { tray } });
   }
   return commands;
 }

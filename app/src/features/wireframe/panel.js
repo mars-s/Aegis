@@ -2,8 +2,10 @@
 import '../wireframe/icons/names.js';
 import { DEVICES, PIECES, TYPES, uid, wireCard, screenCommand, frameAt, pieceCommands, sectionCommands, alignmentCommands, expandDrag, snapDrag } from './model.js';
 import { requestImage } from './render.js';
+import { mountSectionBehaviour } from './sections.js';
 
-const labels = { frame: 'Screen', box: 'Box', text: 'Text', icon: 'Icon', font: 'Font specimen', section: 'Section' };
+const labels = { frame: 'Screen', box: 'Box', text: 'Text', icon: 'Icon', font: 'Font specimen', section: 'Section', title: 'Title' };
+const propertyTypes = [...TYPES, 'title'];
 let activePanel;
 let mode = { type: 'frame', device: 'iPhone' };
 let gesture;
@@ -118,13 +120,14 @@ export function mountPanel(hostEl, ctx) {
   search.oninput = renderIcons; search.onkeydown = e => { if (e.key === 'Escape') { popover.hidden = true; swap = null; ctx.canvas.setTool(null); } e.stopPropagation(); };
   popover.append(search, button('Close icon search', () => { popover.hidden = true; swap = null; }), iconGrid); panel.append(popover);
   function updateProperty(key, value) {
-    const cards = selected(ctx).filter(c => TYPES.includes(c.type)), commands = [];
+    const cards = selected(ctx).filter(c => propertyTypes.includes(c.type)), commands = [];
     for (const c of cards) {
       const base = ['x', 'y', 'w', 'h', 'rot', 'text'].includes(key), props = { [key]: value }, set = base ? { [key]: value } : { props };
       if ((key === 'w' || key === 'h') && c.type === 'frame') set.props = { device: 'Custom' };
       if (key === 'w' || key === 'h') set.props = { ...set.props, [key === 'w' ? 'visualW' : 'visualH']: null };
       if (key === 'device' && DEVICES[value]) { const [w, h, radius] = DEVICES[value]; Object.assign(set, { w, h, props: { device: value, radius } }); }
       if (key === 'iconSize') Object.assign(set, { w: value, h: value, props: { visualW: null, visualH: null, iconSize: null } });
+      if (key === 'hollow' && value && !(c.props?.sw > 0)) Object.assign(props, { sw: 1, stroke: c.props?.stroke || c.props?.ink || '#27272a' });
       if (key === 'fill' && value === 'none' && (!(c.props?.sw > 0) || c.props?.sdash === 'none')) Object.assign(props, { sw: 1, sdash: 'solid', stroke: c.props?.stroke || '#a1a1aa' });
       // Moving a container in the numeric fields carries the same contents as a drag.
       if (key === 'x' || key === 'y') for (const child of expandDrag([c], ctx.canvas.board, { metaKey: true }).filter(k => k.id !== c.id && !cards.includes(k))) commands.push({ op: 'move', id: child.id, [key]: child[key] + value - c[key] });
@@ -147,7 +150,7 @@ export function mountPanel(hostEl, ctx) {
   document.fonts.forEach(f => fonts.add(f.family.replaceAll('"', ''))); for (const font of fonts) { const opt = node('option'); opt.value = font; fontList.append(opt); } panel.append(fontList);
   function renderProperties() {
     lastSignature = JSON.stringify(selected(ctx)); lastSelection = ctx.canvas.board?.id + ':' + ctx.selection().join(',');
-    const cards = selected(ctx).filter(c => TYPES.includes(c.type)); propsEl.replaceChildren();
+    const cards = selected(ctx).filter(c => propertyTypes.includes(c.type)); propsEl.replaceChildren();
     if (!cards.length) return;
     propsEl.append(node('h3', '', cards.length === 1 ? labels[cards[0].type] : `${cards.length} selected`));
     const c = cards[0], p = c.props || {}, grid = node('div', 'wf-property-grid'); propsEl.append(grid);
@@ -178,8 +181,10 @@ export function mountPanel(hostEl, ctx) {
         field(grid, 'lh', 'Line height', p.lh || 1.3, 'number'); field(grid, 'align', 'Text alignment', p.align || 'left', 'text', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']]);
       }
     }
-    if (cards.every(c => ['text', 'icon'].includes(c.type))) {
+    if (cards.every(c => ['text', 'title', 'icon'].includes(c.type))) {
       field(grid, 'ink', 'Text or icon colour', p.ink || '#27272a', 'color');
+      field(grid, 'stroke', 'Letter outline colour', p.stroke || p.ink || '#27272a', 'color');
+      field(grid, 'sw', 'Letter outline width', p.sw ?? 1, 'number');
       propsEl.append(button(p.hollow ? 'Filled letters' : 'Hollow letters', () => updateProperty('hollow', !p.hollow)));
     }
     if (cards.length === 1 && c.type === 'icon') { field(grid, 'iconSize', 'Icon size', c.w, 'number'); propsEl.append(button('Change icon', () => showIcons(c.id))); }
@@ -208,7 +213,8 @@ export function mountPanel(hostEl, ctx) {
   function escape(e) { if (e.key === 'Escape') { popover.hidden = true; swap = null; gesture?.preview?.remove(); gesture = null; } }
   function cancel() { gesture?.preview?.remove(); gesture = null; }
   document.addEventListener('keydown', escape); document.addEventListener('pointercancel', cancel);
-  const dispose = () => { clearInterval(timer); document.removeEventListener('keydown', escape); document.removeEventListener('pointercancel', cancel); panel.remove(); activePanel = null; };
+  const disposeSections = mountSectionBehaviour(ctx);
+  const dispose = () => { disposeSections(); clearInterval(timer); document.removeEventListener('keydown', escape); document.removeEventListener('pointercancel', cancel); panel.remove(); activePanel = null; };
   activePanel = { show() { panel.hidden = false; renderProperties(); }, arm, dispose };
   return dispose;
 }

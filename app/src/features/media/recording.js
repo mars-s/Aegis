@@ -2,6 +2,8 @@
 import { node, button, field } from './dom.js';
 import { mediaContext, report } from './context.js';
 import { openDevices, deviceChoices } from './devices.js';
+import { uploadRecording } from './upload.js';
+import { videoInfo } from './video.js';
 const sessions = new Map(), cleanup = new WeakMap();
 const time = seconds => `${Math.floor((seconds || 0) / 60)}:${String(Math.floor((seconds || 0) % 60)).padStart(2, '0')}`;
 const sessionKey = (boardId, id) => `${boardId}:${id}`;
@@ -32,13 +34,14 @@ function release(s) {
   s.audioContext?.close().catch(() => {}); s.audioContext = null;
 }
 async function saveRecording(s) {
-  s.phase = 'saving'; s.notify?.();
+  s.phase = 'saving'; s.percent = 0; s.error = ''; s.notify?.();
   try {
     const type = s.blob.type.split(';')[0], file = new File([s.blob], s.video ? 'Camera recording' : 'Voice memo', { type });
-    const { url } = await mediaContext().host.upload(file);
+    const info = s.video ? await videoInfo(s.blob) : null;
+    const { url } = await uploadRecording(mediaContext().host, file, percent => { s.percent = percent; s.notify?.(); });
     const wave = s.samples.filter((_, i) => i % Math.max(1, Math.ceil(s.samples.length / 160)) === 0).slice(0, 160);
     sessions.delete(s.key);
-    await persist(s.card, s.api, s.boardId, { ...(s.video ? { url } : {}), props: { ...(s.video ? {} : { src: url }), duration: s.duration, wave, shape: s.shape, mirror: s.video && s.captureApplied ? false : s.mirror, ready: false, replacing: null } });
+    await persist(s.card, s.api, s.boardId, { ...(s.video ? { url } : {}), ...(s.imported && info?.width && info?.height ? { h: Math.max(120, s.card.w * info.height / info.width + 72) } : {}), props: { ...(s.video ? {} : { src: url }), duration: info?.duration || s.duration, ...(info ? { poster: info.poster, videoWidth: info.width, videoHeight: info.height } : {}), wave, shape: s.shape, mirror: s.video && s.captureApplied ? false : s.mirror, ready: false, replacing: null } });
     s.phase = 'saved'; sessions.delete(s.key); s.notify?.();
   } catch (error) { sessions.set(s.key, s); s.phase = 'save-error'; s.error = `Could not save the recording. ${error.message}`; s.notify?.(); report(error); }
 }
@@ -47,7 +50,7 @@ async function start(s) {
   try {
     if (typeof MediaRecorder === 'undefined') throw new Error('Recording is unavailable in this browser. Import a file instead.');
     const generation = (s.generation || 0) + 1; s.generation = generation;
-    s.phase = 'starting'; s.error = ''; s.notify?.();
+    s.previewing = false; s.phase = 'starting'; s.error = ''; s.notify?.();
     if (!s.stream) {
       const stream = await openDevices(s.video, s.shape);
       if (s.generation !== generation) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -121,7 +124,7 @@ export function renderRecording(el, c, api) {
   const transcription = () => { const wrap = node('span'); wrap.title = 'Local transcription is not installed. Recording and playback are available.'; const b = button('Transcribe', () => {}, wrap); b.disabled = true; b.title = wrap.title; controls.append(wrap); };
   const existing = sessions.get(key);
   if (src && !existing) {
-    const player = node(video ? 'video' : 'audio', 'media-player'); player.controls = true; player.addEventListener('keydown', e => e.stopPropagation()); player.preload = 'metadata'; player.src = api.resolveUrl(src); if (video) { player.playsInline = true; player.muted = !!props.muted; player.style.transform = props.mirror ? 'scaleX(-1)' : ''; }
+    const player = node(video ? 'video' : 'audio', 'media-player'); player.controls = true; player.addEventListener('keydown', e => e.stopPropagation()); player.preload = 'metadata'; player.src = api.resolveUrl(src); if (video) { player.playsInline = true; if (props.poster) player.poster = api.resolveUrl(props.poster); player.muted = !!props.muted; player.style.transform = props.mirror ? 'scaleX(-1)' : ''; }
     el.append(player); if (!video) { el.append(waveform); wave(waveform, props.wave); waveform.setAttribute('aria-label', 'Recording waveform. Click to seek.'); waveform.onclick = e => { if (Number.isFinite(player.duration)) player.currentTime = (e.clientX - waveform.getBoundingClientRect().left) / waveform.getBoundingClientRect().width * player.duration; }; player.ontimeupdate = () => wave(waveform, props.wave, player.currentTime / (player.duration || props.duration || 1)); }
     button('Replace', () => api.setProps(c.id, { replacing: true }), controls); transcription(); el.append(controls); if (props.duration) el.append(node('small', 'muted', time(props.duration)));
     if (!props.replacing) { cleanup.set(el, () => player.pause()); return; }
@@ -147,9 +150,17 @@ export function renderRecording(el, c, api) {
   const pauseButton = button('Pause', () => { if (s.phase === 'recording') { s.recorder.pause(); s.phase = 'paused'; } else if (s.phase === 'paused') { s.recorder.resume(); s.phase = 'recording'; } s.notify(); }, controls);
   const stopButton = button('Stop', () => stop(s), controls);
   const retry = button('Retry saving', () => saveRecording(s), controls);
-  const previewButton = video ? button('Preview camera', async () => {
-    try { const generation = (s.generation || 0) + 1; s.generation = generation; s.phase = 'starting'; s.notify(); const stream = await openDevices(true, s.shape); if (s.generation !== generation) { stream.getTracks().forEach(t => t.stop()); return; } s.stream = stream; if (s.cancelled) { release(s); return; } s.phase = 'preview'; s.idle = setTimeout(() => { release(s); s.phase = 'idle'; s.notify?.(); }, 60000); s.notify(); } catch (error) { s.phase = 'idle'; s.error = error.message; s.notify(); }
-  }, controls) : null;
+  const previewCamera = async () => {
+    const generation = (s.generation || 0) + 1; s.generation = generation;
+    release(s); s.previewing = true; s.cancelled = false; s.phase = 'starting'; s.error = ''; s.notify();
+    try {
+      const stream = await openDevices(true, s.shape);
+      if (s.generation !== generation || s.cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+      s.stream = stream; s.phase = 'preview';
+      s.idle = setTimeout(() => { release(s); s.phase = 'idle'; s.notify?.(); }, 60000); s.notify();
+    } catch (error) { if (s.generation === generation) { s.phase = 'idle'; s.error = error.message; s.notify(); } }
+  };
+  const previewButton = video ? button('Preview camera', previewCamera, controls) : null;
   const file = node('input'); file.type = 'file'; file.accept = video ? 'video/*' : 'audio/*'; file.hidden = true; el.append(file);
   const importButton = button(video ? 'Use a video file' : 'Use an audio file', () => file.click(), controls);
   file.onchange = async () => {
@@ -166,11 +177,14 @@ export function renderRecording(el, c, api) {
     pauseButton.textContent = s.phase === 'paused' ? 'Resume' : 'Pause'; importButton.disabled = busy; if (previewButton) previewButton.hidden = busy || s.phase === 'preview';
     choices.querySelectorAll('select,input').forEach(e => e.disabled = busy);
     if (shape) shape.disabled = busy;
-    status.textContent = s.error || ({ idle: 'Ready to record', starting: 'Connecting…', countdown: `Starting in ${s.count}`, recording: `Recording ${time(s.elapsed / 1000)}`, paused: `Paused ${time(s.elapsed / 1000)}`, saving: 'Saving recording…', preview: 'Camera ready', saved: 'Saved' }[s.phase] || '');
+    status.textContent = s.error || ({ idle: 'Ready to record', starting: 'Connecting…', countdown: `Starting in ${s.count}`, recording: `Recording ${time(s.elapsed / 1000)}`, paused: `Paused ${time(s.elapsed / 1000)}`, saving: `Saving recording… ${s.percent || 0}%`, preview: 'Camera ready', saved: 'Saved' }[s.phase] || '');
     if (preview) { if (preview.srcObject !== s.stream) preview.srcObject = s.stream; preview.style.transform = s.mirror ? 'scaleX(-1)' : ''; preview.style.aspectRatio = s.shape === 'phone' ? '9 / 16' : '16 / 9'; preview.style.objectFit = 'cover'; }
     else wave(waveform, s.samples.slice(-100));
   };
-  const deviceChange = () => { if (['idle','preview'].includes(s.phase)) { release(s); s.phase = 'idle'; s.notify(); } };
+  const deviceChange = () => {
+    if (s.phase === 'preview' || s.phase === 'starting' && s.previewing) void previewCamera();
+    else if (s.phase === 'idle') { release(s); s.notify(); }
+  };
   window.addEventListener('aegis-media-devices', deviceChange);
   cleanup.set(el, () => {
     cleanChoices(); window.removeEventListener('aegis-media-devices', deviceChange);
@@ -185,4 +199,14 @@ export function renderRecording(el, c, api) {
 export function dropRecording(el) { cleanup.get(el)?.(); cleanup.delete(el); }
 export function createRecording(ctx, video, at = ctx.canvas.centre()) {
   ctx.apply([{ op: 'create', type: video ? 'video' : 'audio', text: video ? 'Camera recording' : 'Voice memo', x: at.x, y: at.y, w: video ? 440 : 360, h: video ? 470 : 300, props: { ready: true, shape: 'wide' } }]);
+}
+
+export async function importVideo(ctx, file, at = ctx.canvas.centre()) {
+  if (file.size > 1024 ** 3) { report(new Error('Choose a file smaller than 1 GB')); return; }
+  const boardId = ctx.canvas.board.id;
+  let card;
+  ctx.apply([{ op: 'create', type: 'video', text: file.name.replace(/\.[^.]+$/, ''), x: at.x, y: at.y, w: 440, h: 320, props: { ready: true }, ref: 'video' }], ids => { card = ctx.canvas.board.cards.find(c => c.id === ids.video); });
+  if (!card) return;
+  const key = sessionKey(boardId, card.id), session = { key, card, boardId, api: ctx, video: true, imported: true, phase: 'saving', samples: [], elapsed: 0, duration: 0, shape: 'wide', mirror: false, blob: file };
+  sessions.set(key, session); await saveRecording(session);
 }

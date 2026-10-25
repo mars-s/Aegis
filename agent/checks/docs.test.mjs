@@ -40,6 +40,19 @@ test('copying cards preserves task state, headings, links and rich documents wit
   assert.deepEqual(source, original);
 });
 
+test('copied links and Spotify cards keep preview metadata and explicit edits', () => {
+  const source = { type: 'link', url: 'https://example.com/research', props: { preview: { title: 'Research title', description: 'The preview summary' } } };
+  const content = cardContent(source);
+  assert.equal(content[0].content[0].text, 'Research title');
+  assert.equal(content[0].content[0].marks[0].attrs.href, source.url);
+  assert.equal(plainText({ type: 'doc', content }), 'Research title\nThe preview summary');
+  const edited = cardContent({ ...source, props: { ...source.props, title: 'My title', description: 'My summary' } });
+  assert.equal(plainText({ type: 'doc', content: edited }), 'My title\nMy summary');
+  assert.equal(cardContent({ ...source, props: { ...source.props, description: '' } }).length, 1);
+  assert.equal(plainText({ type: 'doc', content: cardContent({ ...source, type: 'spotify' }) }), 'Research title\nThe preview summary');
+  assert.equal(cardContent({ type: 'link', url: source.url, title: 'Legacy title', desc: 'Legacy summary' })[1].content[0].text, 'Legacy summary');
+});
+
 test('legacy Markdown is escaped before formatting into document HTML', () => {
   const html = markdownHTML('# Notes\n- [x] Done\n<script>alert(1)</script>\n**Bold**');
   assert.match(html, /<h1>Notes<\/h1>/);

@@ -1,6 +1,6 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerRenderer } from '../../canvas/engine.js';
-import { svg, inkNode, shapeNode, pathD, colour } from './geometry.js';
+import { svg, inkNode, shapeNode, pathD, colour, outlineAttrs } from './geometry.js';
 
 function drawingSvg(card) {
   return svg('svg', { class: 'draw-art', viewBox: `0 0 ${card.props?.ow || card.w} ${card.props?.oh || card.h}`, preserveAspectRatio: 'none' });
@@ -17,7 +17,7 @@ function textInside(el, card, api) {
 }
 function pathArt(card) {
   const p = card.props || {}, art = drawingSvg(card);
-  art.append(svg('path', { d: pathD(p.points || [], p.closed, p.radius || 0), fill: p.closed ? colour(p.fill, 'none') : 'none', stroke: colour(p.stroke), 'stroke-width': p.sw || 2.5, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', ...(p.dash ? { 'stroke-dasharray': '8 6' } : {}) }));
+  art.append(svg('path', { d: pathD(p.points || [], p.closed, p.radius || 0), fill: p.closed ? colour(p.fill, 'none') : 'none', ...outlineAttrs(p), 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke' }));
   return art;
 }
 const openPoints = card => document.dispatchEvent(new CustomEvent('draw-edit', { detail: card.id }));

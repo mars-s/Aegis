@@ -2,14 +2,18 @@ import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, appendFileSync, cpSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `docs-${process.pid}`;
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-docs-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', reject); });
-const vite = spawn('npx', ['vite', '--port', '5181', '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
+// Freeze UI sources so concurrent feature changes cannot reload the document mid-check.
+const ui = mkdtempSync(join(tmpdir(), 'aegis-docs-ui-'));
+for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
+symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
+const vite = spawn('npx', ['vite', '--port', '5181', '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light', acceptDownloads: true }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -61,11 +65,22 @@ try {
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear plan for'));
   await saved();
   console.log('PASS selection bubble, rewrite hook and Undo');
+  const docBeforeAppearance = (await board()).cards.find(c => c.id === docId);
+  const paperAppearance = () => page.locator('.docs-paper').evaluate(el => ({ background: getComputedStyle(el).backgroundColor, colour: getComputedStyle(el).color }));
+  const autoAppearance = await paperAppearance();
   await page.getByLabel('Page colour', { exact: true }).selectOption('dark');
+  assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' });
+  assert.equal(await page.evaluate(() => localStorage.getItem('aegis:doc-page')), 'dark');
   await page.screenshot({ path: out('docs-dark-paper.png') });
   await page.getByRole('button', { name: 'Full page', exact: true }).click(); assert.ok(await page.locator('body.docs-full').count());
   await page.getByRole('button', { name: 'Full page', exact: true }).click();
   await page.getByLabel('Page colour', { exact: true }).selectOption('light');
+  assert.deepEqual(await paperAppearance(), { background: 'rgb(255, 255, 255)', colour: 'rgb(37, 37, 43)' });
+  await page.getByLabel('Page colour', { exact: true }).selectOption('auto');
+  assert.deepEqual(await paperAppearance(), autoAppearance);
+  await page.getByLabel('Page colour', { exact: true }).selectOption('light');
+  assert.deepEqual((await board()).cards.find(c => c.id === docId), docBeforeAppearance);
+  console.log('PASS automatic, light and dark paper change appearance without changing the document');
   // Place text cards through commands, then use actual pointer drags into the page and closed pill.
   await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'note', text: '**Copied note content**', x: 410, y: 450, newId: 'docsnote' }, { op: 'create', type: 'todo', text: 'Release tasks', items: [{ text: 'Review copy', done: true }, { text: 'Ship release', done: false }], x: 410, y: 620, newId: 'docstodo' }]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
   await page.locator('.card[data-id=docsnote]').waitFor();
@@ -79,6 +94,19 @@ try {
   assert.ok(b.cards.find(c => c.id === docId).props.doc.content.some(n => n.content?.some(t => t.text === 'Copied note content' && t.marks?.some(m => m.type === 'bold'))));
   assert.deepEqual([b.cards.find(c => c.id === 'docsnote').x, b.cards.find(c => c.id === 'docsnote').y], [410, 450]);
   console.log('PASS drag into page copies words and preserves source position');
+  await page.evaluate(() => aegis.apply([{ op: 'create', type: 'link', url: 'https://example.com/research', x: 410, y: 200, newId: 'docslink', props: { previewFor: 'https://example.com/research', preview: { title: 'Research preview title', description: 'Summary copied from the link preview' } } }]));
+  await page.locator('.card[data-id=docslink]').waitFor();
+  const linkBox = await page.locator('.card[data-id=docslink]').boundingBox();
+  const linkPaper = await page.locator('.docs-paper').boundingBox();
+  await page.mouse.move(linkBox.x + 30, linkBox.y + 10); await page.mouse.down();
+  await page.mouse.move(linkPaper.x + 110, linkPaper.y + 200, { steps: 18 });
+  assert.equal(await page.locator('.docs-panel.docs-drop-target').count(), 1);
+  await page.mouse.up(); await saved();
+  assert.equal(await page.locator('.docs-prose a[href="https://example.com/research"]').textContent(), 'Research preview title');
+  b = await board();
+  assert.ok(b.cards.find(c => c.id === docId).props.body.includes('Summary copied from the link preview'));
+  assert.deepEqual([b.cards.find(c => c.id === 'docslink').x, b.cards.find(c => c.id === 'docslink').y], [410, 200]);
+  console.log('PASS copying a link keeps its preview title, description and link target');
   // Clipboard copy of the checklist, then paste into editor using the browser clipboard event.
   await page.locator('.card[data-id=docstodo]').click({ position: { x: 10, y: 10 } });
   const payload = await page.evaluate(() => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData('text/x-aegis'); });
@@ -92,7 +120,8 @@ try {
   await page.getByRole('button', { name: 'Add row', exact: true }).click(); assert.equal(await page.locator('.docs-prose tr').count(), 4);
   await page.getByRole('button', { name: 'Delete table', exact: true }).click();
   await page.getByRole('button', { name: 'Insert image', exact: true }).click();
-  await page.locator('.docs-panel input[type=file]').setInputFiles(out('tiny.png'));
+  const tinyPNG = Buffer.from(await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4; canvas.getContext('2d').fillRect(0, 0, 4, 4); return canvas.toDataURL('image/png').split(',')[1]; }), 'base64');
+  await page.locator('.docs-panel input[type=file]').setInputFiles({ name: 'tiny.png', mimeType: 'image/png', buffer: tinyPNG });
   await page.locator('.docs-prose img').waitFor();
   await saved(); console.log('PASS board clipboard, checked tasks, table edits and image upload');
   await page.locator('.docs-download summary').click();
@@ -100,12 +129,15 @@ try {
   const downloading = page.waitForEvent('download'); await page.locator('.docs-panel [data-word]').click();
   const download = await downloading; assert.equal(download.suggestedFilename(), 'Project brief.docx');
   await download.saveAs(out('docs-export.docx')); assert.ok(readFileSync(out('docs-export.docx')).length > 4000);
+  await page.getByLabel('Page colour', { exact: true }).selectOption('dark');
   // Inspect the real print iframe, with print intercepted because headless Chromium has no print dialogue.
   await page.evaluate(() => { window.__printCalls = 0; const append = document.body.append.bind(document.body); document.body.append = (...nodes) => { append(...nodes); for (const node of nodes) if (node.tagName === 'IFRAME') node.addEventListener('load', () => { node.contentWindow.print = () => { window.__printCalls++; }; }); }; });
   await page.evaluate(() => { document.querySelector('.docs-download').open = true; }); await page.locator('.docs-panel [data-pdf]').click();
   await page.waitForFunction(() => window.__printCalls === 1);
   const printHTML = await page.locator('iframe.docs-print-frame').evaluate(frame => frame.contentDocument.documentElement.outerHTML);
   assert.ok(printHTML.includes('@page { size: letter')); assert.ok(printHTML.includes('Project brief')); assert.ok(printHTML.includes('Copied note content'));
+  assert.ok(printHTML.includes('background:white')); assert.ok(printHTML.includes('color:#25252b'));
+  assert.ok(printHTML.includes('Research preview title')); assert.ok(printHTML.includes('Summary copied from the link preview'));
   console.log('PASS DOCX Blob download and print iframe with selected paper and document content');
   await page.screenshot({ path: out('docs-editor.png') });
   await page.getByRole('button', { name: 'Close document', exact: true }).click();
@@ -119,13 +151,31 @@ try {
   const again = await page.locator('.card[data-id=docsnote]').boundingBox(); const destination = await pill.boundingBox();
   await page.mouse.move(again.x + 50, again.y + 20); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
-  await pill.dblclick(); await page.locator('.docs-panel').waitFor(); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
+  await pill.dblclick(); await page.locator('.docs-panel').waitFor(); assert.equal(await page.getByLabel('Page colour', { exact: true }).inputValue(), 'dark'); assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' }); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
   await page.keyboard.press('Escape'); assert.equal(await page.locator('.docs-panel').count(), 0);
   await page.screenshot({ path: out('docs-board.png') });
   
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   b = await board(); assert.ok(b.cards.find(c => c.id === docId).props.body.includes('Review copy'));
   console.log('PASS closed-pill drop, double-click reopen, Escape close and persistence after reload');
+  await page.evaluate(id => aegis.canvas.frameIds([id], 1), docId);
+  await page.locator(`.card[data-id="${docId}"]`).dblclick();
+  assert.equal(await page.getByLabel('Page colour', { exact: true }).inputValue(), 'dark');
+  assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' });
+  console.log('PASS paper preference persists after reload and exports use light paper');
+  // Simulate the native adapter's successful result without opening a real print sheet.
+  const nativePage = await browser.newPage();
+  await nativePage.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
+  await nativePage.goto(`http://localhost:5181/?port=${port}&token=${token}`);
+  const nativePrint = await nativePage.evaluate(async () => {
+    const { printPDF } = await import('/src/features/docs/export.js');
+    await printPDF({ getJSON: () => ({ content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Native body' }] }] }), getHTML: () => '<p>Native body</p>' }, 'Native title', 'letter');
+    return { html: window.__nativePrintHTML, frames: document.querySelectorAll('iframe.docs-print-frame').length };
+  });
+  assert.equal(nativePrint.frames, 0); assert.ok(nativePrint.html.includes('@page { size: letter')); assert.ok(nativePrint.html.includes('<h1>Native title</h1>')); assert.ok(nativePrint.html.includes('<p>Native body</p>')); assert.ok(nativePrint.html.includes('background:white'));
+  await nativePage.close();
+  console.log('PASS simulated native print adapter receives the document and skips browser printing');
   assert.deepEqual(errors, []); console.log('PASS no browser errors');
 } catch (error) { await page.screenshot({ path: out('docs-fail.png') }); console.error(error); console.error(errors); process.exitCode = 1; }
 finally { await browser.close(); host.kill(); vite.kill(); }

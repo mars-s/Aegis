@@ -83,9 +83,11 @@ export function createSwatch(ctx, at = ctx.canvas.centre(), hex = '#ff9ec4', nam
 }
 export function mountColours(el, ctx) {
   const cleanSettings = installColourSettings(ctx);
-  el.classList.add('board-colours'); let signature = '';
+  el.classList.add('board-colours'); let signature = '', closeMenu = () => {};
+  let menuBoard;
   const refresh = () => {
     const board = ctx.canvas.board; if (!board) return;
+    if (menuBoard && menuBoard !== board.id) closeMenu();
     const rows = boardColours(board), sig = JSON.stringify([board.id, board.bg, board.palette, rows]); if (sig === signature) return; signature = sig;
     el.replaceChildren();
     const controls = node('div', 'colour-actions'); el.append(controls);
@@ -96,27 +98,52 @@ export function mountColours(el, ctx) {
     if (!saved.length) el.append(node('p', 'muted', 'Save a swatch here from its colour editor.'));
     for (const p of saved) {
       const row = node('div', 'palette-row'), dot = button(p.name, () => createSwatch(ctx, undefined, p.hex, p.name, false), row); dot.style.setProperty('--palette-colour', p.hex); dot.title = p.hex;
-      button('Edit', () => {
+      const edit = (rename = false) => {
         let oldHex = p.hex;
         colourEditor({ hex: p.hex, name: p.name, autoName: false, board: () => ctx.canvas.board, apply: value => {
           const b = ctx.canvas.board, palette = (b.palette || []).map(p => p.hex === oldHex ? { hex: value.hex, name: value.label } : p);
           const commands = b.cards.filter(c => c.type === 'swatch' && c.props?.hex === oldHex).map(c => ({ op: 'update', id: c.id, set: { props: { hex: value.hex, label: value.label, autoName: false } } }));
-          ctx.apply([{ op: 'board_set', set: { palette } }, ...commands]); oldHex = value.hex;
+          ctx.apply([{ op: 'board_set', set: { palette } }, ...commands]); oldHex = value.hex; refresh();
         } });
-      }, row);
+        if (rename) { const input = document.querySelector('.colour-pop [aria-label="Colour name"]'); input?.focus(); input?.select(); }
+      };
+      button('Edit', () => edit(), row);
       const remove = button('×', () => ctx.apply([{ op: 'board_set', set: { palette: (ctx.canvas.board.palette || []).filter(v => v.hex !== p.hex) } }]), row); remove.title = `Remove ${p.name} from board colours`; remove.setAttribute('aria-label', remove.title); el.append(row);
+      row.title = 'Click to add to the board. Right-click to rename, change or remove.';
+      row.oncontextmenu = event => {
+        event.preventDefault(); event.stopPropagation(); closeMenu(); menuBoard = board.id;
+        const menu = node('div', 'palette-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Palette colour');
+        const outside = e => { if (!menu.contains(e.target)) dismiss(); };
+        const escape = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); dismiss(); dot.focus(); } };
+        const dismiss = () => {
+          menu.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', escape, true);
+          if (closeMenu === dismiss) closeMenu = () => {};
+        };
+        closeMenu = dismiss;
+        const actions = [['Add to the board', () => createSwatch(ctx, undefined, p.hex, p.name, false)], ['Rename', () => edit(true)], ['Change colour…', () => edit()], ['Remove from board colours', () => remove.click()]];
+        for (const [label, action] of actions) { const item = button(label, () => { closeMenu(); action(); }, menu); item.setAttribute('role', 'menuitem'); }
+        menu.onkeydown = e => {
+          const items = [...menu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) { e.preventDefault(); items[e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+        };
+        document.body.append(menu);
+        document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', escape, true);
+        menu.style.left = Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, event.clientX)) + 'px';
+        menu.style.top = Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, event.clientY)) + 'px';
+        menu.querySelector('button').focus();
+      };
     }
     el.append(node('small', '', 'Colours in use'));
     const used = node('div', 'colour-quick'); el.append(used);
     for (const p of rows) { const b = button('', () => createSwatch(ctx, undefined, p.hex, p.name, false), used); b.style.background = p.hex; b.title = `${p.name} ${p.hex}`; b.setAttribute('aria-label', p.name); }
   };
-  const timer = setInterval(refresh, 250); refresh(); return () => { clearInterval(timer); cleanSettings?.(); };
+  const timer = setInterval(refresh, 250); refresh(); return () => { closeMenu(); clearInterval(timer); cleanSettings?.(); };
 }
 export function installSwatch() {
   registerRenderer('swatch', { interactive: 'button', render(el, c, api) {
     const p = c.props || {}, hex = normHex(p.hex) || '#ff9ec4';
     const chip = button('', () => openSwatch(c, api), el); chip.className = 'swatch-chip'; chip.style.background = hex; chip.setAttribute('aria-label', 'Change colour');
-    if (!p.hideName) el.append(node('strong', 'swatch-name', p.label || colorName(hex)));
+    if (!p.hideName) el.append(node('strong', 'swatch-name', p.role && p.autoName ? p.role : p.label || colorName(hex)));
     if (!p.hideHex) el.append(node('small', '', hex.toUpperCase()));
   }, open: openSwatch });
 }

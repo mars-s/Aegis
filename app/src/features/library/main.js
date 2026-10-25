@@ -62,6 +62,7 @@ function showTemplates(ctx) {
   if (el) {
     const heading = text => { const div = document.createElement('div'); div.className = 'template-menu-heading'; div.textContent = text; return div; };
     el.prepend(heading('Add to this board')); el.querySelector('.ctx-sep')?.after(heading('Start a new board'));
+    el.style.top = `${Math.max(8, Math.min(parseFloat(el.style.top), innerHeight - el.getBoundingClientRect().height - 8))}px`;
   }
 }
 registerTool({ id: 'templates', title: 'Templates', group: 'Library', icon: '<rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><path d="M9 11.5h5M11.5 9v5"/>', activate: showTemplates });

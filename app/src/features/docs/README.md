@@ -19,8 +19,8 @@ Controls wrap onto extra rows in narrow panels. Font names use fonts installed
 on the computer. No font files or remote font downloads are bundled here.
 
 Page appearance is a local preference in `aegis:doc-page`. Paper size is stored in
-`aegis:doc-paper`. Neither changes the board document. PDF opens browser printing
-from a hidden iframe. Choose Save as PDF in the print dialogue. Word downloads
+`aegis:doc-paper`. Neither changes the board document. PDF opens the native macOS print sheet through `printHtml` in the desktop app.
+A plain browser falls back to printing the same HTML from a hidden iframe. Choose Save as PDF in the print dialogue. Word downloads
 an editable DOCX Blob using a lazy import of `docx`. Exports use light paper.
 The converter retains headings, text styles, lists, checked tasks, links, tables
 and embedded PNG, JPEG, GIF and BMP pictures. Other image uploads are converted
@@ -28,7 +28,7 @@ to PNG before insertion. External picture URLs are not embedded by the Word
 converter. Image imports check the board's existing one MB props limit.
 
 Drag text cards onto the open document or onto a closed doc pill to copy their
-content. Sources return to their original positions. A closed-pill copy offers
+content. Sources return to their original positions. Copied links keep their preview title and description, with explicit edits taking priority. Spotify cards also keep their preview title and description. A closed-pill copy offers
 Undo for eight seconds. The open editor uses its normal Undo history. Board
 Copy and editor Paste support an `application/x-aegis-cards` clipboard payload
 containing the source board id and card ids. Copy selected board cards is also
@@ -74,3 +74,14 @@ only the feature entry module to load docs while other feature agents are still
 writing imports. Normal runs load all features. The print test intercepts the
 iframe's `print()` call and checks the actual print HTML, since headless Chromium
 has no Save as PDF dialogue.
+
+The docs browser check asserts computed colours for automatic, light and dark
+paper, preference persistence after reopening and reload, unchanged saved document
+data, and light print output while the editor uses dark paper. It also checks a
+copied link's title, description and destination against the saved host document.
+
+The docs browser check also simulates a successful native `printHtml` adapter to
+verify that it receives the title, paper size and body, and skips the iframe. This
+checks dispatch, not the physical macOS print sheet. The existing preparation
+toast asks the person to choose Save as PDF in the print dialogue and does not
+claim that a PDF was saved.

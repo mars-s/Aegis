@@ -85,9 +85,18 @@ export function shapePoints(shape, w = 100, h = 100) {
   }
   return outlines[shape]?.map(([x, y]) => ({ x: x * w / 100, y: y * h / 100 }));
 }
+// Keep old boolean dash cards readable while sharing the same outline options.
+export const outlineStyle = p => p.sdash ?? (p.dash ? 'dash' : 'solid');
+export function outlineAttrs(p, fallback = 2.5) {
+  const style = outlineStyle(p), width = style === 'none' ? 0 : p.sw ?? fallback;
+  const attrs = { stroke: colour(p.stroke), 'stroke-width': width };
+  if (style === 'dash') attrs['stroke-dasharray'] = `${p.dl ?? 8} ${p.dg ?? 6}`;
+  if (style === 'dot') Object.assign(attrs, { 'stroke-dasharray': `0 ${(p.dg ?? 6) + width * 2}`, 'stroke-linecap': 'round' });
+  return attrs;
+}
 export function shapeNode(card) {
   const p = card.props || {}, shape = p.shape || 'rect';
-  const attrs = { fill: colour(p.fill, '#aed3ff'), stroke: colour(p.stroke), 'stroke-width': p.sw ?? 2, 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke', ...(p.dash ? { 'stroke-dasharray': '8 6' } : {}) };
+  const attrs = { fill: colour(p.fill, '#aed3ff'), ...outlineAttrs(p, 2), 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' };
   if (shape === 'line') return svg('path', { ...attrs, d: !p.squig || p.squig === 'straight' ? 'M0 50 L100 50' : squigPath({ ...p, id: card.id }), fill: 'none', stroke: colour(p.stroke), 'stroke-width': p.lw ?? p.sw ?? 4, 'stroke-linecap': 'round' });
   if (shape === 'heart') return svg('path', { ...attrs, d: 'M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z' });
   // Radius is stored in world pixels, then converted to this shape's view box.

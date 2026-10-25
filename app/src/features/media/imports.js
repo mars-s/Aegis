@@ -1,13 +1,28 @@
 import { mediaContext } from './context.js';
 import { importImages } from './images.js';
+import { importVideo } from './recording.js';
 import { normaliseLink, spotifyOf } from './links.js';
 export function installMediaImports() {
-  const imageFiles = files => files.length && [...files].every(f => f.type.startsWith('image/'));
+  const mediaFiles = files => files.length && [...files].every(f => /^(image|video)\//.test(f.type));
+  const importFiles = async (ctx, input, at = ctx.canvas.centre()) => {
+    const files = [...input];
+    if (files.every(file => file.type.startsWith('image/'))) return importImages(ctx, files, at);
+    // Start each operation before yielding so every item captures the same destination board.
+    await Promise.all(files.map((file, i) => {
+      const position = { x: at.x + i * 464, y: at.y };
+      return file.type.startsWith('video/') ? importVideo(ctx, file, position) : importImages(ctx, [file], position);
+    }));
+  };
   const editing = target => target.closest?.('textarea, input, select, [contenteditable]');
+  addEventListener('change', e => {
+    const ctx = mediaContext(), files = e.target.files;
+    if (e.target.id !== 'mediaFile' || !ctx?.canvas.board || !files || !mediaFiles(files)) return;
+    e.stopImmediatePropagation(); void importFiles(ctx, files); e.target.value = '';
+  }, true);
   addEventListener('paste', e => {
     const ctx = mediaContext(); if (!ctx?.canvas.board || editing(e.target)) return;
     const files = e.clipboardData?.files;
-    if (files && imageFiles(files)) { e.preventDefault(); e.stopImmediatePropagation(); void importImages(ctx, files); return; }
+    if (files && mediaFiles(files)) { e.preventDefault(); e.stopImmediatePropagation(); void importFiles(ctx, files); return; }
     const text = e.clipboardData?.getData('text/plain').trim();
     if (text && /^spotify:/i.test(text) && spotifyOf(text)) {
       e.preventDefault(); e.stopImmediatePropagation(); const at = ctx.canvas.centre();
@@ -17,7 +32,7 @@ export function installMediaImports() {
   addEventListener('drop', e => {
     const ctx = mediaContext(); if (!ctx?.canvas.board || editing(e.target) || !e.target.closest?.('#stage')) return;
     const files = e.dataTransfer?.files, at = ctx.canvas.screenToWorld(e.clientX, e.clientY);
-    if (files && imageFiles(files)) { e.preventDefault(); e.stopImmediatePropagation(); document.getElementById('stage')?.classList.remove('dropping'); void importImages(ctx, files, at); return; }
+    if (files && mediaFiles(files)) { e.preventDefault(); e.stopImmediatePropagation(); document.getElementById('stage')?.classList.remove('dropping'); void importFiles(ctx, files, at); return; }
     if (files?.length) return;
     const text = (e.dataTransfer?.getData('text/uri-list') || e.dataTransfer?.getData('text/plain') || '').split('\n').find(s => s && !s.startsWith('#'))?.trim();
     if (!text || !/^https?:\/\/|^spotify:/i.test(text)) return;

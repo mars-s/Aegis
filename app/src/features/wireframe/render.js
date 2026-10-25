@@ -7,7 +7,8 @@ const ink = (c, p) => p.ink ?? (/^#/.test(c.color) ? c.color : '#27272a');
 export function requestImage(card, api) {
   const event = new CustomEvent('aegis:wireframe-image-request', { cancelable: true, detail: { cardId: card.id, label: card.props?.img || 'Image', width: card.w, height: card.h, apply: api.apply } });
   if (document.dispatchEvent(event)) {
-    const notice = document.createElement('div'); notice.className = 'wf-image-notice'; notice.role = 'status'; notice.textContent = 'Image generation is not connected. This labelled spot is ready for an agent.'; document.body.append(notice); setTimeout(() => notice.remove(), 4500);
+    api.apply([{ op: 'update', id: card.id, set: { props: { placeholder: true, src: null } } }]);
+    const notice = document.createElement('div'); notice.className = 'wf-image-notice'; notice.role = 'status'; notice.textContent = 'Filled with a local placeholder pattern. No AI image was generated.'; document.body.append(notice); setTimeout(() => notice.remove(), 4500);
   }
 }
 function editable(el, card, api, className, text) {
@@ -36,6 +37,13 @@ function surface(el, c, p) {
   if (p.sdash === 'dot') { rect.setAttribute('stroke-dasharray', `0 ${number(p.dg, 5, 1) + sw}`); rect.setAttribute('stroke-linecap', 'round'); }
   svg.append(rect); el.append(svg);
 }
+export function textOutline(body, card) {
+  const p = card.props || {};
+  body.style.webkitTextStroke = p.sw > 0 || p.hollow ? `${number(p.sw, 1, p.hollow ? .5 : 0, 12)}px ${p.stroke || ink(card, p)}` : '';
+  body.style.paintOrder = 'stroke fill';
+  body.style.color = p.hollow ? 'transparent' : p.ink || (card.type === 'title' ? '' : ink(card, p));
+  body.style.caretColor = p.hollow ? p.stroke || ink(card, p) : '';
+}
 export function installRenderers() {
   for (const type of ['frame', 'box', 'text', 'icon', 'font', 'section']) registerRenderer(type, {
     render(el, c, api) {
@@ -49,14 +57,20 @@ export function installRenderers() {
         if (type === 'frame') { const label = editable(el, c, api, 'wf-frame-name body', c.text || 'Screen'); label.setAttribute('aria-label', 'Screen name'); }
         if (p.src) { const img = document.createElement('img'); img.src = api.resolveUrl(p.src); img.alt = p.img || ''; img.draggable = false; visual.append(img); }
         else if (p.img) {
-          const label = document.createElement('div'); label.className = 'wf-placeholder'; const icon = document.createElement('span'); icon.className = 'wf-mi'; icon.textContent = 'image';
+          const label = document.createElement('div'); label.className = 'wf-placeholder' + (p.placeholder ? ' wf-placeholder-pattern' : ''); const icon = document.createElement('span'); icon.className = 'wf-mi'; icon.textContent = 'image';
+          label.style.inset = (p.sdash === 'none' ? 0 : number(p.sw, 0)) + 'px';
           const words = document.createElement('span'); words.textContent = p.img;
-          const button = document.createElement('button'); button.textContent = 'Fill image'; button.onclick = () => requestImage(c, api); label.append(icon, words, button); visual.append(label);
+          if (p.placeholder) {
+            const note = document.createElement('small'); note.textContent = 'Placeholder, not AI-generated'; label.append(words, note);
+          } else {
+            const button = document.createElement('button'); button.textContent = 'Fill image'; button.onclick = () => requestImage(c, api); label.append(icon, words, button);
+          }
+          visual.append(label);
         }
       } else if (type === 'text') {
         const body = editable(el, c, api, 'body wf-text', c.text);
         Object.assign(body.style, { fontFamily: p.font || 'Arial', fontSize: number(p.size, 18, 1, 600) + 'px', fontWeight: String(number(p.weight, 500, 100, 900)), lineHeight: String(number(p.lh, 1.3, 0.5, 4)), textAlign: ['left', 'center', 'right', 'justify'].includes(p.align) ? p.align : 'left', color: ink(c, p) });
-        if (p.hollow) { body.style.webkitTextStroke = `${number(p.sw, 1, 0, 12)}px ${p.stroke || ink(c, p)}`; body.style.color = 'transparent'; }
+        textOutline(body, c);
         // Re-measure on width or typography changes, including after a resize.
         function measure() {
           if (!el.isConnected) return;
@@ -68,7 +82,7 @@ export function installRenderers() {
       } else if (type === 'icon') {
         const icon = document.createElement('span'); icon.className = 'wf-mi wf-icon'; icon.textContent = p.name || 'star';
         icon.style.fontSize = Math.min(p.visualW ?? c.w, p.visualH ?? c.h) + 'px'; icon.style.color = ink(c, p);
-        if (p.hollow) { icon.style.webkitTextStroke = `${number(p.sw, 1, 0, 12)}px ${p.stroke || ink(c, p)}`; icon.style.color = 'transparent'; }
+        textOutline(icon, c);
         el.append(icon);
       } else if (type === 'font') {
         el.style.fontFamily = p.font || 'Arial';

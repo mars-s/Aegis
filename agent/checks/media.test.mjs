@@ -10,6 +10,7 @@ import '../../app/src/lib/board/types/media.js';
 import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
 import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from '../../app/src/features/colors/model.js';
 import { contrastText } from '../../app/src/features/colors/settings.js';
+import { uploadRecording } from '../../app/src/features/media/upload.js';
 import { cropBox } from '../../app/src/features/media/images.js';
 import { spotifyOf, normaliseLink } from '../../app/src/features/media/links.js';
 import { publicAddress, parsePreview, linkPreview } from '../../app/src/features/media/link-preview.mjs';
@@ -106,5 +107,38 @@ test('real host requires authentication for previews and accepts playable audio 
   for (const type of ['audio/webm;codecs=opus','audio/mp4','audio/ogg','audio/wav','audio/mpeg']) {
     const r = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': type }, body: Buffer.from('recording-fixture') }); assert.equal(r.status, 200, type);
     const { url } = await r.json(); const asset = await fetch(base + '/assets/' + url.slice(6), { headers: { range: 'bytes=0-3' } }); assert.equal(asset.status, 206); assert.equal(asset.headers.get('content-type'), type.split(';')[0]); assert.equal(await asset.text(), 'reco');
+  }
+});
+
+test('recording uploads report measured progress and wait for host confirmation', async () => {
+  const originalStorage = globalThis.sessionStorage, originalRequest = globalThis.XMLHttpRequest;
+  const progress = []; let request;
+  globalThis.sessionStorage = { getItem: () => JSON.stringify({ port: '12345', token: 'test-only-token' }) };
+  globalThis.XMLHttpRequest = class {
+    upload = {}; headers = {};
+    constructor() { request = this; }
+    open(method, url) { this.method = method; this.url = url; }
+    setRequestHeader(name, value) { this.headers[name] = value; }
+    send(body) { this.body = body; }
+  };
+  try {
+    const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
+    let complete = false;
+    const saving = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
+    assert.equal(request.method, 'POST'); assert.equal(request.url, 'http://127.0.0.1:12345/assets'); assert.equal(request.body, file);
+    assert.equal(request.headers.authorization, 'Bearer test-only-token');
+    request.upload.onprogress({ lengthComputable: true, loaded: 42, total: 100 });
+    request.upload.onprogress({ lengthComputable: false, loaded: 1, total: 0 });
+    request.upload.onprogress({ lengthComputable: true, loaded: 100, total: 100 });
+    await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
+    request.status = 200; request.response = { url: 'asset:clip.webm' }; request.onload();
+    assert.equal((await saving).url, 'asset:clip.webm'); assert.equal(complete, true);
+    const failed = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, () => {});
+    request.status = 500; request.response = { error: 'Disk full' }; request.onload();
+    await assert.rejects(failed, /Disk full/);
+    await assert.rejects(uploadRecording({ base: 'https://other.example' }, file, () => {}), /Reconnect/);
+  } finally {
+    if (originalStorage === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = originalStorage;
+    if (originalRequest === undefined) delete globalThis.XMLHttpRequest; else globalThis.XMLHttpRequest = originalRequest;
   }
 });

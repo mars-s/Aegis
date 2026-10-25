@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../app/src/lib/board/types/draw.js';
 import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
-import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath } from '../../app/src/features/draw/geometry.js';
+import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from '../../app/src/features/draw/geometry.js';
 import { linkGeometry } from '../../app/src/canvas/engine.js';
 const run = (b, commands) => applyBatch(b, { commands });
 function linked() {
@@ -84,4 +84,18 @@ test('shape-to-path conversion preserves card identity, stacking and styled conn
   assert.equal(result.ok, true); assert.equal(result.board.cards.at(-1).type, 'path'); assert.equal(result.board.cards.at(-1).id, shape.id);
   assert.equal(result.board.cards.at(-1).props.shape, undefined);
   assert.deepEqual(result.board.links, b.links);
+});
+
+test('legacy dashed outlines still render and explicit no-border overrides their flag', () => {
+  assert.equal(outlineAttrs({ dash: true })['stroke-dasharray'], '8 6');
+  const hidden = outlineAttrs({ dash: true, sdash: 'none', sw: 4 });
+  assert.equal(hidden['stroke-width'], 0);
+  assert.equal(hidden['stroke-dasharray'], undefined);
+  assert.equal(outlineAttrs({ sw: 0 })['stroke-width'], 0);
+});
+test('dotted outlines leave room for round caps as thickness and custom gap change', () => {
+  const dotted = outlineAttrs({ sdash: 'dot', sw: 3, dg: 9 });
+  assert.equal(dotted['stroke-dasharray'], '0 15');
+  assert.equal(dotted['stroke-linecap'], 'round');
+  assert.equal(outlineAttrs({ sdash: 'dash', dl: 13, dg: 9 })['stroke-dasharray'], '13 9');
 });

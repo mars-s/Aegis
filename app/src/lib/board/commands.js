@@ -260,7 +260,8 @@ export function applyBatch(input, batch) {
     const first = Math.min(...kids.map(id => board.cards.findIndex(k => k.id === id)).filter(i => i >= 0));
     const at = board.cards.indexOf(coll);
     if (at > first) { board.cards.splice(at, 1); board.cards.splice(first, 0, coll); }
-    for (const { id, set } of collectionLayout(board, coll)) {
+    for (const { op, id, set } of collectionLayout(board, coll)) {
+      if (op !== 'update') continue; // the stacking move is done above
       const c = board.cards.find(k => k.id === id);
       Object.assign(c, { ...set, props: set.props ? { ...c.props, ...set.props } : c.props }); touched.add(id);
     }

@@ -11,7 +11,7 @@ const ICON = {
 };
 function savedOpen() { try { return JSON.parse(localStorage.getItem('aegis:lib-open') || '[]'); } catch { return []; } }
 export function createLibrary({ el, host, current, openBoard, toast }) {
-  let data = { nodes: [], boards: [] }, editing = null, lastCurrent, refreshing = 0;
+  let data = { nodes: [], boards: [] }, editing = null, lastCurrent, refreshing = 0, homeAt;
   let target = localStorage.getItem('aegis:lib-target') || null;
   const expanded = new Set(savedOpen());
   const tree = el.querySelector('.tree'), menu = createMenu();
@@ -21,7 +21,14 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
   const item = id => data.nodes.find(n => n.id === id) ?? data.boards.find(b => b.id === id);
   const isBoard = id => data.boards.some(b => b.id === id);
   const guard = fn => async (...args) => { try { return await fn(...args); } catch (e) { toast(e.message); } };
-  const open = guard(async id => { await openBoard(id); render(); });
+  const open = guard(async id => {
+    await openBoard(id); render();
+    const canvas = window.aegis?.canvas;
+    if (canvas?.board.id === id && data.boards.find(b => b.id === id)?.boardParent) {
+      if (canvas.board.cards.length) canvas.frameIds(canvas.board.cards.map(c => c.id));
+      else { const stage = document.getElementById('stage'); canvas.setView({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
+    }
+  });
   async function refresh() {
     const version = ++refreshing, next = await host.get('/library');
     if (version !== refreshing) return;
@@ -33,6 +40,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     document.dispatchEvent(new CustomEvent('library-refreshed'));
   }
   function revealCurrent() {
+    if (homeAt !== undefined) return;
     const seen = new Set(), ancestors = [];
     let b = data.boards.find(b => b.id === current()); if (!b) return;
     while (b?.boardParent && !seen.has(b.id)) { seen.add(b.id); ancestors.push(b.boardParent); b = data.boards.find(x => x.id === b.boardParent); }
@@ -49,6 +57,11 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     while (b?.boardParent && !seen.has(b.id)) { seen.add(b.id); b = data.boards.find(x => x.id === b.boardParent); if (b) chain.unshift(b); }
     nav.innerHTML = chain.map(b => `<button data-open="${esc(b.id)}" title="Open ${esc(b.name)}">${esc(b.name)}</button><span>/</span>`).join('');
     nav.onclick = e => { const id = e.target.closest('[data-open]')?.dataset.open; if (id) open(id); };
+  }
+  function scopeRoot(id) {
+    let root = data.nodes.find(n => n.id === id); const seen = new Set();
+    while (root?.parent && !seen.has(root.id)) { seen.add(root.id); root = data.nodes.find(n => n.id === root.parent) ?? root; }
+    return root;
   }
   function render() {
     if (editing) return;
@@ -68,9 +81,13 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
       rows.push(`<div role="treeitem" class="tree-row node ${n.kind}${n.id === target ? ' target' : ''}" draggable="${n.kind === 'folder'}" data-node="${esc(n.id)}" style="--d:${depth}" aria-expanded="${isOpen}"><button class="twisty" tabindex="-1" aria-label="${isOpen ? 'Collapse' : 'Expand'}"><svg viewBox="0 0 10 10"><path d="M3.5 2 7 5 3.5 8"/></svg></button>${ICON[n.kind]}<span class="name">${esc(n.name)}</span></div>`);
       if (isOpen) { children(n.id).forEach(k => nodeRow(k, depth + 1)); boardsIn(n.id).forEach(b => boardRow(b, depth + 1)); }
     };
-    children(null).forEach(n => nodeRow(n, 0));
-    rows.push(`<div class="tree-sep${target === null ? ' target' : ''}" data-node="">Loose boards</div>`);
-    boardsIn(null).forEach(b => boardRow(b, 0));
+    const root = scopeRoot(homeAt !== undefined ? homeAt : data.boards.find(b => b.id === current())?.parent);
+    if (root) nodeRow(root, 0);
+    else {
+      children(null).forEach(n => nodeRow(n, 0));
+      rows.push(`<div class="tree-sep${target === null ? ' target' : ''}" data-node="">Loose boards</div>`);
+      boardsIn(null).forEach(b => boardRow(b, 0));
+    }
     tree.innerHTML = rows.join('');
   }
   const change = guard(async op => { const r = await host.post('/library', op); await refresh(); if (op.op === 'move' && current()) await open(current()); return r; });
@@ -89,6 +106,12 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     await host.post(isBoard(id) ? `/boards/${id}/delete` : '/library', isBoard(id) ? {} : { op: 'delete', id, recursive: true });
     await refresh(); if (current()) await open(current());
   }
+  async function saveName(id, value) {
+    if (isBoard(id)) {
+      await host.post(`/boards/${id}/name`, { name: value });
+      if (id === current()) document.dispatchEvent(new CustomEvent('board-renamed', { detail: value }));
+    } else await host.post('/library', { op: 'rename', id, name: value });
+  }
   function rename(id) {
     const row = [...tree.querySelectorAll('.tree-row')].find(r => (r.dataset.board || r.dataset.node) === id);
     const name = row?.querySelector('.name'); if (!name || editing) return;
@@ -99,12 +122,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
       if (done) return; done = true; name.onblur = null; name.contentEditable = 'false';
       const value = name.textContent.trim();
       try {
-        if (keep && value && value !== before) {
-          if (isBoard(id)) {
-            await host.post(`/boards/${id}/name`, { name: value });
-            if (id === current()) document.dispatchEvent(new CustomEvent('board-renamed', { detail: value }));
-          } else await host.post('/library', { op: 'rename', id, name: value });
-        }
+        if (keep && value && value !== before) await saveName(id, value);
       } finally { editing = null; await refresh(); }
     });
     name.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { ev.preventDefault(); finish(ev.key === 'Enter'); } };
@@ -125,7 +143,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     const modal = document.querySelector('.library-home[open]');
     (modal ?? document.body).append(menuEl);
     const items = [
-      { title: 'Rename', run: () => { if (modal) home.close(); revealItem(id); rename(id); } },
+      { title: 'Rename', run: () => { if (modal) return home.rename(id); revealItem(id); rename(id); } },
       { title: 'Move to…', run: () => menu.show(x + 20, y, destinations(id)) },
       { title: 'Duplicate', run: guard(async () => { const r = await host.post('/library/duplicate', { id }); await refresh(); if (isBoard(r.created)) await open(r.created); else { setTarget(r.created); expanded.add(r.created); saveOpen(); render(); } }) },
       { title: 'Delete', run: guard(() => remove(id)) },
@@ -138,7 +156,10 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     while (parent && !seen.has(parent)) { seen.add(parent); expanded.add(parent); parent = item(parent)?.boardParent ?? item(parent)?.parent; }
     saveOpen(); render();
   }
-  const home = createHome({ getData: () => data, load: id => host.get(`/boards/${id}`), open, create: guard(create), menu: showMenu, scope: setTarget });
+  const home = createHome({ getData: () => data, load: id => host.get(`/boards/${id}`), open, create: guard(create), menu: showMenu,
+    scope: id => { if (homeAt !== id) { const root = scopeRoot(id); if (root) expanded.add(root.id); } homeAt = id; setTarget(id); render(); },
+    onClose: () => { homeAt = undefined; lastCurrent = undefined; render(); },
+    cover: (id, cover) => change({ op: 'cover', id, cover }), rename: guard(async (id, value) => { await saveName(id, value); await refresh(); }), toast });
   const homeButton = document.createElement('button'); homeButton.className = 'library-home-button'; homeButton.textContent = 'Home'; homeButton.onclick = guard(async () => { await refresh(); home.show(); }); tree.before(homeButton);
   connectLibrary({ open: async id => { await refresh(); await open(id); }, load: id => host.get(`/boards/${id}`), create: body => host.post('/boards', body), rename: guard(async (id, name) => { await host.post(`/boards/${id}/name`, { name }); await refresh(); }) });
   tree.addEventListener('click', e => {

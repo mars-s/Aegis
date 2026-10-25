@@ -19,3 +19,8 @@
 
 .colour-settings .media-field { margin: 8px 0; }
 .colour-settings input[type=color] { width: 56px; height: 30px; padding: 2px; }
+
+.palette-menu { z-index: 10001; position: fixed; inset: auto; margin: 0; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--text); box-shadow: 0 6px 24px #0003; }
+.palette-menu { display: flex; flex-direction: column; gap: 3px; }
+.palette-menu button { text-align: left; font: inherit; font-size: 12px; padding: 7px 12px; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+.palette-menu button:hover, .palette-menu button:focus-visible { background: var(--hover); }

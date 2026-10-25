@@ -1,18 +1,18 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { boardPreview, escapeHtml as esc } from './preview.js';
 
-export function createHome({ getData, load, open, create, menu, scope }) {
+export function createHome({ getData, load, open, create, menu, scope, onClose, cover, rename, toast }) {
   const dialog = document.createElement('dialog'); dialog.className = 'library-home'; dialog.setAttribute('aria-label', 'All projects');
   document.body.append(dialog);
-  let at = null, generation = 0, returnFocus;
-  const close = () => { dialog.close(); returnFocus?.focus(); };
+  let at = null, generation = 0, returnFocus, coverFor, editing = false;
+  const close = () => { dialog.close(); onClose?.(); returnFocus?.focus(); };
   const path = () => {
     const out = [], seen = new Set(); let id = at;
     while (id && !seen.has(id)) { seen.add(id); const n = getData().nodes.find(n => n.id === id); if (!n) break; out.unshift(n); id = n.parent; }
     return out;
   };
   async function render() {
-    if (!dialog.open) return;
+    if (!dialog.open || editing) return;
     const version = ++generation, data = getData();
     if (at && !data.nodes.some(n => n.id === at)) at = null;
     scope(at);
@@ -24,9 +24,14 @@ export function createHome({ getData, load, open, create, menu, scope }) {
       do { previous = ids.size; data.nodes.forEach(n => { if (ids.has(n.parent)) ids.add(n.id); }); } while (ids.size !== previous);
       return data.boards.filter(b => ids.has(b.parent)).length;
     };
-    dialog.innerHTML = `<header><button data-action="back" ${at ? '' : 'disabled'}>Back</button><nav aria-label="Library breadcrumbs"><button data-into="">All projects</button>${chain.map(n => `<span>/</span><button data-into="${esc(n.id)}">${esc(n.name)}</button>`).join('')}</nav><button data-action="close">Back to board</button></header><div class="home-heading"><h1>${esc(here?.name ?? 'All projects')}</h1><div><button data-create="board">+ Board</button>${at ? '<button data-create="folder">+ Folder</button>' : '<button data-create="folder">+ Folder</button><button data-create="project">+ Project</button>'}</div></div><div class="home-tiles">${nodes.sort((a, b) => a.name.localeCompare(b.name)).map(n => `<button class="home-tile" data-into="${esc(n.id)}" data-item="${esc(n.id)}"><div class="home-preview" data-cover="${esc(n.id)}">${n.kind === 'project' ? 'Project' : 'Folder'}</div><strong>${esc(n.name)}</strong><small>${count(n.id)} boards</small></button>`).join('')}${boards.map(b => `<button class="home-tile" data-open="${esc(b.id)}" data-item="${esc(b.id)}"><div class="home-preview" data-preview="${esc(b.id)}"></div><strong>${esc(b.name)}</strong><small>${b.cards} cards</small></button>`).join('')}</div>${!nodes.length && !boards.length ? '<p class="muted">Nothing here yet. Create a board to get started.</p>' : ''}`;
+    const nodeTile = n => {
+      const tile = `<button class="home-tile" data-into="${esc(n.id)}" data-item="${esc(n.id)}"><div class="home-preview" data-cover="${esc(n.id)}">${n.cover ? `<img src="${esc(n.cover)}" alt="Cover for ${esc(n.name)}">` : n.kind === 'project' ? 'Project' : 'Folder'}</div><strong>${esc(n.name)}</strong><small>${count(n.id)} boards</small></button>`;
+      return n.kind === 'project' ? `<div class="home-project">${tile}<button class="home-cover-button" data-project-cover="${esc(n.id)}" aria-label="Cover for ${esc(n.name)}" aria-expanded="false">Cover</button><div class="home-cover-menu" data-cover-menu="${esc(n.id)}" hidden><button data-cover-choice="pick">Choose an image…</button><button data-cover-choice="board">Use the first board</button></div></div>` : tile;
+    };
+    dialog.innerHTML = `<header><button data-action="back" ${at ? '' : 'disabled'}>Back</button><nav aria-label="Library breadcrumbs"><button data-into="">All projects</button>${chain.map(n => `<span>/</span><button data-into="${esc(n.id)}">${esc(n.name)}</button>`).join('')}</nav><button data-action="close">Back to board</button></header><div class="home-heading"><h1>${esc(here?.name ?? 'All projects')}</h1><div><button data-create="board">+ Board</button>${at ? '<button data-create="folder">+ Folder</button>' : '<button data-create="folder">+ Folder</button><button data-create="project">+ Project</button>'}</div></div><div class="home-tiles">${nodes.sort((a, b) => a.name.localeCompare(b.name)).map(nodeTile).join('')}${boards.map(b => `<button class="home-tile" data-open="${esc(b.id)}" data-item="${esc(b.id)}"><div class="home-preview" data-preview="${esc(b.id)}"></div><strong>${esc(b.name)}</strong><small>${b.cards} cards</small></button>`).join('')}</div><input type="file" accept="image/*" data-cover-file aria-label="Choose a project cover" hidden>${!nodes.length && !boards.length ? '<p class="muted">Nothing here yet. Create a board to get started.</p>' : ''}`;
     const previews = [...dialog.querySelectorAll('[data-preview], [data-cover]')];
     await Promise.all(previews.map(async el => {
+      if (data.nodes.find(n => n.id === el.dataset.cover)?.cover) return;
       let id = el.dataset.preview;
       if (!id) {
         const inside = b => { let n = b.parent; const seen = new Set(); while (n && !seen.has(n)) { if (n === el.dataset.cover) return true; seen.add(n); n = data.nodes.find(x => x.id === n)?.parent; } return false; };
@@ -36,7 +41,38 @@ export function createHome({ getData, load, open, create, menu, scope }) {
       try { const b = await load(id); if (version === generation && el.isConnected) el.innerHTML = boardPreview(b); } catch { /* A deleted board has no preview. */ }
     }));
   }
+  const closeCoverMenus = () => {
+    dialog.querySelectorAll('[data-cover-menu]').forEach(el => { el.hidden = true; });
+    dialog.querySelectorAll('[data-project-cover]').forEach(el => el.setAttribute('aria-expanded', 'false'));
+  };
+  dialog.addEventListener('pointerdown', e => { if (!e.target.closest('.home-cover-menu, .home-cover-button')) closeCoverMenus(); });
+  dialog.addEventListener('change', async e => {
+    if (!e.target.matches('[data-cover-file]')) return;
+    const file = e.target.files[0], id = coverFor; if (!file || !id) return;
+    const url = URL.createObjectURL(file);
+    try {
+      const image = new Image(); image.src = url; await image.decode();
+      const scale = Math.min(1, 720 / image.naturalWidth), canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale)); canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+      await cover(id, canvas.toDataURL('image/jpeg', .86));
+    } catch (error) { toast(error.message || 'Could not read that image.'); }
+    finally { URL.revokeObjectURL(url); }
+  });
   dialog.addEventListener('click', async e => {
+    if (editing) return;
+    const coverButton = e.target.closest('[data-project-cover]');
+    if (coverButton) {
+      const menu = coverButton.parentElement.querySelector('[data-cover-menu]'), show = menu.hidden;
+      closeCoverMenus(); menu.hidden = !show; coverButton.setAttribute('aria-expanded', String(show)); return;
+    }
+    const choice = e.target.closest('[data-cover-choice]');
+    if (choice) {
+      coverFor = choice.closest('[data-cover-menu]').dataset.coverMenu; closeCoverMenus();
+      if (choice.dataset.coverChoice === 'board') await cover(coverFor, null);
+      else { const input = dialog.querySelector('[data-cover-file]'); input.value = ''; input.click(); }
+      return;
+    }
     const into = e.target.closest('[data-into]'); if (into) { at = into.dataset.into || null; return render(); }
     const board = e.target.closest('[data-open]'); if (board) { close(); return open(board.dataset.open); }
     const action = e.target.closest('[data-action]')?.dataset.action;
@@ -44,7 +80,21 @@ export function createHome({ getData, load, open, create, menu, scope }) {
     if (action === 'back') { at = getData().nodes.find(n => n.id === at)?.parent ?? null; render(); }
     const kind = e.target.closest('[data-create]')?.dataset.create; if (kind) { await create(kind, at); render(); }
   });
+  function editName(id) {
+    const tile = [...dialog.querySelectorAll('[data-item]')].find(el => el.dataset.item === id), field = tile?.querySelector('strong');
+    if (!field || editing) return;
+    const before = field.textContent; editing = true; field.contentEditable = 'plaintext-only'; field.focus(); getSelection()?.selectAllChildren(field);
+    let done = false;
+    const finish = async keep => {
+      if (done) return; done = true; field.onblur = null; field.contentEditable = 'false'; editing = false;
+      const value = field.textContent.trim();
+      if (keep && value && value !== before) await rename(id, value);
+      await render();
+    };
+    field.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); finish(e.key === 'Enter'); } };
+    field.onblur = () => finish(true);
+  }
   dialog.addEventListener('contextmenu', e => { const item = e.target.closest('[data-item]'); if (item) { e.preventDefault(); menu(e.clientX, e.clientY, item.dataset.item); } });
-  addEventListener('keydown', e => { if (dialog.open && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } }, true);
-  return { show() { returnFocus = document.activeElement; at = null; dialog.showModal(); render(); }, refresh: render, close };
+  addEventListener('keydown', e => { if (dialog.open && !editing && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } }, true);
+  return { show() { returnFocus = document.activeElement; at = null; dialog.showModal(); render(); }, refresh: render, close, rename: editName };
 }

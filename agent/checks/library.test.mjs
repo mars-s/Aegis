@@ -43,6 +43,7 @@ test('only empty folders can be deleted', () => {
 import { duplicateLibrary, deleteLibrary, moveLibraryBoard, libraryContents, createLibraryActions } from '../library.mjs';
 import { emptyBoard, applyBatch } from '../../app/src/lib/board/commands.js';
 import '../../app/src/lib/board/types/library.js';
+import '../../app/src/lib/board/types/editing.js';
 import '../../app/src/lib/board/types/media.js';
 import { templateCommands, frameworks, starters } from '../../app/src/features/library/templates.js';
 const ids = () => { let n = 0; return () => (++n).toString(16).padStart(8, '0'); };
@@ -172,4 +173,55 @@ test('new library items use distinct names within their scope', () => {
   const { lib, step, p } = make();
   step({ op: 'create', kind: 'folder', name: 'Ideas', parent: p });
   assert.ok(lib().nodes.some(n => n.name === 'Ideas 2'));
+});
+
+
+test('project covers can be saved and cleared without changing other library data', () => {
+  const { lib, p, f } = make(), before = structuredClone(lib());
+  const jpeg = 'data:image/jpeg;base64,/9j/2Q==';
+  const saved = applyLibraryOp(lib(), { op: 'cover', id: p, cover: jpeg });
+  assert.equal(saved.ok, true);
+  assert.equal(saved.library.nodes.find(n => n.id === p).cover, jpeg);
+  assert.deepEqual(lib(), before);
+  const cleared = applyLibraryOp(saved.library, { op: 'cover', id: p, cover: null });
+  assert.equal('cover' in cleared.library.nodes.find(n => n.id === p), false);
+  assert.deepEqual(cleared.library, before);
+  assert.equal(applyLibraryOp(lib(), { op: 'cover', id: f, cover: jpeg }).ok, false);
+  for (const cover of ['https://example.com/image.jpg', 'data:image/svg+xml;base64,PHN2Zz4=', {}, 'data:image/jpeg;base64,abc!']) {
+    assert.equal(applyLibraryOp(lib(), { op: 'cover', id: p, cover }).ok, false);
+  }
+});
+
+test('Brain dump starts with two board cards and five separate Unsorted notes', () => {
+  for (const key of Object.keys(starters)) {
+    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
+    assert.equal(result.ok, true);
+    if (key === 'Brain dump') {
+      assert.equal(result.board.cards.length, 2);
+      assert.equal(result.board.tray.length, 5);
+      assert.ok(result.board.tray.every(c => c.type === 'note' && c.text && c.id && !c.parent));
+      assert.equal(new Set([...result.board.cards, ...result.board.tray].map(c => c.id)).size, 7);
+    } else assert.deepEqual(result.board.tray, []);
+  }
+});
+
+test('framework groups are ordinary collections with laid-out members in reading order', () => {
+  for (const [key, framework] of Object.entries(frameworks)) {
+    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
+    assert.equal(result.ok, true);
+    assert.equal(result.board.cards.some(c => c.type === 'template-group'), false);
+    const collections = result.board.cards.filter(c => c.type === 'coll');
+    assert.equal(collections.length, framework.items.filter(it => it.t === 'group').length);
+    for (const coll of collections) {
+      assert.equal(coll.props.cols, 1);
+      const notes = coll.props.kids.map(id => result.board.cards.find(c => c.id === id));
+      assert.ok(notes.length);
+      notes.forEach((note, i) => {
+        assert.equal(note.parent, coll.id);
+        assert.ok(note.x >= coll.x && note.x + note.w <= coll.x + coll.w);
+        assert.ok(note.y > coll.y && note.y + note.h <= coll.y + coll.h);
+        if (i) assert.ok(note.y > notes[i - 1].y + notes[i - 1].h);
+      });
+    }
+  }
 });

@@ -27,7 +27,7 @@ export async function exportBoard(ctx, selection = false, format = 'png') {
     const root = document.createElement('div'); root.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml'); root.className = 'editing-export'; Object.assign(root.style, { width: `${width}px`, height: `${height}px`, position: 'relative', background: canvas.board.bg || getComputedStyle(document.documentElement).getPropertyValue('--bg') || '#fff' });
     root.style.font = getComputedStyle(document.body).font; root.style.color = getComputedStyle(document.body).color;
     const css = [...document.styleSheets].flatMap(sheet => { try { return [...sheet.cssRules].map(rule => rule.cssText); } catch { return []; } }).join('\n');
-    const style = document.createElement('style'); style.textContent = css + '\n.editing-export .card { position:absolute!important; opacity:1!important; pointer-events:none!important; } .editing-export .resize,.editing-export .drag-strip,.editing-export .ghost,.editing-export .remove-item,.editing-export .add-item{display:none!important}'; root.append(style);
+    const style = document.createElement('style'); style.textContent = css + '\n.editing-export .card { position:absolute!important; opacity:1!important; pointer-events:none!important; } .editing-export .resize,.editing-export .drag-strip,.editing-export .ghost,.editing-export .remove-item,.editing-export .add-item,.editing-export button,.editing-export .media-actions,.editing-export .recorder-choices,.editing-export .device-choices,.editing-export input[type=file],.editing-export select{display:none!important}'; root.append(style);
     const variables = getComputedStyle(document.documentElement); for (let i = 0; i < variables.length; i++) { const key = variables[i]; if (key.startsWith('--')) root.style.setProperty(key, variables.getPropertyValue(key)); }
     const links = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); links.setAttribute('width', String(width)); links.setAttribute('height', String(height)); Object.assign(links.style, { position: 'absolute', inset: '0', overflow: 'visible' });
     const ids = new Set(cards.map(c => c.id));
@@ -41,18 +41,74 @@ export async function exportBoard(ctx, selection = false, format = 'png') {
 
     }
     root.append(links);
+    const output = document.createElement('canvas'); output.width = Math.ceil(width * scale); output.height = Math.ceil(height * scale); const drawing = output.getContext('2d'); drawing.fillStyle = canvas.board.bg || '#ffffff'; drawing.fillRect(0, 0, output.width, output.height);
+    const raster = async (element, w, h) => {
+      const markup = new XMLSerializer().serializeToString(element), svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(w * scale)}" height="${Math.ceil(h * scale)}" viewBox="0 0 ${w} ${h}"><foreignObject width="${w}" height="${h}">${markup}</foreignObject></svg>`;
+      const image = new Image(); await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Could not render the export')); image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); }); return image;
+    };
+    drawing.drawImage(await raster(root, width, height), 0, 0);
     for (const card of cards) {
-      const original = canvas.exportCard(card); rendered.push(original); await new Promise(resolve => requestAnimationFrame(resolve)); const el = original.cloneNode(true); el.classList.remove('selected', 'glow', 'agent-ring'); el.querySelectorAll('input[type=checkbox]').forEach((box, i) => { if (card.items?.[i]?.done) box.setAttribute('checked', ''); else box.removeAttribute('checked'); }); el.style.transform = `translate(${card.x - b.x}px, ${card.y - b.y}px) rotate(${card.rot || 0}deg)`;
-      for (const image of el.querySelectorAll('img')) { try { const response = await fetch(image.src); if (!response.ok) throw new Error('image'); const blob = await response.blob(); image.src = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); }); } catch { image.removeAttribute('src'); image.alt = 'Image unavailable in export'; } }
-      el.querySelectorAll('iframe,video,audio').forEach(node => { const placeholder = document.createElement('p'); placeholder.textContent = card.text || card.url || card.type; node.replaceWith(placeholder); });
-      root.append(el);
+      const mounted = canvas.mountedEl(card.id), original = mounted || canvas.exportCard(card); if (!mounted) rendered.push(original);
+      const el = original.cloneNode(true); el.classList.remove('selected', 'glow', 'agent-ring');
+      el.querySelectorAll('input[type=checkbox]').forEach((box, i) => { if (card.items?.[i]?.done) box.setAttribute('checked', ''); else box.removeAttribute('checked'); });
+      const media = await prepareExportCard(el, original, card, ctx.host.assetUrl);
+      const layer = root.cloneNode(false), pad = 40, w = card.w + pad * 2, h = card.h + pad * 2;
+      layer.append(style.cloneNode(true)); Object.assign(layer.style, { width: `${w}px`, height: `${h}px`, background: 'transparent', position: 'relative', left: '0', top: '0', pointerEvents: 'none' }); layer.setAttribute('aria-hidden', 'true');
+      el.style.transform = `translate(${pad}px, ${pad}px)`; layer.append(el);
+      const measure = document.createElement('div'); Object.assign(measure.style, { position: 'fixed', left: '-100000px', top: '0', pointerEvents: 'none' }); measure.append(layer); document.body.append(measure);
+      try {
+        // Read media geometry once, before serialisation or drawing. The card is upright here.
+        const r = layer.getBoundingClientRect();
+        const overlays = media.map(({ node, image }) => {
+          const box = node.getBoundingClientRect(), css = getComputedStyle(node), viewport = node.closest('.image-viewport'), clip = viewport?.getBoundingClientRect();
+          return { image, x: box.left - r.left, y: box.top - r.top, w: box.width, h: box.height, fit: css.objectFit, mirror: css.transform.startsWith('matrix(-1'), clip: clip ? { x: clip.left - r.left, y: clip.top - r.top, w: clip.width, h: clip.height } : null };
+        });
+        const cardCanvas = document.createElement('canvas'); cardCanvas.width = Math.ceil(w * scale); cardCanvas.height = Math.ceil(h * scale); const paint = cardCanvas.getContext('2d'); paint.drawImage(await raster(layer, w, h), 0, 0); paint.scale(scale, scale);
+        for (const media of overlays) drawMedia(paint, media);
+        drawing.save(); drawing.translate((card.x - b.x + card.w / 2) * scale, (card.y - b.y + card.h / 2) * scale); drawing.rotate((card.rot || 0) * Math.PI / 180); drawing.drawImage(cardCanvas, -(card.w / 2 + pad) * scale, -(card.h / 2 + pad) * scale); drawing.restore();
+      } finally { measure.remove(); }
     }
-    const markup = new XMLSerializer().serializeToString(root), svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(width * scale)}" height="${Math.ceil(height * scale)}" viewBox="0 0 ${width} ${height}"><foreignObject width="${width}" height="${height}">${markup}</foreignObject></svg>`;
-    const image = new Image(); await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = () => reject(new Error('Could not render the export')); image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
-    const output = document.createElement('canvas'); output.width = Math.ceil(width * scale); output.height = Math.ceil(height * scale); const drawing = output.getContext('2d'); drawing.fillStyle = '#ffffff'; drawing.fillRect(0, 0, output.width, output.height); drawing.drawImage(image, 0, 0);
     const blob = format === 'pdf' ? imagePdf(output.toDataURL('image/jpeg', .95), output.width, output.height) : await new Promise(resolve => output.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('Could not encode the export');
     const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = `${(canvas.board.name || 'Board').replace(/[^a-z0-9 _-]/gi, '')}${selection ? '-selection' : ''}.${format}`; a.click(); setTimeout(() => URL.revokeObjectURL(url), 5000); toast('Export downloaded');
   } catch (error) { toast(error.message || 'Could not export this board'); }
   finally { rendered.forEach(el => canvas.releaseCard(el)); }
+}
+
+async function dataImage(url) {
+  const response = await fetch(url); if (!response.ok) throw new Error('Could not load an image for export');
+  const blob = await response.blob();
+  const src = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(blob); });
+  const image = new Image(); image.src = src; await image.decode(); return image;
+}
+async function videoFrame(video) {
+  if (video.readyState < 2) await new Promise(resolve => { const done = () => { clearTimeout(timer); video.removeEventListener('loadeddata', done); video.removeEventListener('error', done); resolve(); }; const timer = setTimeout(done, 4000); video.addEventListener('loadeddata', done); video.addEventListener('error', done); video.preload = 'auto'; video.load(); });
+  if (!video.videoWidth) return null;
+  try { const frame = document.createElement('canvas'); frame.width = video.videoWidth; frame.height = video.videoHeight; frame.getContext('2d').drawImage(video, 0, 0); const image = new Image(); image.src = frame.toDataURL('image/png'); await image.decode(); return image; } catch { return null; }
+}
+export async function prepareExportCard(el, original, card, resolveUrl = url => url) {
+  const media = [];
+  for (const [i, video] of [...el.querySelectorAll('video')].entries()) {
+    const source = original.querySelectorAll('video')[i], poster = video.poster || card.props?.poster;
+    const image = poster ? await dataImage(resolveUrl(poster)) : await videoFrame(source);
+    if (image) { const node = document.createElement('img'); node.className = video.className + ' media-poster'; node.style.cssText = video.style.cssText; node.src = image.src; node.alt = card.text || 'Video poster'; video.replaceWith(node); media.push({ node, image }); }
+    else { const placeholder = document.createElement('p'); placeholder.textContent = card.text || 'Video'; video.replaceWith(placeholder); }
+  }
+  const posters = new Set(media.map(m => m.node));
+  for (const node of el.querySelectorAll('img')) {
+    if (posters.has(node)) continue;
+    const image = await dataImage(node.src); node.src = image.src; node.loading = 'eager'; media.push({ node, image });
+  }
+  el.querySelectorAll('input:not([type=checkbox]),textarea').forEach(node => { const text = document.createElement('span'); text.className = node.className; text.textContent = node.value; node.replaceWith(text); });
+  el.querySelectorAll('button,select,.media-actions,.recorder-choices,.device-choices,.resize,.drag-strip,.remove-item,.add-item').forEach(node => node.remove());
+  el.querySelectorAll('[contenteditable]').forEach(node => node.removeAttribute('contenteditable'));
+  el.querySelectorAll('iframe,audio').forEach(node => { const text = document.createElement('p'); text.textContent = card.text || card.url || card.type; node.replaceWith(text); });
+  return media;
+}
+function drawMedia(paint, media) {
+  const { image, x, y, w, h, fit, mirror, clip } = media; if (!w || !h) return;
+  const iw = image.naturalWidth, ih = image.naturalHeight, ratio = fit === 'cover' ? Math.max(w / iw, h / ih) : fit === 'contain' ? Math.min(w / iw, h / ih) : null;
+  const dw = ratio === null ? w : iw * ratio, dh = ratio === null ? h : ih * ratio;
+  paint.save(); paint.beginPath(); const c = clip || { x, y, w, h }; paint.rect(c.x, c.y, c.w, c.h); paint.clip();
+  paint.translate(x + w / 2, y + h / 2); if (mirror) paint.scale(-1, 1); paint.drawImage(image, -dw / 2, -dh / 2, dw, dh); paint.restore();
 }

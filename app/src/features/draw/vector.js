@@ -15,7 +15,7 @@ export function vectorEditor(ctx, layer, settings, changed) {
     const points = draft; draft = []; lastTap = null; placing = null; hover = null; layer.replaceChildren();
     if (points.length < 2) return;
     const box = fitPoints(points);
-    ctx.apply([{ op: 'create', type: 'path', x: box.x, y: box.y, w: box.w, h: box.h, ref: 'path', props: { points: box.points, ow: box.w, oh: box.h, closed: closed && points.length > 2, stroke: settings.stroke, sw: settings.sw, fill: closed ? settings.fill : 'none' } }], ids => ctx.canvas.select([ids.path]));
+    ctx.apply([{ op: 'create', type: 'path', x: box.x, y: box.y, w: box.w, h: box.h, ref: 'path', props: { points: box.points, ow: box.w, oh: box.h, closed: closed && points.length > 2, stroke: settings.stroke, sw: settings.sw, sdash: settings.sdash, dl: settings.dl, dg: settings.dg, fill: closed ? settings.fill : 'none' } }], ids => ctx.canvas.select([ids.path]));
   }
   function endEdit() { editing = null; drag = null; layer.replaceChildren(); changed(); }
   function commit() {
