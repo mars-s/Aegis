@@ -1,6 +1,8 @@
 // @ts-nocheck -- moved from the plain-JS app as it was; new code lives in typed modules beside it.
 // Aegis app: boards, composer, agents and settings, talking to the local agent host.
 import { mountAgents } from './features/agents/index.js';
+// PM6 finding 1: GET and event updates share one per-agent ordering gate.
+import { createAgentState } from './features/agents/state.js';
 import { defaultStatusModel, modelChoice, modelValue } from './features/agents/models.js';
 import { createCanvas } from './canvas/engine.js';
 import { applyBatch } from './lib/board/commands.js';
@@ -344,14 +346,15 @@ async function loadModels() {
 }
 
 // ---------- agents ----------
-const agentState = new Map();
+const agentState = createAgentState();
 // Round 2 agents: identity comes from names and line styles, always in data blue.
 const lineStyleOf = id => ['solid', 'dashed', 'dotted'][[...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0) % 3];
 function showAgents(on, instant = false) { $('agentsPanel').hidden = false; panels.setOpen('right', on, instant); $('agentsBtn').setAttribute('aria-pressed', String(on)); }
 $('agentsBtn').onclick = e => showAgents(!panels.isOpen('right'), e.detail === 0);
 $('closeAgents').onclick = () => showAgents(false);
 async function refreshAgents() {
-  for (const a of await host.get(`/agents?board=${canvas.board.id}`)) agentState.set(a.id, a);
+  const read = agentState.beginRead();
+  for (const a of await host.get(`/agents?board=${canvas.board.id}`)) agentState.mergeSnapshot(a, read);
   renderAgents();
 }
 function renderAgents() {
@@ -408,12 +411,15 @@ function listen() {
       boardEvents = boardEvents.then(() => agentBoardEvent(ev)).catch(e => toast(`Could not update the board: ${e.message}`));
       // end item 10
     }
-    if (ev.type === 'agent') { agentState.set(ev.id, ev); renderAgents(); }
+    if (ev.type === 'agent' && agentState.mergeEvent(ev)) renderAgents();
     if (ev.type === 'auth') { renderAccounts(); loadModels(); }
     if (ev.type === 'library') library.refresh();
   };
   // item 10: SSE has no replay buffer, so reconcile once after reconnecting.
-  es.onopen = () => { boardEvents = boardEvents.then(() => reloadBoard()).catch(() => {}); };
+  es.onopen = () => {
+    boardEvents = boardEvents.then(() => reloadBoard()).catch(() => {});
+    refreshAgents().catch(() => {});
+  };
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
   // end item 10
 }

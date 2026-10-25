@@ -6,6 +6,8 @@ import { sandboxDocument, SANDBOX_HEADER_CSP } from '../app/src/objects/kinds/ht
 import { checkObject } from '../app/src/lib/board/objects.js';
 // item 12 sandbox end
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
+// PM6 finding 1: version the canonical agent view for both events and GET responses.
+import { createAgentRevisions } from './status.mjs';
 // item 9: publish durable conversation replies to the island and agent windows.
 import { conversationFromView, displayBrief } from './status.mjs';
 // Round 2 history: passive transcript entries do not enter model context.
@@ -126,7 +128,7 @@ async function commit(boardId, batch, author, expectedRev) {
     }
     broadcast({ type: 'board', boardId, baseRev: board.rev, rev: result.board.rev, patch, author, touched: result.touched, focus: result.board.focus ?? null, sentAt: Date.now() });
     // Round 3 Undo: person edits also refresh the request's availability in both timelines.
-    for (const [id, view] of watching) if (run.get(id)?.boardId === boardId) broadcast({ type: 'agent', ...summarise(id, view.value) });
+    for (const id of watching.keys()) if (run.get(id)?.boardId === boardId) broadcast({ type: 'agent', ...summarise(id) });
     timing({ kind: 'batch', boardId, commands: batch.commands.length, loadMs: loaded - started, applyMs: applied - loaded, saveMs: saved - applied, totalMs: performance.now() - started });
     return { ok: true, rev: result.board.rev, created: result.created };
   });
@@ -559,7 +561,7 @@ function waitForIdle(id, ms = 15 * 60 * 1000) {
       const v = view.value; const live = v?.docs?.['pi.live'];
       if (live?.run) { seenRun = true; return; }
       if (!seenRun && !(v?.entries ?? []).some(e => e.kind === 'pi.assistant' || e.kind === 'pi.error')) return;
-      clearTimeout(timer); off(); resolve(summarise(id, v));
+      clearTimeout(timer); off(); resolve(summarise(id));
     };
     const off = view.subscribe(check); check();
   });
@@ -648,11 +650,17 @@ const harness = await Harness.open(storage, {
 }, context);
 const runsPath = join(DATA, 'runs.json');
 for (const [k, v] of Object.entries(await readJson(runsPath, {}))) run.set(k, v);
+// PM6 finding 1: reserve a range before resuming, so revisions survive a host restart.
+const revisionPath = join(DATA, 'agent-revisions.json');
+const revisionEpoch = (await readJson(revisionPath, 0)) + 1;
+await atomicJson(revisionPath, revisionEpoch);
+const agentRevisions = createAgentRevisions({ base: revisionEpoch * 2 ** 32 });
 harness.resume();
 
 // ---------- agent runs ----------
 const watching = new Map();
 const statuses = new Map();
+const watchRequests = new Map();
 // Round 2 history: compaction trims the live view, so retain the full passive ledger.
 const requestEntries = new Map();
 function historyEntriesOf(id, value = {}) {
@@ -694,27 +702,33 @@ async function statusFor(id, activity) {
 }
 async function watchRun(conversation) {
   const key = String(conversation.id); if (watching.has(key)) return;
+  if (!watchRequests.has(key)) watchRequests.set(key, attachRun(conversation).finally(() => watchRequests.delete(key)));
+  await watchRequests.get(key);
+}
+async function attachRun(conversation) {
+  const key = String(conversation.id);
   const view = await conversation.viewState(context);
-  watching.set(key, view);
   let cursor;
   do {
     const page = await conversation.entries({ order: 'ascending' }, 256, cursor, context);
     historyEntriesOf(key, { entries: page.items }); cursor = page.next;
   } while (cursor);
-  let last = '';
+  watching.set(key, view);
+  let last = 0;
   const tracker = createStatusTracker({ summarise: activity => statusFor(key, activity), publish: status => {
-    statuses.set(key, status); broadcast({ type: 'agent', ...summarise(key, view.value) });
+    statuses.set(key, status); broadcast({ type: 'agent', ...summarise(key) });
   } });
   view.subscribe(value => {
     trackRequestEnds(conversation, { entries: historyEntriesOf(key, value) });
     if (value.docs?.['pi.live']?.run) tracker.update(activityOf(key, value));
     else tracker.stop();
-    const s = summarise(key, value); const sig = JSON.stringify(s);
-    if (sig !== last) { last = sig; broadcast({ type: 'agent', ...s }); }
+    const s = summarise(key);
+    if (s.revision !== last) { last = s.revision; broadcast({ type: 'agent', ...s }); }
   });
   trackRequestEnds(conversation, { entries: historyEntriesOf(key, view.value) });
 }
-function summarise(id, value) {
+function summarise(id) {
+  const value = watching.get(id)?.value ?? {};
   const live = value.docs?.['pi.live']; const meta = run.get(id) ?? {};
   const entries = value.entries ?? [];
   // item 9: retain complete final answers and chat history, not a truncated status excerpt.
@@ -724,10 +738,10 @@ function summarise(id, value) {
   const partial = live?.generation?.message?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
   // fix1: clean legacy briefs before every chat, title and activity display.
-  return { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
+  return agentRevisions.snapshot(id, { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
     // item 9
-    ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }, historyBoards.get(meta.boardId)), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
+    ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }, historyBoards.get(meta.boardId)), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null });
     // item 9 end
 }
 async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, parent, title }) {
@@ -773,7 +787,7 @@ async function stop(id) {
     const meta = run.get(String(id)); if (meta) meta.stopped = true;
     await conversation.abort(context);
     await atomicJson(runsPath, Object.fromEntries(run));
-    const view = watching.get(String(id)); if (view) broadcast({ type: 'agent', ...summarise(String(id), view.value) });
+    if (watching.has(String(id))) broadcast({ type: 'agent', ...summarise(String(id)) });
   }
 }
 async function agents(boardId) {
@@ -784,8 +798,8 @@ async function agents(boardId) {
     const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
     if (!conversation) continue;
     await watchRun(conversation);
-    const view = await conversation.viewState(context);
-    try { out.push(summarise(id, view.value)); } finally { view.dispose(); }
+    // PM6 finding 1: a second view may lag behind completion already seen by the watcher.
+    out.push(summarise(id));
   }
   return out;
 }

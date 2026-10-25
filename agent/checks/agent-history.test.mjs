@@ -95,9 +95,10 @@ test('real multi-batch history and per-request Undo survive a durable host resta
     const [{ id }] = await call('/agents', { boardId: board.id, model, brief });
     let agent = await done(board.id, 1);
     assert.equal(agent.history[0].canUndo, true); assert.equal(agent.history[0].changes.length, 3);
-    const history = agent.history;
+    const history = agent.history, revision = agent.revision;
     host.kill(); await once(host, 'exit'); await start();
     agent = (await call('/agents?board=' + board.id))[0];
+    assert.ok(agent.revision > revision, 'revisions keep increasing after a host restart');
     assert.deepEqual(agent.history, history); assert.equal(agent.turns[0].text, brief);
     host.kill(); await once(host, 'exit');
     const storage = await openNodeSqliteStorage(join(data, 'agents.sqlite'));

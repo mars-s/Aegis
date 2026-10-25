@@ -8,6 +8,8 @@ all.push('polish');
 all.push('pan');
 // PM5: menu containment and collision-free spatial agent recovery.
 all.push('agent-edges');
+// PM6 finding 1: completion must survive an older in-flight agent read.
+all.push('agent-race');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

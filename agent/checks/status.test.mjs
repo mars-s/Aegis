@@ -62,8 +62,17 @@ test('the real host broadcasts fake status while running, retains the model choi
     finally { clearTimeout(timeout); }
     assert.ok(received.includes(FAKE_STATUS)); assert.match(received, /"running":true/);
     const [agent] = await call('/agents?board=' + board.id); assert.deepEqual(agent.statusModel, model); assert.equal(agent.status, FAKE_STATUS);
+    // PM6 finding 1: real SSE updates and GET snapshots use the same revision sequence.
+    const updates = received.split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6))).filter(event => event.type === 'agent' && event.id === id);
+    assert.ok(updates.length > 1);
+    for (let i = 0; i < updates.length; i++) {
+      assert.ok(Number.isSafeInteger(updates[i].revision));
+      if (i) assert.ok(updates[i].revision > updates[i - 1].revision);
+    }
+    assert.equal(agent.revision, updates.at(-1).revision, 'an unchanged GET reuses the latest event revision');
     await call(`/agents/${id}/stop`, {});
     let stopped; for (let i = 0; i < 50; i++) { [stopped] = await call('/agents?board=' + board.id); if (!stopped.running) break; await new Promise(r => setTimeout(r, 50)); }
     assert.equal(stopped.running, false); assert.equal(stopped.status, 'Stopped');
+    assert.ok(stopped.revision > agent.revision);
   } finally { abort.abort(); child.kill(); }
 });
