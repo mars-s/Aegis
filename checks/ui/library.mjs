@@ -14,7 +14,7 @@ const errors = [], checks = [];
 const check = s => { checks.push(s); console.log('PASS', s); };
 const ready = proc => new Promise((resolve, reject) => {
   let out = ''; const timeout = setTimeout(() => reject(new Error('Server startup timed out: ' + out)), 20000);
-  proc.stdout.on('data', d => { out += d; const found = /"port":(\d+)/.exec(out) ?? /Local:.*:(5185)/.exec(out); if (found) { clearTimeout(timeout); resolve(found[1]); } });
+  proc.stdout.on('data', d => { out += d; const found = /"port":(\d+)/.exec(out) ?? new RegExp(`Local:.*:(${5185 + PORT_OFFSET})`).exec(out); if (found) { clearTimeout(timeout); resolve(found[1]); } });
   proc.stderr.on('data', d => { out += d; }); proc.on('exit', code => { clearTimeout(timeout); reject(new Error('Server exited ' + code + ': ' + out)); });
 });
 try {
