@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'library-smoke-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-library-'));
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
@@ -18,7 +19,7 @@ const ready = proc => new Promise((resolve, reject) => {
 });
 try {
   const port = await ready(host);
-  vite = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', '5185', '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' }); await ready(vite);
+  vite = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', String(5185 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' }); await ready(vite);
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
@@ -33,7 +34,7 @@ try {
     const field = row(id).locator('.name'); await field.fill(name); await field.press(cancel ? 'Escape' : 'Enter');
     await page.waitForFunction(() => !document.querySelector('.tree-row [contenteditable="plaintext-only"]'));
   };
-  await page.goto(`http://127.0.0.1:5185/?port=${port}&token=${token}`);
+  await page.goto(`http://127.0.0.1:${5185 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.locator('#toast').evaluate(el => { el.hidden = true; });
   const original = await board();

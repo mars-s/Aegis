@@ -5,6 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, appendFileSync, cpSync, symlinkSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `docs-${process.pid}`;
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-docs-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
@@ -13,7 +14,7 @@ const port = await new Promise((resolve, reject) => { host.stdout.on('data', d =
 const ui = mkdtempSync(join(tmpdir(), 'aegis-docs-ui-'));
 for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
-const vite = spawn('npx', ['vite', '--port', '5181', '--strictPort'], { cwd: ui, stdio: 'pipe' });
+const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light', acceptDownloads: true }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -26,7 +27,7 @@ let docId;
 try {
   await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.stderr.on('data', d => { if (/error/i.test(String(d))) reject(new Error(String(d))); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
   if (process.env.AEGIS_DOCS_ISOLATED) await page.route('**/src/features/index.ts', route => route.fulfill({ contentType: 'text/javascript', body: "import '/src/lib/board/types/index.js'; import '/src/features/docs/index.ts';" }));
-  await page.goto(`http://localhost:5181/?port=${port}&token=${token}`);
+  await page.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   await page.locator('[data-tool=doc]').click();
   await page.locator('#stage').click({ position: { x: 590, y: 260 } });
@@ -167,7 +168,7 @@ try {
   const nativePage = await browser.newPage();
   await nativePage.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
-  await nativePage.goto(`http://localhost:5181/?port=${port}&token=${token}`);
+  await nativePage.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   const nativePrint = await nativePage.evaluate(async () => {
     const { printPDF } = await import('/src/features/docs/export.js');
     await printPDF({ getJSON: () => ({ content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Native body' }] }] }), getHTML: () => '<p>Native body</p>' }, 'Native title', 'letter');

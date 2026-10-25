@@ -5,17 +5,18 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'parity-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-parity-'));
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT:'0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL:'1' }, stdio:['ignore','pipe','pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve,reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if(m) resolve(m[1]); }); host.on('exit', reject); });
-const vite = spawn('npx', ['vite','--port','5187','--strictPort'], {cwd:repo+'/app',stdio:'pipe'});
+const vite = spawn('npx', ['vite','--port',String(5187 + PORT_OFFSET),'--strictPort'], {cwd:repo+'/app',stdio:'pipe'});
 await new Promise((resolve,reject) => {vite.stdout.on('data',d=> { if(/Local/.test(String(d))) resolve(); }); vite.on('exit',reject);});
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport:{width:390,height:844}, hasTouch:true, isMobile:true, deviceScaleFactor:1 });
 let page = await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
-const url = `http://127.0.0.1:5187/?port=${port}&token=${token}`;
+const url = `http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${token}`;
 const waitSaved = async () => {await page.waitForFunction(()=>document.getElementById('saveState').textContent==='saved'); return page.evaluate(()=>aegis.host.get(`/boards/${aegis.canvas.board.id}`));};
 const log = (...a)=>console.log(...a);
 try {

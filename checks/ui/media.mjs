@@ -5,6 +5,7 @@ import { mkdtempSync, writeFileSync, cpSync, symlinkSync, existsSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'media-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-media-smoke-'));
 const host = spawn(process.execPath, ['--no-warnings','server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
@@ -15,7 +16,7 @@ const ui = mkdtempSync(join(tmpdir(), 'aegis-media-ui-'));
 for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
 console.log('Testing complete UI snapshot: ' + ui);
-const vite = spawn('npx', ['vite','--port','5183','--strictPort'], { cwd: ui });
+const vite = spawn('npx', ['vite','--port',String(5183 + PORT_OFFSET),'--strictPort'], { cwd: ui });
 await new Promise((accept, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) accept(); }); vite.once('exit', reject); });
 const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream'] });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, permissions: ['camera','microphone'], colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -27,7 +28,7 @@ const log = message => console.log(message);
 const centreCard = async type => { await page.evaluate(type => { const card = aegis.canvas.board.cards.find(c => c.type === type); aegis.canvas.frameIds([card.id], 1); }, type); await page.waitForTimeout(400); };
 const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.locator(`[data-tool="${name}"]`).click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
 try {
-  await page.goto(`http://127.0.0.1:5183/?port=${port}&token=${TOKEN}`);
+  await page.goto(`http://127.0.0.1:${5183 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   await tool('swatch');
   await page.getByLabel('Hex', { exact: true }).fill('#87ceeb'); await page.getByLabel('Hex', { exact: true }).press('Tab');

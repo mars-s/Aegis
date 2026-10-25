@@ -4,11 +4,12 @@ import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs'; import { tmpdir } from 'node:os'; import { join } from 'node:path';
 import assert from 'node:assert/strict';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'types-' + process.pid;
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-types-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((ok, no) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) ok(m[1]); }); host.on('exit', no); });
-const vite = spawn('npx', ['vite', '--port', '5188', '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
+const vite = spawn('npx', ['vite', '--port', String(5188 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
 await new Promise((ok, no) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) ok(); }); vite.on('exit', no); });
 const browser = await chromium.launch(); const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
 await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -29,7 +30,7 @@ const batch = [
 
 ];
 try {
-  await page.goto(`http://127.0.0.1:5188/?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await page.goto(`http://127.0.0.1:${5188 + PORT_OFFSET}/?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
   const boardId = await page.evaluate(() => aegis.canvas.board.id);
   const r = await page.evaluate(([boardId, brief]) => aegis.host.post('/agents', { boardId, brief, model: { provider: 'fake', modelId: 'fake' }, count: 1 }), [boardId, 'FAKE ' + JSON.stringify(batch)]);
   assert.ok(r[0]?.id, JSON.stringify(r));

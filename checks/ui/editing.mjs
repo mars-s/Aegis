@@ -5,11 +5,12 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'editing-' + process.pid;
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-editing-')), AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
 host.stderr.on('data', d => process.stderr.write(String(d)));
 const port = await new Promise(r => host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) r(m[1]); }));
-const vite = spawn('npx', ['vite', '--port', '5187', '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
+const vite = spawn('npx', ['vite', '--port', String(5187 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
 await new Promise((r, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) r(); }); vite.on('exit', reject); });
 const browser = await chromium.launch(); const context = await browser.newContext({ viewport: { width: 1600, height: 1100 }, permissions: ['clipboard-read', 'clipboard-write'], reducedMotion: 'reduce' }); const page = await context.newPage(); const errors = []; page.on('pageerror', e => errors.push(e.message));
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
@@ -22,7 +23,7 @@ const clickControl = async name => (await reveal(page.getByRole('button', { name
 const saved = async () => { await page.waitForFunction(async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.rev === aegis.canvas.board.rev; }); return page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`)); };
 try {
   await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
-  await page.goto(`http://127.0.0.1:5187/?port=${port}&token=${TOKEN}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await page.goto(`http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.evaluate(() => aegis.apply([
     { op: 'create', newId: 'noteaa', type: 'note', text: 'First idea', x: -300, y: -100, w: 220, h: 120 },
     { op: 'create', newId: 'notebb', type: 'note', text: 'Second idea', x: 0, y: -40, w: 220, h: 120 },

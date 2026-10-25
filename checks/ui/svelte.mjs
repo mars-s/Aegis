@@ -5,19 +5,20 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'svelte-' + process.pid;
 const theme = process.argv[2] || 'dark';
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-sv-')), AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise(r => host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) r(m[1]); }));
-const vite = spawn('npx', ['vite', '--port', '5187'], { cwd: repo + '/app', stdio: 'pipe' });
+const vite = spawn('npx', ['vite', '--port', String(5187 + PORT_OFFSET)], { cwd: repo + '/app', stdio: 'pipe' });
 await new Promise(r => vite.stdout.on('data', d => { if (/Local/.test(String(d))) r(); }));
 const b = await chromium.launch(); const page = await b.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: theme });
 const errors = []; page.on('pageerror', e => errors.push('pageerror: ' + e.message)); page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 const log = (...a) => console.log('•', ...a);
 try {
   await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
-  await page.goto(`http://127.0.0.1:5187/?port=${port}&token=${TOKEN}`);
+  await page.goto(`http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   log('loaded', await page.evaluate(() => aegis.canvas.board.name));
   // Seed through a fake agent so the create tool, its checks and placement all run.
