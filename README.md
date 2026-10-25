@@ -2,6 +2,8 @@
 
 A minimal infinite canvas for you and your agents. Brain-dump into the box at the bottom; agents running on [Pi Durable](https://www.npmjs.com/package/@earendil-works/pi-durable) sort it into groups, checklists and links on the board while you watch.
 
+![Aegis with a document, sheet, slide deck, plot and other windows on one board. The figures are demo data.](docs/screenshot.png)
+
 Agents sign in with your own ChatGPT or Claude subscription (Settings). Boards, sign-in tokens and agent history live in `~/Library/Application Support/Aegis`, never in this repository.
 
 ## Run
