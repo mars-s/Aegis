@@ -62,7 +62,7 @@ export function mountSettings({ canvas, replayTour }) {
   const licences = document.createElement('ul');
   for (const text of ['LICENSE.mochiboard: MIT', 'Zephium: MPL-2.0 (LICENSE.zephium)', 'Material Icons: Apache-2.0', 'Fonts: Inter and others, SIL Open Font Licence (OFL)']) { const li = document.createElement('li'); li.textContent = text; licences.append(li); }
   // item 14: import dependency notices, no changes to Settings controls.
-  for (const text of ['pdfjs-dist 6.4.299: Apache-2.0 (bundled CMaps and decoders: BSD, MIT and CC0)', 'core-js 3.50.0: MIT (bundled pdf.js compatibility code)', 'Liberation Sans 2.1.5 PDF fallback: SIL OFL 1.1', 'fflate 0.8.3: MIT', '@napi-rs/canvas and platform packages 1.0.13: MIT (optional pdf.js Node dependency, unused in the browser)']) { const li = document.createElement('li'); li.textContent = text; licences.append(li); }
+  for (const text of ['pdfjs-dist 6.4.299: Apache-2.0 (bundled CMaps and decoders: BSD, MIT and CC0)', 'core-js 3.50.0: MIT (bundled pdf.js compatibility code)', 'Liberation Sans 2.1.5 PDF fallback: SIL OFL 1.1', 'fflate 0.8.3: MIT', 'KaTeX 0.19.1: MIT (maths in documents; fonts SIL OFL 1.1)', '@napi-rs/canvas and platform packages 1.0.13: MIT (optional pdf.js Node dependency, unused in the browser)']) { const li = document.createElement('li'); li.textContent = text; licences.append(li); }
   // end item 14
   const data = document.createElement('p'); data.textContent = 'Default data folder: ~/Library/Application Support/Aegis. Custom launches may use another folder.';
   const replay = document.createElement('button'); replay.className = 'pill'; replay.textContent = 'Replay welcome and tour'; replay.onclick = () => { dialog.close(); replayTour(); }; about.append(licences, data, replay);
