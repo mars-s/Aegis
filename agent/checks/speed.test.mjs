@@ -74,7 +74,11 @@ test('item 10: first-turn summary, compact reads and opt-in full card details', 
   assert.equal(records.find(r => r.kind === 'model').hasBoardSummary, true);
   const reads = records.filter(r => r.kind === 'tool' && r.name === 'board_read');
   assert.equal(reads.length, 2); assert.ok(reads[0].outputBytes < 1000); assert.ok(reads[1].outputBytes > body.length);
-  assert.ok(records.find(r => r.kind === 'model').inputBytes < body.length);
+  // The first turn carries a compact summary, not the document: its size must not grow with the document body.
+  const first = records.find(r => r.kind === 'model');
+  assert.ok(!JSON.stringify(first).includes('Detailed project notes. Detailed project notes. Detailed project notes.'));
+  const summary = records.find(r => r.kind === 'context');
+  assert.ok(summary.summaryBytes < 2000, `summary ${summary.summaryBytes} bytes`);
 });
 
 test('item 10: default models favour a fast model and keep the strong model available', async () => {

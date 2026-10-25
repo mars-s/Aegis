@@ -257,12 +257,18 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       keep.add(c.id);
       const sig = signature(c), geo = geometry(c);
       let m = mounted.get(c.id);
-      if (!m) { m = { el: renderCard(c), sig, geo: '', z: -1 }; world.appendChild(m.el); mounted.set(c.id, m); }
+      if (!m) { m = { el: renderCard(c), sig, appearance: objectAppearance(c), geo: '', z: -1 }; world.appendChild(m.el); mounted.set(c.id, m); }
       else if (m.sig !== sig && !(m.el.contains(document.activeElement) && document.activeElement.isContentEditable)) {
-        // Content changed: redraw the card. Moves and resizes only re-place it, so a playing video keeps playing.
-        const refocus = m.el.contains(document.activeElement) && document.activeElement.matches('.add-item');
-        const el = renderCard(c); if (m.el.classList.contains('object')) dropObject?.(m.el.querySelector('.object-host')); RENDERERS.get(m.el.dataset.type)?.drop?.(m.el); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
-        if (refocus) el.querySelector('.add-item')?.focus();
+        if (c.type === 'object' && m.el.classList.contains(`kind-${c.kind}`) && m.appearance === objectAppearance(c)) {
+          // Keep fields, scroll and iframe state alive while Svelte updates the object's data.
+          renderObject?.(m.el.querySelector('.object-host'), c);
+        } else {
+          // Moves and resizes only re-place a card, so a playing video keeps playing.
+          const refocus = m.el.contains(document.activeElement) && document.activeElement.matches('.add-item');
+          const el = renderCard(c); if (m.el.classList.contains('object')) dropObject?.(m.el.querySelector('.object-host')); RENDERERS.get(m.el.dataset.type)?.drop?.(m.el); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
+          if (refocus) el.querySelector('.add-item')?.focus();
+        }
+        m.appearance = objectAppearance(c);
       }
       m.sig = sig;
       if (m.geo !== geo) { place(m.el, c); m.geo = geo; }
@@ -276,6 +282,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot, c.parent]);
+  const objectAppearance = c => c.type === 'object' ? JSON.stringify([c.color, c.props, c.parent]) : null;
   const geometry = c => `${c.x},${c.y},${c.w},${c.h},${displayRotation(c)}`;
   function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)${displayRotation(c) ? ` rotate(${displayRotation(c)}deg)` : ''}`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
   // What a renderer may do to the board.

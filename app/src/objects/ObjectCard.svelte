@@ -7,12 +7,33 @@
   import Plan from './kinds/Plan.svelte';
   import List from './kinds/List.svelte';
   import Code from './kinds/Code.svelte';
+  import Stats from './kinds/Stats.svelte';
+  import Timeline from './kinds/Timeline.svelte';
+  import Kanban from './kinds/Kanban.svelte';
+  import Table from './kinds/Table.svelte';
+  import Progress from './kinds/Progress.svelte';
+  import Compare from './kinds/Compare.svelte';
+  import Gallery from './kinds/Gallery.svelte';
+  import Stages from './kinds/Stages.svelte';
+  import Callout from './kinds/Callout.svelte';
+  import Form from './kinds/Form.svelte';
+  import Html from './kinds/Html.svelte';
+  import type { Host } from '../lib/host';
+  import './genui.css';
   type Card = { id: string; kind: string; data: any; text: string; ver?: number; updated?: number };
-  let { card, onset, onlink }: { card: Card; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void } = $props();
-  const NAMES: Record<string, string> = { reply: 'Reply', plot: 'Plot', sheet: 'Sheet', diagram: 'Diagram', plan: 'Plan', list: 'List', code: 'Code', inline: 'Inline' };
+  let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void } = $props();
+  const NAMES: Record<string, string> = { reply: 'Reply', plot: 'Plot', sheet: 'Sheet', diagram: 'Diagram', plan: 'Plan', list: 'List', code: 'Code', inline: 'Inline', stats: 'Stats', timeline: 'Timeline', kanban: 'Kanban', table: 'Table', progress: 'Progress', compare: 'Comparison', gallery: 'Gallery', stages: 'Stages', callout: 'Callout', form: 'Form', html: 'Custom UI' };
+  const generative = $derived(['stats', 'timeline', 'kanban', 'table', 'progress', 'compare', 'gallery', 'stages', 'callout', 'form', 'html'].includes(card.kind));
   const time = (t?: number) => (t ? new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '');
   function open(event: MouseEvent) {
     event.currentTarget instanceof HTMLElement && event.currentTarget.closest('.card')?.dispatchEvent(new CustomEvent('aegis:open-card', { bubbles: true, detail: { id: card.id } }));
+  }
+  function keepControlsLocal(node: HTMLDivElement) {
+    const pointer = (e: PointerEvent) => { if (e.target instanceof Element && e.target.closest('textarea, label, .ticket, .lane, .choices')) e.stopPropagation(); };
+    const key = (e: KeyboardEvent) => { if (e.target instanceof Element && e.target.closest('input, textarea, summary, button')) e.stopPropagation(); };
+    node.addEventListener('pointerdown', pointer);
+    node.addEventListener('keydown', key);
+    return { destroy() { node.removeEventListener('pointerdown', pointer); node.removeEventListener('keydown', key); } };
   }
 </script>
 
@@ -22,7 +43,7 @@
       {#if (card.ver ?? 1) > 1}<span class="updated" title={`Version ${card.ver}`}>Updated · {time(card.updated)}</span>{/if}
       <button class="win-open" type="button" aria-label={`Open ${card.text || NAMES[card.kind]}`} onclick={open}>Open</button>
     </header>
-  <div class="content">
+  <div class="content" class:genui={generative} use:keepControlsLocal>
     {#if card.kind === 'reply'}<Reply data={card.data} />
     {:else if card.kind === 'plot'}<Plot data={card.data} title={card.text || 'Chart'} />
     {:else if card.kind === 'sheet'}<Sheet data={card.data} {onlink} />
@@ -30,6 +51,17 @@
     {:else if card.kind === 'plan'}<Plan data={card.data} oncheck={(i, done) => onset(['steps', i, 'done'], done)} />
     {:else if card.kind === 'list'}<List data={card.data} oncheck={(i, done) => onset(['items', i, 'done'], done)} />
     {:else if card.kind === 'code'}<Code data={card.data} />
+    {:else if card.kind === 'stats'}<Stats data={card.data} {onset} />
+    {:else if card.kind === 'timeline'}<Timeline data={card.data} {onset} />
+    {:else if card.kind === 'kanban'}<Kanban data={card.data} {onset} />
+    {:else if card.kind === 'table'}<Table data={card.data} {onset} />
+    {:else if card.kind === 'progress'}<Progress data={card.data} {onset} />
+    {:else if card.kind === 'compare'}<Compare data={card.data} />
+    {:else if card.kind === 'gallery'}<Gallery data={card.data} {assetUrl} />
+    {:else if card.kind === 'stages'}<Stages data={card.data} {onset} />
+    {:else if card.kind === 'callout'}<Callout data={card.data} />
+    {:else if card.kind === 'form'}<Form data={card.data} {onset} />
+    {:else if card.kind === 'html'}<Html data={card.data} title={card.text || 'Custom UI'} {post} {onheight} />
     {:else}<p class="unknown">Unknown object kind: {card.kind}</p>{/if}
   </div>
 </section>

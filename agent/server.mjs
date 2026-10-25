@@ -1,6 +1,10 @@
 // Aegis agent host: Pi Durable on 127.0.0.1, driving boards through the board commands.
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
+// item 12 sandbox: shared document builder and closed source validation.
+import { sandboxDocument, SANDBOX_HEADER_CSP } from '../app/src/objects/kinds/html-sandbox.js';
+import { checkObject } from '../app/src/lib/board/objects.js';
+// item 12 sandbox end
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
 // item 9: publish durable conversation replies to the island and agent windows.
 import { conversationFromView } from './status.mjs';
@@ -171,6 +175,35 @@ async function sendAsset(req, res, name) {
   if (req.method === 'HEAD') return res.end();
   return pipeline(createReadStream(path), res).catch(() => {});
 }
+
+// item 12 sandbox: token-authenticated registration, anonymous capability URLs.
+const SANDBOX_LIMIT = 1024 * 1024, SANDBOX_ENTRIES = 200;
+const sandboxes = new Map();
+function registerSandbox(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !['html', 'css', 'js', 'channel', 'theme', 'font', 'motionOff'].includes(k))) throw new Error('invalid sandbox fields');
+  if (!['html', 'css', 'js'].every(k => typeof value[k] === 'string')) throw new Error('sandbox source must be strings');
+  const data = checkObject('html', { html: value.html, css: value.css, js: value.js });
+  if (typeof value.channel !== 'string' || !UUID.test(value.channel) || typeof value.theme !== 'string' || typeof value.motionOff !== 'boolean') throw new Error('invalid sandbox settings');
+  if (value.font !== undefined && (typeof value.font !== 'string' || !/^data:font\/woff2;base64,[A-Za-z0-9+/=]+$/.test(value.font))) throw new Error('sandbox font must be an inline WOFF2 data URL');
+  const document = sandboxDocument(data, value.channel, value.theme, value.font, value.motionOff);
+  if (Buffer.byteLength(document) > SANDBOX_LIMIT) throw Object.assign(new Error('sandbox is over 1 MiB'), { status: 413 });
+  const id = randomBytes(32).toString('hex');
+  sandboxes.set(id, document);
+  if (sandboxes.size > SANDBOX_ENTRIES) sandboxes.delete(sandboxes.keys().next().value);
+  return { url: `http://127.0.0.1:${server.address().port}/sandbox/${id}` };
+}
+function sendSandbox(res, id) {
+  const document = sandboxes.get(id);
+  if (!document) return send(res, 404, { error: 'no sandbox' });
+  sandboxes.delete(id); sandboxes.set(id, document);
+  res.writeHead(200, {
+    'content-type': 'text/html; charset=utf-8', 'content-length': Buffer.byteLength(document),
+    'content-security-policy': SANDBOX_HEADER_CSP, 'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer', 'cache-control': 'no-store', 'cross-origin-resource-policy': 'same-site',
+  });
+  res.end(document);
+}
+// item 12 sandbox end
 
 // ---------- the UI, served from a folder so it can be replaced without rebuilding the app ----------
 // item 14: pdf.js uses a same-origin ES module worker in the packaged UI.
@@ -686,11 +719,13 @@ function authorised(req) {
   const want = Buffer.from(TOKEN);
   return got.length === want.length && timingSafeEqual(got, want);
 }
-async function body(req) {
+// item 12 sandbox: bound registration bodies before buffering or building a document.
+async function body(req, limit = 5e6) {
   let size = 0; const chunks = [];
-  for await (const c of req) { size += c.length; if (size > 5e6) throw Object.assign(new Error('too large'), { status: 413 }); chunks.push(c); }
+  for await (const c of req) { size += c.length; if (size > limit) throw Object.assign(new Error('too large'), { status: 413 }); chunks.push(c); }
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {};
 }
+// item 12 sandbox end
 const send = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
 
@@ -706,10 +741,16 @@ const server = http.createServer(async (req, res) => {
   if (uiPath && req.method === 'GET') return sendUi(req, res, uiPath[1]);
   const asset = url.pathname.match(/^\/assets\/([^/]+)$/);
   if (asset && (req.method === 'GET' || req.method === 'HEAD')) return sendAsset(req, res, asset[1]);
+  // item 12 sandbox: iframe navigations cannot supply bearer headers. The 256-bit ID is the read capability.
+  if (req.method === 'GET' && url.pathname.startsWith('/sandbox/')) return sendSandbox(res, url.pathname.slice('/sandbox/'.length));
+  // item 12 sandbox end
   const sseToken = url.searchParams.get('token');
   if (!authorised(req) && !(url.pathname === '/events' && sseToken && sseToken.length === TOKEN.length && timingSafeEqual(Buffer.from(sseToken), Buffer.from(TOKEN)))) return send(res, 401, { error: 'unauthorised' });
   try {
     const p = url.pathname, m = req.method;
+    // item 12 sandbox: registration stays behind the existing bearer-token check.
+    if (p === '/sandbox' && m === 'POST') return send(res, 200, registerSandbox(await body(req, SANDBOX_LIMIT)));
+    // item 12 sandbox end
     if (p === '/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
       res.write(': hi\n\n'); clients.add(res); const ping = setInterval(() => res.write(': ping\n\n'), 20000);
