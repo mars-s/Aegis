@@ -71,7 +71,7 @@ window.addEventListener('dblclick', event => {
   if (!(event.target instanceof Element)) return;
   // The canvas captures the pointer while selecting, so a double-click can target the stage.
   const target = event.target.closest('.card') ? event.target : document.elementFromPoint(event.clientX, event.clientY);
-  if (!target || target.closest('button, input, textarea, summary, a, [contenteditable]')) return;
+  if (!target || target.closest('button, input, textarea, summary, a, [contenteditable], [role="gridcell"]')) return;
   const el = target.closest('#stage .card.object');
   if (!el || el.classList.contains('locked')) return;
   const ctx = globalThis.aegisCtx, card = ctx?.canvas.board.cards.find(c => c.id === el.dataset.id);
@@ -80,11 +80,13 @@ window.addEventListener('dblclick', event => {
 }, true);
 
 const selectedObject = ctx => ctx.selection().length === 1 && ctx.canvas.board.cards.find(c => c.id === ctx.selection()[0] && expandsObject(c));
-registerCommand({ id: 'object-open', title: 'Open selected window', keys: 'enter', when: ctx => !document.activeElement?.closest('.side-editor, button, summary, a') && !!selectedObject(ctx), run: ctx => openObject(selectedObject(ctx), ctx, { keyboard: true }) });
+registerCommand({ id: 'object-open', title: 'Open selected window', keys: 'enter', when: ctx => !document.activeElement?.closest('.side-editor, button, summary, a, [role="gridcell"]') && !!selectedObject(ctx), run: ctx => openObject(selectedObject(ctx), ctx, { keyboard: true }) });
 
 // The expanded content is a working view, so its keys must not trigger canvas tools or deletion.
 window.addEventListener('keydown', event => {
   if (!active || !(event.target instanceof Element) || !active.el.contains(event.target)) return;
+  // Table cells own their navigation and first Escape while editing.
+  if (event.target.closest('[role="gridcell"]') && (event.key !== 'Escape' || event.target.closest('input'))) return;
   if (event.key === 'Escape') {
     event.preventDefault(); event.stopImmediatePropagation(); active.close({ keyboard: true });
   } else if (!event.target.closest('input, textarea, select, [contenteditable]')) {

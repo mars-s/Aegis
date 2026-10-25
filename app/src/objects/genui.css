@@ -18,6 +18,17 @@
 .genui th:first-child, .genui td:first-child { padding-left: 0; }
 .genui th:last-child, .genui td:last-child { padding-right: 0; }
 .genui .numeric { text-align: right; }
+/* Generated tables share the sheet's quiet rows and one active cell. */
+.genui .data-grid td { position: relative; min-width: 96px; height: 32px; padding-block: 6px; vertical-align: middle; outline: none; }
+.genui .data-grid td:first-child { min-width: 150px; }
+.genui .data-grid td[aria-readonly="false"] { cursor: cell; }
+.genui .data-grid td:is(:focus-visible, .editing) { box-shadow: inset 0 0 0 1px var(--text); }
+.genui .data-grid .editing .cell-value { visibility: hidden; }
+.genui .data-grid input { position: absolute; inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); min-height: 0; padding: 0 11px; border: 0; border-radius: 0; outline: none; background: var(--raised); font: inherit; text-align: inherit; box-shadow: none; }
+.genui .data-grid td:first-child input { padding-left: 0; }
+.genui .data-grid td:last-child input { padding-right: 0; }
+.genui .data-grid input:focus-visible { outline: none; }
+@media (pointer: coarse), (hover: none) { .genui .data-grid td { height: 44px; } .genui .data-grid input { min-height: 0; } }
 .genui .track { display: block; height: 4px; background: var(--line); overflow: hidden; }
 .genui .track > span { display: block; height: 100%; background: var(--data); }
 @media (hover: hover) and (pointer: fine) { .genui button:hover { color: var(--text); border-color: var(--edge-top); background: var(--raised); } }

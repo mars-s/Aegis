@@ -9,6 +9,7 @@ import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { genuiSamples, galleryArtwork } from '../../agent/checks/genui-fixtures.mjs';
 import { OBJECT_KINDS } from '../../app/src/lib/board/objects.js';
+import { THEME_KEYS } from '../../app/src/objects/kinds/html-sandbox.js';
 
 const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), vitePort = 5194 + offset;
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'genui-' + process.pid;
@@ -205,9 +206,37 @@ try {
   await page.keyboard.press('Tab');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'stats').data.tiles[0].value === '20');
   await frame('table');
-  await page.getByLabel('Tasks, row 1', { exact: true }).fill('12');
-  await page.keyboard.press('Tab');
+  const grid = page.locator('.card.kind-table').getByRole('grid', { name: 'Data table' });
+  assert.equal(await grid.locator('input').count(), 0, 'resting table has plain values, without input borders');
+  assert.equal(await grid.getByRole('gridcell').evaluateAll(cells => cells.every(cell => cell.tabIndex === 0 && getComputedStyle(cell).boxShadow === 'none' && getComputedStyle(cell).borderBottomWidth === '1px')), true, 'cells stay focusable with thin row rules and no boxes');
+  const tasksCell = grid.getByRole('gridcell', { name: 'Tasks, row 1', exact: true });
+  assert.equal(await tasksCell.evaluate(cell => getComputedStyle(cell).textAlign), 'right');
+  assert.match(await tasksCell.evaluate(cell => getComputedStyle(cell).fontVariantNumeric), /tabular-nums/);
+  await tasksCell.click();
+  const tasksInput = grid.getByRole('spinbutton', { name: 'Edit Tasks, row 1', exact: true });
+  assert.equal(await tasksInput.evaluate(input => input === document.activeElement && getComputedStyle(input).borderWidth === '0px'), true, 'only the active cell has a frame, its input has no extra border');
+  assert.equal(await grid.locator('input').count(), 1);
+  await tasksInput.fill('12');
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[1] === 12);
+  assert.equal(await grid.getByRole('gridcell', { name: 'Tasks, row 2', exact: true }).evaluate(cell => cell === document.activeElement), true, 'Enter commits and moves down');
+  await tasksCell.focus();
+  await page.keyboard.type('99');
+  assert.equal(await tasksInput.inputValue(), '99', 'typing on a focused cell starts a replacement edit');
+  await page.keyboard.press('Escape');
+  assert.equal(await grid.locator('input').count(), 0);
+  assert.equal(await tasksCell.locator('.cell-value').textContent(), '12', 'Escape cancels the draft');
+  assert.equal(await tasksCell.evaluate(cell => cell === document.activeElement), true);
+  await tasksCell.press('Enter');
+  await tasksInput.fill('12');
+  await page.keyboard.press('Tab');
+  assert.equal(await grid.getByRole('gridcell', { name: 'Week trend, row 1', exact: true }).evaluate(cell => cell === document.activeElement), true, 'Tab commits and moves right, including read-only cells');
+  await grid.getByRole('gridcell', { name: 'Day, row 2', exact: true }).click();
+  await grid.getByRole('textbox', { name: 'Edit Day, row 2', exact: true }).fill('Tuesday saved on blur');
+  await grid.getByRole('gridcell', { name: 'Day, row 3', exact: true }).focus();
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[1].cells[0] === 'Tuesday saved on blur');
+  await page.screenshot({ path: out(`genui-table-quiet-${stamp}.png`) });
+  console.log('pass genui: quiet focusable table cells; click, Enter and typing edit; Escape cancels; Enter, Tab and blur commit with keyboard movement');
   await frame('stages');
   await page.locator('.stages details').first().locator('summary').click();
   await page.getByRole('button', { name: 'Brief: Blocked', exact: true }).click();
@@ -224,7 +253,17 @@ try {
   };
   let expanded = await openEditor('table', true);
   assert.equal(await expanded.editor.evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'keyboard opening is instant');
-  await expanded.editor.getByLabel('Day, row 1', { exact: true }).fill('Monday review');
+  const expandedDay = expanded.editor.getByRole('gridcell', { name: 'Day, row 1', exact: true });
+  await expandedDay.press('Enter');
+  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Cancelled draft');
+  await page.keyboard.press('Escape');
+  assert.equal(await expanded.editor.isVisible(), true, 'first Escape cancels the cell without closing the editor');
+  assert.equal(await expandedDay.locator('.cell-value').textContent(), 'Monday');
+  await expandedDay.press('Enter');
+  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Monday review');
+  await page.screenshot({ path: out(`genui-table-editing-${stamp}.png`) });
+  await page.keyboard.press('Enter');
+  assert.equal(await expanded.editor.getByRole('gridcell', { name: 'Day, row 2', exact: true }).evaluate(cell => cell === document.activeElement), true);
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Monday review');
   assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true);
@@ -252,7 +291,7 @@ try {
   await page.keyboard.press('Meta+Shift+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'done');
   await page.keyboard.press('Escape');
-  console.log('pass genui: expanded table and form flush on Escape; kanban moves, dragging, undo and redo save; full width works');
+  console.log('pass genui: expanded table commits before closing and cancels drafts on Escape; form flushes on Escape; kanban moves, dragging, undo and redo save; full width works');
 
   await frame('stats');
   const toolbarOpen = page.locator('.selection-bar').getByRole('button', { name: 'Open', exact: true });
@@ -283,6 +322,8 @@ try {
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'form').data.fields[0].value), 'A useful result');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column), 'done');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0]), 'Monday review');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[1]), 12, 'Enter-committed number survives reload');
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[1].cells[0]), 'Tuesday saved on blur');
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'form').data.fields[1].value), 'Expanded edits save on Escape.');
   console.log('pass genui: saved values survive host read and page reload');
 
@@ -343,29 +384,80 @@ try {
   await page.frameLocator('.card.kind-html iframe').locator('#minutes').fill('35');
   assert.match(await page.frameLocator('.card.kind-html iframe').locator('#total').textContent(), /140 minutes/);
   await page.context().setOffline(false);
-  const beforeMotion = await page.locator('.card.kind-html iframe').getAttribute('src');
-  await page.evaluate(() => document.body.classList.add('motion-off'));
-  await page.waitForFunction(before => document.querySelector('.card.kind-html iframe')?.src !== before, beforeMotion);
-  await page.frameLocator('.card.kind-html iframe').locator('h2').waitFor();
-  await page.frameLocator('.card.kind-html iframe').locator('h2').evaluate(el => { el.style.animation = 'spin 1s infinite'; });
-  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('h2').evaluate(el => getComputedStyle(el).animationName), 'none');
-  const motionSource = await page.locator('.card.kind-html iframe').getAttribute('src');
-  await page.evaluate(() => document.body.classList.remove('motion-off'));
-  await page.waitForFunction(before => document.querySelector('.card.kind-html iframe')?.src !== before, motionSource);
-  await page.frameLocator('.card.kind-html iframe').locator('h2').waitFor();
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.frameLocator('.card.kind-html iframe').locator('h2').evaluate(el => { el.style.animation = 'spin 1s infinite'; });
-  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('h2').evaluate(el => getComputedStyle(el).animationName), 'none');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.frameLocator('.card.kind-html iframe').locator('h2').evaluate(el => { el.style.animation = ''; });
-  console.log('pass genui: custom UI works offline and honours both motion settings');
+  await page.frameLocator('.card.kind-html iframe').locator('#minutes').fill('40');
 
   const canvasHtmlHeight = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').h);
   expanded = await openEditor('html');
   const expandedFrame = page.frameLocator('.side-editor iframe');
+  await expandedFrame.locator('#minutes').waitFor();
+  assert.equal(await expandedFrame.locator('#minutes').inputValue(), '25', 'Open starts its own widget instance');
+  await expandedFrame.locator('#minutes').fill('30');
+  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '40', 'Open edits do not overwrite the canvas widget');
   await expandedFrame.locator('#minutes').fill('40');
   assert.match(await expandedFrame.locator('#total').textContent(), /160 minutes/);
   await page.waitForFunction(() => window.__genuiHeights.some(r => r.expandedFrame && r.origin === 'null'));
+  await page.evaluate(() => {
+    window.__widgetFrames = [...document.querySelectorAll('.card.kind-html iframe, .side-editor iframe')].map(frame => {
+      const tracked = { frame, src: frame.src, loads: 0 };
+      frame.addEventListener('load', () => tracked.loads++);
+      return tracked;
+    });
+  });
+  const widgetFrames = [page.frameLocator('.card.kind-html iframe'), expandedFrame];
+  for (const widget of widgetFrames) await widget.locator('h2').evaluate(el => { el.style.animation = 'spin 1s infinite'; });
+  // The Open view covers the top-right chrome, so use its keyboard entry point.
+  await page.locator('#settingsBtn').press('Enter');
+  await page.getByRole('tab', { name: 'Board', exact: true }).click();
+  const motion = page.getByRole('checkbox', { name: 'Motion', exact: true });
+  for (const off of [true, false]) {
+    await motion.setChecked(!off);
+    for (const widget of widgetFrames) {
+      await widget.locator(off ? 'html.motion-off' : 'html:not(.motion-off)').waitFor();
+      assert.equal(await widget.locator('#minutes').inputValue(), '40');
+      assert.match(await widget.locator('#total').textContent(), /160 minutes/);
+      assert.equal(await widget.locator('h2').evaluate(el => getComputedStyle(el).animationName), off ? 'none' : 'spin');
+    }
+  }
+  await page.locator('#closeSettings').click();
+  const preferenceData = await page.evaluate(keys => {
+    const frame = document.querySelector('.card.kind-html iframe');
+    return { type: 'aegis:html-preferences', channel: window.__genuiHeights.findLast(r => r.ownFrame).channel, motionOff: true, theme: Object.fromEntries(keys.map(key => [key, getComputedStyle(frame).getPropertyValue(key)])) };
+  }, THEME_KEYS);
+  // A correct channel alone cannot authorise a message from a child or sibling.
+  await page.frameLocator('.card.kind-html iframe').locator('html').evaluate((_, data) => dispatchEvent(new MessageEvent('message', { source: window, data })), preferenceData);
+  await page.evaluate(data => {
+    const frame = document.querySelector('.card.kind-html iframe');
+    frame.contentWindow.postMessage({ ...data, channel: 'wrong-channel' }, '*');
+    frame.contentWindow.postMessage({ ...data, motionOff: 'true' }, '*');
+  }, preferenceData);
+  await page.waitForTimeout(100);
+  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('html').evaluate(el => el.classList.contains('motion-off')), false, 'wrong source, channel and malformed preferences are ignored');
+  await page.evaluate(() => document.documentElement.style.setProperty('--data', '#345678'));
+  for (const widget of widgetFrames) {
+    await widget.locator('html[style*="#345678"]').waitFor();
+    assert.equal(await widget.locator('html').evaluate(el => getComputedStyle(el).getPropertyValue('--data').trim()), '#345678');
+    assert.equal(await widget.locator('#minutes').inputValue(), '40', 'theme preferences preserve widget state');
+  }
+  await page.evaluate(() => document.documentElement.style.removeProperty('--data'));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const widget of widgetFrames) assert.equal(await widget.locator('h2').evaluate(el => getComputedStyle(el).animationName), 'none');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  // Title and geometry updates must not register a new document either.
+  await page.evaluate(() => {
+    const card = aegis.canvas.board.cards.find(c => c.kind === 'html');
+    aegis.apply([{ op: 'update', id: card.id, set: { text: 'Live calculator', x: card.x + 4 } }]);
+  });
+  await page.waitForFunction(() => document.querySelector('.side-editor-name').textContent === 'Live calculator');
+  await page.waitForTimeout(150);
+  const loads = await page.evaluate(() => window.__widgetFrames.map(({ frame, src, loads }) => ({ connected: frame.isConnected, unchangedSource: frame.src === src, loads })));
+  assert.deepEqual(loads, [{ connected: true, unchangedSource: true, loads: 0 }, { connected: true, unchangedSource: true, loads: 0 }], 'both original iframe elements stay alive with zero reload events');
+  await page.screenshot({ path: out(`genui-html-motion-preserved-${stamp}.png`) });
+  console.log('pass genui: Motion off and on retain 40 and 160 minutes in canvas and Open; theme, title and geometry keep both frames alive; 0 iframe load events; invalid preferences ignored; offline and OS reduced motion work');
+  await page.evaluate(() => {
+    const card = aegis.canvas.board.cards.find(c => c.kind === 'html');
+    aegis.apply([{ op: 'update', id: card.id, set: { text: 'Sample html' } }]);
+  });
+  await page.waitForFunction(() => document.querySelector('.side-editor-name').textContent === 'Sample html');
   await page.evaluate(() => {
     const channel = window.__genuiHeights.findLast(r => r.expandedFrame).channel;
     dispatchEvent(new MessageEvent('message', { origin: 'null', source: document.querySelector('.card.kind-html iframe').contentWindow, data: { type: 'aegis:html-escape', channel } }));
@@ -379,6 +471,7 @@ try {
   await expandedFrame.locator('#minutes').press('Escape');
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
   assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true, 'Escape in the opaque iframe restores app focus');
+  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '40', 'closing Open preserves canvas widget state');
   console.log('pass genui: expanded custom UI runs in its isolated iframe and Escape closes from inside the widget');
 
   const otherSamples = {
@@ -402,7 +495,7 @@ try {
     aegis.apply([{ op: 'update', id: card.id, set: { text: 'Revised table' } }, { op: 'object_set', id: card.id, path: ['rows', 1, 'cells', 0], value: 'Updated in the open view' }]);
   });
   await page.waitForFunction(() => document.querySelector('.side-editor-name').textContent === 'Revised table');
-  assert.equal(await expanded.editor.getByLabel('Day, row 2', { exact: true }).inputValue(), 'Updated in the open view');
+  assert.equal(await expanded.editor.getByRole('gridcell', { name: 'Day, row 2', exact: true }).locator('.cell-value').textContent(), 'Updated in the open view');
   await page.evaluate(() => {
     const card = aegis.canvas.board.cards.find(c => c.kind === 'table');
     aegis.apply([{ op: 'update', id: card.id, set: { text: 'Sample table' } }]);
