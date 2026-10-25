@@ -59,9 +59,9 @@ try {
   await page.evaluate(() => { document.querySelector('#side [data-panel="layers"] .fold')?.click(); });
   // Expand Layers if it was folded.
   if (!(await page.locator('.layer-list').isVisible())) await page.locator('[data-panel="layers"] .fold').click();
-  await page.locator('.layer-row[data-id="notedd"] .layer-action[aria-label^="Hide"]').click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'notedd').props.hidden, true); assert.equal(await page.locator('#world [data-id="notedd"]').count(), 0);
-  await page.locator('.layer-row[data-id="notedd"] .layer-action[aria-label^="Hide"]').click(); await page.locator('.layer-row[data-id="noteaa"] .layer-action[aria-label^="Lock"]').click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'noteaa').props.locked, true);
-  await page.locator('.layer-row[data-id="noteaa"] .layer-action[aria-label^="Lock"]').click(); console.log('layer hide, lock saved');
+  await page.locator('.layer-row[data-id="notedd"] .row-more').click(); await page.getByRole('menuitem', { name: 'Hide', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'notedd').props.hidden, true); assert.equal(await page.locator('#world [data-id="notedd"]').count(), 0);
+  await page.locator('.layer-row[data-id="notedd"] .row-more').click(); await page.getByRole('menuitem', { name: 'Show', exact: true }).click(); await page.locator('.layer-row[data-id="noteaa"] .row-more').click(); await page.getByRole('menuitem', { name: 'Lock', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'noteaa').props.locked, true);
+  await page.locator('.layer-row[data-id="noteaa"] .row-more').click(); await page.getByRole('menuitem', { name: 'Unlock', exact: true }).click(); console.log('layer hide, lock saved');
   await select(['noteaa']); await page.evaluate(() => aegis.canvas.frameIds(['noteaa'],1)); await pause();
   const handle = page.getByRole('button', { name: 'Rotate selection', exact: true }); r = await handle.boundingBox();
   await page.mouse.move(r.x+r.width/2,r.y+r.height/2); await page.mouse.down(); await page.keyboard.down('Shift'); await page.mouse.move(r.x+r.width/2+120,r.y+r.height/2+80,{steps:8}); await page.mouse.up(); await page.keyboard.up('Shift'); await pause(); assert.equal((await saved()).cards.find(c => c.id==='noteaa').rot % 15,0); console.log('rotation saved');
@@ -71,7 +71,7 @@ try {
   await page.keyboard.type('Second task'); await page.keyboard.press('Tab'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='todocc').items[1].text,'Second task'); assert.equal((await board()).cards.find(c=>c.id==='todocc').items[0].done,false); console.log('checklist insert saved');
   await select(['todocc']); const download=page.waitForEvent('download'); await clickControl('PNG'); const file=await download; await file.saveAs(out('editing-selection.png')); console.log('PNG downloaded',file.suggestedFilename());
   await key('Mod+0'); await pause(); assert.equal((await page.evaluate(()=>aegis.canvas.view.z)),1);
-  await page.getByRole('button',{name:'Zoom menu',exact:true}).click(); await page.getByRole('button',{name:'50%',exact:true}).click(); await pause(); await page.waitForFunction(()=>aegis.canvas.view.z===.5);
+  await page.getByRole('button',{name:'Zoom menu',exact:true}).click(); await page.getByRole('menuitem',{name:'50%',exact:true}).click(); await pause(); await page.waitForFunction(()=>aegis.canvas.view.z===.5);
   await key('Shift+1'); await pause();
   await page.screenshot({path:out('editing-overview.png')});
   await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'Toolbar', exact: true }).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.locator('#closeSettings').click(); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); console.log('toolbar preferences applied');
@@ -131,14 +131,14 @@ try {
     {op:'create',type:'note',newId:'nestednote',text:'Inside section',x:1700,y:200,w:150,h:90},
   ])); await saved(); await pause();
   assert.equal(await layerRow('innersec').getAttribute('data-parent'),'outersec'); assert.equal(await layerRow('nestednote').getAttribute('data-parent'),'innersec');
-  await layerRow('outersec').getByRole('button',{name:'Expand Outer section',exact:true}).click(); await pause(); assert.equal(await layerRow('nestednote').count(),0);
+  await layerRow('outersec').getByRole('button',{name:'Collapse Outer section',exact:true}).click(); await pause(); assert.equal(await layerRow('nestednote').count(),0);
   await select(['nestednote']); await pause(); assert.equal(await layerRow('nestednote').isVisible(),true);
   await layerRow('nestednote').click({button:'right'}); assert.deepEqual(await page.evaluate(()=>aegis.canvas.selection()),['nestednote']); await page.getByRole('menuitem',{name:'Duplicate',exact:true}).click(); await pause(); assert.equal((await saved()).cards.filter(c=>c.text==='Inside section').length,2); console.log('geometric section nesting, ancestor reveal and row context menu');
   await select(['nestednote']); await page.evaluate(()=>aegis.canvas.frameIds(['nestednote'],1)); await pause();
   assert.equal(await page.locator('#tools').isVisible(),false); assert.equal(await page.locator('#selectionBar').isVisible(),true);
   await clickControl('Tilt'); await page.getByRole('button',{name:'30°',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,30);
   await page.getByLabel('Tilt in degrees',{exact:true}).fill('-17'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,-17);
-  await page.getByRole('button',{name:'Reset tilt',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,0); await page.getByLabel('Tilt in degrees',{exact:true}).press('Escape');
+  await page.getByRole('button',{name:'Reset tilt',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,0); await page.getByLabel('Tilt in degrees',{exact:true}).press('Escape'); assert.equal(await page.locator('.editing-tilt').isVisible(), false); assert.equal(await page.getByRole('button', { name: 'Tilt', exact: true }).evaluate(el => document.activeElement === el), true);
   const rotHandle=await page.getByRole('button',{name:'Rotate selection',exact:true}).boundingBox(); const model=(await board()).cards.find(c=>c.id==='nestednote'); const mid=await page.evaluate(c=>aegis.canvas.worldToScreen(c.x+c.w/2,c.y+c.h/2),model); const hx=rotHandle.x+rotHandle.width/2,hy=rotHandle.y+rotHandle.height/2,angle=Math.atan2(hy-mid.y,hx-mid.x)+14*Math.PI/180,radius=Math.hypot(hx-mid.x,hy-mid.y);
   await page.mouse.move(hx,hy); await page.mouse.down(); await page.mouse.move(mid.x+Math.cos(angle)*radius,mid.y+Math.sin(angle)*radius,{steps:8}); await page.mouse.up(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,15);
   await layerRow('nestednote').click({button:'right'}); await page.getByRole('menuitem',{name:'Reset tilts',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,0); console.log('tilt presets, exact angle, reset menu and near-angle snapping');

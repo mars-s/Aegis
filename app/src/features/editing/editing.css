@@ -29,9 +29,6 @@
 .show-panels { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 150; }
 .just-board .bar,.just-board .side,.just-board .tools,.just-board .composer,.just-board .panel,.just-board .editing-hints,.just-board .selection-bar,.just-board .editing-zoom-menu { display: none!important; }
 .just-board { --side-w: 0px; --right-side-w: 0px; }
-.editing-zoom-menu { position: fixed; z-index: 100; padding: 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }
-.editing-zoom-menu button { display: block; background: none; border: 0; padding: 8px 18px; color: var(--text); width: 100%; text-align: left; }
-.editing-zoom-menu button:hover { background: var(--hover); }
 .editing-settings>label { display: flex; align-items: center; gap: 9px; margin: 10px 0; }
 .editing-settings select,.editing-settings button { padding: 5px 9px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 5px; }
 .toolbar-options { max-height: 220px; overflow: auto; margin: 10px 0; }
@@ -55,8 +52,6 @@ body[data-tool-size=large] .tools [data-tool] { width: 42px; height: 42px; }
 .selection-move.left,.selection-move.right { width: 8px; top: 8px; bottom: 8px; }
 .selection-move.top { top: -9px; }.selection-move.bottom { bottom: -9px; }.selection-move.left { left: -9px; }.selection-move.right { right: -9px; }
 .tools [data-overflow],.tools.folded .tools-more { display: none!important; }
-.editing-tool-overflow { position: fixed; z-index: 110; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 9px; padding: 5px; max-height: min(500px, 70vh); overflow: auto; }
-.editing-tool-overflow button { display: block; background: none; color: inherit; padding: 8px 12px; width: 100%; text-align: left; }
 .editing-font-picker { position: fixed; z-index: 130; width: 260px; max-height: 300px; overflow: auto; background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 8px; border-radius: 9px; box-shadow: 0 6px 25px #0002; }
 .editing-font-picker input { width: 100%; padding: 8px; background: var(--card); color: var(--text); border: 1px solid var(--line); }
 .editing-font-list button { display: block; padding: 8px; text-align: left; color: inherit; background: transparent; width: 100%; }.editing-font-list button:hover { background: var(--hover); }
@@ -74,7 +69,6 @@ body:has(.draw-inspector:not([hidden])) .tools { visibility: hidden; pointer-eve
 .card.shape { line-height: 1.3; }
 .card.coll { line-height: 1.2; }
 
-.editing-zoom-menu { background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-lift); }
 .editing-capture button { border-radius: 999px; padding: 8px 12px; color: var(--muted); }
 .editing-capture button:hover { background: var(--hover); }
 @media (hover: none) { .editing-hints { opacity: .65; } }

@@ -1,6 +1,7 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { libraryDeletion } from '../features/library/deletion.js';
 import { createMenu } from './menu.js';
+import { rowMenuButton } from '../lib/ui/menu.js';
 import { createHome } from '../features/library/home.js';
 import { connectLibrary } from '../features/library/navigation.js';
 import { escapeHtml as esc } from '../features/library/preview.js';
@@ -16,7 +17,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
   let target = localStorage.getItem('aegis:lib-target') || null;
   const expanded = new Set(savedOpen());
   const tree = el.querySelector('.tree'), menu = createMenu();
-  const menuEl = document.querySelector('.ctx-menu:last-child');
+  const menuEl = menu.el;
   const saveOpen = () => localStorage.setItem('aegis:lib-open', JSON.stringify([...expanded]));
   const setTarget = id => { target = id || null; localStorage.setItem('aegis:lib-target', target ?? ''); };
   const item = id => data.nodes.find(n => n.id === id) ?? data.boards.find(b => b.id === id);
@@ -89,15 +90,18 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
       rows.push(`<div class="tree-sep${target === null ? ' target' : ''}" data-node="">Loose boards</div>`);
       boardsIn(null).forEach(b => boardRow(b, 0));
     }
-    tree.innerHTML = rows.join('');
+    const focused = tree.contains(document.activeElement) ? document.activeElement.closest('.tree-row')?.dataset : null;
+    menu.close(); tree.innerHTML = rows.join('');
     for (const row of tree.querySelectorAll('.tree-row')) {
       const id = row.dataset.board || row.dataset.node, n = item(id);
       row.tabIndex = 0;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-delete aegis-button--destructive'; button.setAttribute('aria-label', `Delete ${n.name}`); button.title = `Delete ${n.name}`;
-      button.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M4.5 4l.5 9.5h6l.5-9.5M7 6.5v4.5M9 6.5v4.5"/></svg>';
-      button.onclick = e => { e.stopPropagation(); guard(remove)(id); }; row.append(button);
+      row.querySelector('.name').title = n.name;
+      const button = rowMenuButton(n.name);
+      const show = event => { event.preventDefault(); event.stopPropagation(); const r = button.getBoundingClientRect(); showMenu(r.left, r.bottom + 6, id, event, button); };
+      button.onclick = show; button.onkeydown = event => { if (['ArrowDown', 'ArrowUp'].includes(event.key)) show(event); }; row.append(button);
       row.onkeydown = e => { if (e.target !== row) return; if (['Delete', 'Backspace'].includes(e.key)) { e.preventDefault(); guard(remove)(id); } else if (e.key === 'Enter') { e.preventDefault(); if (isBoard(id)) open(id); else row.click(); } };
     }
+    if (focused) [...tree.querySelectorAll('.tree-row')].find(row => (row.dataset.board || row.dataset.node) === (focused.board || focused.node))?.querySelector('.row-more')?.focus({ preventScroll: true });
   }
   const change = guard(async op => { const r = await host.post('/library', op); await refresh(); if (op.op === 'move' && current()) await open(current()); return r; });
   async function create(kind, parent = target) {
@@ -128,7 +132,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     let done = false;
     const finish = guard(async keep => {
       if (done) return; done = true; name.onblur = null; name.contentEditable = 'false';
-      const value = name.textContent.trim();
+      const value = name.textContent.trim(); name.title = keep && value ? value : before;
       try {
         if (keep && value && value !== before) await saveName(id, value);
       } finally { editing = null; await refresh(); }
@@ -146,7 +150,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     if (board) for (const dest of data.boards.filter(d => !inside(d.id))) options.push({ title: `Inside board: ${fullName(dest)}${n.boardParent === dest.id ? ' (current)' : ''}`, run: () => change({ op: 'move', id, boardParent: dest.id }) });
     return options;
   }
-  function showMenu(x, y, id) {
+  function showMenu(x, y, id, event, trigger) {
     const n = item(id); if (!n) return;
     const modal = document.querySelector('.library-home[open]');
     (modal ?? document.body).append(menuEl);
@@ -157,7 +161,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
       { title: 'Delete', run: guard(() => remove(id)) },
     ];
     if (n.boardParent) items.splice(2, 0, { title: 'Make it its own board', run: () => change({ op: 'move', id, parent: n.parent }) });
-    menu.show(x, y, items);
+    menu.show(x, y, items, event, trigger ?? (modal ? document.activeElement : [...tree.querySelectorAll('.tree-row')].find(row => (row.dataset.board || row.dataset.node) === id)?.querySelector('.row-more')) ?? document.activeElement);
   }
   function revealItem(id) {
     const seen = new Set(); let parent = item(id)?.boardParent ?? item(id)?.parent;
@@ -181,7 +185,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     setTarget(id); render();
   });
   tree.addEventListener('dblclick', e => { const row = e.target.closest('.tree-row'); if (e.target.closest('.name') && row) rename(row.dataset.board || row.dataset.node); });
-  tree.addEventListener('contextmenu', e => { const row = e.target.closest('.tree-row'); if (row) { e.preventDefault(); showMenu(e.clientX, e.clientY, row.dataset.board || row.dataset.node); } });
+  tree.addEventListener('contextmenu', e => { const row = e.target.closest('.tree-row'); if (row) { e.preventDefault(); showMenu(e.clientX, e.clientY, row.dataset.board || row.dataset.node, e, row.querySelector('.row-more')); } });
   tree.addEventListener('dragstart', e => { const row = e.target.closest('.tree-row'); if (!row || editing) return e.preventDefault(); e.dataTransfer.setData('application/x-aegis-lib', row.dataset.board || row.dataset.node); e.dataTransfer.effectAllowed = 'move'; });
   tree.addEventListener('dragover', e => {
     if (!e.dataTransfer.types.includes('application/x-aegis-lib')) return;

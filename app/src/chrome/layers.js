@@ -1,4 +1,6 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+import { createMenu } from './menu.js';
+import { rowMenuButton } from '../lib/ui/menu.js';
 import { collectionLayout } from '../features/editing/model.js';
 import { layerParents, layerDescendants } from '../features/editing/layer-model.js';
 // Layers panel: every card, top-most first. Click to jump, drag to restack.
@@ -21,10 +23,10 @@ const ICON = {
 };
 const LIMIT = 500;
 const KIND = { reply: 'Answer', plot: 'Chart', sheet: 'Sheet', diagram: 'Diagram', plan: 'Plan', list: 'List', code: 'Code' };
-const labelOf = c => c.props?.layerName ?? (c.type === 'object' ? (c.kind === 'reply' ? c.data?.headline : c.text) || KIND[c.kind] || 'Object' : null) ?? (c.heading || c.text?.split('\n').find(Boolean) || (c.url ? c.url.replace(/^asset:.*/, '').replace(/^https?:\/\/(www\.)?/, '') : '') || c.type).slice(0, 80);
+const labelOf = c => c.props?.layerName ?? (c.type === 'object' ? (c.kind === 'reply' ? c.data?.headline : c.text) || KIND[c.kind] || 'Object' : null) ?? (c.heading || c.text?.split('\n').find(Boolean) || (c.url ? c.url.replace(/^asset:.*/, '').replace(/^https?:\/\/(www\.)?/, '') : '') || c.type);
 
 export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate }) {
-  const list = el.querySelector('.layer-list');
+  const list = el.querySelector('.layer-list'), menu = createMenu();
   let selection = new Set(), lastSig = '', frame = 0;
   const folded = new Set();
   let lastBoard;
@@ -39,7 +41,8 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     const sig = JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? '', parents.get(c.id), c.group, c.props])) + [...selection].join() + [...folded].join();
     if (sig === lastSig) return; lastSig = sig;
     count.textContent = board.cards.length || '';
-    list.textContent = '';
+    const focused = list.contains(document.activeElement) ? document.activeElement.closest('.layer-row')?.dataset.id : null;
+    menu.close(); list.textContent = '';
     const frag = document.createDocumentFragment();
     const seen = new Set(), groups = new Set();
     const parentOf = c => parents.get(c.id);
@@ -47,22 +50,43 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       if (seen.has(c.id)) return; seen.add(c.id);
       const children = c.type === 'coll' ? (c.props?.kids ?? []).map(id => (byParent.get(c.id) ?? []).find(k => k.id === id)).filter(Boolean) : byParent.get(c.id) ?? [];
       const row = document.createElement('div');
-      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : '') + (c.props?.hidden ? ' is-hidden' : ''); row.draggable = true; row.dataset.id = c.id; row.dataset.parent = parentOf(c) ?? ''; row.dataset.depth = String(depth); row.style.paddingLeft = `${8 + depth * 14}px`;
+      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : '') + (c.props?.hidden ? ' is-hidden' : ''); row.draggable = true; row.dataset.id = c.id; row.dataset.parent = parentOf(c) ?? ''; row.dataset.depth = String(depth); row.style.setProperty('--d', String(depth)); row.tabIndex = 0;
       row.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${ICON[c.type === 'object' ? c.kind : c.type] ?? ICON.note}</svg><span class="name"></span>`;
-      row.querySelector('.name').textContent = labelOf(c);
+      row.querySelector('.name').textContent = labelOf(c); row.querySelector('.name').title = labelOf(c);
       if (c.heading || c.type === 'title' || c.kind === 'reply') row.classList.add('strong');
-      if (children.length) { const toggle = document.createElement('button'); toggle.className = 'layer-action'; toggle.textContent = folded.has(c.id) ? '▸' : '▾'; toggle.setAttribute('aria-label', `Expand ${labelOf(c)}`); toggle.onclick = e => { e.stopPropagation(); folded.has(c.id) ? folded.delete(c.id) : folded.add(c.id); schedule(); }; row.prepend(toggle); }
-      for (const [flag, label, text] of [['hidden', 'Hide', 'Eye'], ['locked', 'Lock', 'Lock']]) {
-        const action = document.createElement('button'); action.className = 'layer-action'; action.textContent = text; action.setAttribute('aria-label', `${label} ${labelOf(c)}`); action.setAttribute('aria-pressed', String(!!c.props?.[flag]));
-        action.onclick = e => { e.stopPropagation(); onUpdate?.(layerDescendants(board, [c.id], parents).map(k => ({ op: 'update', id: k.id, set: { props: { [flag]: !c.props?.[flag] } } }))); }; row.append(action);
+      if (children.length) {
+        const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'layer-fold';
+        toggle.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${folded.has(c.id) ? 'm6 4 4 4-4 4' : 'm4 6 4 4 4-4'}"/></svg>`;
+        toggle.setAttribute('aria-label', `${folded.has(c.id) ? 'Expand' : 'Collapse'} ${labelOf(c)}`); toggle.setAttribute('aria-expanded', String(!folded.has(c.id)));
+        toggle.onclick = e => { e.stopPropagation(); folded.has(c.id) ? folded.delete(c.id) : folded.add(c.id); schedule(); };
+        row.querySelector('svg').replaceWith(toggle);
       }
-      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'layer-action aegis-button--destructive'; remove.textContent = 'Delete'; remove.setAttribute('aria-label', `Delete ${labelOf(c)}`);
-      remove.onclick = e => { e.stopPropagation(); document.getElementById('stage').dispatchEvent(new CustomEvent('layerdelete', { detail: { ids: [c.id] } })); }; row.append(remove);
-      row.querySelector('.name').ondblclick = e => {
-        e.stopPropagation(); const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Layer name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
-        input.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { cancelled = ev.key === 'Escape'; input.blur(); } };
+      const state = document.createElement('span'); state.className = 'row-state';
+      for (const [flag, title, path] of [
+        ['hidden', 'Hidden', '<path d="m2 2 12 12M6 3.5A7 7 0 0 1 14 8a10 10 0 0 1-2 2.5M9.5 12.5A7 7 0 0 1 2 8a10 10 0 0 1 2-2.5"/>'],
+        ['locked', 'Locked', '<rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/>'],
+      ]) if (c.props?.[flag]) state.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 16 16" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`);
+      row.append(state);
+      const rename = () => {
+        const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Layer name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
+        input.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { ev.preventDefault(); cancelled = ev.key === 'Escape'; input.blur(); } };
         input.onblur = () => { if (!cancelled && input.value.trim()) onUpdate?.([{ op: 'update', id: c.id, set: { props: { layerName: input.value.trim() }, ...(c.type === 'coll' ? { text: input.value.trim() } : {}) } }]); lastSig = ''; schedule(); };
       };
+      row.querySelector('.name').ondblclick = e => { e.stopPropagation(); rename(); };
+      const more = rowMenuButton(labelOf(c)); row.append(more);
+      const show = event => {
+        event.preventDefault(); event.stopPropagation(); const r = more.getBoundingClientRect();
+        const toggle = flag => onUpdate?.(layerDescendants(board, [c.id], parents).map(k => ({ op: 'update', id: k.id, set: { props: { [flag]: !c.props?.[flag] } } })));
+        menu.show(r.left, r.bottom + 6, [
+          { title: c.props?.hidden ? 'Show' : 'Hide', run: () => toggle('hidden') },
+          { title: c.props?.locked ? 'Unlock' : 'Lock', run: () => toggle('locked') },
+          { title: 'Rename', run: rename },
+          { title: 'Delete', section: 'zz', run: () => document.getElementById('stage').dispatchEvent(new CustomEvent('layerdelete', { detail: { ids: [c.id] } })) },
+        ], event, more);
+      };
+      more.onclick = show;
+      more.onkeydown = event => { if (['ArrowDown', 'ArrowUp'].includes(event.key)) show(event); };
+      row.onkeydown = event => { if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onPick(c.id, event.shiftKey || event.metaKey || event.ctrlKey); } };
       row.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); if (!selection.has(c.id)) onPick(c.id, false); document.getElementById('stage').dispatchEvent(new CustomEvent('layercontext', { detail: { x: e.clientX, y: e.clientY, ids: selection.has(c.id) ? [...selection] : [c.id] } })); };
       row.onmouseenter = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.add('layer-hover');
       row.onmouseleave = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.remove('layer-hover');
@@ -82,6 +106,7 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     if (board.cards.length > LIMIT) { const more = document.createElement('p'); more.className = 'muted small pad'; more.textContent = `${board.cards.length - LIMIT} more not shown`; frag.appendChild(more); }
     if (!board.cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'Nothing on this board yet.'; frag.appendChild(p); }
     list.appendChild(frag);
+    if (focused) [...list.querySelectorAll('.layer-row')].find(row => row.dataset.id === focused)?.querySelector('.row-more')?.focus({ preventScroll: true });
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
 

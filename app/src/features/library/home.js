@@ -1,11 +1,13 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+import { createMenu } from '../../lib/ui/menu.js';
 import { boardPreview, escapeHtml as esc } from './preview.js';
 
 export function createHome({ getData, load, open, create, menu, scope, onClose, cover, rename, toast }) {
   const dialog = document.createElement('dialog'); dialog.className = 'library-home'; dialog.setAttribute('aria-label', 'All projects');
   document.body.append(dialog);
+  const coverMenus = new Set();
   let at = null, generation = 0, returnFocus, coverFor, editing = false;
-  const close = () => { dialog.close(); onClose?.(); returnFocus?.focus(); };
+  const close = () => { closeCoverMenus(); dialog.close(); onClose?.(); returnFocus?.focus(); };
   const path = () => {
     const out = [], seen = new Set(); let id = at;
     while (id && !seen.has(id)) { seen.add(id); const n = getData().nodes.find(n => n.id === id); if (!n) break; out.unshift(n); id = n.parent; }
@@ -13,6 +15,7 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
   };
   async function render() {
     if (!dialog.open || editing) return;
+    coverMenus.forEach(menu => menu.destroy()); coverMenus.clear();
     const version = ++generation, data = getData();
     if (at && !data.nodes.some(n => n.id === at)) at = null;
     scope(at);
@@ -29,6 +32,13 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
       return n.kind === 'project' ? `<div class="home-project">${tile}<button class="home-cover-button" data-project-cover="${esc(n.id)}" aria-label="Cover for ${esc(n.name)}" aria-expanded="false">Cover</button><div class="home-cover-menu" data-cover-menu="${esc(n.id)}" hidden><button data-cover-choice="pick">Choose an image…</button><button data-cover-choice="board">Use the first board</button></div></div>` : tile;
     };
     dialog.innerHTML = `<header><button data-action="back" ${at ? '' : 'disabled'}>Back</button><nav aria-label="Library breadcrumbs"><button data-into="">All projects</button>${chain.map(n => `<span>/</span><button data-into="${esc(n.id)}">${esc(n.name)}</button>`).join('')}</nav><button data-action="close">Back to board</button></header><div class="home-heading"><h1>${esc(here?.name ?? 'All projects')}</h1><div><button data-create="board">+ Board</button>${at ? '<button data-create="folder">+ Folder</button>' : '<button data-create="folder">+ Folder</button><button data-create="project">+ Project</button>'}</div></div><div class="home-tiles">${nodes.sort((a, b) => a.name.localeCompare(b.name)).map(nodeTile).join('')}${boards.map(b => `<button class="home-tile" data-open="${esc(b.id)}" data-item="${esc(b.id)}"><div class="home-preview" data-preview="${esc(b.id)}"></div><strong>${esc(b.name)}</strong><small>${b.cards} cards</small></button>`).join('')}</div><input type="file" accept="image/*" data-cover-file aria-label="Choose a project cover" hidden>${!nodes.length && !boards.length ? '<p class="muted">Nothing here yet. Create a board to get started.</p>' : ''}`;
+    for (const trigger of dialog.querySelectorAll('[data-project-cover]')) {
+      const menu = trigger.parentElement.querySelector('[data-cover-menu]');
+      coverMenus.add(createMenu({ trigger, menu, label: trigger.getAttribute('aria-label'), items: [
+        { title: 'Choose an image…', run() { coverFor = trigger.dataset.projectCover; const input = dialog.querySelector('[data-cover-file]'); input.value = ''; input.click(); } },
+        { title: 'Use the first board', run() { coverFor = trigger.dataset.projectCover; void cover(coverFor, null); } },
+      ] }));
+    }
     const previews = [...dialog.querySelectorAll('[data-preview], [data-cover]')];
     await Promise.all(previews.map(async el => {
       if (data.nodes.find(n => n.id === el.dataset.cover)?.cover) return;
@@ -41,11 +51,7 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
       try { const b = await load(id); if (version === generation && el.isConnected) el.innerHTML = boardPreview(b); } catch { /* A deleted board has no preview. */ }
     }));
   }
-  const closeCoverMenus = () => {
-    dialog.querySelectorAll('[data-cover-menu]').forEach(el => { el.hidden = true; });
-    dialog.querySelectorAll('[data-project-cover]').forEach(el => el.setAttribute('aria-expanded', 'false'));
-  };
-  dialog.addEventListener('pointerdown', e => { if (!e.target.closest('.home-cover-menu, .home-cover-button')) closeCoverMenus(); });
+  const closeCoverMenus = () => coverMenus.forEach(menu => menu.close());
   dialog.addEventListener('change', async e => {
     if (!e.target.matches('[data-cover-file]')) return;
     const file = e.target.files[0], id = coverFor; if (!file || !id) return;
@@ -61,18 +67,6 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
   });
   dialog.addEventListener('click', async e => {
     if (editing) return;
-    const coverButton = e.target.closest('[data-project-cover]');
-    if (coverButton) {
-      const menu = coverButton.parentElement.querySelector('[data-cover-menu]'), show = menu.hidden;
-      closeCoverMenus(); menu.hidden = !show; coverButton.setAttribute('aria-expanded', String(show)); return;
-    }
-    const choice = e.target.closest('[data-cover-choice]');
-    if (choice) {
-      coverFor = choice.closest('[data-cover-menu]').dataset.coverMenu; closeCoverMenus();
-      if (choice.dataset.coverChoice === 'board') await cover(coverFor, null);
-      else { const input = dialog.querySelector('[data-cover-file]'); input.value = ''; input.click(); }
-      return;
-    }
     const into = e.target.closest('[data-into]'); if (into) { at = into.dataset.into || null; return render(); }
     const board = e.target.closest('[data-open]'); if (board) { close(); return open(board.dataset.open); }
     const action = e.target.closest('[data-action]')?.dataset.action;

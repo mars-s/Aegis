@@ -24,15 +24,16 @@ try {
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
-  const chooseTool = async id => { await page.keyboard.press('Escape'); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
+  const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
   const uiMenu = title => page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
   const board = () => page.evaluate(() => aegis.canvas.board.id);
   const waitBoard = id => page.waitForFunction(id => aegis.canvas.board.id === id, id);
   const rename = async (id, name, cancel = false) => {
-    await row(id).click({ button: 'right' }); await uiMenu('Rename').click();
-    const field = row(id).locator('.name'); await field.fill(name); await field.press(cancel ? 'Escape' : 'Enter');
+    await row(id).locator('.row-more').focus(); await page.keyboard.press('Enter'); await uiMenu('Rename').click();
+    const field = row(id).locator('.name'), previous = await field.elementHandle(); await field.fill(name); await field.press(cancel ? 'Escape' : 'Enter');
+    await page.waitForFunction(el => !el.isConnected, previous); await previous.dispose();
     await page.waitForFunction(() => !document.querySelector('.tree-row [contenteditable="plaintext-only"]'));
   };
   await page.goto(`http://127.0.0.1:${5185 + PORT_OFFSET}/?port=${port}&token=${token}`);
@@ -45,6 +46,16 @@ try {
   await page.waitForFunction(() => document.querySelector('.tree-row.project'));
   let lib = await read(), project = lib.nodes.find(n => n.kind === 'project').id;
   await rename(project, 'Research');
+  const nameWidths = await page.locator('.tree-row').evaluateAll(rows => rows.map(row => ({ ratio: row.querySelector('.name').getBoundingClientRect().width / row.getBoundingClientRect().width, title: row.querySelector('.name').title, text: row.querySelector('.name').textContent, buttons: row.querySelectorAll('.row-more').length })));
+  assert.ok(nameWidths.every(row => row.ratio >= .6 && row.title === row.text && row.buttons === 1), JSON.stringify(nameWidths));
+  const more = row(project).locator('.row-more'); await more.focus();
+  assert.ok((await more.boundingBox()).width >= 44 && (await more.boundingBox()).height >= 44);
+  assert.equal(await more.evaluate(el => getComputedStyle(el).opacity), '1');
+  await more.press('ArrowDown'); await uiMenu('Rename').waitFor(); await page.keyboard.press('Escape');
+  assert.equal(await more.evaluate(el => document.activeElement === el), true);
+  check('library names use at least 60% of each row; one 44px More button opens from the keyboard and Escape restores focus');
+  await page.screenshot({ path: out(`r2-library-rows-${Date.now()}.png`) });
+
   await page.locator('[data-add="folder"]').click();
   await page.waitForFunction(() => document.querySelector('.tree-row.folder'));
   lib = await read(); const folder = lib.nodes.find(n => n.kind === 'folder').id;
@@ -112,7 +123,7 @@ try {
   const coverButton = () => page.locator(`[data-project-cover="${project}"]`);
   const coverPreview = () => page.locator(`[data-cover="${project}"]`);
   await coverButton().click();
-  await page.getByRole('button', { name: 'Choose an image…', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Choose an image…', exact: true }).click();
   const png = await page.evaluate(() => {
     const c = document.createElement('canvas'); c.width = 1440; c.height = 720;
     const ctx = c.getContext('2d'), gradient = ctx.createLinearGradient(0, 0, 1440, 720);
@@ -131,7 +142,7 @@ try {
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('.library-home[open]').waitFor();
   await coverPreview().locator('img').waitFor(); assert.equal(await coverPreview().locator('img').getAttribute('src'), savedCover);
-  await coverButton().click(); await page.getByRole('button', { name: 'Use the first board', exact: true }).click();
+  await coverButton().click(); await page.getByRole('menuitem', { name: 'Use the first board', exact: true }).click();
   await coverPreview().locator('svg').waitFor(); assert.equal((await read()).nodes.find(n => n.id === project).cover, undefined);
   check('project image picker converts a 1440 px PNG to a 720 px JPEG, persists across reload and restores first-board preview');
   await page.locator(`.home-tile[data-into="${project}"]`).click();
@@ -193,6 +204,12 @@ try {
   await page.waitForFunction(() => document.querySelector('#sideRight [data-panel="layers"]'));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.ok(await page.locator('#sideRight [data-panel="layers"]').isVisible());
+  const rightRow = page.locator('#sideRight .layer-row').first(), rightMore = rightRow.locator('.row-more');
+  assert.ok(await rightRow.evaluate(row => row.querySelector('.name').getBoundingClientRect().width / row.getBoundingClientRect().width >= .6));
+  await rightMore.focus(); await rightMore.press('Enter'); await uiMenu('Rename').waitFor(); await page.keyboard.press('Escape');
+  assert.equal(await rightMore.evaluate(el => document.activeElement === el), true);
+  check('right sidebar keeps wide names and the same keyboard row menu with focus return');
+
   await page.screenshot({ path: out('library-panels-right.png') });
   // A cancelled drag restores the original DOM order and saved columns.
   const orderBeforeCancel = await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:panels')).columns);

@@ -1,15 +1,16 @@
 import './onboarding.css';
+import { shortcutText } from '../../lib/shortcuts.js';
 export function createOnboarding({ mobile, panels, openComposer, closeComposer }) {
   const dialog = document.createElement('dialog'); dialog.className = 'onboarding'; dialog.setAttribute('aria-label', 'Welcome to Aegis');
   const highlight = document.createElement('div'); highlight.className = 'tour-highlight'; highlight.hidden = true;
   const card = document.createElement('section'); card.className = 'tour-card'; dialog.append(highlight, card); document.body.append(dialog);
   const steps = [
     ['Tools', 'Pick a tool, then tap or click the board to add something.', '#tools', 'add'],
-    ['Quick capture', 'Press Shift+Cmd+K to save an idea without leaving your work. On Windows and Linux, use Shift+Ctrl+K.', '#quickCapture', 'add'],
+    ['Quick capture', 'Press {quickCapture} to save an idea without leaving your work.', '#quickCapture', 'add'],
     ['Unsorted', 'Captured ideas wait here. Choose one to put it on the board.', '[data-panel="unsorted"]', 'unsorted'],
     ['Library', 'Keep boards in folders and projects. Choose a board to open it.', '[data-panel="library"]', 'boards'],
     ['Wireframe panel', 'Build screens with components, icons and templates.', '[data-panel="wireframe"]', 'wireframe'],
-    ['Agent composer', 'Press Cmd+K or Ctrl+K to Ask. Describe what you need, or choose Add as notes in Agent options to put your words on the board.', '#composer', 'agents'],
+    ['Agent composer', 'Press {ask} to Ask. Describe what you need, or choose Add as notes in Agent options to put your words on the board.', '#composer', 'agents'],
     ['Settings', 'Set up your board, toolbar, panels and accounts here. You can replay this tour from About.', '#settingsBtn', null],
   ];
   let index = -1, restore = () => {}, previousFocus = null;
@@ -47,7 +48,7 @@ export function createOnboarding({ mobile, panels, openComposer, closeComposer }
       const r = (matchMedia('(max-width: 700px)').matches && sheet && index !== 1 ? document.querySelector('.mobile-sheet') : target)?.getBoundingClientRect();
       highlight.hidden = !r || !r.width || !r.height;
       if (r) Object.assign(highlight.style, { left: `${Math.max(4, r.left - 4)}px`, top: `${Math.max(4, r.top - 4)}px`, width: `${Math.min(innerWidth - 8, r.width + 8)}px`, height: `${Math.min(innerHeight - 8, r.height + 8)}px` });
-      title.textContent = `${index + 1} of ${steps.length}: ${name}`; text.textContent = description;
+      title.textContent = `${index + 1} of ${steps.length}: ${name}`; text.innerHTML = description.replace(/\{(\w+)\}/g, (_, id) => `<span data-shortcut="${id}" data-shortcut-format="text">${shortcutText(id, 'text')}</span>`);
       nav.append(button('Skip', finish), button('Back', () => { index--; show(); }), button(index === steps.length - 1 ? 'Finish' : 'Next', next));
     }
     card.append(title, text, nav); nav.lastElementChild.focus();

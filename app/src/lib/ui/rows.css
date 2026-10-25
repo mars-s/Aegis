@@ -1,0 +1,27 @@
+/* round2-sidebar: keep row names wide and secondary actions quiet. */
+.side :is(.tree-row, .layer-row), .mobile-content :is(.tree-row, .layer-row) { position: relative; gap: 4px; height: 44px; min-height: 44px; padding: 0 0 0 calc(4px + min(var(--d, 0), 2) * 4px); }
+:is(.tree-row, .layer-row) .name { white-space: nowrap; }
+:is(.tree-row, .layer-row) .row-more { flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 12px; opacity: 0; color: var(--muted); border: 0; background: transparent; box-shadow: none; }
+:is(.tree-row, .layer-row):hover .row-more, :is(.tree-row, .layer-row):focus-within .row-more, :is(.tree-row, .layer-row) .row-more[aria-expanded=true] { opacity: 1; }
+:is(.tree-row, .layer-row) .row-more:focus-visible { outline: 1.5px solid var(--text); outline-offset: -3px; }
+:is(.tree-row, .layer-row) .row-more:hover { color: var(--text); background: var(--hover); }
+.layer-row .row-state { display: inline-flex; gap: 2px; color: var(--muted); flex: none; }
+.layer-row .row-state:empty { display: none; }
+.layer-row .row-state svg { width: 10px; height: 10px; }
+.side .layer-row .layer-fold { flex: 0 0 16px; width: 16px; min-width: 16px; height: 44px; padding: 0; background: none; border: 0; box-shadow: none; color: var(--muted); }
+.layer-row input { flex: 1; width: 0; min-width: 0; }
+.side .tree-row .twisty { position: absolute; left: 0; width: 20px; height: 44px; margin: 0; }
+.side .tree-row:has(.twisty) > svg { visibility: hidden; }
+.side .tree-row .meta { position: absolute; right: 4px; pointer-events: none; }
+.side .tree-row:has(.row-more:hover) .meta, .side .tree-row:focus-within .meta, .side .tree-row:hover .meta { visibility: hidden; }
+.pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: auto; max-height: clamp(240px, 42vh, 480px); }
+@media (hover: none), (pointer: coarse) { :is(.tree-row, .layer-row) .row-more { opacity: 1; } .tree-row .meta { display: none; } }
+body.phone :is(.tree-row, .layer-row) .row-more { opacity: 1; }
+body.phone .tree-row .meta { display: none; }
+
+.side:not(:has(> .pbox:not([data-panel=library]):not(.folded):not([hidden]))) .pbox[data-panel=library] .pbody:not([style*="height"]) { max-height: calc(100dvh - 170px); }
+@media (hover: none), (pointer: coarse) { .side .layer-row .layer-fold { flex-basis: 44px; width: 44px; min-width: 44px; } }
+
+.side .keys > div { flex-wrap: wrap; column-gap: 8px; row-gap: 4px; padding: 6px 0; }
+.side .keys span { flex: 1 1 90px; max-width: 100%; }
+.side .keys kbd:only-of-type { margin-left: auto; max-width: 100%; white-space: normal; text-align: right; }

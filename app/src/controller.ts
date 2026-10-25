@@ -8,6 +8,8 @@ import { connect as connectHost } from './lib/host';
 import { mountObjects } from './objects/mount';
 import * as registry from './features/registry';
 import './features/index';
+// round2-sidebar: shortcut copy comes from the shared display map.
+import { shortcutText } from './lib/shortcuts.js';
 import { createMenu } from './chrome/menu.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
@@ -159,7 +161,7 @@ function foldTools(closed, focus = false) {
   // fix1: notes use the island's existing action without adding another pill control.
   const notesSection = document.createElement('section'), notesHeading = document.createElement('h3'), notesGrid = document.createElement('div');
   notesHeading.textContent = 'Writing'; notesGrid.className = 'tools-grid';
-  const notes = document.createElement('button'); notes.type = 'button'; notes.title = 'Add as notes (⌘Return / Ctrl+Return)';
+  const notes = document.createElement('button'); notes.type = 'button'; notes.title = `Add as notes (${shortcutText('addNotes')})`;
   notes.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3M5.5 8h5M5.5 10.5h5"/></svg><span class="tools-label">Add as notes</span>';
   notes.onclick = () => { foldTools(true); $('composer').dispatchEvent(new Event('add-as-notes')); };
   notesGrid.append(notes); notesSection.append(notesHeading, notesGrid); popover.append(notesSection);

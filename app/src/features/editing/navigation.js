@@ -1,4 +1,6 @@
 import { createDropdown } from '../../lib/ui/dropdown.js';
+import { createMenu } from '../../lib/ui/menu.js';
+import { SHORTCUTS, shortcutText } from '../../lib/shortcuts.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { uid, toolbarOrder } from './model.js';
 import { gridShapes } from './grid.js';
@@ -22,7 +24,13 @@ export function mountNavigation(ctx, { exportBoard }) {
   const showPanels = document.createElement('button'); showPanels.className = 'show-panels pill'; showPanels.textContent = 'Show panels'; showPanels.hidden = true; document.body.append(showPanels);
   const clean = on => { document.body.classList.toggle('just-board', on); showPanels.hidden = !on; canvas.redraw(); };
   showPanels.onclick = () => clean(false);
-  const hints = document.createElement('div'); hints.className = 'editing-hints'; hints.innerHTML = '<button aria-label="Hide keyboard hints" title="Hide keyboard hints">×</button><span>⌘K Ask</span><span>⇧⌘K Quick capture</span><span>Double-click Note</span><span>F Focus · Shift+F Follow agents</span><span>⌘\\ Just the board · Space+drag Pan</span>'; document.body.append(hints);
+  const hints = document.createElement('div'); hints.className = 'editing-hints';
+  hints.innerHTML = '<button aria-label="Hide keyboard hints" title="Hide keyboard hints">×</button>';
+  for (const id of ['ask', 'quickCapture', 'newNote', 'focus', 'follow', 'justBoard', 'pan']) {
+    const hint = document.createElement('span'), key = document.createElement('span'); key.dataset.shortcut = id; key.dataset.shortcutFormat = 'mac'; key.textContent = shortcutText(id, 'mac');
+    hint.append(key, document.createTextNode(` ${SHORTCUTS[id].label}`)); hints.append(hint);
+  }
+  document.body.append(hints);
   hints.hidden = localStorage.getItem('aegis:hints') === 'hide';
   hints.querySelector('button').onclick = () => { hints.hidden = true; localStorage.setItem('aegis:hints', 'hide'); };
   const zoom = document.createElement('button'); zoom.className = 'text-btn zoom-readout'; zoom.title = 'Zoom'; zoom.setAttribute('aria-label', 'Zoom menu'); document.querySelector('.bar-right').prepend(zoom);
@@ -30,11 +38,8 @@ export function mountNavigation(ctx, { exportBoard }) {
   function zoomTo(z) { const c = canvas.centre(), v = canvas.view; canvas.glideTo({ x: v.x + c.x * (v.z - z), y: v.y + c.y * (v.z - z), z }); }
   const stops = [.25, .5, .75, 1, 1.25, 1.5, 2, 3, 4];
   function zoomStep(dir) { const z = canvas.view.z; zoomTo(dir > 0 ? stops.find(n => n > z + .01) ?? 4 : stops.findLast(n => n < z - .01) ?? .05); }
-  for (const [label, run] of [['Zoom in', () => zoomStep(1)], ['Zoom out', () => zoomStep(-1)], ['100%', () => zoomTo(1)], ['Fit board', () => canvas.fit()], ['50%', () => zoomTo(.5)], ['200%', () => zoomTo(2)]]) {
-    const b = document.createElement('button'); b.textContent = label; b.onclick = () => { run(); zoomMenu.hidden = true; }; zoomMenu.append(b);
-  }
-  zoom.onclick = () => { const r = zoom.getBoundingClientRect(); zoomMenu.hidden = !zoomMenu.hidden; zoomMenu.style.left = `${r.left}px`; zoomMenu.style.top = `${r.bottom + 6}px`; };
-  addEventListener('pointerdown', e => { if (!zoomMenu.contains(e.target) && !zoom.contains(e.target)) zoomMenu.hidden = true; });
+  const zoomActions = [['Zoom in', () => zoomStep(1)], ['Zoom out', () => zoomStep(-1)], ['100%', () => zoomTo(1)], ['Fit board', () => canvas.fit()], ['50%', () => zoomTo(.5)], ['200%', () => zoomTo(2)]];
+  createMenu({ trigger: zoom, menu: zoomMenu, label: 'Zoom', items: zoomActions.map(([title, run]) => ({ title, run })) });
   stage.addEventListener('canvaspaint', () => { zoom.textContent = `${Math.round(canvas.view.z * 100)}%`; });
   addEventListener('keydown', e => {
     const mod = e.metaKey || e.ctrlKey;
@@ -66,14 +71,11 @@ export function mountNavigation(ctx, { exportBoard }) {
     for (let i = buttons.length - 1; i > 0 && tools.getBoundingClientRect().height > room; i--) { buttons[i].dataset.overflow = '1'; more.hidden = false; }
   }
   const customise = () => { settings.showModal(); renderToolbar(); section.scrollIntoView({ block: 'start' }); };
-  more.onclick = () => {
-    overflow.replaceChildren();
-    for (const source of tools.querySelectorAll('[data-overflow]')) { const b = document.createElement('button'); b.textContent = source.title; b.onclick = () => { source.click(); overflow.hidden = true; }; overflow.append(b); }
-    const b = document.createElement('button'); b.textContent = 'Customise toolbar'; b.onclick = () => { overflow.hidden = true; customise(); }; overflow.append(b);
-    const r = more.getBoundingClientRect(); overflow.style.left = `${r.right + 8}px`; overflow.style.top = `${Math.max(50, Math.min(r.top, innerHeight - 250))}px`; overflow.hidden = !overflow.hidden;
-  };
+  createMenu({ trigger: more, menu: overflow, label: 'More tools', items: () => [
+    ...[...tools.querySelectorAll('[data-overflow]')].map(source => ({ title: source.title, run: () => source.click() })),
+    { title: 'Customise toolbar', run: customise },
+  ] });
   tools.addEventListener('contextmenu', e => { e.preventDefault(); customise(); });
-  addEventListener('pointerdown', e => { if (!tools.contains(e.target) && !overflow.contains(e.target)) overflow.hidden = true; });
   addEventListener('resize', fitTools); document.getElementById('toolsFold').addEventListener('click', fitTools);
   let config = read('aegis:toolbar');
   const defaults = [...tools.querySelectorAll('[data-tool]')].map(b => b.dataset.tool);

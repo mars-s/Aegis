@@ -81,12 +81,48 @@ try {
     await page.keyboard.press('Escape'); await page.locator('#closeSettings').click();
     await page.evaluate(() => { aegis.canvas.setView({ x: 430, y: 240, z: 1 }); aegis.canvas.select(['canvasnote']); }); await settle();
   }
-  await page.locator('#boardName').click(); await settle();
-  verify('layers expose a direct delete action', await page.locator('.layer-row[data-id="canvasnote"] [aria-label^="Delete"]').count() === 1);
+  await page.getByLabel('More selection controls', { exact: true }).click();
+  const fonts = page.getByRole('button', { name: 'Fonts…', exact: true }); await fonts.click();
+  const searchFonts = page.getByRole('textbox', { name: 'Search fonts', exact: true }); await searchFonts.fill('serif'); await searchFonts.press('ArrowDown');
+  verify('font picker arrows reach a matching choice', await page.evaluate(() => document.activeElement.tagName === 'BUTTON' && document.activeElement.textContent.includes('serif')));
+  await page.keyboard.press('Escape');
+  verify('font picker Escape closes and restores its trigger', !await searchFonts.isVisible() && await fonts.evaluate(el => document.activeElement === el));
+  await fonts.click(); await searchFonts.fill('system-ui'); await searchFonts.press('ArrowDown'); await page.keyboard.press('Space'); await settle();
+  verify('font menu Space commits the focused choice', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.font === 'system-ui') && !await searchFonts.isVisible());
+
+  await page.keyboard.press('Escape');
+  const zoom = page.getByRole('button', { name: 'Zoom menu', exact: true });
+  const zoomMenu = page.getByRole('menu', { name: 'Zoom', exact: true });
+  await zoom.focus(); await zoom.press('ArrowDown');
+  verify('zoom menu arrows move between actions', await page.getByRole('menuitem', { name: 'Zoom in', exact: true }).evaluate(el => document.activeElement === el));
+  await page.keyboard.press('ArrowDown');
+  verify('zoom arrow moves to Zoom out', await page.getByRole('menuitem', { name: 'Zoom out', exact: true }).evaluate(el => document.activeElement === el));
+  await page.keyboard.press('Escape');
+  verify('zoom Escape closes and restores trigger focus', !await zoomMenu.isVisible() && await zoom.evaluate(el => document.activeElement === el));
+  await page.emulateMedia({ reducedMotion: 'no-preference' }); await zoom.click();
+  verify('action menus open with a 160 ms transform and opacity animation', await zoomMenu.evaluate(el => el.getAnimations().some(animation => animation.effect.getTiming().duration === 160 && animation.effect.getKeyframes().every(frame => 'transform' in frame && 'opacity' in frame))));
+  await page.waitForTimeout(180); await page.screenshot({ path: out(`r2-zoom-menu-${Date.now()}.png`) });
+  await page.locator('#boardName').click();
+  verify('outside click closes the zoom menu with a 160 ms exit', await page.locator('.editing-zoom-menu').evaluate(el => el.getAttribute('aria-hidden') === 'true' && el.inert && el.getAnimations().some(a => a.effect.getTiming().duration === 160)));
+  await page.emulateMedia({ reducedMotion: 'reduce' }); await settle();
+  // The outside click also opens Library and layers.
+  await apply([{ op: 'update', id: 'canvasnote', set: { props: { layerName: 'A long research note with enough words to truncate in the sidebar' } } }]);
+  const layer = page.locator('.layer-row[data-id="canvasnote"]'), rowMore = layer.locator('.row-more');
+  const action = async name => { await rowMore.focus(); await rowMore.press('Enter'); await page.getByRole('menuitem', { name, exact: true }).click(); await settle(); };
+  verify('layers expose a single 44px More button', await rowMore.count() === 1 && (await rowMore.boundingBox()).width >= 44 && (await rowMore.boundingBox()).height >= 44);
+  verify('long layer names have at least 60% of the row, ellipsis and a full title', await layer.evaluate(el => { const name = el.querySelector('.name'); return name.getBoundingClientRect().width / el.getBoundingClientRect().width >= .6 && getComputedStyle(name).textOverflow === 'ellipsis' && name.scrollWidth > name.clientWidth && name.title === name.textContent; }));
   if (!reproduce) {
-    const removeLayer = page.locator('.layer-row[data-id="canvasnote"] [aria-label^="Delete"]');
-    page.once('dialog', d => d.dismiss()); await removeLayer.click(); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
-    page.once('dialog', d => d.accept()); await removeLayer.click(); await settle(); verify('confirmed layer deletion removes the card', await page.evaluate(() => !aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
+    await action('Hide'); verify('row menu Hide saves and removes the canvas card', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.hidden && !document.querySelector('#world [data-id="canvasnote"]')));
+    await action('Lock');
+    verify('hidden and locked indicators stay muted after the name without squeezing it', await layer.evaluate(el => { const state = el.querySelector('.row-state'), name = el.querySelector('.name'); return state.querySelectorAll('svg').length === 2 && state.previousElementSibling === name && getComputedStyle(state).color !== getComputedStyle(el).color && name.getBoundingClientRect().width / el.getBoundingClientRect().width >= .6; }));
+    await rowMore.click(); await page.screenshot({ path: out(`r2-layer-state-menu-1440-${Date.now()}.png`) }); await page.keyboard.press('Escape');
+    await action('Show'); await action('Unlock');
+    verify('row menu Show and Unlock save the opposite state', await page.evaluate(() => { const c = aegis.canvas.board.cards.find(c => c.id === 'canvasnote'); return !c.props.hidden && !c.props.locked; }));
+    await action('Rename'); const name = layer.getByRole('textbox', { name: 'Layer name', exact: true }); await name.fill('Renamed research note'); await name.press('Enter'); await settle();
+    verify('row menu Rename saves its name', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.layerName === 'Renamed research note'));
+    await page.screenshot({ path: out(`r2-layer-menu-rows-${Date.now()}.png`) });
+    page.once('dialog', d => d.dismiss()); await action('Delete'); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
+    page.once('dialog', d => d.accept()); await action('Delete'); verify('confirmed layer deletion removes the card', await page.evaluate(() => !aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
     await apply([{ op: 'create', type: 'note', newId: 'lateredit', text: 'Keep this later edit', x: -500, y: 0 }]);
     await page.locator('.layer-undo button').click(); await settle(); verify('layer Undo restores the card and preserves later edits', await page.evaluate(() => ['canvasnote', 'lateredit'].every(id => aegis.canvas.board.cards.some(c => c.id === id)) && aegis.canvas.board.links.some(l => l.id === 'canvaslink' && l.a === 'canvasnote' && l.b === 'canvastodo')));
   }
@@ -113,7 +149,7 @@ try {
       const created = kind === 'board' ? await api('/boards', { name }) : await api('/library', { op: 'create', kind, name });
       const id = created.id || created.created, row = page.locator(`.tree-row[data-${kind === 'board' ? 'board' : 'node'}="${id}"]`); await row.waitFor();
       if (kind === 'board') { await row.click(); await page.waitForFunction(id => aegis.canvas.board.id === id, id); }
-      page.once('dialog', d => d.accept()); await row.getByRole('button', { name: `Delete ${name}`, exact: true }).click(); await row.waitFor({ state: 'detached' });
+      page.once('dialog', d => d.accept()); await row.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await row.waitFor({ state: 'detached' });
       if (kind === 'board') { await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board); await page.locator('[data-library-undo]').waitFor(); }
       await page.locator('[data-library-undo]').click(); await row.waitFor();
       verify(`${kind} delete Undo restores it${kind === 'board' ? ' across reload' : ''}`, true);
@@ -121,7 +157,7 @@ try {
     const folder = await api('/library', { op: 'create', kind: 'folder', name: 'Nested delete', parent: project.created });
     const nested = await api('/boards', { name: 'Nested board', parent: folder.created }); await settle();
     const projectRow = page.locator(`.tree-row[data-node="${project.created}"]`);
-    page.once('dialog', d => d.accept()); await projectRow.getByRole('button', { name: 'Delete Delete test project', exact: true }).click();
+    page.once('dialog', d => d.accept()); await projectRow.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
     for (let attempt = 0; attempt < 150 && (await api('/library')).boards.some(b => b.id === nested.id); attempt++) await page.waitForTimeout(100);
     verify('confirmed project deletion removes its folder and boards after Undo expires', !(await api('/library')).nodes.some(n => [project.created, folder.created].includes(n.id)));
     await page.locator(`.tree-row[data-board="${parent}"]`).click(); await page.waitForFunction(id => aegis.canvas.board.id === id, parent);
@@ -130,6 +166,14 @@ try {
       await page.setViewportSize(viewport);
       await page.evaluate(width => { aegis.canvas.select(['canvasnote']); aegis.canvas.setView(width === 390 ? { x: 60, y: 180, z: .85 } : { x: 430, y: 240, z: 1 }); }, viewport.width); await settle();
       await page.screenshot({ path: out(`canvas-polish-${viewport.width}-${Date.now()}.png`) });
+      if (viewport.width === 390) await page.locator('#mobileHub [data-sheet="layers"]').click();
+      const sidebarRow = page.locator('.layer-row[data-id="canvasnote"]');
+      verify(`${viewport.width}px sidebar names keep at least 60% of the row`, await sidebarRow.evaluate(el => el.querySelector('.name').getBoundingClientRect().width / el.getBoundingClientRect().width >= .6));
+      await sidebarRow.locator('.row-more').click();
+      await page.screenshot({ path: out(`r2-sidebar-menu-${viewport.width}-${Date.now()}.png`) });
+      await page.keyboard.press('Escape');
+      if (viewport.width === 390) await page.getByLabel('Close sheet', { exact: true }).click();
+
     }
   }
   writeFileSync(out(`canvas-${reproduce ? 'reproduction' : 'results'}-${Date.now()}.json`), JSON.stringify({ results, errors }, null, 2));

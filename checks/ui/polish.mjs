@@ -1,3 +1,4 @@
+import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.js';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -72,9 +73,13 @@ try {
   await keyboardUse.close();
   console.log('PASS first-use invitation expires after eight seconds, respects reduced motion, dismisses with Cmd+K on phone and never returns after reload');
   const prompt = page.locator('#prompt'), captureDialog = page.getByRole('dialog', { name: 'Quick capture', exact: true });
+  const renderedShortcuts = await page.locator('[data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, format: el.dataset.shortcutFormat || 'display', text: el.textContent })));
+  for (const item of renderedShortcuts) assert.equal(item.text, shortcutText(item.id, item.format), item.id);
+  assert.ok(renderedShortcuts.length > 15);
+  assert.equal(SHORTCUTS.justBoard.mac, '⌘\\');
   const hints = await page.locator('.editing-hints').textContent();
   assert.match(hints, /⌘K Ask/); assert.match(hints, /⇧⌘K Quick capture/); assert.doesNotMatch(hints, /⌘K Capture/);
-  assert.equal(await page.locator('#quickCapture').getAttribute('title'), 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)');
+  assert.equal(await page.locator('#quickCapture').getAttribute('title'), shortcutTitle('quickCapture'));
   assert.match(await page.locator('[data-panel="keys"] .keys').textContent(), /⌘K \/ Ctrl\+KAsk/);
   assert.match(await page.locator('[data-panel="keys"] .keys').textContent(), /⇧⌘K \/ Shift\+Ctrl\+KQuick capture/);
   for (const mod of ['Meta', 'Control']) {
@@ -145,7 +150,7 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   const hub = page.locator('#mobileHub');
   await hub.getByRole('button', { name: 'Add', exact: true }).click();
-  assert.equal(await page.getByRole('button', { name: 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)', exact: true }).isVisible(), true);
+  assert.equal(await page.getByRole('button', { name: shortcutTitle('quickCapture'), exact: true }).isVisible(), true);
   await shot('phone-add-390'); await page.getByLabel('Close sheet', { exact: true }).click();
   await hub.getByRole('button', { name: 'Agents', exact: true }).click();
   await prompt.fill('Touch menu idea'); await page.locator('#orbMenuButton').click(); await shot('phone-notes-options-390');
@@ -160,6 +165,15 @@ try {
   assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Cmd\+K/); assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Ctrl\+K/);
   await page.keyboard.press('Meta+Shift+k'); assert.equal(await captureDialog.isVisible(), false, 'capture cannot steal the onboarding modal');
   await page.keyboard.press('Control+k'); assert.equal(await prompt.evaluate(el => document.activeElement === el), false, 'Ask cannot steal the onboarding modal');
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  const tourIds = new Set();
+  for (let step = 1; step <= 7; step++) {
+    const shortcuts = await page.locator('.tour-card [data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, text: el.textContent, format: el.dataset.shortcutFormat })));
+    for (const item of shortcuts) { assert.equal(item.text, shortcutText(item.id, item.format)); tourIds.add(item.id); }
+    if (step < 7) await page.getByRole('button', { name: 'Next', exact: true }).click();
+  }
+  assert.deepEqual([...tourIds].sort(), ['ask', 'quickCapture']);
+  console.log('PASS every tour shortcut and all rendered hints/list shortcuts equal the shared shortcut map');
   await page.getByRole('button', { name: 'Skip', exact: true }).click();
   // Round 2 history: a real request spans two board batches and all four change types.
   const original = await saved();

@@ -12,6 +12,8 @@ import { prepareImage } from '../media/images.js';
 import { mountLayerDeletion } from './layer-delete.js';
 import { mountNoteSizing } from './note-sizing.js';
 import { createMenu } from '../../chrome/menu.js';
+import { shortcutText } from '../../lib/shortcuts.js';
+import { createPopup } from '../../lib/ui/dropdown.js';
 
 registerTool({ id: 'coll', title: 'Collection', key: 'g', group: 'editing', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/>', place(at, ctx) { ctx.apply([{ op: 'create', type: 'coll', text: 'Collection', x: at.x, y: at.y, props: { kids: [] }, ref: 'collection' }], ids => ctx.canvas.select([ids.collection])); } });
 registerRenderer('coll', { render(el, card, api) {
@@ -175,7 +177,7 @@ export function mountEditing(ctx) {
         if (!locked) {
           if (text.length) {
             for (const [label, prop] of [['Bold', 'bold'], ['Italic', 'italic'], ['Underline', 'under'], ['Strike through', 'strike']]) {
-              const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: '⌘B', italic: '⌘I', under: '⌘U' }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
+              const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: shortcutText('bold'), italic: shortcutText('italic'), under: shortcutText('underline') }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
             }
             const size = text.every(c => c.props?.size === text[0].props?.size) ? text[0].props?.size || (text[0].type === 'title' ? 44 : 15) : '';
             stepper('Text size', size, v => format('size', Number(v)), { inline: textInline });
@@ -213,11 +215,11 @@ export function mountEditing(ctx) {
             button('Group', () => group(), { inline: true });
             button('Collect', () => { const b = bounds(cards), id = uid(); const coll = { id, type: 'coll', x: b.x - 12, y: b.y - 52, w: Math.max(300, b.right - b.x + 24), h: 180, props: { kids: cards.map(c => c.id) } }; apply([{ op: 'create', type: 'coll', newId: id, text: 'Collection', x: coll.x, y: coll.y, w: coll.w, h: coll.h, props: coll.props }, { op: 'order', ids: [id], to: 'back' }, ...collectionLayout(canvas.board, coll)], () => canvas.select([id])); }, { group: 'Arrange' });
           }
-          if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: '⇧⌘G' });
+          if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: shortcutText('ungroup') });
           if (single && !textInline && !media) button('Open', () => openCard(cards[0]), { inline: true, text: true });
           if (media) { button('Replace', () => replaceMedia(cards[0]), { inline: true, text: true }); button('Download', () => downloadMedia(cards[0]), { inline: true }); }
           for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Card').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
-          button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: '⌘D' }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: '⌫' });
+          button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: shortcutText('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: shortcutText('remove') });
           for (const [label, direction] of [['Bring to front', 'front'], ['Bring forward', 'forward'], ['Send backward', 'backward'], ['Send to back', 'back']]) button(label, () => stack(direction), { group: 'Arrange' });
           button('Lock', () => apply(editableCards().map(c => ({ op: 'update', id: c.id, set: { props: { locked: true } } }))), { group: 'Arrange' });
         } else button('Unlock', () => apply(cards.map(c => ({ op: 'update', id: c.id, set: { props: { locked: false } } }))), { inline: true, text: true });
@@ -255,16 +257,17 @@ export function mountEditing(ctx) {
   });
 
   const tiltPop = document.createElement('div'); tiltPop.className = 'editing-tilt'; tiltPop.hidden = true; tiltPop.setAttribute('aria-label', 'Tilt controls'); document.body.append(tiltPop);
+  // round2-sidebar: mixed controls use the same popup lifecycle as action menus.
+  const tiltPopup = createPopup({ menu: tiltPop, role: 'dialog', duration: 160, bindTrigger: false });
   const setTilt = value => { const degrees = Math.max(-180, Math.min(180, Math.round(Number(value) || 0))); const cards = editableCards().filter(c => !['frame', 'section', 'coll', 'ink'].includes(c.type)); if (cards.length) apply(cards.map(c => ({ op: 'update', id: c.id, set: { rot: degrees } }))); tiltPop.querySelector('input').value = String(degrees); tiltPop.querySelectorAll('[data-deg]').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.deg) === degrees))); };
   function openTilt(anchor) {
     tiltPop.replaceChildren(); const input = document.createElement('input'); input.type = 'text'; input.inputMode = 'numeric'; input.value = String(Math.round(selectedCards()[0]?.rot || 0)); input.setAttribute('aria-label', 'Tilt in degrees'); input.oninput = () => { if (input.value !== '' && input.value !== '-') setTilt(input.value); }; tiltPop.append(input);
     for (const [label, deg] of [['Reset tilt', 0], ...[0, 5, 10, 15, 30, 45, 90, -5, -10, -15, -30, -45, -90].map(deg => [`${deg}°`, deg])]) { const b = document.createElement('button'); b.textContent = label; b.dataset.deg = String(deg); b.onclick = () => setTilt(deg); tiltPop.append(b); }
-    const r = anchor.getBoundingClientRect(); Object.assign(tiltPop.style, { left: `${Math.max(10, Math.min(innerWidth - 290, r.left))}px`, top: `${Math.min(innerHeight - 200, r.bottom + 8)}px` }); tiltPop.hidden = false; input.focus(); input.select();
+    tiltPopup.setTrigger(anchor); tiltPopup.open(); input.focus(); input.select();
   }
-  tiltPop.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape' || e.key === 'Enter') tiltPop.hidden = true; });
-  addEventListener('pointerdown', e => { if (!tiltPop.contains(e.target) && !e.target.closest('[aria-label="Tilt"]')) tiltPop.hidden = true; });
+  tiltPop.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') tiltPopup.close(true); });
   let tiltSelection = '';
-  stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPop.hidden = true; tiltSelection = ids; } });
+  stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPopup.close(); tiltSelection = ids; } });
   mountLayerDeletion(ctx, history);
   const layerMenu = createMenu();
   stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', section: 'Arrange', run: () => stack('back') }]); });
@@ -275,7 +278,7 @@ export function mountEditing(ctx) {
     if (!trayEl || !canvas.board) return;
     const sig = JSON.stringify([canvas.board.id, canvas.board.tray]); if (sig === traySig) return; traySig = sig;
     trayEl.replaceChildren(); const items = canvas.board.tray ?? [];
-    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : 'Capture ideas with ⇧⌘K. Drag cards here to put them aside.'; trayEl.append(hint);
+    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : `Capture ideas with ${shortcutText('quickCapture')}. Drag cards here to put them aside.`; trayEl.append(hint);
     for (const item of items) {
       const row = document.createElement('button'); row.className = 'tray-item'; row.textContent = item.text || item.heading || item.url || item.type; row.dataset.id = item.id;
       row.onclick = () => release(item, canvas.centre());

@@ -1,3 +1,4 @@
+import { shortcutText } from '../../lib/shortcuts.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 // Independently implemented layouts and prompts. Frameworks use the shared collection model.
 const title = text => ({ t: 'title', x: 0, y: 0, text });
@@ -15,7 +16,7 @@ export const frameworks = {
 export const starters = {
   Moodboard: [title('Moodboard'), note(0, 60, 'Describe the mood in a few words.', 'yellow'), note(250, 60, 'Drop visual references onto this board.', 'red'), note(500, 60, 'Choose a colour palette.', 'green'), { t: 'swatch', x: 0, y: 260, text: 'Blush', hex: '#ff9ec4' }, { t: 'swatch', x: 130, y: 260, text: 'Cream', hex: '#fff5c8' }, { t: 'swatch', x: 260, y: 260, text: 'Mint', hex: '#7ad3a3' }, { t: 'todo', x: 500, y: 240, text: 'Next steps', items: ['Gather references', 'Choose typefaces', 'Review with the team'] }],
   'App plan': [title('App plan'), note(0, 60, 'Describe the intended audience.', 'blue'), note(250, 60, 'What problem needs solving?', 'red'), note(500, 60, 'What is the main benefit?', 'yellow'), { t: 'todo', x: 0, y: 260, text: 'Screens to plan', items: ['Welcome', 'Main screen', 'Preferences'] }, note(280, 260, 'Compare existing options and their gaps.', 'purple')],
-  'Brain dump': [title('Brain dump'), note(0, 60, 'Capture with ⇧⌘K. Move ideas from Unsorted onto the board.', 'yellow')],
+  'Brain dump': [title('Brain dump'), note(0, 60, `Capture with ${shortcutText('quickCapture')}. Move ideas from Unsorted onto the board.`, 'yellow')],
 };
 export function templateCommands(key, board, makeId = () => Math.random().toString(36).slice(2, 12).padEnd(8, '0')) {
   const framework = frameworks[key], items = framework?.items ?? starters[key];

@@ -4,11 +4,20 @@ const reduced = () => document.body.classList.contains('motion-off') || matchMed
 const visibleItems = menu => [...menu.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')].filter(el => !el.closest('[hidden]') && el.getClientRects().length);
 
 // Shared positioning, dismissal and keyboard behaviour for value pickers and action menus.
-export function createPopup({ trigger, menu, onToggle = () => {}, portal = false, role = 'menu' }) {
+export function createPopup({ trigger, menu, onToggle = () => {}, portal = false, role = 'menu', duration = 140, bindTrigger = true }) {
   menu.classList.add('aegis-dropdown-menu'); menu.setAttribute('role', role); menu.hidden = true;
   if (!menu.id) menu.id = `aegis-menu-${++serial}`;
   if (trigger) { trigger.setAttribute('aria-controls', menu.id); trigger.setAttribute('aria-haspopup', role); trigger.setAttribute('aria-expanded', 'false'); }
-  let opened = false, point, parent, keyboard = false, search = '', lastKey = 0;
+  let opened = false, point, parent, animation, search = '', lastKey = 0;
+  const easing = () => getComputedStyle(menu).getPropertyValue('--ease-out').trim() || 'cubic-bezier(0.23, 1, 0.32, 1)';
+  function motion(show, instant = false) {
+    const current = !menu.hidden && animation ? { opacity: getComputedStyle(menu).opacity, transform: getComputedStyle(menu).transform } : { opacity: show ? 0 : 1, transform: show ? 'scale(.97)' : 'scale(1)' };
+    animation?.cancel(); animation = null;
+    if (instant || keyboardInput || reduced()) { menu.hidden = !show; return; }
+    menu.hidden = false;
+    animation = menu.animate([current, { opacity: show ? 1 : 0, transform: show ? 'scale(1)' : 'scale(.97)' }], { duration, easing: easing(), fill: 'both' });
+    animation.onfinish = () => { menu.hidden = !opened; animation?.cancel(); animation = null; };
+  }
   function position() {
     if (!opened) return;
     const r = trigger?.getBoundingClientRect(), width = menu.offsetWidth, height = menu.offsetHeight;
@@ -18,28 +27,28 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     menu.style.top = `${Math.max(8, Math.min(innerHeight - height - 8, flip ? above : below))}px`;
     menu.style.transformOrigin = `${r ? Math.max(0, Math.min(width, r.left + r.width / 2 - parseFloat(menu.style.left))) : 12}px ${flip ? '100%' : '0'}`;
   }
-  function close(focus = false) {
+  function close(focus = false, instant = false) {
     if (!opened) return;
     if (active !== api && active && menu.contains(active.trigger)) active.close();
-    opened = false; menu.hidden = true; menu.getAnimations().forEach(a => a.cancel()); trigger?.setAttribute('aria-expanded', 'false'); onToggle(false);
+    opened = false; menu.inert = true; menu.setAttribute('aria-hidden', 'true'); trigger?.setAttribute('aria-expanded', 'false'); onToggle(false); motion(false, instant);
     if (active === api) active = parent?.opened ? parent : null;
     if (focus && trigger?.isConnected) trigger.focus({ preventScroll: true });
   }
   function open(event, at) {
     if (opened) return;
-    parent = active?.menu.contains(trigger) ? active : null; if (!parent) active?.close(); active = api; point = at; keyboard = event ? event.type === 'keydown' || event.type === 'click' && event.detail === 0 : keyboardInput; search = '';
+    parent = active?.menu.contains(trigger) ? active : null; if (!parent) active?.close(); active = api; point = at; if (event) keyboardInput = event.type === 'keydown' || event.type === 'click' && event.detail === 0; search = '';
     if (portal) (trigger?.closest('dialog[open]') ?? document.body).append(menu);
-    opened = true; menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true'); onToggle(true); position();
-    if (!keyboard && !reduced()) menu.animate([{ opacity: 0, transform: 'scale(.97)' }, { opacity: 1, transform: 'scale(1)' }], { duration: 140, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+    opened = true; menu.inert = false; menu.removeAttribute('aria-hidden');
+    motion(true); menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true'); onToggle(true); position();
   }
   function key(event) {
     if (event.key === 'Escape') { event.preventDefault(); close(true); return; }
     if (event.key === 'Tab') { close(true); return; }
-    if (['Enter', ' '].includes(event.key) && document.activeElement.matches('button[role=option], button[role=menuitem]')) { event.preventDefault(); document.activeElement.click(); return; }
+    if (['Enter', ' '].includes(event.key) && document.activeElement.matches('button[role=option], button[role=menuitem], button[role=menuitemradio], button[role=menuitemcheckbox]')) { event.preventDefault(); document.activeElement.click(); return; }
     const items = visibleItems(menu); if (!items.length) return;
     const index = items.indexOf(document.activeElement);
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-      event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      event.preventDefault(); const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : index < 0 ? (event.key === 'ArrowUp' ? items.length - 1 : 0) : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
       items[next].focus({ preventScroll: true }); items[next].scrollIntoView({ block: 'nearest' });
     } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && !document.activeElement.matches('input, textarea')) {
       event.preventDefault(); const now = performance.now(); search = now - lastKey < 600 ? search + event.key.toLowerCase() : event.key.toLowerCase(); lastKey = now;
@@ -48,8 +57,13 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     }
   }
   const click = e => { e.preventDefault(); opened ? close() : open(e); };
-  trigger?.addEventListener('click', click);
-  const api = { open, close, position, key, menu, trigger, get opened() { return opened; }, destroy() { close(); trigger?.removeEventListener('click', click); if (portal) menu.remove(); } };
+  function setTrigger(next) {
+    if (bindTrigger) trigger?.removeEventListener('click', click);
+    trigger = next;
+    if (trigger) { trigger.setAttribute('aria-controls', menu.id); trigger.setAttribute('aria-haspopup', role); trigger.setAttribute('aria-expanded', String(opened)); if (bindTrigger) trigger.addEventListener('click', click); }
+  }
+  setTrigger(trigger);
+  const api = { open, close, position, key, menu, setTrigger, get trigger() { return trigger; }, get opened() { return opened; }, destroy() { close(false, true); animation?.cancel(); if (bindTrigger) trigger?.removeEventListener('click', click); if (portal) menu.remove(); } };
   return api;
 }
 
@@ -114,11 +128,11 @@ export function mountDropdowns() {
   addEventListener('pointerdown', e => { keyboardInput = false; while (active && !active.menu.contains(e.target) && !active.trigger?.contains(e.target)) active.close(); }, true);
   addEventListener('keydown', e => {
     keyboardInput = true;
-    if (active && (active.menu.contains(e.target) || active.trigger?.contains(e.target))) {
+    if (active && (['Escape', 'Tab'].includes(e.key) || active.menu.contains(e.target) || active.trigger?.contains(e.target))) {
       if (e.target.matches('input, textarea, [contenteditable]') && !['Escape', 'Tab'].includes(e.key)) return;
       e.stopImmediatePropagation(); active.key(e);
     }
-    else if (e.target.closest?.('.aegis-dropdown') && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
+    else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
   }, true);
   addEventListener('resize', () => active?.position()); addEventListener('scroll', () => active?.position(), true);
   addEventListener('blur', () => { while (active) active.close(); });
