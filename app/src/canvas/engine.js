@@ -7,7 +7,10 @@ import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
-const FAR = 0.4;             // below this zoom, cards show as outlines
+const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
+// Far out, real cards keep showing (with their content) while few enough are on screen. Only a crowded far
+// view swaps to canvas-drawn shapes, so a 5,000 card board stays smooth while a normal board never goes blank.
+const LIVE_LIMIT = 400;
 const MIN_Z = 0.05, MAX_Z = 4;
 const WINDOWS = new Set(['object', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'slides', 'canvas', 'font']);
 
@@ -106,7 +109,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     else world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`;
     clearTimeout(crispTimer);
     if (crisp) crispTimer = setTimeout(() => { world.style.zoom = String(view.z); world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`; }, 450);
-    const far = view.z < FAR;
+    const far = view.z < FAR && visibleCount() > LIVE_LIMIT;
     stage.classList.toggle('far', far);
     stage.style.backgroundColor = board?.bg || '';
     drawGrid();
@@ -156,7 +159,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dot');
     const shape = localStorage.getItem('aegis:grid') || 'dots';
     if (shape === 'none') return;
-    ctx.globalAlpha = Math.max(0.25, Math.min(1, (view.z - 0.18) / 0.4));
+    ctx.globalAlpha = Math.max(0.45, Math.min(1, (view.z - 0.1) / 0.4));
     if (shape === 'lines') { ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1; ctx.beginPath(); for (let x = view.x % step; x < w; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, h); } for (let y = view.y % step; y < h; y += step) { ctx.moveTo(0, y); ctx.lineTo(w, y); } ctx.stroke(); }
     else {
       const ox = (((view.x + 16.5 * view.z) % step) + step) % step, oy = (((view.y + 25.5 * view.z) % step) + step) % step;
@@ -166,6 +169,16 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
 
   // ---------- cards ----------
+  // How many cards would be mounted for this view. Counting stops past the limit, so this is cheap on big boards.
+  function visibleCount() {
+    if (!board) return 0;
+    const r = visibleRect(); let n = 0;
+    for (const c of board.cards) {
+      if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) continue;
+      if (++n > LIVE_LIMIT) break;
+    }
+    return n;
+  }
   function visibleRect() {
     const a = screenToWorld(-MARGIN, -MARGIN), b = screenToWorld(stage.clientWidth + MARGIN, stage.clientHeight + MARGIN);
     return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
