@@ -41,7 +41,11 @@ fn copy_text(text: String) -> Result<(), String> {
 // Downloads like a browser would: same name, or "name (2).ext" when that is taken.
 #[tauri::command]
 fn save_download(request: tauri::ipc::Request<'_>) -> Result<String, String> {
-    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("expected the file's bytes".into()) };
+    // Raw bytes over the ipc: protocol; a JSON number array when Tauri falls back to postMessage.
+    let bytes: Vec<u8> = match request.body() {
+        tauri::ipc::InvokeBody::Raw(b) => b.clone(),
+        tauri::ipc::InvokeBody::Json(v) => serde_json::from_value(v.clone()).map_err(|_| "expected the file's bytes")?,
+    };
     let asked = request.headers().get("x-file-name").and_then(|v| v.to_str().ok()).map(percent_decode).unwrap_or_default();
     let clean: String = asked.chars().map(|c| if matches!(c, '/' | '\\' | ':' | '\0') || c.is_control() { '-' } else { c }).collect();
     let clean = clean.trim().trim_start_matches('.').to_string();
@@ -50,7 +54,7 @@ fn save_download(request: tauri::ipc::Request<'_>) -> Result<String, String> {
     let (stem, ext) = match name.rfind('.') { Some(i) if i > 0 => (name[..i].to_string(), name[i..].to_string()), _ => (name.clone(), String::new()) };
     let mut path = dir.join(&name);
     for n in 2.. { if !path.exists() { break; } path = dir.join(format!("{stem} ({n}){ext}")); }
-    std::fs::write(&path, bytes).map_err(|e| format!("could not save {}: {e}", path.display()))?;
+    std::fs::write(&path, &bytes).map_err(|e| format!("could not save {}: {e}", path.display()))?;
     Ok(path.to_string_lossy().into_owned())
 }
 fn percent_decode(s: &str) -> String {
