@@ -2,6 +2,7 @@ import './style.css';
 import { createIslandMorph } from './morph.js';
 import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
+import { mountAgentIdentity } from './identity.js';
 import { cardRect, freeAgentRect, intersects, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
 import { displayRotation } from '../settings/preferences.js';
 // Round 3 navigation: first-use timing belongs to onboarding.
@@ -112,6 +113,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   document.addEventListener('visibilitychange', visibility); visibility();
   function save(w) { localStorage.setItem(`aegis:agent-window:${w.agent.id}`, JSON.stringify({ x: w.x, y: w.y, closed: w.closed, collapsed: w.collapsed })); }
   let previousCards = [], cardSpace = [], movingSpace = [], spaceTimer = 0;
+  mountAgentIdentity({ canvas, stage, overlay, edges, windows, occupied: () => [...cardSpace, ...movingSpace], label: a => `${nameOf(a)} · ${shortTitle(a)}` });
   function place(w, preferred = { x: w.x, y: w.y }, anchorOverride) {
     if (!canvas.board || w.closed || w.agent.boardId !== canvas.board.id) return;
     const cards = canvas.board.cards;

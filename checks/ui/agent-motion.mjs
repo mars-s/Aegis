@@ -7,6 +7,11 @@ import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
+import { freeAgentRect } from '../../app/src/features/agents/placement.js';
+
+const exactWidthArea = { x: 8188.749999998775, y: 550, w: 3500, h: 10400 };
+const exactWidthLabel = freeAgentRect([], [], exactWidthArea, 775, null, exactWidthArea, 3500);
+assert.equal(exactWidthLabel.x, exactWidthArea.x, 'a label fills the available width after a fractional pan without escaping the viewport');
 
 const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'motion-' + process.pid;
 const data = await mkdtemp(join(tmpdir(), 'aegis-motion-')), stamp = Date.now();
@@ -42,6 +47,50 @@ try {
   await page.addInitScript(() => { if (window.top === window) localStorage.setItem('aegis:onboarded', '1'); });
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
+  // PM 3: recover a single agent from the left edge with a real centre click.
+  const [{ id: recoveryAgent }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'Find this note', x: 0, y: 0 }]) }));
+  await page.waitForFunction(async () => aegis.canvas.board.cards.length === 1 && (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running));
+  await page.waitForTimeout(700);
+  await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
+  await page.evaluate(() => aegis.canvas.setView({ ...aegis.canvas.view, x: aegis.canvas.view.x + 2200 }));
+  await page.waitForTimeout(100);
+  const recoveryCue = page.locator(`.agent-edge[data-agent-id="${recoveryAgent}"]`);
+  const recoveryBefore = await page.evaluate(() => ({ ...aegis.canvas.view })), recoveryBox = await recoveryCue.boundingBox();
+  const recoveryHit = await recoveryCue.evaluate(el => {
+    const r = el.getBoundingClientRect();
+    return { hit: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.outerHTML.slice(0, 200), cue: getComputedStyle(el).pointerEvents, parent: getComputedStyle(el.parentElement).pointerEvents, z: getComputedStyle(el.parentElement).zIndex };
+  });
+  await shot('recovery-single-before');
+  await page.evaluate(() => {
+    window.recoveryEvents = [];
+    window.recoveryListeners = new AbortController();
+    for (const type of ['pointerdown', 'pointerup', 'click']) document.addEventListener(type, e => window.recoveryEvents.push({ type, cue: !!e.target.closest('.agent-edge'), view: { ...aegis.canvas.view } }), { capture: true, signal: window.recoveryListeners.signal });
+  });
+  await page.mouse.click(recoveryBox.x + recoveryBox.width / 2, recoveryBox.y + recoveryBox.height / 2);
+  await page.waitForTimeout(500);
+  await shot('recovery-single-after');
+  await writeFile(out('recovery-repro.json'), JSON.stringify({ recoveryBefore, recoveryBox, recoveryHit, events: await page.evaluate(() => window.recoveryEvents), after: await page.evaluate(() => ({ ...aegis.canvas.view })) }, null, 2));
+  assert.notDeepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), recoveryBefore, `single-agent centre click pans: ${JSON.stringify(recoveryHit)}`);
+  assert.equal(recoveryBox.width, 44); assert.equal(recoveryBox.height, 44);
+  assert.ok(await page.evaluate(() => window.recoveryEvents.length === 3 && window.recoveryEvents.every(e => e.cue)), 'the cue owns pointer-down, pointer-up and click above the grid');
+  await page.evaluate(() => { window.recoveryListeners.abort(); delete window.recoveryListeners; delete window.recoveryEvents; });
+  assert.equal(await recoveryCue.isVisible(), false);
+  await page.evaluate(() => aegis.canvas.setView({ ...aegis.canvas.view, x: aegis.canvas.view.x + 2200 }));
+  await recoveryCue.waitFor({ state: 'visible' });
+  await recoveryCue.focus(); await page.keyboard.press('Enter');
+  assert.ok(await page.evaluate(id => {
+    const w = JSON.parse(localStorage.getItem(`aegis:agent-window:${id}`)), v = aegis.canvas.view;
+    return Math.abs(v.x + (w.x + 170) * v.z - innerWidth / 2) < 1 && Math.abs(v.y + (w.y + 22) * v.z - innerHeight / 2) < 1;
+  }, recoveryAgent), 'Enter centres the agent immediately without a glide');
+  await recoveryCue.waitFor({ state: 'hidden' });
+  assert.equal(await page.locator(`.agent-window[data-agent-id="${recoveryAgent}"] .agent-window-toggle`).getAttribute('aria-expanded'), 'false');
+  await shot('recovery-single-keyboard');
+  console.log('PASS single-agent recovery: real page.mouse.click at the 44px cue centre keeps pointer-down and pointer-up above the grid; Enter also pans without expanding');
+  await page.locator(`.agent-window[data-agent-id="${recoveryAgent}"] .agent-close`).click();
+  await page.evaluate(async () => {
+    await aegis.host.post(`/boards/${aegis.canvas.board.id}/batch`, { commands: [{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }] });
+    aegis.canvas.setBoard(await aegis.host.get(`/boards/${aegis.canvas.board.id}`));
+  });
   await page.evaluate(async () => {
     const commands = Array.from({ length: 18 }, (_, i) => ({ op: 'create', type: 'note', newId: `motion${String(i).padStart(2, '0')}`, text: `Step ${i + 1}`, x: 40 + i % 6 * 200, y: 40 + Math.floor(i / 6) * 150, w: 170, h: 96 }));
     await aegis.host.post(`/boards/${aegis.canvas.board.id}/batch`, { commands });
@@ -172,16 +221,58 @@ try {
     await assertInView(`Fit with ${count} notes`);
     assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false');
     await shot(`fit-${count}-notes`);
+    // PM 3.6: a distant spatial header reveals readable identity without covering cards.
+    const identity = page.locator('#agentIdentity'), toggle = win.locator('.agent-window-toggle');
+    const identityViews = count === 25 ? [1440, 1586, 390] : [1440];
+    for (const width of identityViews) {
+      await page.setViewportSize({ width, height: 992 });
+      await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
+      const fitView = await page.evaluate(() => ({ ...aegis.canvas.view }));
+      for (const zoom of [fitView.z, .05]) {
+        await page.evaluate(z => { const at = aegis.canvas.centre(); aegis.canvas.setView({ x: innerWidth / 2 - at.x * z, y: innerHeight / 2 - at.y * z, z }); }, zoom);
+        await page.evaluate(() => new Promise(requestAnimationFrame));
+        const spatial = await win.getAttribute('style'), camera = await page.evaluate(() => ({ ...aegis.canvas.view }));
+        const target = await toggle.boundingBox();
+        await page.mouse.move(700, 900); await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2);
+        await identity.waitFor({ state: 'visible' });
+        assert.match(await identity.textContent(), /Agent \d+ · Board assistant/);
+        assert.ok(await identity.locator('p').evaluateAll(nodes => nodes.every(el => parseFloat(getComputedStyle(el).fontSize) >= 12 && el.scrollWidth <= el.clientWidth)), 'identity and status stay readable at Fit and 5%');
+        const overlaps = await identity.evaluate(el => {
+          const r = el.getBoundingClientRect(), z = aegis.canvas.view.z;
+          return aegis.canvas.board.cards.filter(c => { const p = aegis.canvas.worldToScreen(c.x, c.y); return p.x < r.right && p.x + c.w * z > r.left && p.y < r.bottom && p.y + c.h * z > r.top; }).map(c => c.id);
+        });
+        assert.deepEqual(overlaps, [], 'readable identity does not cover cards');
+        assert.equal(await win.getAttribute('style'), spatial, 'the agent window stays at its spatial position');
+        assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera);
+        await shot(`identity-${count}-${width}-${zoom === .05 ? '5-percent' : 'fit'}`);
+        await page.mouse.move(700, 900); await page.locator('#stage').focus(); await toggle.focus();
+        await identity.waitFor({ state: 'visible' });
+        assert.equal(await toggle.getAttribute('aria-describedby'), 'agentIdentity', 'keyboard focus has the same readable identity');
+        await page.keyboard.press('Escape'); assert.equal(await identity.isVisible(), false);
+      }
+    }
+    await page.setViewportSize({ width: 1440, height: 992 });
+    await page.locator('#stage').focus(); await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
     await page.evaluate(() => aegis.canvas.setView({ ...aegis.canvas.view, x: aegis.canvas.view.x - 5000 }, false));
     const edge = page.locator(`.agent-edge[data-agent-id="${layoutAgent}"]`);
     await edge.waitFor({ state: 'visible' });
     assert.equal(await edge.evaluate(el => getComputedStyle(el).color), 'rgb(63, 141, 253)');
     const pinned = await edge.boundingBox(); assert.ok(pinned.x >= 0 && pinned.x + pinned.width <= 1440 && pinned.y >= 0 && pinned.y + pinned.height <= 992);
-    await shot(`edge-${count}-notes`); await edge.click(); await page.waitForTimeout(500);
+    await shot(`edge-${count}-notes`);
+    const edgeBefore = await page.evaluate(() => ({ ...aegis.canvas.view }));
+    const hit = await edge.evaluate(el => {
+      const r = el.getBoundingClientRect(), target = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      return { target: target?.outerHTML.slice(0, 200), cue: getComputedStyle(el).pointerEvents, container: getComputedStyle(el.parentElement).pointerEvents, z: getComputedStyle(el.parentElement).zIndex };
+    });
+    await page.mouse.click(pinned.x + pinned.width / 2, pinned.y + pinned.height / 2);
+    await page.waitForTimeout(500);
+    assert.notDeepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), edgeBefore, `real centre click pans to agent: ${JSON.stringify(hit)}`);
     await assertInView(`Edge return with ${count} notes`);
     assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false', 'edge navigation preserves collapse');
     assert.equal(await edge.isVisible(), false);
-    await win.locator('.agent-window-toggle').click();
+    const openAt = await win.locator('.agent-window-toggle').boundingBox();
+    await page.mouse.click(openAt.x + openAt.width / 2, openAt.y + openAt.height / 2);
+    assert.equal(await identity.isVisible(), false, 'expanding with the mouse dismisses the identity label');
     await win.locator('.agent-history-details > summary').click();
     await page.evaluate(() => new Promise(requestAnimationFrame));
     await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
@@ -190,7 +281,7 @@ try {
     await shot(`fit-${count}-expanded`);
     await win.locator('.agent-close').click(); assert.equal(await edge.isVisible(), false);
   }
-  console.log('PASS Fit keeps agent windows inside the viewport at 12 and 25 notes; blue edge indicators pan back without expanding');
+  console.log('PASS Fit keeps agent windows inside the viewport at 12 and 25 notes; real centre clicks on blue edge indicators pan back without expanding; hover and focus show 12px+ identity at Fit and 5% without covering cards at 1440, 1586 and 390');
   assert.deepEqual(errors, []);
   console.log('PASS agent diffs without reloads, 320ms moves, 30ms stagger, 12-card cap, interruption, pointer handover, enter/exit, reduced motion, local edits and fitted demo at 1440, 1586 and 390');
   console.log(JSON.stringify({ screenshots, fit }));

@@ -23,9 +23,9 @@ export function renderHistory(el, agent, undo) {
     if (entry.changes.length) {
       const details = document.createElement('details'); details.className = 'agent-history-details'; details.open = expanded.has(entry.id);
       const disclosure = document.createElement('summary'), preview = document.createElement('span');
-      preview.className = 'agent-history-preview'; preview.textContent = entry.changes.slice(0, 3).map(c => c.title).join(', '); preview.title = preview.textContent;
+      preview.className = 'agent-history-preview'; preview.textContent = entry.changes[0].title; preview.title = preview.textContent;
       disclosure.append(preview);
-      if (entry.changes.length > 3) { const more = document.createElement('span'); more.className = 'agent-history-more'; more.textContent = `+${entry.changes.length - 3} more`; disclosure.append(more); }
+      if (entry.changes.length > 1) { const more = document.createElement('span'); more.className = 'agent-history-more'; more.textContent = `+${entry.changes.length - 1} more`; disclosure.append(more); }
       details.append(disclosure);
       for (const change of entry.changes) {
         const title = document.createElement('p'); title.className = 'agent-history-window';

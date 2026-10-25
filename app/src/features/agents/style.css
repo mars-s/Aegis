@@ -127,7 +127,7 @@ body.motion-off .agent-island .island-icon { transition-property: opacity, backg
 .agent-history-details > summary::before { content: '›'; flex: none; font-size: 16px; }
 .agent-history-details[open] > summary::before { transform: rotate(90deg); }
 .agent-history-details > summary:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; border-radius: 3px; }
-.agent-history-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-history-preview { min-width: 0; flex: 1; overflow: hidden; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .agent-history-more { flex: none; color: var(--faint); }
 .agent-history-blocked { margin-top: 6px !important; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .agent-edge { position: absolute; left: 0; top: 0; z-index: 19; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--data); pointer-events: auto; }
@@ -136,6 +136,21 @@ body.motion-off .agent-island .island-icon { transition-property: opacity, backg
 .agent-edge .orb-colours, .agent-edge .orb-light { animation: none; }
 .agent-edge > svg { position: absolute; inset: 0; width: 44px; height: 44px; padding: 14px 0 14px 28px; fill: none; stroke: currentColor; stroke-width: 1.4; transform: rotate(var(--direction)); }
 .agent-edge:focus-visible { outline: 1.5px solid var(--data); outline-offset: -3px; }
+/* PM 3.2: press scaling moves a translated cue away from mouse-up. Keep its 44px hit area fixed. */
+.agent-edge:active { scale: none; }
+.agent-edge > * { pointer-events: none; }
+/* PM 3.6: a readable identity occupies free space only while a distant window is reached. */
+.agent-identity { position: absolute; width: min(280px, calc(100vw - 32px)); padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--raised); pointer-events: none; }
+.agent-identity p { margin: 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.45; color: var(--text); }
+.agent-identity p + p { margin-top: 4px; font-size: 12px; color: var(--data); }
+/* PM 3.7 and 3.8: one name fits beside the count, and one activity close control remains. */
+.agent-history-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+.agent-history-entry > div { display: contents; }
+.agent-history-summary, .agent-history time { grid-column: 1; }
+.agent-history-details, .agent-history-blocked { grid-column: 1 / -1; }
+.agent-history .agent-history-undo { grid-column: 2; grid-row: 1 / span 2; }
+#agentsPanel .panel-head { padding-right: 8px; }
+#closeAgents { min-width: 44px; min-height: 44px; }
 .agent-first-hint { position: absolute; left: calc(100% + 12px); top: 50%; translate: 0 -50%; width: max-content; max-width: 160px; padding: 5px 0; color: var(--muted); font-size: 12px; white-space: pre; opacity: 0; pointer-events: none; transition: opacity 160ms var(--ease-out); }
 .agent-first-hint.visible { opacity: 1; }
 body.motion-off .agent-first-hint { transition: none; }

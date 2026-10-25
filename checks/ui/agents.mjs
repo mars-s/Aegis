@@ -34,6 +34,10 @@ const choose = async (label, name) => {
   await page.locator('#orbMenu').getByRole('menuitemradio', { name, exact: true }).click();
 };
 const agents = () => page.evaluate(() => aegis.host.get(`/agents?board=${aegis.canvas.board.id}`));
+const mouseCentre = async locator => {
+  const r = await locator.boundingBox(); assert.ok(r, 'mouse target is visible');
+  await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2);
+};
 try {
   await page.goto(`http://127.0.0.1:${5193 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -288,19 +292,37 @@ try {
   if (await page.locator('#agentsBtn').getAttribute('aria-pressed') !== 'true') { await page.mouse.move(1400, 20); await page.locator('#agentsBtn').click(); }
   await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
   const layoutHistory = page.locator(`#agentList [data-id="${layoutAgent}"] .agent-history-entry`), disclosure = layoutHistory.locator('details');
+  await layoutHistory.locator('.agent-history-undo:not(:disabled)').waitFor();
   assert.equal(await disclosure.getAttribute('open'), null);
-  assert.equal(await layoutHistory.locator('.agent-history-more').textContent(), '+22 more');
+  assert.equal(await layoutHistory.locator('.agent-history-more').textContent(), '+24 more');
   assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 0);
-  assert.match(await layoutHistory.locator('.agent-history-preview').textContent(), /Review plan, Plan 2, Plan 3/);
+  assert.equal(await layoutHistory.locator('.agent-history-preview').textContent(), 'Review plan');
+  const assertPreviewFits = async () => {
+    assert.ok(await disclosure.locator('summary').evaluate(el => {
+      const r = el.getBoundingClientRect(), preview = el.querySelector('.agent-history-preview'), more = el.querySelector('.agent-history-more'), p = preview.getBoundingClientRect(), m = more.getBoundingClientRect();
+      return p.left >= r.left && m.right <= r.right + 1 && p.right <= m.left && preview.scrollWidth <= preview.clientWidth && preview.scrollHeight <= preview.clientHeight;
+    }), 'one readable name and the remaining count fit the available width');
+  };
+  await assertPreviewFits();
+  const resize = await page.locator('#sideRight > .side-resize').boundingBox();
+  await page.mouse.move(resize.x + resize.width / 2, resize.y + resize.height / 2); await page.mouse.down();
+  await page.mouse.move(resize.x + resize.width / 2 + 120, resize.y + resize.height / 2); await page.mouse.up();
+  await assertPreviewFits();
+  await shot('r4-history-narrow');
+  const narrowResize = await page.locator('#sideRight > .side-resize').boundingBox();
+  await page.mouse.move(narrowResize.x + narrowResize.width / 2, narrowResize.y + narrowResize.height / 2); await page.mouse.down();
+  await page.mouse.move(narrowResize.x + narrowResize.width / 2 - 120, narrowResize.y + narrowResize.height / 2); await page.mouse.up();
+  await assertPreviewFits();
   assert.equal(await layoutHistory.locator('time').isVisible(), true);
   assert.equal(await layoutHistory.getByRole('button', { name: /^Undo request:/ }).isEnabled(), true);
   await shot('r3-history-compact');
-  await disclosure.locator('summary').click(); assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 25);
+  await mouseCentre(disclosure.locator('summary')); assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 25);
+  assert.deepEqual(await disclosure.locator('.agent-history-window').allTextContents(), Array.from({ length: 25 }, (_, i) => `Moved: ${i ? `Plan ${i + 1}` : 'Review plan'}`), 'every affected name remains in the disclosure');
   await page.evaluate(() => aegis.apply([{ op: 'update', id: 'undo000', set: { text: 'My later writing stays' } }]));
   await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
   assert.equal(await disclosure.getAttribute('open'), '', 'disclosure stays expanded when availability refreshes');
   assert.equal(await layoutHistory.getByRole('button', { name: /^Undo request:/ }).isEnabled(), true, 'text does not conflict with a move');
-  await disclosure.locator('summary').click();
+  await mouseCentre(disclosure.locator('summary'));
   const layoutRev = await page.evaluate(() => aegis.canvas.board.rev);
   await layoutHistory.getByRole('button', { name: /^Undo request:/ }).click();
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').x === 0);
@@ -308,7 +330,16 @@ try {
   assert.deepEqual(await page.evaluate(() => aegis.canvas.board.cards.map(({ id, x, y }) => ({ id, x, y }))), positions);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text), 'My later writing stays');
   await page.waitForFunction(id => document.querySelector(`#agentList [data-id="${id}"] .agent-history`)?.textContent.includes('Undone'), layoutAgent);
-  await page.locator('#closeAgents').click(); await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
+  const closeActivity = page.getByRole('button', { name: 'Close agent activity and panels', exact: true });
+  assert.equal(await closeActivity.count(), 1);
+  assert.equal(await page.locator('#sideRight > button').count(), 0, 'the activity panel has no second close button');
+  await mouseCentre(closeActivity);
+  await page.waitForFunction(() => !document.body.classList.contains('right-open'));
+  assert.equal(await page.locator('#sideRight').getAttribute('aria-hidden'), 'true');
+  await page.keyboard.press('Meta+]'); await closeActivity.focus(); await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#sideRight').getAttribute('aria-hidden'), 'true', 'Escape closes activity immediately');
+  assert.equal(await page.evaluate(() => document.activeElement.id), 'revealRight', 'closing activity restores focus to its opener');
+  await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').x === 400);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text), 'My later writing stays');
   await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
@@ -326,7 +357,7 @@ try {
   await shot('r3-history-blocked');
   const conflict = await page.evaluate(async id => { const rev = aegis.canvas.board.rev; try { await aegis.host.post(`/agents/${id}/history/${(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).history[0].id}/undo`, {}); } catch (e) { return { message: e.message, rev, after: (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).rev }; } }, textAgent);
   assert.match(conflict.message, /Text of Review plan changed since/); assert.equal(conflict.after, conflict.rev);
-  console.log('PASS compact history previews three names and +22 more; disclosure expands 25 names and survives updates; request Undo restores positions, retains later text, is one board change and normal-undoable; overlapping text disables Undo with a reason in both timelines');
+  console.log('PASS compact history fits one readable name and +24 more at 320px and 200px; real mouse disclosure reveals all 25 names and survives updates; one named activity close control works with real mouse input and Escape restores focus; request Undo restores positions, retains later text, is one board change and normal-undoable; overlapping text disables Undo with a reason in both timelines');
   assert.deepEqual(errors, []);
   console.log('PASS island idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models and menu keyboard navigation, fade-only motion, durable chat reload, phone options and hidden-page pause');
 } catch (e) { writeFileSync(out(`island-${captureId}-failure.log`), String(e.stack ?? e)); console.error(e); console.error('page errors', errors); console.error('requests', requests); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }

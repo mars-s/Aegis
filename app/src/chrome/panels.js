@@ -9,7 +9,8 @@ export function createPanels({ side, onChange }) {
   const right = document.createElement('aside'); right.className = 'side side-right'; right.id = 'sideRight'; right.setAttribute('aria-label', 'Right side bar'); right.innerHTML = '<div class="side-resize" title="Drag to resize"></div>'; side.after(right);
   const agents = document.getElementById('agentsPanel'); agents.hidden = false; right.prepend(agents);
   const timers = {}, arrows = { left: document.getElementById('revealLeft'), right: document.getElementById('revealRight') };
-  const close = document.createElement('button'); close.className = 'icon-btn'; close.id = 'closeRight'; close.textContent = '×'; close.setAttribute('aria-label', 'Hide agent activity and panels'); right.prepend(close);
+  // PM 3.8: the activity header owns the one close control for this side.
+  const close = document.getElementById('closeAgents'); close.setAttribute('aria-label', 'Close agent activity and panels');
   close.onclick = e => setOpen('right', false, e.detail === 0);
   document.getElementById('closeSide').onclick = e => setOpen('left', false, e.detail === 0);
   for (const key of ['left', 'right']) arrows[key].onclick = e => setOpen(key, true, e.detail === 0);

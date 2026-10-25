@@ -11,11 +11,12 @@ export function cardRect(card, rotation) {
 
 // Round 3 placement: free space within the camera comes before space beyond it.
 // Run only when geometry changes, never on the pan/zoom paint path.
-export function freeAgentRect(cards, neighbours, anchor, height, preferred, viewport) {
-  const occupied = [...cards, ...neighbours], size = { w: WINDOW_WIDTH, h: height };
+export function freeAgentRect(cards, neighbours, anchor, height, preferred, viewport, width = WINDOW_WIDTH) {
+  const occupied = [...cards, ...neighbours], size = { w: width, h: height };
   const free = p => !occupied.some(c => intersects({ ...p, ...size }, c));
   if (viewport) {
-    const left = viewport.x, top = viewport.y, right = left + viewport.w - size.w, bottom = top + viewport.h - size.h;
+    // Subtract sizes first so an exact-width label still fits after a fractional camera pan.
+    const left = viewport.x, top = viewport.y, right = left + (viewport.w - size.w), bottom = top + (viewport.h - size.h);
     const inside = p => p.x >= left && p.x <= right && p.y >= top && p.y <= bottom;
     if (preferred && inside(preferred) && free(preferred)) return preferred;
     const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
