@@ -1,3 +1,4 @@
+import { mountModelSettings } from '../agents/models.js';
 import { preference } from './preferences.js';
 import { registerDragHandler } from '../../canvas/engine.js';
 import './settings.css';
@@ -55,6 +56,7 @@ export function mountSettings({ canvas, replayTour }) {
   toggle('board', 'Motion', 'motion', 'on', applyMotion);
   function applyMotion() { document.body.classList.toggle('motion-off', preference('motion', 'on') === 'off'); }
   applyMotion();
+  mountModelSettings(pages.get('general'));
   const about = pages.get('about');
   const version = document.createElement('p'); version.textContent = `Aegis ${__AEGIS_VERSION__}`; about.append(version);
   const licences = document.createElement('ul');

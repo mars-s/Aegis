@@ -1,0 +1,74 @@
+/* Agent chrome follows the same flat window surfaces as the board. */
+.ask-orb {
+  position: fixed; left: var(--dock-x, 50%); translate: -50% 0; bottom: 21px; z-index: 20;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  width: 44px; height: 44px; padding: 0; border: 1px solid var(--line-strong); border-radius: 999px;
+  color: var(--text); background: var(--pill); cursor: pointer;
+}
+.ask-orb.working { width: auto; max-width: min(400px, calc(100vw - 24px)); padding: 0 16px 0 10px; }
+.orb-status { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink-2); }
+.orb-status:empty { display: none; }
+.orb-mark { position: relative; display: inline-block; width: 25px; height: 25px; flex: none; overflow: hidden;
+  clip-path: path('M12.5 0 C14 8 17 11 25 12.5 C17 14 14 17 12.5 25 C11 17 8 14 0 12.5 C8 11 11 8 12.5 0 Z');
+}
+.orb-colours, .orb-light { position: absolute; inset: -40%; border-radius: 50%; will-change: transform; }
+.orb-colours { background: conic-gradient(from 25deg, #3f8dfd 0deg, #3f8dfd 90deg, #68e4e5 155deg, #29ae9b 225deg, #f3ba74 280deg, #3f8dfd 360deg); animation: orb-turn 14s linear infinite; }
+.orb-light { background: radial-gradient(ellipse at 35% 35%, #a6eeedb0, transparent 55%); animation: orb-breathe 5s cubic-bezier(.32,.72,0,1) infinite alternate; }
+@keyframes orb-turn { to { transform: rotate(360deg); } }
+@keyframes orb-breathe { from { transform: scale(.72) translate(-6%, 2%); opacity: .3; } to { transform: scale(1.15) translate(8%, -5%); opacity: .85; } }
+#composer.agent-composer { width: min(360px, calc(100vw - 24px)); padding: 14px 14px 8px; border-radius: 24px; transform: scale(.14, .46); transition: transform 220ms cubic-bezier(.2,1.25,.35,1), opacity 180ms var(--ease-out); }
+#composer.agent-composer.open { transform: none; }
+#composer.agent-composer.instant { transition: none; }
+#composer.agent-composer textarea { max-height: 40vh; min-height: 26px; padding: 0 3px; overflow-y: auto; scrollbar-width: thin; }
+#composer .composer-row { gap: 0; flex-wrap: nowrap; }
+#composer .text-btn, #composer select { min-height: 36px; font-size: 11px; padding: 4px 7px; color: var(--muted); }
+#composer .spacer { display: none; }
+#composer #model { flex: 1; min-width: 0; max-width: 120px; text-overflow: ellipsis; }
+#composer #count { max-width: 72px; }
+#composer #dumpBtn { margin-left: auto; }
+#composer .send { width: 36px; height: 36px; }
+.orb-recent { margin: 0 3px 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.orb-activity { margin: 0 0 7px; color: var(--data); font-size: 12px; }
+.orb-answer { margin: 0; max-height: 140px; overflow: auto; white-space: pre-wrap; color: var(--ink-2); font-size: 13px; line-height: 1.5; }
+.orb-answer:empty { display: none; }
+.orb-menu { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(300px, 100%); max-height: 45vh; overflow: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--raised); }
+.orb-menu > button { display: block; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); text-align: left; font: inherit; }
+.orb-menu > button:hover, .orb-menu > button:focus-visible { background: var(--inset); color: var(--text); }
+.orb-menu p { margin: 10px 12px 3px; color: var(--faint); font-size: 12px; }
+.agent-windows { position: absolute; inset: 0; pointer-events: none; overflow: clip; }
+.agent-window { position: absolute; left: 0; top: 0; width: 340px; transform-origin: 0 0; pointer-events: auto; overflow: hidden; border-radius: var(--r-win); background: var(--card); box-shadow: inset 0 1px var(--edge-top), 0 0 0 1px var(--line); }
+.agent-window-strip { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 12px; background: var(--strip); cursor: grab; touch-action: none; }
+.agent-window-strip:active { cursor: grabbing; }
+.agent-window-strip .orb-mark { width: 25px; height: 25px; transform: scale(.64); margin: 0 -3px; }
+.agent-window-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text); }
+.agent-window .agent-close { margin-left: auto; min-width: 32px; height: 36px; padding: 0; font-size: 19px; }
+.agent-window-body { padding: 14px; }
+.agent-window-status { margin: 0 0 9px; color: var(--data); font-size: 12px; line-height: 1.5; }
+.agent-window.failed .agent-window-status { color: var(--danger); }
+.agent-window-answer { max-height: 200px; overflow: auto; margin: 0 0 12px; white-space: pre-wrap; font-size: 13px; line-height: 1.55; color: var(--ink-2); user-select: text; }
+.agent-window-answer:empty { display: none; }
+.agent-follow { display: flex; align-items: center; gap: 3px; }
+.agent-follow input { min-width: 0; flex: 1; height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 6px; background: transparent; color: var(--text); font: 12px var(--font); }
+.agent-follow button { min-height: 36px; padding: 0 7px; }
+.agent-window:not(.running) .orb-colours, .agent-window:not(.running) .orb-light { animation-play-state: paused; }
+.agent-summary { display: flex; align-items: center; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.agent-summary > div { flex: 1; min-width: 0; }
+.agent-summary span, .agent-summary small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-summary span { font-size: 13px; }
+.agent-summary small { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.agent-summary button { min-height: 44px; }
+.model-settings label { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }
+.model-settings select { max-width: 230px; }
+body.agents-hidden .orb-colours, body.agents-hidden .orb-light { animation-play-state: paused; }
+body.motion-off .orb-colours, body.motion-off .orb-light { animation: none; }
+body.motion-off #composer.agent-composer { transition: none; transform: none; }
+.just-board .ask-orb { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .orb-colours, .orb-light { animation: none; }
+  #composer.agent-composer { transition: none; transform: none; }
+}
+@media (pointer: coarse) {
+  #composer .text-btn, #composer select, #composer .send, .agent-window button, .agent-follow input { min-height: 44px; }
+  .agent-window .agent-close { min-width: 44px; }
+}
+@media (max-width: 760px) { .ask-orb { bottom: calc(86px + env(safe-area-inset-bottom)); } }

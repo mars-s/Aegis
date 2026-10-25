@@ -521,7 +521,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     agentSvg.getAnimations({ subtree: true }).forEach(a => a.cancel());
     agentSvg.replaceChildren(); agentSvg.classList.remove('spent');
   }
-  function ring(ids, colour, ms = 4000, label = 'Agent') {
+  function ring(ids, colour, ms = 4000, label = 'Agent', origin) {
     clearAgentLine();
     const touched = new Set(ids);
     const cards = (board?.cards || []).filter(c => touched.has(c.id) && !effectiveFlag(board, c, 'hidden')).sort((a, b) => a.x - b.x);
@@ -535,7 +535,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
       agentSvg.append(el); return el;
     };
-    add('circle', { class: 'origin', cx: start, cy: top - 24, r: 3.5 });
+    add('circle', { class: 'origin', cx: origin?.x ?? start, cy: origin?.y ?? top - 24, r: 3.5 });
+    if (origin) add('path', { d: `M${origin.x} ${origin.y}V${top - 24}H${start}` });
     add('text', { x: start + 10, y: top - 20 }).textContent = label;
     add('path', { class: 'trunk', d: `M${start} ${top - 24}V${top - 12}L${start + 12} ${top}H${Math.max(...stations)}` });
     cards.forEach((c, i) => {
@@ -587,7 +588,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     select(ids) { selected.clear(); for (const id of ids) selected.add(id); if (ids.length) focusCard(ids.at(-1)); onSelect?.([...selected]); schedule(); },
     // Put the caret in a card's first editable field (or its link box).
     edit(id) { requestAnimationFrame(() => { const el = mounted.get(id)?.el; const f = el?.querySelector('.url-input, .body'); if (f) { f.focus(); if (f.isContentEditable) placeCaret(f); } }); },
-    ring,
+    ring, clearAgentLine,
     centre: () => screenToWorld(stage.clientWidth / 2, stage.clientHeight / 2),
     stats: () => ({ mounted: mounted.size, cards: board?.cards.length ?? 0, z: view.z }),
   };

@@ -51,18 +51,19 @@ try {
   await page.keyboard.press('Escape');
   await clickTool('draw-shape');
   await page.mouse.click(500, 520);
+  await page.locator('.card[data-type="shape"]').nth(0).waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   await page.mouse.click(500, 520); await pause();
   await controls.getByLabel('Shape text', { exact: true }).fill('From idea'); await controls.getByLabel('Shape text', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.cards.some(c => c.type === 'shape' && c.text === 'From idea'));
   await clickTool('draw-shape');
   await controls.getByLabel('Shape', { exact: true }).selectOption('diamond');
-  await page.mouse.click(950, 520); await page.keyboard.press('Escape');
+  await page.mouse.click(950, 520); await page.locator('.card[data-type="shape"]').nth(1).waitFor({ state: 'visible' }); await page.keyboard.press('Escape');
   await persist(() => aegis.canvas.board.cards.filter(c => c.type === 'shape').length === 2);
   await page.mouse.click(950, 520); await pause();
   await controls.getByLabel('Shape text', { exact: true }).fill('To outcome'); await controls.getByLabel('Shape text', { exact: true }).press('Tab');
   await clickTool('draw-shape'); await controls.getByLabel('Shape', { exact: true }).selectOption('line');
-  await page.mouse.click(720, 680); await page.keyboard.press('Escape');
+  await page.mouse.click(720, 680); await page.locator('.card[data-type="shape"]').nth(2).waitFor({ state: 'visible' }); await page.keyboard.press('Escape');
   await page.mouse.click(720, 680); await pause();
   const ds = [];
   for (const style of ['wavy', 'zigzag', 'loopy', 'straight']) {

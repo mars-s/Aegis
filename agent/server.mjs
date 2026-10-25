@@ -1,6 +1,7 @@
 // Aegis agent host: Pi Durable on 127.0.0.1, driving boards through the board commands.
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
+import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
 import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
@@ -183,8 +184,9 @@ if (process.env.AEGIS_FAKE_MODEL) {
   // It reads the board, then sends the batch written after "FAKE " in the brief, then says done.
   const { fauxProvider, fauxAssistantMessage, fauxToolCall } = await import('@earendil-works/pi-ai/providers/faux');
   fake = fauxProvider({ provider: 'fake', models: [{ id: 'fake', name: 'Fake (checks only)' }] });
-  const step = (ctx) => {
+  const step = async (ctx) => {
     fake.appendResponses([step]);
+    if (process.env.AEGIS_FAKE_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Math.min(5000, Number(process.env.AEGIS_FAKE_DELAY_MS) || 0)));
     const msgs = ctx.messages;
     const brief = msgs.find(m => m.role === 'user'); const briefText = typeof brief?.content === 'string' ? brief.content : brief?.content?.find?.(c => c.type === 'text')?.text ?? '';
     const results = msgs.filter(m => m.role === 'toolResult').length;
@@ -426,7 +428,7 @@ const startPart = defineTool({
     await partSlot();
     try {
       const brief = `Part "${args.title}" of a bigger job. Goal: ${args.goal}\n\n${args.brief}`;
-      const { id } = await spawnAgent({ boardId: lead.boardId, brief, model: pick ?? lead.model, parent: leadId, title: args.title });
+      const { id } = await spawnAgent({ boardId: lead.boardId, brief, model: pick ?? lead.model, statusModel: lead.statusModel, parent: leadId, title: args.title });
       const done = await waitForIdle(id);
       const meta = run.get(id) ?? {};
       return text({ part: args.title, id, digest: meta.digest ?? done.text ?? '', object: meta.placed ?? null, found: meta.found ?? !!(done.text), error: done.error });
@@ -478,12 +480,33 @@ harness.resume();
 
 // ---------- agent runs ----------
 const watching = new Map();
+const statuses = new Map();
+function activityOf(id, value) { return activityFromView(run.get(id), value); }
+async function statusFor(id, activity) {
+  const meta = run.get(id);
+  return summariseStatus(activity, { fake: !!fake && meta?.model?.provider === 'fake', complete: async (systemPrompt, content) => {
+    const ready = [];
+    for (const m of modelList()) if (m.provider !== 'fake' && await credentials.read(m.provider)) ready.push(m);
+    const choice = ready.find(m => m.provider === meta?.statusModel?.provider && m.modelId === meta?.statusModel?.modelId)
+      ?? ready.find(m => /luna|haiku/.test(m.modelId));
+    if (!choice) throw new Error('No status model available');
+    const reply = await models.completeSimple(models.getModel(choice.provider, choice.modelId), {
+      systemPrompt, messages: [{ role: 'user', timestamp: Date.now(), content }],
+    }, { signal: AbortSignal.timeout(12000), maxTokens: 40 });
+    return (reply.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('');
+  } });
+}
 async function watchRun(conversation) {
   const key = String(conversation.id); if (watching.has(key)) return;
   const view = await conversation.viewState(context);
   watching.set(key, view);
   let last = '';
+  const tracker = createStatusTracker({ summarise: activity => statusFor(key, activity), publish: status => {
+    statuses.set(key, status); broadcast({ type: 'agent', ...summarise(key, view.value) });
+  } });
   view.subscribe(value => {
+    if (value.docs?.['pi.live']?.run) tracker.update(activityOf(key, value));
+    else tracker.stop();
     const s = summarise(key, value); const sig = JSON.stringify(s);
     if (sig !== last) { last = sig; broadcast({ type: 'agent', ...s }); }
   });
@@ -494,19 +517,19 @@ function summarise(id, value) {
   const lastAnswer = entries.findLast(e => e.kind === 'pi.assistant');
   const answer = lastAnswer?.model?.[0]?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const tools = Object.values(live?.tools ?? {}).map(t => t.name ?? t.call?.name).filter(Boolean);
-  const partial = live?.run?.partial?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
+  const partial = live?.generation?.message?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
-  return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, running: !!live?.run, parent: meta.parent ?? null, title: meta.title ?? null, summary: meta.summary ?? null,
+  return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ?? null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
-    text: (live?.run ? partial : answer).slice(-600), error: failed ? 'The run stopped. Check the model sign-in.' : null };
+    text: (partial || answer).slice(-600), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
 }
-async function spawnAgent({ boardId, brief, model, parent, title }) {
+async function spawnAgent({ boardId, brief, model, statusModel, parent, title }) {
   if (!(await loadBoard(boardId))) throw new Error('no such board');
   const selection = model ?? modelList()[0];
   if (!selection) throw new Error('no models');
   const conversation = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model: { provider: selection.provider, modelId: selection.modelId } } }, context);
   const id = String(conversation.id);
-  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, created: Date.now(), ...(parent ? { parent, title } : {}) });
+  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, statusModel, created: Date.now(), ...(parent ? { parent, title } : {}) });
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
   await conversation.submit({ type: 'input', content: brief, requestId: randomUUID() }, context);
@@ -515,18 +538,26 @@ async function spawnAgent({ boardId, brief, model, parent, title }) {
 async function message(id, content) {
   const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
   if (!conversation || !run.has(String(id))) throw new Error('no such agent');
+  const meta = run.get(String(id)); meta.brief = content.slice(0, 2000); meta.stopped = false; statuses.delete(String(id));
+  await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
   await conversation.submit({ type: 'input', content, requestId: randomUUID() }, context);
 }
 async function stop(id) {
   const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
-  if (conversation) await conversation.abort(context);
+  if (conversation) {
+    const meta = run.get(String(id)); if (meta) meta.stopped = true;
+    await conversation.abort(context);
+    await atomicJson(runsPath, Object.fromEntries(run));
+    const view = watching.get(String(id)); if (view) broadcast({ type: 'agent', ...summarise(String(id), view.value) });
+  }
 }
 async function agents(boardId) {
   const out = [];
   for (const [id, meta] of run) if (!boardId || meta.boardId === boardId) {
     const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
     if (!conversation) continue;
+    await watchRun(conversation);
     const view = await conversation.viewState(context);
     try { out.push(summarise(id, view.value)); } finally { view.dispose(); }
   }
@@ -598,9 +629,9 @@ const server = http.createServer(async (req, res) => {
     if (p === '/ui-update/rollback' && m === 'POST') return send(res, 200, await ui.rollback());
     if (p === '/agents' && m === 'GET') return send(res, 200, await agents(url.searchParams.get('board')));
     if (p === '/agents' && m === 'POST') {
-      const { boardId, brief, model, count } = await body(req);
+      const { boardId, brief, model, statusModel, count } = await body(req);
       const n = Math.min(8, Math.max(1, Number(count) || 1)); const out = [];
-      for (let i = 0; i < n; i++) out.push(await spawnAgent({ boardId, brief: String(brief ?? '').trim() || 'Sort this board.', model }));
+      for (let i = 0; i < n; i++) out.push(await spawnAgent({ boardId, brief: String(brief ?? '').trim() || 'Sort this board.', model, statusModel }));
       return send(res, 200, out);
     }
     const am = p.match(/^\/agents\/([a-zA-Z0-9-]+)\/(message|stop)$/);

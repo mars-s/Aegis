@@ -1,7 +1,7 @@
 // Runs every UI check one after another (each owns a fixed Vite port, so they never run together).
 // node checks/ui/run.mjs [name ...]
 import { spawnSync } from 'node:child_process';
-const all = ['library', 'docs', 'editors', 'deck', 'draw', 'media', 'wireframe', 'editing', 'svelte', 'parity', 'agent-types'];
+const all = ['library', 'docs', 'editors', 'deck', 'draw', 'media', 'wireframe', 'editing', 'svelte', 'parity', 'agent-types', 'agents'];
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

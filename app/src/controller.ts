@@ -1,5 +1,7 @@
 // @ts-nocheck -- moved from the plain-JS app as it was; new code lives in typed modules beside it.
 // Aegis app: boards, composer, agents and settings, talking to the local agent host.
+import { mountAgents } from './features/agents/index.js';
+import { defaultStatusModel, modelChoice, modelValue } from './features/agents/models.js';
 import { createCanvas } from './canvas/engine.js';
 import { applyBatch } from './lib/board/commands.js';
 import { connect as connectHost } from './lib/host';
@@ -262,28 +264,15 @@ addEventListener('paste', async e => {
 
 // ---------- composer ----------
 const promptEl = $('prompt');
-function openComposer(instant = false) {
-  const composer = $('composer'); composer.classList.toggle('instant', instant); composer.hidden = false; composer.inert = false;
-  void composer.offsetWidth; composer.classList.add('open');
-  $('askPill').hidden = true; $('askPill').setAttribute('aria-expanded', 'true');
-  promptEl.focus({ preventScroll: true });
-}
-function closeComposer(instant = false) {
-  const composer = $('composer'); composer.classList.toggle('instant', instant); composer.classList.remove('open'); composer.inert = true; composer.hidden = false;
-  $('askPill').hidden = false; $('askPill').setAttribute('aria-expanded', 'false');
-  if (composer.contains(document.activeElement)) $('askPill').focus({ preventScroll: true });
-}
-$('askPill').onclick = e => openComposer(e.detail === 0);
-$('composer').addEventListener('open-composer', () => openComposer(true));
-$('composer').addEventListener('close-composer', () => { if (!promptEl.value.trim()) closeComposer(true); });
-$('composer').addEventListener('focusout', () => setTimeout(() => { if (!$('composer').contains(document.activeElement) && !promptEl.value.trim()) closeComposer(); }, 0));
-promptEl.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeComposer(true); } });
-promptEl.addEventListener('input', () => { promptEl.style.height = 'auto'; promptEl.style.height = Math.min(200, promptEl.scrollHeight) + 'px'; });
+const agentUi = mountAgents({ canvas, host, toast, showAll: () => showAgents(true) });
+const openComposer = agentUi.open, closeComposer = agentUi.close;
+let forceNewAgent = false;
 promptEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNotes(); }
-  else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('composer').requestSubmit(); }
+  else if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); forceNewAgent = e.altKey; $('composer').requestSubmit(); }
 });
 $('dumpBtn').onclick = addNotes;
+$('send').addEventListener('click', e => { forceNewAgent = e.altKey; });
 // Each line (or paragraph) becomes a note, laid out near the middle of the view.
 function addNotes() {
   const lines = promptEl.value.split(/\n{2,}|\n(?=[-*•]\s)|\n/).map(s => s.replace(/^[-*•]\s*/, '').trim()).filter(Boolean);
@@ -296,8 +285,11 @@ function addNotes() {
 }
 $('composer').addEventListener('submit', async e => {
   e.preventDefault();
+  if ($('send').disabled) return;
   const brief = promptEl.value.trim() || 'Sort this board into clear groups.';
-  const [provider, modelId] = $('model').value.split('|');
+  const current = !forceNewAgent && !agentUi.wantsNew() && Number($('count').value) === 1 ? agentUi.current() : null;
+  forceNewAgent = false;
+  const { provider, modelId } = current?.model ?? modelChoice($('model').value);
   if (provider !== 'fake' && !(await host.get('/auth'))[provider]?.connected) {
     toast(`Sign in to ${provider === 'openai' ? 'ChatGPT' : 'Claude'} first`); settings.select('accounts'); renderAccounts(); $('settings').showModal(); return;
   }
@@ -306,9 +298,13 @@ $('composer').addEventListener('submit', async e => {
   const full = sel.length ? `${brief}\n\n(Work on the selected cards: ${sel.join(', ')}.)` : brief;
   $('send').disabled = true;
   try {
-    await host.post('/agents', { boardId: canvas.board.id, brief: full, model: { provider, modelId }, count });
+    if (current) await host.post(`/agents/${current.id}/message`, { content: full });
+    else {
+      const spawned = await host.post('/agents', { boardId: canvas.board.id, brief: full, model: { provider, modelId }, statusModel: modelChoice(localStorage.getItem('aegis:status-model')), count });
+      agentUi.sent(spawned[0]?.id);
+    }
     promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer();
-    showAgents(true); refreshAgents();
+    await refreshAgents();
   } catch (err) { toast(err.message); }
   finally { $('send').disabled = false; }
 });
@@ -323,6 +319,12 @@ async function loadModels() {
   const firstReady = list.find(m => m.provider === 'fake' || auth[m.provider]?.connected);
   sel.value = saved && [...sel.options].some(o => o.value === saved) ? saved : firstReady ? `${firstReady.provider}|${firstReady.modelId}` : sel.options[0]?.value;
   sel.onchange = () => localStorage.setItem('aegis:model', sel.value);
+  const status = localStorage.getItem('aegis:status-model');
+  if (!list.some(m => modelValue(m) === status)) {
+    const choice = defaultStatusModel(list, m => m.provider === 'fake' || auth[m.provider]?.connected);
+    if (choice) localStorage.setItem('aegis:status-model', modelValue(choice));
+  }
+  document.dispatchEvent(new Event('aegis-models'));
 }
 
 // ---------- agents ----------
@@ -338,37 +340,23 @@ async function refreshAgents() {
   renderAgents();
 }
 function renderAgents() {
-  const list = $('agentList'); const all = [...agentState.values()].filter(a => a.boardId === canvas.board.id).reverse();
-  // Parts sit under their lead, like Zephium's rows under a request.
-  const mine = all.filter(a => !a.parent).flatMap(a => [a, ...all.filter(p => p.parent === a.id).reverse()]);
-  for (const orphan of all.filter(p => p.parent && !all.some(a => a.id === p.parent))) mine.push(orphan);
+  const list = $('agentList');
+  const mine = [...agentState.values()].filter(a => a.boardId === canvas.board.id).reverse();
   const running = mine.filter(a => a.running).length;
   $('agentCount').hidden = !running; $('agentCount').textContent = running;
   $('status').textContent = running ? `${running} agent${running > 1 ? 's' : ''} working` : '';
-  const active = mine.find(a => a.running);
-  $('runStrip').hidden = !active;
-  if (active) {
-    $('runBrief').textContent = active.brief?.split('\n')[0] || 'Agent working';
-    $('runStep').textContent = active.step || 'Working';
-    const step = String(active.step || '').match(/(\d+)\s*(?:of|\/)\s*(\d+)/i);
-    const progress = step ? Math.min(1, Number(step[1]) / Math.max(1, Number(step[2]))) : .18;
-    $('runFill').style.transform = `scaleX(${progress})`;
-  }
-  if (!mine.length) { list.innerHTML = '<div class="empty-agents">No agents on this board yet.<br>Type in the box below to start one.</div>'; return; }
-  const open = new Set([...list.querySelectorAll('.agent-row input')].filter(i => i === document.activeElement).map(i => i.closest('.agent-row').dataset.id));
-  if (open.size) return; // don't rebuild while someone is typing a follow-up
-  list.innerHTML = '';
+  $('runStrip').hidden = true;
+  agentUi.update(mine);
+  list.replaceChildren();
+  if (!mine.length) { list.textContent = 'Ask from the orb to start an agent.'; return; }
   for (const a of mine) {
-    const row = document.createElement('div'); row.className = 'agent-row' + (a.running ? ' running' : '') + (a.error ? ' failed' : '') + (a.parent ? ' part' : ''); row.dataset.id = a.id;
-    row.innerHTML = '<div class="top"><span class="dot"></span><span class="brief"></span></div><div class="meta"></div><div class="out"></div><form class="actions"><input placeholder="Follow up…"><button type="button" class="text-btn stop">Stop</button></form>';
-    row.querySelector('.dot').style.background = a.running ? 'var(--data)' : '';
-    row.querySelector('.brief').textContent = a.parent ? `${a.title ?? 'Part'}${a.summary ? ' · ' + a.summary : ''}` : (a.brief?.split('\n')[0] ?? 'Agent');
-    row.querySelector('.meta').textContent = `${a.model?.modelId ?? ''} · ${a.error ?? a.step}`;
-    row.querySelector('.out').textContent = a.text || '';
-    row.querySelector('.stop').hidden = !a.running;
-    row.querySelector('.stop').onclick = () => host.post(`/agents/${a.id}/stop`);
-    row.querySelector('form').onsubmit = ev => { ev.preventDefault(); const v = row.querySelector('input').value.trim(); if (v) host.post(`/agents/${a.id}/message`, { content: v }).then(() => { row.querySelector('input').value = ''; }); };
-    list.appendChild(row);
+    const row = document.createElement('div'); row.className = 'agent-summary'; row.dataset.id = a.id;
+    const info = document.createElement('div'), title = document.createElement('span'), status = document.createElement('small');
+    title.textContent = a.title || a.brief?.split('\n')[0]?.slice(0, 45) || 'Agent'; status.textContent = a.error || a.status;
+    info.append(title, status);
+    const show = document.createElement('button'); show.className = 'text-btn'; show.textContent = 'Show'; show.onclick = () => agentUi.show(a.id);
+    const stop = document.createElement('button'); stop.className = 'text-btn'; stop.textContent = 'Stop'; stop.hidden = !a.running; stop.onclick = () => agentUi.stop(a.id);
+    row.append(info, show, stop); list.append(row);
   }
 }
 
@@ -380,7 +368,7 @@ function listen() {
     if (ev.type === 'board' && ev.boardId === canvas.board?.id && ev.author?.kind === 'agent') {
       await reloadBoard(ev.focus && Date.now() - ev.focus.at < 5000 ? ev.focus : null);
       library.refresh();
-      if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`); }
+      if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId)); }
     }
     if (ev.type === 'agent') { agentState.set(ev.id, ev); renderAgents(); }
     if (ev.type === 'auth') { renderAccounts(); loadModels(); }

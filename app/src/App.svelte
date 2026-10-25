@@ -81,18 +81,18 @@
   </div>
 </main>
 
-<aside class="panel" id="agentsPanel" hidden aria-label="Agents">
-  <div class="panel-head"><span>Agents</span><button class="text-btn" id="closeAgents">Close</button></div>
+<aside class="panel" id="agentsPanel" hidden aria-label="All agents">
+  <div class="panel-head"><span>All agents</span><button class="text-btn" id="closeAgents">Close</button></div>
   <div class="agent-list" id="agentList"></div>
 </aside>
 
 <div class="run-strip" id="runStrip" role="status" hidden><p class="run-title" id="runBrief"></p><div class="run-track"><span class="run-fill" id="runFill"></span><i></i><span id="runStep"></span></div></div>
-<button class="ask-pill" id="askPill" type="button" aria-controls="composer" aria-expanded="false" aria-label="Ask the agent. Shortcut slash."><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5c.4 3.4 1.6 5.4 6.5 6.5-4.9 1.1-6.1 3.1-6.5 6.5-.4-3.4-1.6-5.4-6.5-6.5C6.4 6.9 7.6 4.9 8 1.5Z"/></svg><span>Ask…</span><span class="pill-key">/</span></button>
-<form class="composer" id="composer" autocomplete="off" inert>
+<button class="ask-orb" id="askPill" type="button" aria-controls="composer" aria-expanded="false" aria-label="Ask the agent. Shortcut slash."><span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span></button>
+<form class="composer agent-composer" id="composer" autocomplete="off" inert>
   <textarea id="prompt" rows="1" placeholder="Brain dump, or ask an agent to sort the board…" aria-label="Message"></textarea>
   <div class="composer-row">
     <select id="model" aria-label="Model"></select>
-    <label class="spawn" title="Agents to start"><span>×</span><input id="count" type="number" min="1" max="8" value="1" aria-label="Number of agents"></label>
+    <select id="count" aria-label="Number of agents" title="Agents to start">{#each [1, 2, 3, 4, 5, 6, 7, 8] as count}<option value={count}>{count === 1 ? '1 agent' : `${count} agents`}</option>{/each}</select>
     <span class="spacer"></span>
     <button type="button" class="text-btn" id="dumpBtn" title="Add as notes without an agent (⌘⏎)">Add notes</button>
     <button type="submit" class="send" id="send" aria-label="Start agent"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 12V2M2.5 6.5 7 2l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
