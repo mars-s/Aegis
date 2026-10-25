@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aegis</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="bar" data-tauri-drag-region>
+  <div class="bar-left" data-tauri-drag-region>
+    <button class="boards-btn" id="boardsBtn" aria-haspopup="menu" aria-expanded="false"><span id="boardName">Untitled</span><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="menu" id="boardsMenu" role="menu" hidden></div>
+  </div>
+  <div class="bar-right">
+    <span class="status" id="status" aria-live="polite"></span>
+    <button class="icon-btn" id="agentsBtn" title="Agents (A)" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3M7.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span class="count" id="agentCount" hidden></span></button>
+    <button class="icon-btn" id="settingsBtn" title="Settings"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>
+  </div>
+</header>
+
+<main class="stage" id="stage" tabindex="0" aria-label="Canvas">
+  <canvas class="grid" id="grid" aria-hidden="true"></canvas>
+  <svg class="links" id="links" aria-hidden="true"></svg>
+  <div class="world" id="world"></div>
+  <div class="marquee" id="marquee" hidden></div>
+  <div class="empty" id="empty" hidden>
+    <p class="empty-title">Dump everything here.</p>
+    <p class="empty-sub">Double-click to write. Type below and an agent sorts it.</p>
+  </div>
+</main>
+
+<aside class="panel" id="agentsPanel" hidden aria-label="Agents">
+  <div class="panel-head"><span>Agents</span><button class="text-btn" id="closeAgents">Close</button></div>
+  <div class="agent-list" id="agentList"></div>
+</aside>
+
+<form class="composer" id="composer" autocomplete="off">
+  <textarea id="prompt" rows="1" placeholder="Brain dump, or ask an agent to sort the board…" aria-label="Message"></textarea>
+  <div class="composer-row">
+    <select id="model" aria-label="Model"></select>
+    <label class="spawn" title="Agents to start"><span>×</span><input id="count" type="number" min="1" max="8" value="1" aria-label="Number of agents"></label>
+    <span class="spacer"></span>
+    <button type="button" class="text-btn" id="dumpBtn" title="Add as notes without an agent (⌘⏎)">Add notes</button>
+    <button type="submit" class="send" id="send" aria-label="Start agent"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 12V2M2.5 6.5 7 2l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </div>
+</form>
+
+<dialog class="sheet" id="settings">
+  <div class="sheet-head"><h2>Settings</h2><button class="text-btn" id="closeSettings">Done</button></div>
+  <section class="sheet-sec">
+    <h3>Accounts</h3>
+    <p class="muted">Agents use your own ChatGPT or Claude subscription. Tokens stay on this Mac.</p>
+    <div class="account" data-provider="openai"><div><strong>ChatGPT</strong><span class="muted acct-state"></span></div><button class="pill"></button></div>
+    <div class="account" data-provider="anthropic"><div><strong>Claude</strong><span class="muted acct-state"></span></div><button class="pill"></button></div>
+    <form class="auth-answer" id="authAnswer" hidden><label id="authPrompt"></label><div class="row"><input id="authInput" autocomplete="off" spellcheck="false"><button class="pill" type="submit">Continue</button></div></form>
+  </section>
+  <section class="sheet-sec">
+    <h3>Appearance</h3>
+    <div class="seg" role="radiogroup" id="theme"><button data-v="system" role="radio">System</button><button data-v="light" role="radio">Light</button><button data-v="dark" role="radio">Dark</button></div>
+  </section>
+  <section class="sheet-sec muted small">Agents run with your user's file permissions on this Mac.</section>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
