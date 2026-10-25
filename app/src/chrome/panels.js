@@ -4,9 +4,25 @@ const KEY = 'aegis:panels';
 const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { return {}; } };
 export function createPanels({ side, onChange }) {
   const saved = read();
-  const state = { hidden: !!saved.hidden, width: saved.width ?? 248, rightWidth: saved.rightWidth ?? 248,
+  const state = { hidden: saved.hidden ?? true, open: saved.open ?? { left: saved.hidden === false, right: false }, width: saved.width ?? 300, rightWidth: saved.rightWidth ?? 320,
     columns: saved.columns ?? { left: saved.order ?? [], right: [] }, off: saved.off ?? {}, folded: saved.folded ?? {}, heights: saved.heights ?? {} };
   const right = document.createElement('aside'); right.className = 'side side-right'; right.id = 'sideRight'; right.setAttribute('aria-label', 'Right side bar'); right.innerHTML = '<div class="side-resize" title="Drag to resize"></div>'; side.after(right);
+  const agents = document.getElementById('agentsPanel'); agents.hidden = false; right.prepend(agents);
+  const timers = {}, arrows = { left: document.getElementById('revealLeft'), right: document.getElementById('revealRight') };
+  const close = document.createElement('button'); close.className = 'icon-btn'; close.id = 'closeRight'; close.textContent = '×'; close.setAttribute('aria-label', 'Hide agent activity and panels'); right.prepend(close);
+  close.onclick = () => setOpen('right', false);
+  document.getElementById('closeSide').onclick = () => setOpen('left', false);
+  for (const key of ['left', 'right']) arrows[key].onclick = e => setOpen(key, true, e.detail === 0);
+  let hoverTimers = {};
+  addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || e.buttons) return;
+    for (const key of ['left', 'right']) {
+      const distance = key === 'left' ? e.clientX : innerWidth - e.clientX;
+      if (distance < 20 && e.clientY < innerHeight - 96 && !hoverTimers[key] && !state.open[key]) hoverTimers[key] = setTimeout(() => { arrows[key].classList.add('show'); hoverTimers[key] = 0; }, 120);
+      if (distance > 96) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); }
+    }
+  });
+  addEventListener('blur', () => { for (const key of ['left', 'right']) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); } });
   const all = new Map(), defaults = [], save = () => localStorage.setItem(KEY, JSON.stringify(state));
   const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
   const persistOrder = () => { state.columns = { left: boxes(side).map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
@@ -24,19 +40,43 @@ export function createPanels({ side, onChange }) {
     }
     syncSides(); onChange?.(state);
   }
-  function syncSides(dragging = false) {
-    side.hidden = state.hidden || (!dragging && !boxes(side).some(b => !b.hidden));
-    right.hidden = state.hidden || (!dragging && !boxes(right).some(b => !b.hidden));
-    document.documentElement.style.setProperty('--side-w', side.hidden ? '0px' : `${state.width}px`);
-    document.documentElement.style.setProperty('--right-side-w', right.hidden ? '0px' : `${state.rightWidth}px`);
+  function syncSides(dragging = false, instant = false) {
+    for (const [key, col, width] of [['left', side, state.width], ['right', right, state.rightWidth]]) {
+      const open = dragging || state.open[key];
+      clearTimeout(timers[key]);
+      col.style.setProperty('--panel-w', `${width}px`);
+      document.documentElement.style.setProperty(key === 'left' ? '--side-w' : '--right-side-w', open ? `${width}px` : '0px');
+      col.classList.toggle('instant', instant);
+      if (open) { col.hidden = false; void col.offsetWidth; }
+      col.inert = !open;
+      col.setAttribute('aria-hidden', String(!open));
+      col.classList.toggle('open', open);
+      document.body.classList.toggle(`${key}-open`, open);
+      arrows[key].setAttribute('aria-expanded', String(open)); arrows[key].classList.remove('show');
+      if (!open) {
+        if (col.contains(document.activeElement)) arrows[key].focus({ preventScroll: true });
+        if (instant) col.hidden = true;
+        else timers[key] = setTimeout(() => { if (!state.open[key]) col.hidden = true; }, 200);
+      }
+    }
+    document.getElementById('boardName').setAttribute('aria-expanded', String(state.open.left));
+    document.getElementById('agentsBtn').setAttribute('aria-pressed', String(state.open.right));
+    state.hidden = !state.open.left && !state.open.right;
   }
+  function setOpen(key, open, instant = false) {
+    state.open[key] = open; syncSides(false, instant); onChange?.(state); save();
+    if (open && instant) (key === 'left' ? side : right).querySelector('button, input')?.focus({ preventScroll: true });
+  }
+  for (const [key, col] of [['left', side], ['right', right]]) col.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); e.stopPropagation(); setOpen(key, false, true); }
+  });
   const settings = document.getElementById('settings');
   const section = document.createElement('section'); section.className = 'sheet-sec';
   section.innerHTML = '<h3>Side bar panels</h3><div class="panel-layout-options"></div><button type="button" class="text-btn" data-reset-panels>Reset layout</button>';
   settings?.append(section);
   const options = section.querySelector('.panel-layout-options');
   section.querySelector('[data-reset-panels]').onclick = () => {
-    state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = {}; state.heights = {}; state.width = state.rightWidth = 248; state.hidden = false;
+    state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = {}; state.heights = {}; state.width = 300; state.rightWidth = 320; state.open = { left: true, right: false }; state.hidden = false;
     options.querySelectorAll('input').forEach(input => { input.checked = true; }); apply(); save();
   };
   function register(box) {
@@ -97,7 +137,7 @@ export function createPanels({ side, onChange }) {
         if (keep && pick) pick.before(box); else home.insertBefore(box, next?.parentNode === home ? next : home.querySelector('.side-resize'));
         slots.forEach(slot => slot.remove()); box.style.cssText = style;
         box.classList.remove('panel-lifted'); document.body.classList.remove('panel-arranging'); side.classList.remove('panel-drop'); right.classList.remove('panel-drop');
-        if (keep) persistOrder(); apply();
+        if (keep) { state.open[box.parentNode === right ? 'right' : 'left'] = true; persistOrder(); } apply();
       };
       const up = ev => { if (ev.pointerId === pointer) end(true); }, cancel = ev => { if (ev.pointerId === pointer) end(false); };
       const escape = ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopImmediatePropagation(); end(false); } };
@@ -120,6 +160,6 @@ export function createPanels({ side, onChange }) {
       edge.addEventListener('pointermove', move); edge.addEventListener('pointerup', up, { once: true });
     });
   }
-  apply();
-  return { toggle() { state.hidden = !state.hidden; apply(); save(); }, get hidden() { return state.hidden; } };
+  apply(); syncSides(false, true);
+  return { setOpen, isOpen: key => !!state.open[key], toggle(key = 'left', instant = false) { setOpen(key, !state.open[key], instant); }, get hidden() { return state.hidden; } };
 }

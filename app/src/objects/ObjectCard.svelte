@@ -18,7 +18,7 @@
 
 <section class="object {card.kind}">
     <header class="win-strip">
-      <h3>{card.text || NAMES[card.kind]}<span class="kind"> · {NAMES[card.kind] || card.kind}</span></h3>
+      <h3>{card.text || NAMES[card.kind]}<span class="kind">{` · ${NAMES[card.kind] || card.kind}`}</span></h3>
       {#if (card.ver ?? 1) > 1}<span class="updated" title={`Version ${card.ver}`}>Updated · {time(card.updated)}</span>{/if}
       <button class="win-open" type="button" aria-label={`Open ${card.text || NAMES[card.kind]}`} onclick={open}>Open</button>
     </header>

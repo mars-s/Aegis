@@ -1,5 +1,5 @@
 import './onboarding.css';
-export function createOnboarding({ mobile }) {
+export function createOnboarding({ mobile, panels, openComposer, closeComposer }) {
   const dialog = document.createElement('dialog'); dialog.className = 'onboarding'; dialog.setAttribute('aria-label', 'Welcome to Aegis');
   const highlight = document.createElement('div'); highlight.className = 'tour-highlight'; highlight.hidden = true;
   const card = document.createElement('section'); card.className = 'tour-card'; dialog.append(highlight, card); document.body.append(dialog);
@@ -26,13 +26,23 @@ export function createOnboarding({ mobile }) {
       const [name, description, selector, sheet] = steps[index];
       if (matchMedia('(max-width: 700px)').matches && sheet) mobile.open(sheet);
       const phone = matchMedia('(max-width: 700px)').matches;
-      const target = document.querySelector(phone && index === 1 ? '[data-capture]' : !phone && index === 4 ? '.wf-design' : selector);
+      const target = document.querySelector(phone && index === 1 ? '[data-capture]' : selector);
       if (target) {
+        const stepIndex = index;
         const hidden = target.hidden, folded = target.classList.contains('folded'), parent = target.closest('.side');
-        const parentHidden = parent?.hidden, width = parent?.style.width, scroll = parent?.scrollTop;
+        const key = parent?.id === 'sideRight' ? 'right' : 'left', wasOpen = panels.isOpen(key);
+        const composerOpen = document.getElementById('composer').classList.contains('open');
+        if (index === 0 && !phone) document.body.classList.add('tour-tools');
+        if (parent) panels.setOpen(key, true, true);
+        if (index === 5) openComposer(true);
         target.hidden = false; target.classList.remove('folded');
-        if (parent) { parent.hidden = false; parent.style.width = '248px'; target.scrollIntoView({ block: 'nearest' }); }
-        restore = () => { target.hidden = hidden; target.classList.toggle('folded', folded); if (parent) { parent.hidden = parentHidden; parent.style.width = width; parent.scrollTop = scroll; } };
+        target.scrollIntoView({ block: 'nearest' });
+        restore = () => {
+          document.body.classList.remove('tour-tools');
+          target.hidden = hidden; target.classList.toggle('folded', folded);
+          if (parent) panels.setOpen(key, wasOpen, true);
+          if (stepIndex === 5 && !composerOpen) closeComposer(true);
+        };
       }
       const r = (matchMedia('(max-width: 700px)').matches && sheet && index !== 1 ? document.querySelector('.mobile-sheet') : target)?.getBoundingClientRect();
       highlight.hidden = !r || !r.width || !r.height;

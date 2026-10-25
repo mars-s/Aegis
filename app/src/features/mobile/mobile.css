@@ -1,9 +1,9 @@
 /* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
-#mobileHub { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 52; display: flex; justify-content: space-around; padding: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+#mobileHub { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 52; display: flex; justify-content: space-around; padding: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: inset 0 1px 0 var(--edge-top); }
 #mobileHub button { min-height: 44px; padding: 6px 9px; color: var(--text); border-radius: 10px; font-size: 12px; }
 #mobileHub button[aria-expanded=true] { background: var(--hover); }
 .mobile-veil { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .25); }
-.mobile-sheet { position: fixed; z-index: 61; inset: auto 0 0; max-height: 82dvh; display: flex; flex-direction: column; background: var(--card); color: var(--text); border-radius: 22px 22px 0 0; border: 1px solid var(--line); box-shadow: var(--shadow-lift); padding: 0 14px max(18px, env(safe-area-inset-bottom)); }
+.mobile-sheet { position: fixed; z-index: 61; inset: auto 0 0; max-height: 82dvh; display: flex; flex-direction: column; background: var(--raised); color: var(--text); border-radius: 12px 12px 0 0; border: 1px solid var(--line); box-shadow: var(--shadow-lift); padding: 0 14px max(18px, env(safe-area-inset-bottom)); }
 .mobile-grab { height: 28px; display: grid; place-items: center; touch-action: none; flex-shrink: 0; }
 .mobile-grab i { width: 42px; height: 5px; border-radius: 4px; background: var(--line); }
 .mobile-sheet header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
@@ -15,7 +15,7 @@
 .mobile-content > .pbox > .pbody { display: block !important; height: auto !important; max-height: none !important; overflow: visible; }
 .mobile-content section > button { min-height: 44px; padding: 10px 14px; margin: 3px; background: var(--hover); border-radius: 9px; }
 .mobile-content .tree-row, .mobile-content .layer-row { min-height: 44px; }
-.mobile-content #agentsPanel, .mobile-content #composer { display: block; position: static; width: 100%; max-height: none; transform: none; margin: 0 0 10px; box-sizing: border-box; }
+.mobile-content #agentsPanel, .mobile-content #composer { display: block; position: static; width: 100%; max-height: none; transform: none; translate: none; opacity: 1; margin: 0 0 10px; box-sizing: border-box; }
 .mobile-content #agentsPanel .panel-head { display: none; }
 .mobile-content #composer { border-radius: 12px; padding: 12px; }
 @media (max-width: 700px) {
@@ -24,7 +24,7 @@
   .bar-left { min-width: 0; }
   .board-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #boardCrumbs, #sideBtn, #followBtn, #agentsBtn, #quickCapture { display: none; }
-  .side, #tools, #app > #composer, #app > #agentsPanel, .editing-hints, .editing-tool-overflow { display: none !important; }
+  .side, #tools, #app > #agentsPanel, .editing-hints, .editing-tool-overflow { display: none !important; }
   .editing-zoom { bottom: 82px !important; left: 12px !important; right: auto !important; }
   .selection-bar { max-width: calc(100vw - 20px); overflow-x: auto; }
   .empty { max-width: calc(100vw - 40px); }
@@ -38,3 +38,21 @@
 .mobile-content > .wf-design .wf-panel-head { display: none; }
 
 .phone.mobile-sheet-open .selection-bar, .phone.mobile-sheet-open .editing-outline { display: none !important; }
+
+@media (max-width: 700px) {
+  body.editor-open:not(.editor-wide), body.docs-open:not(.docs-full) { --dock-x: 50%; }
+  #askPill, #app > #composer { bottom: calc(86px + env(safe-area-inset-bottom)); }
+  #app > #composer { width: calc(100vw - 24px); }
+  .phone .board-name { top: 8px; left: 50%; max-width: 40vw; }
+  .phone .bar-right { opacity: .65; }
+  .phone .bar-right .zoom-readout { display: none; }
+  .phone #status { max-width: 70px; font-size: 10px; }
+  .phone #retrySave { min-height: 44px; }
+  .phone .save-state { font-size: 10px; }
+  .phone .edge-arrow { display: none; }
+  .phone .run-strip { bottom: 158px; }
+  .phone.mobile-sheet-open #askPill { display: none; }
+  .mobile-content .composer select { max-width: 150px; }
+  .mobile-content #agentsPanel { min-height: 0; }
+  .mobile-content .agent-list { max-height: 34dvh; overflow: auto; }
+}

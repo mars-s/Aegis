@@ -88,8 +88,9 @@ function mountPanel(p) {
   box.querySelector('.fold').onclick = () => box.classList.toggle('folded');
   p.mount(box.querySelector('.pbody'), ctx);
 }
-const panels = createPanels({ side: $('side'), onChange: st => $('sideBtn').setAttribute('aria-pressed', String(!st.hidden)) });
-$('sideBtn').onclick = () => panels.toggle();
+const panels = createPanels({ side: $('side'), onChange: st => $('sideBtn').setAttribute('aria-pressed', String(st.open.left)) });
+$('sideBtn').onclick = e => panels.toggle('left', e.detail === 0);
+$('boardName').onclick = e => panels.toggle('left', e.detail === 0);
 const library = createLibrary({ el: document.querySelector('[data-panel="library"]'), host, current: () => canvas.board?.id, openBoard, toast });
 addEventListener('focus', () => { library.refresh().catch(e => toast(e.message)); });
 const layers = createLayers({
@@ -212,6 +213,22 @@ addEventListener('paste', async e => {
 
 // ---------- composer ----------
 const promptEl = $('prompt');
+function openComposer(instant = false) {
+  const composer = $('composer'); composer.classList.toggle('instant', instant); composer.hidden = false; composer.inert = false;
+  void composer.offsetWidth; composer.classList.add('open');
+  $('askPill').hidden = true; $('askPill').setAttribute('aria-expanded', 'true');
+  promptEl.focus({ preventScroll: true });
+}
+function closeComposer(instant = false) {
+  const composer = $('composer'); composer.classList.toggle('instant', instant); composer.classList.remove('open'); composer.inert = true; composer.hidden = false;
+  $('askPill').hidden = false; $('askPill').setAttribute('aria-expanded', 'false');
+  if (composer.contains(document.activeElement)) $('askPill').focus({ preventScroll: true });
+}
+$('askPill').onclick = e => openComposer(e.detail === 0);
+$('composer').addEventListener('open-composer', () => openComposer(true));
+$('composer').addEventListener('close-composer', () => { if (!promptEl.value.trim()) closeComposer(true); });
+$('composer').addEventListener('focusout', () => setTimeout(() => { if (!$('composer').contains(document.activeElement) && !promptEl.value.trim()) closeComposer(); }, 0));
+promptEl.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeComposer(true); } });
 promptEl.addEventListener('input', () => { promptEl.style.height = 'auto'; promptEl.style.height = Math.min(200, promptEl.scrollHeight) + 'px'; });
 promptEl.addEventListener('keydown', e => {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNotes(); }
@@ -226,7 +243,7 @@ function addNotes() {
   const commands = lines.map((text, i) => ({ op: 'create', type: /^https?:\/\/\S+$/.test(text) ? 'link' : 'note', text: /^https?:\/\//.test(text) ? '' : text, url: /^https?:\/\/\S+$/.test(text) ? text : undefined, ref: 'n' + i }));
   commands.push({ op: 'layout', ids: lines.map((_, i) => '$n' + i), shape: 'grid', cols: Math.min(4, lines.length), x: Math.round(c.x - 380), y: Math.round(c.y - 120) });
   apply(commands);
-  promptEl.value = ''; promptEl.dispatchEvent(new Event('input'));
+  promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer();
 }
 $('composer').addEventListener('submit', async e => {
   e.preventDefault();
@@ -241,7 +258,7 @@ $('composer').addEventListener('submit', async e => {
   $('send').disabled = true;
   try {
     await host.post('/agents', { boardId: canvas.board.id, brief: full, model: { provider, modelId }, count });
-    promptEl.value = ''; promptEl.dispatchEvent(new Event('input'));
+    promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer();
     showAgents(true); refreshAgents();
   } catch (err) { toast(err.message); }
   finally { $('send').disabled = false; }
@@ -261,10 +278,11 @@ async function loadModels() {
 
 // ---------- agents ----------
 const agentState = new Map();
-const COLOURS = ['#0a84ff', '#30d158', '#ff9f0a', '#bf5af2', '#ff375f', '#64d2ff', '#ffd60a', '#ac8e68'];
+// Agent colours: the data blue first, then quiet companions. Never violet (plan.md section 4).
+const COLOURS = ['#3f8dfd', '#3dbf9a', '#e5a93b', '#5ec8e5', '#e07a9a', '#c9c97a'];
 const colourOf = id => COLOURS[Number(String(id).replace(/\D/g, '')) % COLOURS.length || 0];
-function showAgents(on) { $('agentsPanel').hidden = !on; $('agentsBtn').setAttribute('aria-pressed', String(on)); }
-$('agentsBtn').onclick = () => showAgents($('agentsPanel').hidden);
+function showAgents(on, instant = false) { $('agentsPanel').hidden = false; panels.setOpen('right', on, instant); $('agentsBtn').setAttribute('aria-pressed', String(on)); }
+$('agentsBtn').onclick = e => showAgents(!panels.isOpen('right'), e.detail === 0);
 $('closeAgents').onclick = () => showAgents(false);
 async function refreshAgents() {
   for (const a of await host.get(`/agents?board=${canvas.board.id}`)) agentState.set(a.id, a);
@@ -278,6 +296,15 @@ function renderAgents() {
   const running = mine.filter(a => a.running).length;
   $('agentCount').hidden = !running; $('agentCount').textContent = running;
   $('status').textContent = running ? `${running} agent${running > 1 ? 's' : ''} working` : '';
+  const active = mine.find(a => a.running);
+  $('runStrip').hidden = !active;
+  if (active) {
+    $('runBrief').textContent = active.brief?.split('\n')[0] || 'Agent working';
+    $('runStep').textContent = active.step || 'Working';
+    const step = String(active.step || '').match(/(\d+)\s*(?:of|\/)\s*(\d+)/i);
+    const progress = step ? Math.min(1, Number(step[1]) / Math.max(1, Number(step[2]))) : .18;
+    $('runFill').style.transform = `scaleX(${progress})`;
+  }
   if (!mine.length) { list.innerHTML = '<div class="empty-agents">No agents on this board yet.<br>Type in the box below to start one.</div>'; return; }
   const open = new Set([...list.querySelectorAll('.agent-row input')].filter(i => i === document.activeElement).map(i => i.closest('.agent-row').dataset.id));
   if (open.size) return; // don't rebuild while someone is typing a follow-up
@@ -285,7 +312,7 @@ function renderAgents() {
   for (const a of mine) {
     const row = document.createElement('div'); row.className = 'agent-row' + (a.running ? ' running' : '') + (a.error ? ' failed' : '') + (a.parent ? ' part' : ''); row.dataset.id = a.id;
     row.innerHTML = '<div class="top"><span class="dot"></span><span class="brief"></span></div><div class="meta"></div><div class="out"></div><form class="actions"><input placeholder="Follow up…"><button type="button" class="text-btn stop">Stop</button></form>';
-    row.querySelector('.dot').style.background = a.running ? colourOf(a.id) : '';
+    row.querySelector('.dot').style.background = a.running ? 'var(--data)' : '';
     row.querySelector('.brief').textContent = a.parent ? `${a.title ?? 'Part'}${a.summary ? ' · ' + a.summary : ''}` : (a.brief?.split('\n')[0] ?? 'Agent');
     row.querySelector('.meta').textContent = `${a.model?.modelId ?? ''} · ${a.error ?? a.step}`;
     row.querySelector('.out').textContent = a.text || '';
@@ -304,7 +331,7 @@ function listen() {
     if (ev.type === 'board' && ev.boardId === canvas.board?.id && ev.author?.kind === 'agent') {
       await reloadBoard(ev.focus && Date.now() - ev.focus.at < 5000 ? ev.focus : null);
       library.refresh();
-      if (ev.touched?.length) canvas.ring(ev.touched, colourOf(ev.author.conversationId));
+      if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`); }
     }
     if (ev.type === 'agent') { agentState.set(ev.id, ev); renderAgents(); }
     if (ev.type === 'auth') { renderAccounts(); loadModels(); }
@@ -364,17 +391,23 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => appl
 let toastT = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
 addEventListener('keydown', e => {
-  if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/') { e.preventDefault(); promptEl.focus(); } return; }
-  if (e.key === 'a') showAgents($('agentsPanel').hidden);
+  if (e.defaultPrevented || e.target.closest?.('textarea, input, [contenteditable], select')) return;
+  if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/') { e.preventDefault(); openComposer(true); } return; }
+  if (e.key === 'a') showAgents(!panels.isOpen('right'), true);
   if (e.key.toLowerCase() === 'f' && e.shiftKey) setFollow(!follow);
-  if (e.key === '\\') panels.toggle();
+  if (e.key === '\\') panels.toggle('left', true);
   if (TOOL_KEYS[e.key]) pickTool(TOOL_KEYS[e.key]);
   else { const t = registry.tools.find(x => x.key === e.key); if (t) pickTool(t.id); }
-  if (e.key === '/') { e.preventDefault(); promptEl.focus(); }
+  if (e.key === '/') { e.preventDefault(); openComposer(true); }
 });
 
 // ---------- feature context: what features may use ----------
+addEventListener('keydown', e => {
+  if (e.defaultPrevented || document.querySelector('dialog[open]') || e.target.closest?.('textarea, input, [contenteditable], select')) return;
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && ['BracketLeft', 'BracketRight'].includes(e.code) && !canvas.selection().length) {
+    e.preventDefault(); e.stopImmediatePropagation(); panels.toggle(e.code === 'BracketLeft' ? 'left' : 'right', true);
+  }
+}, true);
 const ctx = { apply: (c, done) => apply(c, done), canvas, host, toast: m => toast(m), selection: () => canvas.selection() };
 window.aegisCtx = ctx;
 const editing = mountEditing(ctx);
@@ -416,7 +449,7 @@ await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
 const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
-const onboarding = createOnboarding({ mobile });
+const onboarding = createOnboarding({ mobile, panels, openComposer, closeComposer });
 const settings = mountSettings({ canvas, replayTour: () => onboarding.welcome() });
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();

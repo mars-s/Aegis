@@ -38,6 +38,8 @@ try {
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.locator('#toast').evaluate(el => { el.hidden = true; });
   const original = await board();
+  await page.locator('#boardName').click();
+  await page.locator('#side').waitFor({ state: 'visible' });
   await page.locator('[data-add="project"]').click();
   await page.waitForFunction(() => document.querySelector('.tree-row.project'));
   let lib = await read(), project = lib.nodes.find(n => n.kind === 'project').id;
@@ -165,6 +167,8 @@ try {
   await page.waitForFunction(async id => !(await aegis.host.get(`/boards/${id}`)).parent, child);
   assert.equal((await api(`/boards/${parent}`)).cards.some(c => c.type === 'canvas'), false); check('Move to submenu detaches a nested board and removes its old canvas card');
   // Drag the detached board back into a folder.
+  const libraryGrip = await page.locator('[data-panel="library"] .resize-handle').boundingBox();
+  await page.mouse.move(libraryGrip.x + libraryGrip.width / 2, libraryGrip.y + 3); await page.mouse.down(); await page.mouse.move(libraryGrip.x + libraryGrip.width / 2, libraryGrip.y + 223, { steps: 10 }); await page.mouse.up();
   await row(child).dragTo(row(folder));
   await page.waitForFunction(async ([id, folder]) => (await aegis.host.get('/library')).boards.find(b => b.id === id)?.parent === folder, [child, folder]); check('drag-to-move files a board into a folder');
   // All projects exposes other projects again, and a loose folder scopes to its outermost ancestor.
@@ -172,7 +176,7 @@ try {
   assert.ok(await row(otherProject).count()); assert.ok(await row(copyProject).count());
   await page.locator(`.home-tile[data-into="${looseFolder}"]`).click();
   assert.equal(await page.locator('.tree-row.project').count(), 0); assert.ok(await row(looseFolder).count()); assert.equal(await row(project).count(), 0);
-  await page.keyboard.press('Escape'); assert.ok(await row(project).count()); assert.equal(await row(looseFolder).count(), 0);
+  await page.keyboard.press('Escape'); await page.waitForFunction(id => !document.querySelector(`.tree-row[data-node="${id}"]`), looseFolder); assert.ok(await row(project).count()); assert.equal(await row(looseFolder).count(), 0);
   check('Home All projects shows everything, loose-folder Home scopes to that folder, and closing restores the board project');
   // Drag a panel across columns and verify the saved layout after reload.
   const head = page.locator('[data-panel="layers"] .phead'), box = await head.boundingBox();

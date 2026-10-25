@@ -49,6 +49,7 @@ try {
   await select(['noteaa']); await key('f'); await pause(); assert.equal(await page.locator('#world [data-id="notedd"]').evaluate(el => el.classList.contains('focus-dim')), true); await key('Escape'); await pause(); assert.equal(await page.locator('.card.focus-dim').count(),0);
   await key('Mod+\\'); assert.equal(await page.locator('.show-panels').isVisible(), true); await page.getByText('Show panels', { exact: true }).click(); console.log('focus, clean mode');
   await key('Mod+k'); await page.getByLabel('Capture idea').fill('Captured thought'); await page.getByLabel('Capture idea').press('Enter'); await pause(); assert.equal((await saved()).tray[0].text, 'Captured thought');
+  await page.locator('#boardName').click();
   await page.getByRole('button', { name: 'Captured thought', exact: true }).click(); await pause(); assert.equal((await saved()).tray.length, 0); assert.ok((await board()).cards.some(c => c.text === 'Captured thought')); console.log('capture and tray release saved');
   await select(['noteaa']); await key('Mod+c'); await pause(); assert.ok(await page.evaluate(() => localStorage.getItem('aegis:clip')));
   await key('Mod+v'); await pause(); assert.equal((await saved()).cards.filter(c => c.text === 'First idea').length, 2); console.log('OS clipboard paste');

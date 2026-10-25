@@ -17,7 +17,7 @@ export function mountMobile({ pickTool, tools, showAgents }) {
   function close() {
     const wasOpen = !!current;
     restore(); sheet.hidden = veil.hidden = true;
-    if (current === 'agents') showAgents(false);
+    if (current === 'agents') { showAgents(false); document.getElementById('composer').dispatchEvent(new Event('close-composer')); }
     current = null; document.body.classList.remove('mobile-sheet-open'); hub.querySelectorAll('button').forEach(b => b.setAttribute('aria-expanded', 'false'));
     if (wasOpen) previousFocus?.focus({ preventScroll: true });
   }
@@ -48,7 +48,7 @@ export function mountMobile({ pickTool, tools, showAgents }) {
     } else if (id === 'wireframe') {
       const design = document.querySelector('.wf-design'); move(design); if (design) design.hidden = false;
     } else if (id === 'agents') {
-      showAgents(true); move(document.getElementById('agentsPanel')); move(document.getElementById('composer'));
+      showAgents(true); move(document.getElementById('agentsPanel')); move(document.getElementById('composer')); document.getElementById('composer').dispatchEvent(new Event('open-composer'));
     } else move(document.querySelector(`[data-panel="${id === 'boards' ? 'library' : id}"]`));
     if (id === 'wireframe') sheet.querySelector('h2').textContent = 'Wireframe';
     veil.hidden = sheet.hidden = false; document.body.classList.add('mobile-sheet-open');

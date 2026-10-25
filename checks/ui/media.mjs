@@ -42,6 +42,7 @@ try {
   await page.getByLabel('Hue and saturation').press('ArrowRight');
   await page.getByLabel('Brightness', { exact: true }).fill('80'); await page.getByLabel('Brightness', { exact: true }).dispatchEvent('change');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.locator('#boardName').click();
   const palette = page.locator('[data-panel="board-colours"]');
   await palette.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByLabel('Colour name', { exact: true }).fill('Saved sky'); await page.getByLabel('Colour name', { exact: true }).press('Tab');
@@ -271,6 +272,7 @@ try {
   await page.evaluate(id => aegis.apply([{ op: 'delete', ids: [id] }]), droppedVideo);
   log('Board video picker and file drop both save posters, and picker imports show saving percentage');
   // Capture cleanup saves into the original board when the canvas switches boards mid-recording.
+  await page.evaluate(() => { const card = aegis.canvas.board.cards.find(c => c.type === 'audio'); aegis.apply([{ op: 'order', ids: [card.id], to: 'front' }]); });
   await centreCard('audio');
   const beforeSwitch = await page.evaluate(() => ({ boardId: aegis.canvas.board.id, src: aegis.canvas.board.cards.find(c => c.type === 'audio').props.src }));
   await audio.getByRole('button', { name: 'Replace', exact: true }).click();

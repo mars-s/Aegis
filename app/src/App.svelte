@@ -5,14 +5,11 @@
 </script>
 
 <header class="bar" data-tauri-drag-region>
-  <div class="bar-left" data-tauri-drag-region>
-    <button class="icon-btn" id="sideBtn" title="Side bar (\)" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
-    <nav class="board-crumbs" id="boardCrumbs" aria-label="Board breadcrumbs"></nav>
-    <span class="board-name" id="boardName" data-tauri-drag-region>Untitled</span>
+  <button class="board-name" id="boardName" aria-controls="side" aria-expanded="false" title="Library and layers">Untitled</button>
+  <div class="bar-right">
+    <button class="icon-btn" id="sideBtn" title="Side bar (\)" aria-pressed="false" aria-label="Toggle library and layers"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
     <span class="save-state" id="saveState" role="status" aria-live="polite">saved</span>
     <button id="retrySave" hidden>Retry</button>
-  </div>
-  <div class="bar-right">
     <span class="status" id="status" aria-live="polite"></span>
     <button class="chip" id="showChip" hidden>Show</button>
     <button class="follow" id="followBtn" role="switch" aria-checked="true" title="Follow agents (Shift+F): the camera glides to what agents make"><span class="knob"></span>Follow</button>
@@ -21,7 +18,11 @@
   </div>
 </header>
 
-<aside class="side" id="side" aria-label="Side bar">
+<button class="edge-arrow edge-arrow-left" id="revealLeft" type="button" aria-controls="side" aria-expanded="false" aria-label="Show library and layers"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></button>
+<button class="edge-arrow edge-arrow-right" id="revealRight" type="button" aria-controls="sideRight" aria-expanded="false" aria-label="Show agent activity and panels"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3.5-4.5 4.5 4.5 4.5"/></svg></button>
+<aside class="side" id="side" aria-label="Library and layers" hidden inert>
+  <div class="side-head"><span>Library and layers</span><button class="icon-btn" id="closeSide" aria-label="Hide library and layers">×</button></div>
+  <nav class="board-crumbs" id="boardCrumbs" aria-label="Board breadcrumbs"></nav>
   <section class="pbox" data-panel="library">
     <div class="phead"><span>Library</span><button class="fold" aria-label="Fold Library"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div>
     <div class="pbody">
@@ -43,7 +44,8 @@
       <div><kbd>space</kbd><span>+ drag to pan</span></div>
       <div><kbd>⌘</kbd><kbd>scroll</kbd><span>zoom</span></div>
       <div><kbd>0</kbd><span>fit board</span></div>
-      <div><kbd>⌘[</kbd><kbd>⌘]</kbd><span>send backward, bring forward</span></div>
+      <div><kbd>⌘[ / ⌘]</kbd><span>Side bars, or stack selection</span></div>
+      <div><kbd>⌘K</kbd><span>Quick capture</span></div>
       <div><kbd>F</kbd><span>focus selection</span></div>
       <div><kbd>Shift+F</kbd><span>follow agents</span></div>
       <div><kbd>A</kbd><span>agents</span></div>
@@ -75,8 +77,7 @@
   <div class="world" id="world"></div>
   <div class="marquee" id="marquee" hidden></div>
   <div class="empty" id="empty" hidden>
-    <p class="empty-title">Dump everything here.</p>
-    <p class="empty-sub">Double-click to write, drop images or video, or type below and an agent sorts it.</p>
+    <p class="empty-sub">Drop files, or ask for something.</p>
   </div>
 </main>
 
@@ -85,7 +86,9 @@
   <div class="agent-list" id="agentList"></div>
 </aside>
 
-<form class="composer" id="composer" autocomplete="off">
+<div class="run-strip" id="runStrip" role="status" hidden><p class="run-title" id="runBrief"></p><div class="run-track"><span class="run-fill" id="runFill"></span><i></i><span id="runStep"></span></div></div>
+<button class="ask-pill" id="askPill" type="button" aria-controls="composer" aria-expanded="false" aria-label="Ask the agent. Shortcut slash."><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5c.4 3.4 1.6 5.4 6.5 6.5-4.9 1.1-6.1 3.1-6.5 6.5-.4-3.4-1.6-5.4-6.5-6.5C6.4 6.9 7.6 4.9 8 1.5Z"/></svg><span>Ask…</span><span class="pill-key">/</span></button>
+<form class="composer" id="composer" autocomplete="off" inert>
   <textarea id="prompt" rows="1" placeholder="Brain dump, or ask an agent to sort the board…" aria-label="Message"></textarea>
   <div class="composer-row">
     <select id="model" aria-label="Model"></select>
