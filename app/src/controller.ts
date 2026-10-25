@@ -6,6 +6,9 @@ import { createCanvas } from './canvas/engine.js';
 import { applyBatch } from './lib/board/commands.js';
 import { connect as connectHost } from './lib/host';
 import { mountObjects } from './objects/mount';
+// PM4 saving feedback: publish the existing queue state to generated views.
+import { objectSaveState } from './objects/save-state.js';
+// End PM4 saving feedback.
 import * as registry from './features/registry';
 import './features/index';
 // round2-sidebar: shortcut copy comes from the shared display map.
@@ -49,7 +52,7 @@ const objects = mountObjects({ host, apply: (commands) => apply(commands), getBo
 const saves = createSaveQueue({
   post: (id, commands) => host.post(`/boards/${id}/batch`, { commands }),
   reload: () => reloadBoard(),
-  changed: state => { $('saveState').textContent = state; $('retrySave').hidden = state !== 'not saved'; if (state === 'saved' && $('toast').textContent.startsWith('Could not save:')) $('toast').hidden = true; },
+  changed: state => { objectSaveState.set(state); $('saveState').textContent = state; $('retrySave').hidden = state !== 'not saved'; if (state === 'saved' && $('toast').textContent.startsWith('Could not save:')) $('toast').hidden = true; },
   failed: e => toast(`Could not save: ${e.message}. Your changes are kept here. Retry when ready.`),
 });
 $('retrySave').onclick = () => saves.retry();

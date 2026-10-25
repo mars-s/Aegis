@@ -4,6 +4,8 @@ import { spawnSync } from 'node:child_process';
 const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'imports', 'wireframe', 'editing', 'svelte', 'genui', 'parity', 'agent-types', 'agents', 'agent-motion'];
 // fix1: chat context, separate shortcuts and the two notes entry points.
 all.push('polish');
+// PM4: pan modifiers take priority over canvas gestures.
+all.push('pan');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

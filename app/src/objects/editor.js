@@ -4,6 +4,7 @@ import { registerCommand } from '../features/registry';
 import { openSide, centreCardInLeft } from '../features/docs/side.js';
 import ObjectCard from './ObjectCard.svelte';
 import { OBJECT_NAMES, expandsObject } from './presentation.js';
+import { watchObjectSave } from './save-state.js';
 
 let active;
 
@@ -14,7 +15,7 @@ export function openObject(card, ctx, { keyboard = false } = {}) {
   const kind = OBJECT_NAMES[card.kind];
   const shell = openSide({ title: card.text || kind, kind, keyboard });
   shell.el.classList.add('object-editor');
-  shell.setSaved('');
+  const stopSaveStatus = watchObjectSave(shell);
   shell.body.tabIndex = -1;
   const value = writable(card), current = fromStore(value);
   const stage = document.getElementById('stage');
@@ -52,6 +53,7 @@ export function openObject(card, ctx, { keyboard = false } = {}) {
     const field = document.activeElement;
     if (field instanceof HTMLElement && shell.el.contains(field)) field.blur();
     closed = true;
+    stopSaveStatus();
     stage.removeEventListener('boardchange', sync);
     if (active?.el === shell.el) active = null;
     unmount(instance);

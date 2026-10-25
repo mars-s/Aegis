@@ -1,7 +1,11 @@
 /* Canvas and cards: the table, the windows on it and typed object cards. */
 /* canvas */
 .stage { position: fixed; inset: 0; overflow: hidden; outline: none; touch-action: none; }
-.stage.panning { cursor: grabbing; }
+/* PM4 pan priority: the parent receives drags over sandbox frames while Space is held. */
+.stage.pan-ready, .stage.pan-ready * { cursor: grab !important; }
+.stage.panning, .stage.panning * { cursor: grabbing !important; }
+.stage.pan-ready iframe, .stage.panning iframe { pointer-events: none !important; }
+/* End PM4 pan priority. */
 .grid { position: absolute; inset: 0; width: 100%; height: 100%; }
 .world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
 .links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }

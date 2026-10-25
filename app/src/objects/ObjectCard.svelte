@@ -21,6 +21,8 @@
   import type { Host } from '../lib/host';
   import { OBJECT_NAMES, canOpenObject } from './presentation.js';
   import './genui.css';
+  // PM4 saving feedback: share the queue with the Open view.
+  import { objectSaveState, objectSaveLabel, retryObjectSave } from './save-state.js';
   type Card = { id: string; kind: string; data: any; text: string; ver?: number; updated?: number };
   let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {}, expanded = false, onescape = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void; expanded?: boolean; onescape?: () => void } = $props();
   const NAMES: Record<string, string> = OBJECT_NAMES;
@@ -44,7 +46,14 @@
   {#if !expanded}
     <header class="win-strip">
       <h3>{card.text || NAMES[card.kind]}<span class="kind">{`\u00a0· ${NAMES[card.kind] || card.kind}`}</span></h3>
-      {#if (card.ver ?? 1) > 1}<span class="updated" title={`Version ${card.ver}`}>Updated · {time(card.updated)}</span>{/if}
+      {#if generative}
+        <span class="updated" title={`Version ${card.ver}, updated ${time(card.updated)}`} role="status" data-object-saved>
+          {objectSaveLabel($objectSaveState)}
+          {#if $objectSaveState === 'not saved'}<button class="text-btn" type="button" aria-label="Retry save" onclick={retryObjectSave}>Retry</button>{/if}
+        </span>
+      {:else if (card.ver ?? 1) > 1}
+        <span class="updated" title={`Version ${card.ver}`}>Updated · {time(card.updated)}</span>
+      {/if}
       {#if canOpenObject(card.kind)}<button class="win-open" type="button" aria-label={`Open ${card.text || NAMES[card.kind]}`} onclick={open}>Open</button>{/if}
     </header>
   {/if}

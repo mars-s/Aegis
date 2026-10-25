@@ -328,9 +328,45 @@ try {
   assert.equal(await expandedDay.locator('.cell-value').textContent(), 'Monday');
   await expandedDay.press('Enter');
   await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Monday review');
+  // Keep both headers visible beside one another for the save-state evidence.
+  await page.evaluate(() => {
+    const left = document.querySelector('.card.kind-table').getBoundingClientRect().left;
+    aegis.canvas.setView({ ...aegis.canvas.view, x: aegis.canvas.view.x + 40 - left });
+  });
   await page.screenshot({ path: out(`genui-table-editing-${stamp}.png`) });
+  // PM4 saving feedback: hold a real save response, then fail the next edit.
+  await page.waitForFunction(() => document.querySelector('#saveState').textContent === 'saved');
+  let releaseSave;
+  const heldResponse = new Promise(resolve => { releaseSave = resolve; });
+  const holdSave = async route => { await heldResponse; await route.continue(); };
+  await page.route('**/boards/*/batch', holdSave);
   await page.keyboard.press('Enter');
+  await expanded.editor.locator('[data-saved]').filter({ hasText: 'Saving…' }).waitFor();
+  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: 'Saving…' }).waitFor();
+  await page.screenshot({ path: out(`r5-table-saving-${stamp}.png`) });
+  releaseSave();
+  await page.waitForFunction(() => document.querySelector('.object-editor [data-saved]').textContent === 'Saved');
+  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: /^\s*Saved\s*$/ }).waitFor();
+  await page.unroute('**/boards/*/batch', holdSave);
+  await page.screenshot({ path: out(`r5-table-saved-${stamp}.png`) });
   assert.equal(await expanded.editor.getByRole('gridcell', { name: 'Day, row 2', exact: true }).evaluate(cell => cell === document.activeElement), true);
+  await expandedDay.press('Enter');
+  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Retry table draft');
+  const refuseSave = route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Forced save failure' }) });
+  await page.route('**/boards/*/batch', refuseSave);
+  await page.keyboard.press('Enter');
+  await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  await page.locator('.card.kind-table').getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  assert.match(await expanded.editor.locator('[data-saved]').textContent(), /Not saved/);
+  await page.screenshot({ path: out(`r5-table-retry-${stamp}.png`) });
+  await page.unroute('**/boards/*/batch', refuseSave);
+  await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).click();
+  await page.waitForFunction(async () => document.querySelector('.object-editor [data-saved]').textContent === 'Saved' && (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Retry table draft');
+  await expandedDay.press('Enter');
+  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Monday review');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.querySelector('.object-editor [data-saved]').textContent === 'Saved');
+  console.log('pass genui: table shows Saving, host-confirmed Saved, failure Retry and successful recovery in Open and canvas headers');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Monday review');
   assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true);

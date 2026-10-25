@@ -458,6 +458,29 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   addEventListener('keydown', () => stage.classList.add('instant-focus'), true);
   let drag = null;
   let ptr = null; // a pointer-driven tool's gesture in progress
+  // PM4 pan priority: capture before controls, handles and feature gestures.
+  let spaceHeld = false;
+  const ownsSpace = el => el instanceof Element && (el.isContentEditable || el.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .side-editor, #agentIsland, #composer'));
+  function releaseSpace() { spaceHeld = false; stage.classList.remove('pan-ready'); }
+  addEventListener('keydown', e => {
+    if (e.code !== 'Space' || ownsSpace(document.activeElement) || ownsSpace(e.target)) return;
+    spaceHeld = true; stage.classList.add('pan-ready');
+    if (e.target === document.body || stage.contains(e.target)) e.preventDefault();
+  }, true);
+  addEventListener('keyup', e => { if (e.code === 'Space') releaseSpace(); }, true);
+  addEventListener('focusin', e => { if (ownsSpace(e.target)) releaseSpace(); }, true);
+  addEventListener('blur', () => { releaseSpace(); if (drag?.kind === 'pan') cancelGesture(); });
+  stage.addEventListener('pointerdown', e => {
+    if (e.button !== 1 && !(e.button === 0 && spaceHeld)) return;
+    if (drag || ptr) return;
+    cancelAnimationFrame(anim);
+    stage.focus({ preventScroll: true });
+    drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y };
+    stage.classList.add('panning'); stage.setPointerCapture(e.pointerId);
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  stage.addEventListener('lostpointercapture', () => { if (drag?.kind === 'pan') cancelGesture(); });
+  // End PM4 pan priority.
   mountTouch({ stage, getView: () => view, setView, getTool: () => tool });
   stage.addEventListener('pointerdown', e => {
     const pt = tool && e.button === 0 && !spaceHeld ? pointerTool?.(tool) : null;
@@ -498,7 +521,6 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (!resize && e.target.closest('.body, .heading, .badge, .card-tag, .collection-head, .todo-item span')) drag.maybeEdit = e.target.closest('.body, .heading, .badge, .card-tag, .collection-head, .todo-item span');
       stage.setPointerCapture(e.pointerId); schedule(); e.preventDefault(); return;
     }
-    if (e.button === 1 || spaceHeld) { drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
     if (tool) { const t = tool; setTool(null); onPlace?.(t, screenToWorld(e.clientX, e.clientY)); e.preventDefault(); return; }
     // empty canvas: marquee select
     const base = e.shiftKey ? [...selected] : [];
@@ -594,16 +616,13 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       setView({ x: e.clientX - p.x * z, y: e.clientY - p.y * z, z });
     } else setView({ x: view.x - e.deltaX, y: view.y - e.deltaY, z: view.z });
   }, { passive: false });
-  let spaceHeld = false;
   addEventListener('keydown', e => {
     if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
-    if (e.code === 'Space') { spaceHeld = true; e.preventDefault(); }
     if ((e.key === 'Backspace' || e.key === 'Delete') && selected.size) { onBatch.apply([{ op: 'delete', ids: [...selected].filter(id => !effectiveFlag(board, board.cards.find(c => c.id === id), 'locked')) }]); selected.clear(); onSelect?.([]); schedule(); }
     if (e.key === '0' && !e.metaKey && !e.ctrlKey) fit();
     if (e.key === 'Escape') { if (tool) setTool(null); else if (selected.size) { selected.clear(); onSelect?.([]); schedule(); } }
     if ((e.metaKey || e.ctrlKey) && e.key === 'a') { e.preventDefault(); board.cards.filter(c => !effectiveFlag(board, c, 'hidden') && !effectiveFlag(board, c, 'locked')).forEach(c => selected.add(c.id)); onSelect?.([...selected]); schedule(); }
   });
-  addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
   addEventListener('resize', () => schedule(true));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => schedule(true));
 
