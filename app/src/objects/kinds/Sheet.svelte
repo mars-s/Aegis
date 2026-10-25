@@ -60,11 +60,12 @@
 </div>
 
 <style>
-  .sheet { color: var(--color-text); font-size: var(--text-body); overflow: auto; max-block-size: 100%; }
+  .sheet { inline-size: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: var(--color-text); font-size: 12.5px; font-variant-numeric: tabular-nums; overflow: auto; max-block-size: 100%; }
   table { inline-size: 100%; border-collapse: collapse; }
-  th, td { padding: 7px 10px; text-align: start; border-block-end: 1px solid var(--color-border); white-space: nowrap; }
-  th { position: sticky; inset-block-start: 0; background: var(--color-surface); color: var(--color-muted); font-size: var(--text-label); font-weight: 500; z-index: 1; }
+  th, td { padding: 7px 10px; text-align: start; border-block-end: 1px solid var(--color-border); border-inline-end: 1px solid var(--color-border); white-space: nowrap; }
+  th { position: sticky; inset-block-start: 0; background: var(--inset); color: var(--color-muted); font-size: var(--text-label); font-weight: 500; z-index: 1; }
   th button { all: unset; display: inline-flex; gap: 4px; align-items: center; cursor: default; }
+  th button:focus-visible { outline: 1.5px solid var(--focus); outline-offset: 2px; }
   th button:not(:disabled):hover { color: var(--color-text); }
   .arrow { color: var(--color-text); }
   .num { text-align: end; font-variant-numeric: tabular-nums; }
@@ -77,6 +78,7 @@
   .rating .of { color: var(--color-faint); font-size: 0.85em; }
   .tag { padding: 1px 8px; border-radius: var(--radius-capsule); background: var(--color-fill); font-size: var(--text-label); }
   .link { all: unset; color: var(--color-term); text-decoration: underline; text-underline-offset: 2px; text-decoration-color: var(--color-border-strong); cursor: pointer; }
+  @media (pointer: coarse) { th button, .link { min-height: 44px; min-width: 44px; } }
   .note { margin: 10px 2px 0; color: var(--color-faint); font-size: var(--text-caption); }
   tbody tr:hover td { background: var(--color-fill); }
 </style>

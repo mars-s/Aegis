@@ -89,17 +89,18 @@
 
   .line {
     fill: none;
-    stroke-width: 1.5;
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
     stroke-linecap: round;
     stroke-linejoin: round;
   }
 
   .line.enter {
-    stroke-dasharray: 1;
-    animation: draw var(--motion-page) var(--ease-smooth) both;
+    animation: fade var(--motion-page) var(--ease-out) both;
   }
 
   .bar {
+    fill-opacity: 0.3;
     transform-box: fill-box;
     transform-origin: bottom;
   }
@@ -108,9 +109,9 @@
     animation: rise var(--motion-slow) var(--ease-emphasized) both;
   }
 
-  @keyframes draw {
+  @keyframes fade {
     from {
-      stroke-dashoffset: 1;
+      opacity: 0;
     }
   }
 

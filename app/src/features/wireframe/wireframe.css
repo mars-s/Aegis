@@ -10,12 +10,12 @@
 .wf-frame-name { position: absolute; bottom: calc(100% + 8px); left: 0; min-width: 100px; white-space: nowrap; color: var(--text); font: 500 12px/1.4 system-ui; outline: 0; }
 .card.wf.text .wf-text { min-height: 24px; width: 100%; height: auto; white-space: pre-wrap; word-break: break-word; outline: none; cursor: text; }
 .card.wf .wf-icon { display: block; width: max-content; pointer-events: none; }
-.card.wf.font { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 16px; overflow: hidden; }
+.card.wf.font { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-win); padding: 16px; overflow: hidden; }
 .wf-aa { font-size: 64px; line-height: 1.1; }
 .card.wf.font strong, .card.wf.font small { display: block; margin-top: 5px; }
 .card.wf.font small { font: 11px system-ui; color: var(--muted); }
 .wf-specimen { margin-top: 14px; font-size: 16px; }
-.card.wf.section { background: color-mix(in srgb, var(--wf-glass) 12%, transparent); border: 1px solid color-mix(in srgb, var(--wf-glass) 45%, var(--line)); border-radius: var(--wf-radius); backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 #ffffff30; }
+.card.wf.section { background: color-mix(in srgb, var(--wf-glass) 8%, var(--card)); border: 1px solid var(--line); border-radius: var(--wf-radius); box-shadow: inset 0 1px 0 var(--edge-top); }
 .wf-section-name { position: absolute; bottom: calc(100% - 50px); left: 22px; transform-origin: 0 100%; transform: scale(var(--wf-label-scale, 1)); padding: 6px 14px 7px; border-radius: 999px; background: var(--card); box-shadow: inset 0 0 0 1px var(--line); white-space: nowrap; cursor: grab; font-weight: 600; font-size: 14px; color: var(--text); outline: none; }
 .wf-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #71717a; font: 13px/1.3 system-ui; text-align: center; padding: 10px; }
 .wf-placeholder button { background: white; color: #27272a; border: 1px solid #d4d4d8; border-radius: 6px; padding: 5px 8px; }

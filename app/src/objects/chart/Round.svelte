@@ -222,8 +222,7 @@
   }
 
   .arc.draw {
-    stroke-dasharray: 1;
-    animation: draw var(--motion-page) var(--ease-emphasized) both;
+    animation: fade var(--motion-page) var(--ease-out) both;
   }
 
   @keyframes settle {
@@ -233,9 +232,9 @@
     }
   }
 
-  @keyframes draw {
+  @keyframes fade {
     from {
-      stroke-dashoffset: 1;
+      opacity: 0;
     }
   }
 </style>

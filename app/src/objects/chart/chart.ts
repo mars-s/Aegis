@@ -51,6 +51,8 @@ export type ChartSpec = {
   stack?: boolean;
   /** The one figure the chart exists to say, set large above it. */
   headline?: { label: string; value: string };
+  /** A supplied goal, drawn as a dashed reference line. */
+  target?: { value: number; label?: string };
 };
 
 /** The agent's plot styles, as the runtime names them. */
@@ -85,6 +87,7 @@ export function styleSpec(style: ChartStyle): Pick<ChartSpec, "kind" | "horizont
 
 /** Categorical slots; a ninth series takes the neutral tone rather than a new hue. */
 export function seriesColor(order: number): string {
+  if (order === 0) return 'var(--data)';
   return order < 8 ? `var(--chart-${order + 1})` : "var(--color-tint-graphite)";
 }
 

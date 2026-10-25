@@ -52,7 +52,6 @@
     heat: m.chart_kind_heat,
     spark: m.chart_kind_spark,
   };
-  const uid = $props.id();
   // A chart arrives once; reduced motion draws it settled.
   let settled = $state(reducedMotion());
   $effect(() => {
@@ -207,7 +206,6 @@
             {labels}
             {detail}
             {summary}
-            {uid}
             height={plotHeight}
             {settled}
             {onevidence}
@@ -279,6 +277,7 @@
     margin: 0;
     min-inline-size: 0;
     color: var(--color-text);
+    font-variant-numeric: tabular-nums;
   }
 
   .chart.tile {
@@ -405,6 +404,7 @@
 
   td {
     font-variant-numeric: tabular-nums;
+    text-align: end;
   }
 
   .cites {

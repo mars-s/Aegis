@@ -19,5 +19,5 @@
   .line { display: block; padding-inline-end: 8px; }
   .line.marked { background: color-mix(in srgb, var(--chart-1) 12%, transparent); }
   .no { display: inline-block; inline-size: 3ch; margin-inline-end: 12px; color: var(--color-faint); text-align: end; user-select: none; }
-  .note { display: block; margin: 2px 0 6px 5ch; padding: 4px 8px; border-inline-start: 2px solid var(--chart-1); color: var(--color-label-secondary); font-family: var(--font); white-space: normal; }
+  .note { display: block; margin: 2px 0 6px 5ch; padding: 4px 8px; border-inline-start: 1px solid var(--line-strong); color: var(--color-label-secondary); font-family: var(--font); white-space: normal; }
 </style>

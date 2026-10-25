@@ -75,7 +75,7 @@
           class="mark web"
           style:fill={series.color}
           style:stroke={series.color}
-          style:fill-opacity={web.series.length > 1 ? 0.14 : 0.24}
+          style:fill-opacity={0.1}
         />
         {#if detail !== "tile" && web.series.length <= 2}
           {#each series.reach as reach, index (index)}
@@ -86,7 +86,7 @@
                 cy={p.y}
                 r={active === index ? 4.5 : 3.5}
                 class="mark dot"
-                style:fill={series.color}
+                style:stroke={series.color}
               />
             {/if}
           {/each}
@@ -139,18 +139,20 @@
 
   .grid {
     fill: none;
-    stroke: var(--color-border);
+    stroke: var(--chart-grid, var(--color-border));
     stroke-width: 1;
   }
 
   .web {
-    stroke-width: 1.5;
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
     stroke-linejoin: round;
   }
 
   .dot {
-    stroke: var(--color-surface);
-    stroke-width: 1.5;
+    fill: var(--card);
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
   }
 
   .name {

@@ -51,3 +51,13 @@
 
 .link-loading-status { padding: 8px 10px; color: var(--muted); font-size: 12px; }
 .card.link.link-loading .media-head { color: var(--muted); }
+
+.card.link .media-head, .card.spotify .media-head, .card.audio .media-head, .card.video .media-head { min-height: 36px; background: var(--strip); color: var(--text); }
+.image-caption { background: var(--strip); }
+.image-actions { transition: opacity 150ms var(--ease-out); }
+.card.image:focus-within .image-actions { opacity: 1; }
+body.motion-off .image-actions { transition: none; }
+@media (hover: none), (pointer: coarse) {
+  .image-actions { opacity: 1; }
+  .card .media-actions button { min-width: 44px; min-height: 44px; }
+}

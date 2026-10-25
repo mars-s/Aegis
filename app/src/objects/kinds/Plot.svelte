@@ -8,6 +8,7 @@
     y: { label?: string; unit?: string; format: ChartFormat; currency?: string };
     series: { name: string; points: { x: string; y: number | null; y2?: number | null }[] }[];
     headline?: { label: string; value: string };
+    target?: ChartSpec['target'];
   };
   let { data, title, detail = 'full' }: { data: Plot; title: string; detail?: 'full' | 'overview' | 'tile' } = $props();
   const spec: ChartSpec = $derived({
@@ -17,6 +18,7 @@
     basis: data.basis,
     knowledge: data.knowledge,
     headline: data.headline,
+    target: data.target,
     series: data.series.map(s => ({
       name: s.name,
       points: s.points.map(p => ({ x: data.x.kind === 'linear' ? Number(p.x) : p.x, y: p.y, ...(p.y2 != null ? { y2: p.y2 } : {}) })),

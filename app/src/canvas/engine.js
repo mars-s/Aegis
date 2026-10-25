@@ -9,6 +9,7 @@ import { displayRotation, preference } from '../features/settings/preferences.js
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom, cards show as outlines
 const MIN_Z = 0.05, MAX_Z = 4;
+const WINDOWS = new Set(['object', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'slides', 'canvas', 'font']);
 
 // Card renderers from feature modules: type -> { render(el, card, api), drop?(el), interactive?: css selector }.
 // render fills `el` (already a positioned .card) and wires its own events; api lets it change the board.
@@ -62,7 +63,27 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   const mounted = new Map();      // id -> { el, sig }
   const selected = new Set();
   let focusIds = null;
-  const rings = new Map();        // card id -> colour, cards an agent touched recently
+  let focusedId = null;
+  const frameFocusStyle = document.createElement('style');
+  world.appendChild(frameFocusStyle);
+  let parents = new Map();
+  function frameAncestors(card) {
+    const ids = [], seen = new Set([card.id]);
+    let id = card.parent;
+    while (id && !seen.has(id)) { seen.add(id); ids.push(id); id = parents.get(id); }
+    return ids.join(' ');
+  }
+  const flashes = new Map();
+  const agentSvg = document.createElementNS(guides.namespaceURI, 'svg');
+  agentSvg.setAttribute('class', 'agent-line');
+  agentSvg.setAttribute('width', '1'); agentSvg.setAttribute('height', '1');
+  agentSvg.setAttribute('aria-hidden', 'true');
+  world.appendChild(agentSvg);
+  let lineCards = new Map(), lineTimer = 0;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  function settleAgentLine() { agentSvg.getAnimations({ subtree: true }).forEach(a => a.finish()); }
+  reduced.addEventListener('change', () => { if (reduced.matches) settleAgentLine(); });
+  new MutationObserver(() => { if (document.body.classList.contains('motion-off')) settleAgentLine(); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
   let frame = 0, dirtyAll = true;
   let tool = null;                // armed tool: the next click on empty canvas places it
   const ctx = grid.getContext('2d');
@@ -109,16 +130,21 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const r = visibleRect(), z = view.z;
     const fills = { plain: css.getPropertyValue('--card'), gray: css.getPropertyValue('--c-gray'), blue: css.getPropertyValue('--c-blue'), green: css.getPropertyValue('--c-green'),
       yellow: css.getPropertyValue('--c-yellow'), orange: css.getPropertyValue('--c-orange'), red: css.getPropertyValue('--c-red'), purple: css.getPropertyValue('--c-purple') };
-    const line = css.getPropertyValue('--line-strong'), text = css.getPropertyValue('--text');
+    const line = css.getPropertyValue('--line'), text = css.getPropertyValue('--text'), strip = css.getPropertyValue('--strip'), edge = css.getPropertyValue('--edge-top');
     ctx.lineWidth = 1;
     for (const c of board.cards) {
       if (effectiveFlag(board, c, 'hidden')) continue;
       if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) continue;
       const x = c.x * z + view.x, y = c.y * z + view.y, w = c.w * z, h = (c.type === 'title' ? 56 : c.h) * z;
       if (c.type === 'title') { ctx.fillStyle = text; ctx.fillRect(x, y + h * 0.3, Math.min(w, (c.text.length || 4) * 14 * z), Math.max(2, h * 0.4)); continue; }
-      ctx.fillStyle = fills[c.color] || fills.plain; ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : fills[c.color] || fills.plain;
+      const rounded = w > 24 && h > 12;
+      if (rounded) { ctx.beginPath(); ctx.roundRect(x, y, w, h, Math.min(8 * z, h / 2)); ctx.fill(); }
+      else ctx.fillRect(x, y, w, h);
+      if (WINDOWS.has(c.type) && h > 12) { ctx.fillStyle = strip; ctx.fillRect(x + 1, y + 1, Math.max(0, w - 2), Math.min(36 * z, h - 2)); }
       if (w > 6) { ctx.strokeStyle = line; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); }
-      if (selected.has(c.id)) { ctx.strokeStyle = css.getPropertyValue('--focus'); ctx.lineWidth = 2; ctx.strokeRect(x, y, w, h); ctx.lineWidth = 1; }
+      if (w > 12) { ctx.fillStyle = edge; ctx.fillRect(x + 1, y + 1, w - 2, 1); }
+      if (selected.has(c.id)) { ctx.strokeStyle = css.getPropertyValue('--focus'); ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h); ctx.lineWidth = 1; }
     }
   }
 
@@ -126,14 +152,17 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const dpr = devicePixelRatio || 1, w = stage.clientWidth, h = stage.clientHeight;
     if (grid.width !== w * dpr || grid.height !== h * dpr) { grid.width = w * dpr; grid.height = h * dpr; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
-    let step = 24 * view.z; while (step < 14) step *= 2; while (step > 48) step /= 2;
+    let step = 58.4 * view.z; while (step < 26) step *= 2;
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--dot');
     const shape = localStorage.getItem('aegis:grid') || 'dots';
     if (shape === 'none') return;
-    if (shape === 'lines') { ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1; ctx.beginPath(); for (let x = view.x % step; x < w; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, h); } for (let y = view.y % step; y < h; y += step) { ctx.moveTo(0, y); ctx.lineTo(w, y); } ctx.stroke(); return; }
-    const ox = ((view.x % step) + step) % step, oy = ((view.y % step) + step) % step;
-    const r = Math.max(0.6, Math.min(1.1, view.z));
-    for (let x = ox; x < w; x += step) for (let y = oy; y < h; y += step) { if (!drawGridMotif(ctx, shape, x, y)) ctx.fillRect(x - r / 2, y - r / 2, r, r); }
+    ctx.globalAlpha = Math.max(0.25, Math.min(1, (view.z - 0.18) / 0.4));
+    if (shape === 'lines') { ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1; ctx.beginPath(); for (let x = view.x % step; x < w; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, h); } for (let y = view.y % step; y < h; y += step) { ctx.moveTo(0, y); ctx.lineTo(w, y); } ctx.stroke(); }
+    else {
+      const ox = (((view.x + 16.5 * view.z) % step) + step) % step, oy = (((view.y + 25.5 * view.z) % step) + step) % step;
+      for (let x = ox; x < w; x += step) for (let y = oy; y < h; y += step) { if (!drawGridMotif(ctx, shape, x, y)) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5); }
+    }
+    ctx.globalAlpha = 1;
   }
 
   // ---------- cards ----------
@@ -159,17 +188,16 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       }
       m.sig = sig;
       if (m.geo !== geo) { place(m.el, c); m.geo = geo; }
-      if (m.z !== z) { m.el.style.zIndex = z; m.z = z; }
+      if (m.z !== z) { m.el.style.zIndex = z; m.el.style.setProperty('--card-order', z); m.z = z; }
       const el = m.el;
       el.classList.toggle('selected', selected.has(c.id));
       el.classList.toggle('locked', effectiveFlag(board, c, 'locked'));
       el.classList.toggle('focus-dim', !!focusIds && !focusIds.has(c.id));
-      if (rings.has(c.id)) { el.classList.add('agent-ring'); el.style.setProperty('--ring', rings.get(c.id)); } else el.classList.remove('agent-ring');
     });
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot]);
+  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot, c.parent]);
   const geometry = c => `${c.x},${c.y},${c.w},${c.h},${displayRotation(c)}`;
   function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)${displayRotation(c) ? ` rotate(${displayRotation(c)}deg)` : ''}`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
   // What a renderer may do to the board.
@@ -186,9 +214,14 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   function renderCard(c) {
     const el = document.createElement('div');
     el.className = `card ${c.type}`; el.dataset.id = c.id; el.dataset.type = c.type;
+    if (WINDOWS.has(c.type)) el.classList.add('window-card');
+    if (c.id === focusedId) el.classList.add('window-focus');
+    if (c.parent) el.dataset.ancestors = frameAncestors(c);
+    if (flashes.has(c.id)) el.classList.add('glow');
     if (/^#/.test(c.color ?? '')) { el.dataset.color = 'custom'; el.style.setProperty('--card-fill', c.color); } else el.dataset.color = c.color || 'plain';
     place(el, c);
     const style = c.props ?? {};
+    if (c.type === 'frame') el.style.setProperty('--frame-opacity', style.opacity ?? 1);
     for (const [key, value] of Object.entries({ fontWeight: style.bold === undefined ? ['title', 'coll'].includes(c.type) ? '650' : '' : style.bold ? '700' : '400', fontStyle: style.italic ? 'italic' : '', textDecoration: [style.under ? 'underline' : '', style.strike ? 'line-through' : ''].filter(Boolean).join(' '), textAlign: style.align || '', fontSize: style.size ? `${style.size}px` : ['note', 'todo', 'shape', 'coll'].includes(c.type) ? '15px' : '', fontFamily: style.font || '', lineHeight: style.lh || '', letterSpacing: style.ls ? `${style.ls}px` : '', textTransform: ({ upper: 'uppercase', lower: 'lowercase', title: 'capitalize' })[style.tcase] || '' })) el.style[key] = value;
     if (style.tag) { const tag = document.createElement('div'); tag.className = 'card-tag'; tag.contentEditable = 'plaintext-only'; tag.textContent = style.tag; tag.onblur = () => cardApi.setProps(c.id, { tag: tag.textContent.trim() || null }); tag.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); tag.blur(); } }; el.append(tag); }
     const custom = RENDERERS.get(c.type);
@@ -201,7 +234,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (c.type === 'object') {
       // A typed object: Svelte draws it into the host element; the canvas still owns drag, resize and select.
       el.classList.add(`kind-${c.kind}`);
-      el.innerHTML = '<div class="drag-strip" title="Drag to move"></div><div class="object-host"></div><div class="resize"></div>';
+      el.innerHTML = '<div class="object-host"></div><div class="resize"></div>';
       renderObject?.(el.querySelector('.object-host'), c);
       return el;
     }
@@ -293,6 +326,20 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
 
   // ---------- input ----------
+  // Focus changes only the old and new card, never every card during a paint.
+  function focusCard(id) {
+    if (id === focusedId) return;
+    mounted.get(focusedId)?.el.classList.remove('window-focus');
+    focusedId = id;
+    mounted.get(id)?.el.classList.add('window-focus');
+  }
+  stage.addEventListener('pointerdown', e => {
+    stage.classList.remove('instant-focus');
+    const el = e.target.closest('.card');
+    if (el && e.button === 0) focusCard(el.dataset.id);
+  }, true);
+  stage.addEventListener('focusin', e => { const el = e.target.closest('.card'); if (el) focusCard(el.dataset.id); });
+  addEventListener('keydown', () => stage.classList.add('instant-focus'), true);
   let drag = null;
   let ptr = null; // a pointer-driven tool's gesture in progress
   mountTouch({ stage, getView: () => view, setView, getTool: () => tool });
@@ -303,7 +350,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const cardEl = e.target.closest('.card');
     if (cardEl && effectiveFlag(board, board.cards.find(c => c.id === cardEl.dataset.id), 'locked')) { e.preventDefault(); return; }
     // Inside an object, controls (buttons, inputs, sort headers) and text selection work as normal.
-    if (cardEl?.classList.contains('object') && !e.target.closest('.drag-strip, .resize') && e.target.closest('button, input, select, a, summary, details, th, .sheet, pre')) return;
+    if (cardEl?.classList.contains('object') && !e.target.closest('.win-strip, .drag-strip, .resize') && e.target.closest('button, input, select, a, summary, details, th, .sheet, pre')) return;
     if (cardEl && RENDERERS.get(cardEl.dataset.type)?.interactive && e.target.closest(RENDERERS.get(cardEl.dataset.type).interactive) && !e.target.closest('.resize')) return;
     if (e.target.isContentEditable && document.activeElement === e.target) return;
     if (e.target.closest('input, button, a, video')) return;
@@ -347,6 +394,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       onSelect?.([...selected]); schedule(); return;
     }
     if (!drag.moved && Math.hypot(dx, dy) < 3) return;
+    if (!drag.moved && drag.cards.some(d => lineCards.has(d.c.id))) clearAgentLine();
     drag.moved = true;
     let wdx = dx / view.z, wdy = dy / view.z;
     if (drag.kind === 'move') {
@@ -398,6 +446,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (!onContext || e.target.closest('input, textarea, [contenteditable="plaintext-only"]:focus')) return;
     e.preventDefault();
     const hit = e.target.closest('.card');
+    if (hit) focusCard(hit.dataset.id);
     if (hit && !selected.has(hit.dataset.id)) { selected.clear(); selected.add(hit.dataset.id); onSelect?.([...selected]); schedule(); }
     onContext({ x: e.clientX, y: e.clientY, at: screenToWorld(e.clientX, e.clientY), ids: hit ? [...selected] : [] });
   });
@@ -461,22 +510,72 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
   function fit() { if (board?.cards.length) frameIds(board.cards.map(c => c.id)); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
   function glow(ids) {
-    for (const id of ids) { const el = mounted.get(id)?.el; if (el) { el.classList.remove('glow'); void el.offsetWidth; el.classList.add('glow'); } }
+    for (const id of ids) {
+      clearTimeout(flashes.get(id));
+      flashes.set(id, setTimeout(() => { flashes.delete(id); mounted.get(id)?.el.classList.remove('glow'); }, 1200));
+      const el = mounted.get(id)?.el; if (el) { el.classList.remove('glow'); void el.offsetWidth; el.classList.add('glow'); }
+    }
+  }
+  function clearAgentLine() {
+    clearTimeout(lineTimer); lineCards.clear();
+    agentSvg.getAnimations({ subtree: true }).forEach(a => a.cancel());
+    agentSvg.replaceChildren(); agentSvg.classList.remove('spent');
+  }
+  function ring(ids, colour, ms = 4000, label = 'Agent') {
+    clearAgentLine();
+    const touched = new Set(ids);
+    const cards = (board?.cards || []).filter(c => touched.has(c.id) && !effectiveFlag(board, c, 'hidden')).sort((a, b) => a.x - b.x);
+    if (!cards.length) return;
+    lineCards = new Map(cards.map(c => [c.id, geometry(c)]));
+    agentSvg.style.setProperty('--agent-colour', colour || 'var(--data)');
+    const top = Math.min(...cards.map(c => c.y)) - 56, start = cards[0].x + 10;
+    const stations = cards.map(c => Math.min(c.x + c.w / 2, c.x + 180));
+    const add = (tag, attrs) => {
+      const el = document.createElementNS(agentSvg.namespaceURI, tag);
+      for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, String(value));
+      agentSvg.append(el); return el;
+    };
+    add('circle', { class: 'origin', cx: start, cy: top - 24, r: 3.5 });
+    add('text', { x: start + 10, y: top - 20 }).textContent = label;
+    add('path', { class: 'trunk', d: `M${start} ${top - 24}V${top - 12}L${start + 12} ${top}H${Math.max(...stations)}` });
+    cards.forEach((c, i) => {
+      add('path', { class: 'drop', d: `M${stations[i]} ${top}V${c.y}` });
+      add('circle', { class: 'station', cx: stations[i], cy: c.y, r: 4.5 });
+    });
+    if (!reduced.matches && !document.body.classList.contains('motion-off')) agentSvg.querySelectorAll('path').forEach((p, i) => {
+      const length = p.getTotalLength();
+      p.style.strokeDasharray = String(length);
+      p.animate([{ strokeDashoffset: length }, { strokeDashoffset: 0 }], { duration: 420, delay: i ? 360 + i * 60 : 0, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' });
+    });
+    glow(ids);
+    lineTimer = setTimeout(() => agentSvg.classList.add('spent'), ms);
   }
 
   return {
     setBoard(next, { keepView = true } = {}) {
       const first = !board || board.id !== next.id;
+      if (lineCards.size) {
+        const byId = new Map(next.cards.map(c => [c.id, c]));
+        if (first || [...lineCards].some(([id, geo]) => !byId.has(id) || geometry(byId.get(id)) !== geo)) clearAgentLine();
+      }
       board = next;
+      parents = new Map(board.cards.filter(c => c.parent).map(c => [c.id, c.parent]));
+      // A focused frame and its separate canvas children rise together. CSS responds to the same one class.
+      const frameRules = board.cards.filter(c => c.type === 'frame').map(c => {
+        const id = CSS.escape(c.id);
+        return `.world:has(> .window-focus[data-id="${id}"]) > .card[data-ancestors~="${id}"] { z-index: calc(100001 + var(--card-order, 0)) !important; }`;
+      }).join('\n');
+      if (frameFocusStyle.textContent !== frameRules) frameFocusStyle.textContent = frameRules;
       for (const id of selected) if (!board.cards.some(c => c.id === id)) selected.delete(id);
-      if (first) { focusIds = null; cancelAnimationFrame(anim); clearTimeout(viewT); clearTimeout(crispTimer); }
+      if (first) { focusIds = null; focusedId = null; for (const timer of flashes.values()) clearTimeout(timer); flashes.clear(); cancelAnimationFrame(anim); clearTimeout(viewT); clearTimeout(crispTimer); }
+      else if (focusedId && !board.cards.some(c => c.id === focusedId)) focusCard(null);
       if (first) { for (const m of mounted.values()) removeEl(m.el); mounted.clear(); selected.clear(); view = next.view ?? { x: 0, y: 0, z: 1 }; if (!next.view || (next.view.x === 0 && next.view.y === 0)) view = { x: stage.clientWidth / 2 - 200, y: stage.clientHeight / 3, z: 1 }; }
       schedule(true);
       stage.dispatchEvent(new CustomEvent('boardchange', { detail: { board, first } }));
       return first;
     },
     get board() { return board; },
-    setFocus(ids) { focusIds = ids ? new Set(ids) : null; schedule(); },
+    setFocus(ids) { focusIds = ids ? new Set(ids) : null; if (ids?.length) focusCard(ids.at(-1)); schedule(); },
     get view() { return view; },
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
@@ -485,10 +584,10 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     screenToWorld, worldToScreen: (x, y) => ({ x: x * view.z + view.x, y: y * view.z + view.y }),
     setView, glideTo, redraw: () => schedule(true), mountedEl: id => mounted.get(id)?.el ?? null,
     busy: () => !!drag,
-    select(ids) { selected.clear(); for (const id of ids) selected.add(id); onSelect?.([...selected]); schedule(); },
+    select(ids) { selected.clear(); for (const id of ids) selected.add(id); if (ids.length) focusCard(ids.at(-1)); onSelect?.([...selected]); schedule(); },
     // Put the caret in a card's first editable field (or its link box).
     edit(id) { requestAnimationFrame(() => { const el = mounted.get(id)?.el; const f = el?.querySelector('.url-input, .body'); if (f) { f.focus(); if (f.isContentEditable) placeCaret(f); } }); },
-    ring(ids, colour, ms = 4000) { for (const id of ids) rings.set(id, colour); schedule(); setTimeout(() => { for (const id of ids) if (rings.get(id) === colour) rings.delete(id); schedule(); }, ms); },
+    ring,
     centre: () => screenToWorld(stage.clientWidth / 2, stage.clientHeight / 2),
     stats: () => ({ mounted: mounted.size, cards: board?.cards.length ?? 0, z: view.z }),
   };

@@ -13,7 +13,6 @@
     labels,
     detail,
     summary,
-    uid,
     height,
     settled,
     onevidence,
@@ -24,7 +23,6 @@
     labels: Card;
     detail: "full" | "overview" | "tile";
     summary: string;
-    uid: string;
     height: number;
     settled: boolean;
     onevidence?: (reference: ChartEvidence) => void;
@@ -334,16 +332,6 @@
       onpointermove={quiet ? undefined : locate}
       onpointerleave={quiet ? undefined : () => hover.hide()}
     >
-      {#if spec.kind === "area"}
-        <defs>
-          {#each shape.series as series, order (series.key)}
-            <linearGradient id={`${uid}-wash-${order}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color={series.color} stop-opacity={tile ? 0.5 : 0.36} />
-              <stop offset="100%" stop-color={series.color} stop-opacity="0.02" />
-            </linearGradient>
-          {/each}
-        </defs>
-      {/if}
       {#if !tile && !(lying && valued)}
         <g class="grid" aria-hidden="true">
           {#each shape.ticks as tick (tick)}
@@ -366,6 +354,12 @@
             y1={at}
             y2={at}
           />{/if}
+      {/if}
+      {#if spec.target && !tile}
+        {@const at = value(spec.target.value)}
+        {#if lying}<line class="target" x1={at} x2={at} y1={top} y2={bottom} />
+        {:else}<line class="target" x1={left} x2={right} y1={at} y2={at} />{/if}
+        <text class="tick" x={lying ? at + 4 : right} y={lying ? top + 10 : at - 6} text-anchor={lying ? 'start' : 'end'}>{spec.target.label || tickLabel(spec.target.value, spec.y)}</text>
       {/if}
       {#if active && banded}
         {@const start = bands.start(active.index) - (bands.step - bands.width) / 2}
@@ -391,7 +385,7 @@
               d={series.area}
               class="mark area"
               class:enter={!settled}
-              fill={`url(#${uid}-wash-${order})`}
+              fill={series.color}
             />{/if}
           <path
             d={series.line}
@@ -408,7 +402,7 @@
                   r="3.5"
                   class="mark dot"
                   class:enter={!settled}
-                  fill={series.color}
+                  stroke={series.color}
                 />{/if}
             {/each}
           {/if}
@@ -418,7 +412,7 @@
           <line class="cursor-line" x1={x} x2={x} y1={top} y2={bottom} />
           {#each lines as series (series.key)}
             {@const dot = series.dots[active.index]}
-            {#if dot}<circle cx={dot.x} cy={dot.y} r="4.5" class="focus" fill={series.color} />{/if}
+            {#if dot}<circle cx={dot.x} cy={dot.y} r="4.5" class="focus" stroke={series.color} />{/if}
           {/each}
         {/if}
       {:else}
@@ -538,8 +532,8 @@
   }
 
   .grid line {
-    stroke: var(--color-border);
-    stroke-dasharray: 3 3;
+    stroke: var(--chart-grid, var(--color-border));
+    stroke-width: 1;
     shape-rendering: crispedges;
   }
 
@@ -547,6 +541,7 @@
     stroke: var(--color-border-strong);
     shape-rendering: crispedges;
   }
+  .target { stroke: var(--ink-2); stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 3 4; }
 
   .cursor {
     fill: var(--color-fill);
@@ -558,15 +553,14 @@
   }
 
   .focus {
-    stroke: var(--color-surface);
-    stroke-width: 2;
+    fill: var(--card);
+    stroke-width: 1.4;
   }
 
   .tick {
     fill: var(--color-muted);
     font-size: var(--text-caption);
     font-variant-numeric: tabular-nums;
-    transition: fill var(--motion-fast) var(--ease-out);
   }
 
   .tick.on {
@@ -580,7 +574,10 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .area { fill-opacity: 0.12; }
+
   .bar {
+    fill-opacity: 0.3;
     transform-box: fill-box;
     transition: opacity var(--motion-fast) var(--ease-out);
   }
@@ -591,18 +588,20 @@
 
   .line {
     fill: none;
-    stroke-width: 2;
+    stroke-width: 1.4;
     stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
     stroke-linejoin: round;
   }
 
   :global(.tile) .line {
-    stroke-width: 2.5;
+    stroke-width: 1.4;
   }
 
   .dot {
-    stroke: var(--color-surface);
-    stroke-width: 1.5;
+    fill: var(--card);
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
   }
 
   /* A chart arrives once: bars rise from their baseline, lines draw in, washes and words follow. */
@@ -611,8 +610,7 @@
   }
 
   .line.enter {
-    stroke-dasharray: 1;
-    animation: draw var(--motion-page) var(--ease-smooth) both;
+    animation: fade var(--motion-page) var(--ease-out) both;
   }
 
   .area.enter,
@@ -639,12 +637,6 @@
   @keyframes reach {
     from {
       transform: scaleX(0);
-    }
-  }
-
-  @keyframes draw {
-    from {
-      stroke-dashoffset: 1;
     }
   }
 

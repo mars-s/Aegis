@@ -42,20 +42,20 @@
   .fit { inline-size: 100%; overflow: hidden; }
   .diagram { position: relative; color: var(--color-text); transform-origin: 0 0; }
   .flows { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
-  .flow path { fill: none; stroke: var(--color-border-strong); stroke-width: 1.25; transition: stroke var(--motion-fast) var(--ease-out), opacity var(--motion-fast) var(--ease-out); }
+  .flow path { fill: none; stroke: var(--color-border-strong); stroke-width: 1.25; transition: opacity var(--motion-fast) var(--ease-out); }
   .flow path.head { fill: var(--color-border-strong); stroke: none; }
   .flow.back path:not(.head) { stroke-dasharray: 3 3; }
   .flow.lit path { stroke: var(--color-muted); stroke-width: 1.5; }
   .flow.lit path.head { fill: var(--color-muted); }
   .flow.away { opacity: 0.18; }
-  .node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-radius: 12px;
-    background: color-mix(in srgb, var(--tone) 16%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--tone) 34%, transparent);
+  .node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-radius: 6px;
+    background: color-mix(in srgb, var(--tone) 5%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
     transition: opacity var(--motion-fast) var(--ease-out); overflow: hidden; }
   .node strong { font-size: var(--text-body); font-weight: 650; line-height: 18px; }
   .node span { color: var(--color-label-secondary); font-size: var(--text-label); line-height: 16px; }
   .node.external, .node.client { border-style: dashed; }
   .node.away, .edge-label.away { opacity: 0.35; }
   .edge-label { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: var(--radius-capsule); background: var(--color-surface); color: var(--color-muted); font-size: var(--text-caption); white-space: nowrap; }
-  .band { position: absolute; box-sizing: border-box; border-radius: 16px; background: var(--color-fill); }
-  .band span { position: absolute; inset-block-start: 5px; inset-inline-start: 12px; color: var(--color-muted); font-size: var(--text-caption); font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; }
+  .band { position: absolute; box-sizing: border-box; border-radius: 8px; background: var(--color-fill); }
+  .band span { position: absolute; inset-block-start: 5px; inset-inline-start: 12px; color: var(--color-muted); font-size: var(--text-caption); font-weight: 500; }
 </style>

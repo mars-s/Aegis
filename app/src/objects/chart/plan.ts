@@ -220,6 +220,7 @@ export function plan(spec: ChartSpec, other = "Other"): Plan {
         ),
       );
   const zero = spec.kind !== "line" && spec.kind !== "spark";
+  if (spec.target) values.push(spec.target.value);
   const ticks = valueTicks(spec, values, zero);
   const parts =
     spec.kind === "donut" ? donutParts(spec, other) : spec.kind === "radial" ? rings(spec) : [];
