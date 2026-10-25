@@ -38,8 +38,8 @@ try {
   await key('Mod+z'); await pause();
   await select(['noteaa']); await page.getByRole('button', { name: 'Bold', exact: true }).click(); await (await reveal(page.getByLabel('Note name', { exact: true }))).fill('Named idea'); await page.getByLabel('Note name', { exact: true }).press('Tab'); await (await reveal(page.getByLabel('Label', { exact: true }))).fill('Read first'); await page.getByLabel('Label', { exact: true }).press('Tab'); await pause();
   assert.equal((await saved()).cards.find(c => c.id === 'noteaa').props.bold, true); assert.equal((await board()).cards.find(c => c.id === 'noteaa').heading, 'Named idea'); console.log('name, label and formatting saved');
-  await select(['noteaa', 'notebb', 'todocc']); await (await reveal(page.getByLabel('Align selection'))).selectOption('top'); await pause(); const aligned = (await saved()).cards.filter(c => ['noteaa','notebb','todocc'].includes(c.id)); assert.equal(new Set(aligned.map(c => c.y)).size, 1);
-  await (await reveal(page.getByLabel('Align selection'))).selectOption('distribute-x'); await pause(); console.log('align and distribute saved');
+  await select(['noteaa', 'notebb', 'todocc']); await page.getByLabel('Align and distribute', { exact: true }).click(); await page.getByRole('button', { name: 'Align top', exact: true }).click(); await pause(); const aligned = (await saved()).cards.filter(c => ['noteaa','notebb','todocc'].includes(c.id)); assert.equal(new Set(aligned.map(c => c.y)).size, 1);
+  await page.getByRole('button', { name: 'Distribute horizontally', exact: true }).click(); await pause(); console.log('align and distribute saved');
   await select(['noteaa','notebb']); await key('Mod+g'); await pause(); assert.ok((await saved()).cards.find(c => c.id === 'noteaa').group);
   await page.evaluate(() => aegis.canvas.setView({ x: 700, y: 350, z: 1 })); await pause();
   let card = page.locator('#world [data-id="noteaa"]'); let r = await card.boundingBox();
@@ -165,6 +165,45 @@ try {
   assert.deepEqual(await geometryReads([]),{descendants:0,roots:0}); assert.equal((await geometryReads(['exportimg'])).descendants,0); console.log('selection geometry avoids descendant reads and does no card reads without a selection');
 
   await select([]); await page.locator('#stage').focus(); await page.keyboard.press('p'); await pause(); assert.equal(await page.getByLabel('Drawing controls',{exact:true}).isVisible(),true); assert.equal(await page.locator('#tools').isVisible(),false); await page.getByRole('button',{name:'Done',exact:true}).click(); await pause(); assert.equal(await page.locator('#tools').isVisible(),true);
+  // The selection toolbar stays compact, follows the camera and preserves its controls on phone.
+  if (await page.locator('#side').evaluate(el => el.classList.contains('open'))) await page.getByLabel('Hide library and layers', { exact: true }).click();
+  await page.evaluate(() => { aegis.apply([
+    { op: 'restore', cards: [], links: [], tray: [] },
+    { op: 'create', newId: 'toolnote', type: 'note', text: 'A quieter place to think.\nKeep the useful things close.', x: 0, y: 0, w: 300, h: 160 },
+    { op: 'create', newId: 'toolnext', type: 'note', text: 'Another thought', x: 340, y: 70, w: 240, h: 140 },
+    { op: 'create', newId: 'toolthird', type: 'note', text: 'One more idea', x: 620, y: 0, w: 240, h: 160 },
+    { op: 'create', newId: 'toolobject', type: 'object', kind: 'sheet', text: 'Sleep log', x: 0, y: 240, w: 420, h: 240, data: { columns: [{ label: 'Night', kind: 'text' }, { label: 'Hours', kind: 'number' }], rows: [{ cells: ['Monday', '7.4'] }, { cells: ['Tuesday', '7.8'] }], note: 'Fictional test data' } },
+  ]); aegis.canvas.setView({ x: 450, y: 300, z: 1 }); }); await saved(); await pause();
+  await select(['toolnote']); await pause();
+  const toolbar = page.locator('#selectionBar'), toolbarBox = () => toolbar.boundingBox();
+  const actions = () => page.locator('.selection-inline > button, .selection-inline > details > summary').evaluateAll(els => els.map(el => el.getAttribute('aria-label')));
+  assert.deepEqual(await actions(), ['Bold', 'Italic', 'Align', 'Colour', 'More selection controls']);
+  assert.equal(await page.locator('.selection-inline > select').count(), 0); assert.ok((await toolbarBox()).width < 340);
+  let selectionBox = await page.locator('#world [data-id="toolnote"]').boundingBox(), toolbarRect = await toolbarBox();
+  assert.ok(toolbarRect.y + toolbarRect.height < selectionBox.y); assert.ok(Math.abs(toolbarRect.x + toolbarRect.width / 2 - selectionBox.x - selectionBox.width / 2) < 2);
+  await page.screenshot({ path: out('selection-note.png') });
+  const beforePan = toolbarRect; await page.evaluate(() => aegis.canvas.setView({ x: 490, y: 330, z: 1 })); await pause(); toolbarRect = await toolbarBox(); assert.ok(Math.abs(toolbarRect.x - beforePan.x - 40) < 2); assert.ok(Math.abs(toolbarRect.y - beforePan.y - 30) < 2);
+  await page.evaluate(() => aegis.canvas.setView({ x: 490, y: 60, z: .8 })); await pause(); selectionBox = await page.locator('#world [data-id="toolnote"]').boundingBox(); toolbarRect = await toolbarBox(); assert.ok(toolbarRect.y >= selectionBox.y + selectionBox.height);
+  await page.evaluate(() => aegis.canvas.setView({ x: -120, y: 300, z: 1 })); await pause(); assert.ok((await toolbarBox()).x >= 8);
+  await page.evaluate(() => aegis.canvas.setView({ x: 450, y: 300, z: 1 })); await pause();
+  await page.getByLabel('More selection controls', { exact: true }).click(); assert.equal(await page.getByLabel('Font', { exact: true }).isVisible(), true); assert.equal(await page.getByLabel('Letter spacing', { exact: true }).isVisible(), true); await page.waitForTimeout(30); await page.screenshot({ path: out('selection-more.png') });
+  await page.keyboard.press('Escape'); assert.equal(await page.locator('.selection-more').evaluate(el => el.open), false); assert.equal(await toolbar.isVisible(), true);
+  await select(['toolobject']); await pause(); assert.deepEqual(await actions(), ['Open', 'Duplicate', 'Delete', 'More selection controls']); await page.screenshot({ path: out('selection-object.png') });
+  await toolbar.getByRole('button', { name: 'Open', exact: true }).click(); await page.waitForFunction(() => document.querySelector('.side-editor.is-open')); await page.getByLabel('Close editor', { exact: true }).click(); await page.evaluate(() => aegis.canvas.setView({ x: 450, y: 300, z: 1 })); await pause();
+  await select(['toolnote', 'toolnext', 'toolthird']); await pause(); assert.equal(await page.locator('.selection-count').innerText(), '3 selected'); assert.deepEqual(await actions(), ['Align and distribute', 'Group', 'Duplicate', 'Delete', 'More selection controls']); await page.screenshot({ path: out('selection-multi.png') });
+  await select(['toolnote']); await pause(); selectionBox = await page.locator('#world [data-id="toolnote"]').boundingBox();
+  await page.mouse.move(selectionBox.x + 20, selectionBox.y + selectionBox.height - 15); await page.mouse.down(); await page.mouse.move(selectionBox.x + 70, selectionBox.y + selectionBox.height + 15, { steps: 4 }); assert.equal(await toolbar.isVisible(), false); await page.mouse.up(); await pause(); assert.equal(await toolbar.isVisible(), true);
+  await page.evaluate(url => aegis.apply([{ op: 'create', newId: 'toolimage', type: 'image', text: 'Owned colour fixture', url, x: 950, y: 0, w: 200, h: 200 }]), colours.green); await saved(); await select(['toolimage']); await pause(); assert.deepEqual(await actions(), ['Replace', 'Download', 'More selection controls']);
+  await page.getByLabel('More selection controls', { exact: true }).click(); await toolbar.getByRole('button', { name: 'Lock', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'toolimage').props.locked, true); assert.equal(await toolbar.getByRole('button', { name: 'Unlock', exact: true }).isVisible(), true); await toolbar.getByRole('button', { name: 'Unlock', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'toolimage').props.locked, false);
+  const mediaDownload = page.waitForEvent('download'); await toolbar.getByRole('button', { name: 'Download', exact: true }).click(); await (await mediaDownload).saveAs(out('selection-download.png'));
+  const replaceChooser = page.waitForEvent('filechooser'); await toolbar.getByRole('button', { name: 'Replace', exact: true }).click(); await (await replaceChooser).setFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: Buffer.from(colours.red.split(',')[1], 'base64') }); await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'toolimage').url !== '' && !aegis.canvas.board.cards.find(c => c.id === 'toolimage').url.startsWith('data:')); await saved();
+  await page.emulateMedia({ reducedMotion: 'no-preference' }); await select([]); await page.locator('#stage').focus(); await key('Mod+a'); await page.waitForTimeout(20); assert.equal(await toolbar.evaluate(el => el.getAnimations().length), 0);
+  await page.emulateMedia({ reducedMotion: 'reduce' }); await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => aegis.canvas.setView({ x: 24, y: 180, z: 1 })); await pause(); await select(['toolnote']); await pause();
+  assert.equal(await page.locator('body').evaluate(el => el.classList.contains('phone')), true); const hubBox = await page.locator('#mobileHub').boundingBox(); toolbarRect = await toolbarBox(); assert.ok(toolbarRect.y + toolbarRect.height <= hubBox.y - 6); assert.ok(toolbarRect.x >= 0 && toolbarRect.x + toolbarRect.width <= 390);
+  assert.ok(await toolbar.locator('button').first().evaluate(el => el.getBoundingClientRect().height >= 44)); await page.screenshot({ path: out('selection-phone.png') });
+  await page.getByLabel('More selection controls', { exact: true }).click(); assert.equal(await page.getByLabel('Font', { exact: true }).isVisible(), true); const menuBox = await page.locator('.selection-overflow').boundingBox(); assert.ok(menuBox.x >= 0 && menuBox.y >= 0 && menuBox.x + menuBox.width <= 390 && menuBox.y + menuBox.height <= 844); await page.screenshot({ path: out('selection-phone-more.png') });
+  await select([]); assert.equal(await toolbar.isVisible(), false); await page.setViewportSize({ width: 1600, height: 1100 });
+  console.log('compact selection actions, anchor flip and clamping, pan and zoom, More, object open, multi-select, drag hiding, instant keyboard selection and phone dock');
   writeFileSync(out('editing-saved-board.json'),JSON.stringify(await saved(),null,2));
   assert.deepEqual(errors,[]); console.log('PASS, no page errors');
 } catch(e) { console.error(e); console.error('page errors',errors); await page.screenshot({path:out('editing-fail.png')}); process.exitCode=1; }

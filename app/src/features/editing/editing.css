@@ -1,8 +1,4 @@
 /* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
-.selection-bar { position: fixed; z-index: 70; display: flex; align-items: center; flex-wrap: nowrap; box-sizing: border-box; gap: 4px; width: min(880px, calc(100vw - 24px)); max-width: min(880px, calc(100vw - 24px)); padding: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: inset 0 1px 0 var(--edge-top); font-size: 12px; }
-.selection-bar strong { padding: 0 8px; }
-.selection-bar button,.selection-bar select,.selection-bar input { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 5px; padding: 5px; font: inherit; max-width: 125px; }
-.selection-bar button:hover,.selection-bar button[aria-pressed=true] { background: var(--hover); }
 .editing-outline { position: fixed; pointer-events: none; border: 1px solid var(--focus); z-index: 3; }
 .editing-outline button { pointer-events: auto; position: absolute; background: var(--card); border: 1px solid var(--focus); color: var(--text); }
 .rotation-handle { top: -30px; left: calc(50% - 10px); width: 22px; height: 22px; border-radius: 50%; cursor: grab; }
@@ -64,21 +60,12 @@ body[data-tool-size=large] .tools [data-tool] { width: 42px; height: 42px; }
 .editing-font-picker { position: fixed; z-index: 130; width: 260px; max-height: 300px; overflow: auto; background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 8px; border-radius: 9px; box-shadow: 0 6px 25px #0002; }
 .editing-font-picker input { width: 100%; padding: 8px; background: var(--card); color: var(--text); border: 1px solid var(--line); }
 .editing-font-list button { display: block; padding: 8px; text-align: left; color: inherit; background: transparent; width: 100%; }.editing-font-list button:hover { background: var(--hover); }
-.selection-bar > * { flex-shrink: 0; }
-.selection-more { position: relative; }
-.selection-more summary { padding: 6px 8px; cursor: pointer; list-style: none; border: 1px solid var(--line); border-radius: 5px; }
-.selection-more summary::-webkit-details-marker { display: none; }
-.selection-overflow { position: absolute; right: 0; top: calc(100% + 10px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 8px; width: min(300px, calc(100vw - 36px)); max-height: min(440px, 65vh); overflow: auto; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); box-shadow: 0 6px 25px #0002; }
-.selection-overflow [data-selection-control] { grid-column: 1 / -1; }
-.selection-overflow input,.selection-overflow select { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
 .editing-tilt { position: fixed; z-index: 140; width: 270px; padding: 12px; display: flex; flex-wrap: wrap; gap: 6px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 25px #0002; }
 .editing-tilt input { width: 70px; }
 .editing-tilt button,.editing-tilt input { padding: 6px; background: var(--card); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
 .editing-tilt button[aria-pressed=true] { background: var(--hover); }
 .editing-export .media-actions,.editing-export button,.editing-export .recorder-choices,.editing-export .device-choices,.editing-export .resize,.editing-export .drag-strip { display: none!important; }
 .editing-export .media-poster { width: 100%; min-height: 0; flex: 1; object-fit: contain; }
-.selection-overflow { top: auto; bottom: calc(100% + 10px); }
-.selection-bar.menu-below .selection-overflow { top: calc(100% + 10px); bottom: auto; }
 body.editing-context:not(.placing) .tools { visibility: hidden; pointer-events: none; }
 body:has(.draw-inspector:not([hidden])) .tools { visibility: hidden; pointer-events: none; }
 .card.note { line-height: 1.45; }
@@ -88,9 +75,61 @@ body:has(.draw-inspector:not([hidden])) .tools { visibility: hidden; pointer-eve
 .card.coll { line-height: 1.2; }
 
 .editing-zoom-menu { background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-lift); }
-.selection-overflow { background: var(--raised); border-radius: 12px; box-shadow: var(--shadow-lift); }
 .editing-capture button { border-radius: 999px; padding: 8px 12px; color: var(--muted); }
 .editing-capture button:hover { background: var(--hover); }
 @media (hover: none) { .editing-hints { opacity: .65; } }
 
 body.left-open .editing-hints { visibility: hidden; }
+.selection-bar { position: fixed; z-index: 70; box-sizing: border-box; width: max-content; max-width: calc(100vw - 24px); padding: 2px; background: var(--raised); color: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgb(0 0 0 / .3); font: 12px/1.4 var(--font); transform-origin: 50% 100%; }
+.selection-inline { display: flex; align-items: center; gap: 2px; width: max-content; max-width: 100%; }
+.selection-inline > * { flex-shrink: 0; }
+.selection-count { padding: 0 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.selection-bar button, .selection-bar summary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-width: 32px; min-height: 32px; padding: 0 8px; background: transparent; color: inherit; border: 0; border-radius: 6px; font: inherit; white-space: nowrap; cursor: pointer; }
+.selection-bar .selection-action, .selection-bar summary { padding: 0 8px; }
+.selection-bar svg, .editing-tilt svg { display: block; flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.selection-bar button:hover, .selection-bar summary:hover { background: var(--hover); color: var(--text); }
+.selection-bar button[aria-pressed=true], .selection-bar details[open] > summary { background: var(--press); color: var(--text); }
+.selection-bar :is(button, summary):focus-visible { outline: 1.5px solid var(--focus); outline-offset: -2px; }
+.selection-bar button:disabled { opacity: .4; cursor: default; }
+.selection-bar summary { list-style: none; }
+.selection-bar summary::-webkit-details-marker { display: none; }
+.selection-bar details { position: static; }
+.selection-menu { position: fixed; z-index: 72; width: min(300px, calc(100vw - 24px)); max-height: min(560px, calc(100dvh - 24px)); overflow: auto; overscroll-behavior: contain; padding: 6px; background: var(--raised); color: var(--ink-2); border: 1px solid var(--line); border-radius: 12px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.selection-menu section + section { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.selection-menu h3 { margin: 6px 8px 4px; color: var(--faint); font-size: 11px; font-weight: 500; }
+.selection-menu .selection-menu-action { display: flex; justify-content: space-between; width: 100%; padding: 0 8px; text-align: left; }
+.selection-value { margin-left: auto; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.selection-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 2px 8px; }
+.selection-row > span:first-child { flex: 1; min-width: 0; }
+.selection-bar input, .selection-bar select { width: 126px; min-width: 0; height: 28px; padding: 4px 6px; background: var(--inset); color: var(--text); border: 0; border-radius: 5px; font: inherit; font-variant-numeric: tabular-nums; }
+.selection-bar input::placeholder { color: var(--faint); }
+.selection-bar input[type=range] { padding: 0; accent-color: var(--muted); }
+.selection-bar select { appearance: none; padding-right: 20px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23959ba4' stroke-width='1.5'%3E%3Cpath d='m5 6 3 3 3-3'/%3E%3C/svg%3E"); background-position: right 4px center; background-size: 14px; background-repeat: no-repeat; }
+.selection-stepper { display: inline-flex; align-items: center; flex: none; gap: 0; }
+.selection-bar .selection-stepper input { width: 38px; padding: 0; text-align: center; background: transparent; }
+.selection-bar .selection-stepper button { width: 32px; padding: 0; }
+.selection-popup-menu { width: max-content; min-width: 150px; max-width: calc(100vw - 24px); }
+.selection-segments { display: flex; gap: 2px; }
+.selection-colours { display: grid; grid-template-columns: repeat(4, 32px); gap: 4px; }
+.selection-colours button::before { content: ''; width: 18px; height: 18px; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.selection-colours button[aria-pressed=true]::before { outline: 1px solid var(--text); outline-offset: 2px; }
+.selection-enter { animation: selection-in 140ms var(--ease-out); }
+@keyframes selection-in { from { opacity: 0; transform: translateY(4px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes selection-fade { from { opacity: 0; } to { opacity: 1; } }
+body.motion-off .selection-enter { animation-name: selection-fade; }
+@media (prefers-reduced-motion: reduce) { .selection-enter { animation-name: selection-fade; } }
+@media (hover: none), (pointer: coarse) { .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-bar .selection-stepper button { width: 44px; } .selection-colours { grid-template-columns: repeat(4, 44px); } .selection-row { min-height: 44px; } }
+body.phone .selection-bar { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
+body.phone .selection-inline { width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
+body.phone .selection-bar button, body.phone .selection-bar summary { min-width: 44px; min-height: 44px; }
+body.phone .selection-bar .selection-stepper button { width: 44px; }
+@media (max-width: 700px) { body .selection-bar { width: calc(100vw - 20px); max-width: calc(100vw - 20px); overflow: visible; } .selection-inline { width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; } .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-bar .selection-stepper button { width: 44px; } .selection-row { min-height: 44px; } }
+
+.editing-tilt { background: var(--raised); border-radius: 12px; box-shadow: none; }
+.editing-tilt button, .editing-tilt input { min-height: 32px; background: transparent; border: 0; border-radius: 6px; font: 12px var(--font); }
+.editing-tilt button:hover { background: var(--hover); }
+.editing-tilt button[aria-pressed=true] { background: var(--press); }
+
+@media (hover: none), (pointer: coarse), (max-width: 700px) { .selection-bar input, .selection-bar select { height: 44px; } .selection-bar .selection-stepper input { min-width: 44px; } }
+body.phone .selection-bar input, body.phone .selection-bar select { height: 44px; }
+body.phone .selection-bar .selection-stepper input { min-width: 44px; }

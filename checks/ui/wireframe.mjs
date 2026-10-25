@@ -59,7 +59,7 @@ try {
   log('editable pieces stamped and text typed and formatted');
   const groupBefore = await snapshot(), arrow = groupBefore.cards.find(c => c.type === 'icon' && c.props.name === 'arrow_back');
   const navParts = groupBefore.cards.filter(c => c.group === arrow.group);
-  await drag(arrow.x + 20, arrow.y + 12, 0, 15);
+  await select(arrow.id); await drag(arrow.x + 20, arrow.y + 12, 0, 15);
   const groupAfter = await snapshot(), arrowMoved = groupAfter.cards.find(c => c.id === arrow.id);
   assert.ok(arrowMoved.y !== arrow.y);
   for (const c of navParts) { const next = groupAfter.cards.find(k => k.id === c.id); assert.deepEqual([next.x - c.x, next.y - c.y], [arrowMoved.x - arrow.x, arrowMoved.y - arrow.y]); }
