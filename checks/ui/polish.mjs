@@ -1,3 +1,4 @@
+import { checkChrome } from './chrome.mjs';
 import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.js';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
@@ -45,6 +46,7 @@ const assertChat = async (id, text) => {
 try {
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
+  await checkChrome(browser, page.url());
   // Round 2 discovery: expiry and keyboard dismissal also work with motion disabled.
   const firstUse = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
   await firstUse.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -99,18 +101,18 @@ try {
   }
   assert.equal((await saved()).tray.length, 2);
   assert.equal(requests.length, 0);
-  await page.locator('#quickCapture').click(); assert.equal(await captureDialog.isVisible(), true); await page.keyboard.press('Escape');
+  await page.mouse.move(1400, 20); await page.locator('#quickCapture').click(); assert.equal(await captureDialog.isVisible(), true); await page.keyboard.press('Escape');
   console.log('PASS Cmd/Ctrl+K opens Ask, Shift+Cmd/Ctrl+K captures once, drafts survive, hints/panel/Idea labels match');
 
   await page.evaluate(() => { window.notesEvents = 0; document.getElementById('composer').addEventListener('add-as-notes', () => window.notesEvents++); });
   await page.keyboard.press('Meta+k'); await prompt.fill('Grid first idea\nGrid second idea'); await prompt.press('Escape');
-  await page.locator('#toolsFold').click();
+  await page.mouse.move(24, 480); await page.locator('#toolsFold').click();
   const gridNotes = page.locator('#toolsPopover').getByRole('button', { name: 'Add as notes', exact: true });
   assert.equal(await gridNotes.isVisible(), true); assert.ok((await gridNotes.boundingBox()).height >= 44);
   await shot('more-tools-1440');
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.waitForFunction(() => document.getElementById('toolsPopover').hidden);
-  if (!(await gridNotes.isVisible())) await page.locator('#toolsFold').click();
+  if (!(await gridNotes.isVisible())) { await page.mouse.move(24, 480); await page.locator('#toolsFold').click(); }
   await shot('more-tools-1586');
   await gridNotes.press('Enter');
   let board = await saved();
@@ -159,7 +161,7 @@ try {
   assert.ok((await saved()).cards.some(c => c.text === 'Touch menu idea')); assert.equal(requests.length, beforePhoneNotes);
   await page.getByLabel('Close sheet', { exact: true }).click();
   await page.setViewportSize({ width: 1440, height: 992 });
-  await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'About', exact: true }).click();
+  await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'About', exact: true }).click();
   await page.getByRole('button', { name: 'Replay welcome and tour', exact: true }).click();
   await page.getByRole('button', { name: 'Start tour', exact: true }).click(); await page.keyboard.press('ArrowRight');
   assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Cmd\+K/); assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Ctrl\+K/);

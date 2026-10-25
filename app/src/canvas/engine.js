@@ -67,6 +67,19 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   const selected = new Set();
   let focusIds = null;
   let focusedId = null;
+  // PM 7: the editor owns its source marker independently of canvas selection.
+  let editorSource = null;
+  const editorSourceStyle = document.createElement('style');
+  world.appendChild(editorSourceStyle);
+  function setEditorSource(id) {
+    mounted.get(editorSource)?.el.classList.remove('editor-source');
+    editorSource = id;
+    editorSourceStyle.textContent = id ? `#stage [data-connect-card="${CSS.escape(id)}"] { display: none !important; }` : '';
+    mounted.get(id)?.el.classList.add('editor-source');
+    stage.classList.toggle('editor-source-selected', !!id && selected.has(id));
+    schedule();
+  }
+  // end PM 7
   const frameFocusStyle = document.createElement('style');
   world.appendChild(frameFocusStyle);
   let parents = new Map();
@@ -178,6 +191,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (agentMotionQueue.length) animateAgentBatch();
     // end item 10
     drawLinks();
+    // PM 7: selection can change while an editor remains open.
+    stage.classList.toggle('editor-source-selected', !!editorSource && selected.has(editorSource));
+    // end PM 7
     stage.dispatchEvent(new CustomEvent('canvaspaint'));
     dirtyAll = false;
   }
@@ -212,7 +228,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (WINDOWS.has(c.type) && h > 12) { ctx.fillStyle = strip; ctx.fillRect(x + 1, y + 1, Math.max(0, w - 2), Math.min(36 * z, h - 2)); }
       if (w > 6) { ctx.strokeStyle = line; ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1); }
       if (w > 12) { ctx.fillStyle = edge; ctx.fillRect(x + 1, y + 1, w - 2, 1); }
-      if (selected.has(c.id)) { ctx.strokeStyle = css.getPropertyValue('--focus'); ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h); ctx.lineWidth = 1; }
+      // PM 7: crowded far views keep the source marker quiet too.
+      if (selected.has(c.id) || c.id === editorSource) { ctx.strokeStyle = css.getPropertyValue(c.id === editorSource ? '--data' : '--focus'); ctx.lineWidth = c.id === editorSource ? 1 : 1.5; ctx.strokeRect(x, y, w, h); ctx.lineWidth = 1; }
+      // end PM 7
     }
   }
 
@@ -275,6 +293,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (m.z !== z) { m.el.style.zIndex = z; m.el.style.setProperty('--card-order', z); m.z = z; }
       const el = m.el;
       el.classList.toggle('selected', selected.has(c.id));
+      // PM 7: preserve the marker across virtual mounts and saved content renders.
+      el.classList.toggle('editor-source', c.id === editorSource);
+      // end PM 7
       el.classList.toggle('locked', effectiveFlag(board, c, 'locked'));
       el.classList.toggle('focus-dim', !!focusIds && !focusIds.has(c.id));
     });
@@ -688,6 +709,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     get view() { return view; },
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
+    // PM 7: shared editor open and close hook.
+    setEditorSource,
+    // end PM 7
     exportCard: renderCard, releaseCard: removeEl,
     get tool() { return tool; },
     screenToWorld, worldToScreen: (x, y) => ({ x: x * view.z + view.x, y: y * view.z + view.y }),

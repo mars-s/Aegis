@@ -2,7 +2,9 @@
   import { onMount } from 'svelte';
   import { start } from './controller';
   import { SHORTCUTS, SHORTCUT_LIST, TOOL_SHORTCUTS, shortcutText, shortcutTitle } from './lib/shortcuts.js';
-  onMount(() => { void start(); });
+  // PM 6: secondary chrome reveals only when reached or in use.
+  import { mountIdleChrome } from './chrome/idle.js';
+  onMount(() => { const dispose = mountIdleChrome(); void start(); return dispose; });
 </script>
 
 <header class="bar" data-tauri-drag-region>
@@ -40,6 +42,8 @@
   <section class="pbox" data-panel="keys">
     <div class="phead"><span>Shortcuts</span><button class="fold" aria-label="Fold Shortcuts"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div>
     <div class="pbody keys">
+      <!-- PM 6: the tools shortcut stays discoverable in the shared reference. -->
+      <div><kbd>⇧T / Shift+T</kbd><span>Show tools</span></div>
       <div>{#each TOOL_SHORTCUTS as id}<kbd data-shortcut={id}>{shortcutText(id)}</kbd>{/each}<span>Tools</span></div>
       {#each SHORTCUT_LIST as id}
         <div><kbd data-shortcut={id}>{shortcutText(id)}</kbd><span>{SHORTCUTS[id].label}</span></div>
@@ -50,7 +54,7 @@
   <div class="side-resize" title="Drag to resize"></div>
 </aside>
 
-<nav class="tools compact" id="tools" aria-label="Tools">
+<nav class="tools compact" id="tools" aria-label="Tools" aria-keyshortcuts="Shift+T">
   <button data-core="true" data-tool="select" title={shortcutTitle("select")}  aria-pressed="true"><svg viewBox="0 0 16 16"><path d="M4 2.5 12 8l-3.6.7L10.6 13l-1.5.7-2.2-4.3L4 12z"/></svg></button>
   <button data-core="true" data-tool="note" title={shortcutTitle("note")}><svg viewBox="0 0 16 16"><path d="M3.5 2.5h6l3 3v8h-9z"/><path d="M9.5 2.5v3h3"/></svg></button>
   <button data-core="true" data-tool="title" title={shortcutTitle("title")}><svg viewBox="0 0 16 16"><path d="M3.5 4V3h9v1M8 3v10M6 13h4"/></svg></button>
@@ -58,7 +62,7 @@
   <button data-tool="readme" title={shortcutTitle("readme")}><svg viewBox="0 0 16 16"><path d="M3 3.5h4a1.5 1.5 0 0 1 1 .5 1.5 1.5 0 0 1 1-.5h4V12H9a1.5 1.5 0 0 0-1 .5 1.5 1.5 0 0 0-1-.5H3z"/><path d="M8 4v8.5"/></svg></button>
   <button data-tool="link" title={shortcutTitle("link")}><svg viewBox="0 0 16 16"><path d="M7 9a2.5 2.5 0 0 0 3.5 0l2-2A2.5 2.5 0 0 0 9 3.5l-.8.8M9 7a2.5 2.5 0 0 0-3.5 0l-2 2A2.5 2.5 0 0 0 7 12.5l.8-.8"/></svg></button>
   <button data-core="true" data-tool="media" title={shortcutTitle("media")}><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="2"/><circle cx="6" cy="6.5" r="1.2"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5 2.5 2.5"/></svg></button>
-  <button class="tools-fold" id="toolsFold" type="button" title="More tools" aria-label="More tools" aria-controls="toolsPopover" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".75"/><circle cx="8" cy="8" r=".75"/><circle cx="13" cy="8" r=".75"/></svg></button>
+  <button class="tools-fold" id="toolsFold" type="button" title="More tools (Shift+T)" aria-label="More tools" aria-controls="toolsPopover" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".75"/><circle cx="8" cy="8" r=".75"/><circle cx="13" cy="8" r=".75"/></svg></button>
   <div class="tools-popover" id="toolsPopover" role="region" aria-label="More tools" hidden></div>
 </nav>
 <input type="file" id="mediaFile" accept="image/*,video/*" multiple hidden>

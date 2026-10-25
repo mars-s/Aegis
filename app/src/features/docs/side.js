@@ -10,6 +10,9 @@ let current = null;
 export function openSide({ title, kind, keyboard = false }) {
   current?.close({ keyboard: true, restoreFocus: false });
   const previousFocus = document.activeElement;
+  // PM 7: saved source content can rebuild the selection toolbar while editing.
+  const selectionOpener = previousFocus?.matches('#selectionBar [aria-label="Open"]');
+  // end PM 7
   const el = document.createElement('aside');
   el.className = `side-editor${keyboard ? ' instant' : ''}`;
   el.setAttribute('aria-label', `${kind} editor`);
@@ -29,8 +32,14 @@ export function openSide({ title, kind, keyboard = false }) {
     el.classList.toggle('instant', keyboard);
     el.classList.remove('is-open');
     document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
+    // PM 7: restore selection furniture before returning focus to its Open action.
+    shell.sourceCanvas?.setEditorSource(null);
+    // end PM 7
     if (current?.el === el) current = null;
-    if (restoreFocus && heldFocus && previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    if (restoreFocus && heldFocus) {
+      const target = previousFocus?.isConnected ? previousFocus : selectionOpener ? document.querySelector('#selectionBar [aria-label="Open"]') : document.getElementById('stage');
+      target?.focus({ preventScroll: true });
+    }
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('motion-off');
     if (keyboard) el.remove(); else setTimeout(() => el.remove(), reduced ? 160 : 200);
   }
@@ -58,6 +67,9 @@ export function openSide({ title, kind, keyboard = false }) {
 }
 
 export function centreCardInLeft(card, ctx, keyboard = false) {
+  // PM 7: all shared editors call this hook, including keyboard and phone opens.
+  if (current) { current.sourceCanvas = ctx.canvas; ctx.canvas.setEditorSource(card.id); }
+  // end PM 7
   if (keyboard || innerWidth <= 760 || document.body.classList.contains('editor-wide')) return;
   const stage = document.getElementById('stage').getBoundingClientRect();
   const view = ctx.canvas.view;

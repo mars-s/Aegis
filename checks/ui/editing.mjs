@@ -50,7 +50,7 @@ try {
   await key('Mod+Shift+g'); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'noteaa').group, '');
   await select(['noteaa']); await key('f'); await pause(); assert.equal(await page.locator('#world [data-id="notedd"]').evaluate(el => el.classList.contains('focus-dim')), true); await key('Escape'); await pause(); assert.equal(await page.locator('.card.focus-dim').count(),0);
   await key('Mod+\\'); assert.equal(await page.locator('.show-panels').isVisible(), true); await page.getByText('Show panels', { exact: true }).click(); console.log('focus, clean mode');
-  await page.locator('#quickCapture').click(); await page.getByLabel('Capture idea').fill('Captured thought'); await page.getByLabel('Capture idea').press('Enter'); await pause(); assert.equal((await saved()).tray[0].text, 'Captured thought');
+  await page.mouse.move(1400, 20); await page.locator('#quickCapture').click(); await page.getByLabel('Capture idea').fill('Captured thought'); await page.getByLabel('Capture idea').press('Enter'); await pause(); assert.equal((await saved()).tray[0].text, 'Captured thought');
   await page.locator('#boardName').click();
   await page.getByRole('button', { name: 'Captured thought', exact: true }).click(); await pause(); assert.equal((await saved()).tray.length, 0); assert.ok((await board()).cards.some(c => c.text === 'Captured thought')); console.log('capture and tray release saved');
   await select(['noteaa']); await key('Mod+c'); await pause(); assert.ok(await page.evaluate(() => localStorage.getItem('aegis:clip')));
@@ -74,7 +74,7 @@ try {
   await page.getByRole('button',{name:'Zoom menu',exact:true}).click(); await page.getByRole('menuitem',{name:'50%',exact:true}).click(); await pause(); await page.waitForFunction(()=>aegis.canvas.view.z===.5);
   await key('Shift+1'); await pause();
   await page.screenshot({path:out('editing-overview.png')});
-  await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'Toolbar', exact: true }).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.locator('#closeSettings').click(); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); console.log('toolbar preferences applied');
+  await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'Toolbar', exact: true }).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.locator('#closeSettings').click(); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); console.log('toolbar preferences applied');
   // Export PDF, verify cloning while dragging, and move a rich selection to another board.
   await select(['todocc']); const pdfDownload=page.waitForEvent('download'); await clickControl('PDF'); await (await pdfDownload).saveAs(out('editing-selection.pdf'));
   await select(['notedd']); await page.evaluate(()=>aegis.canvas.frameIds(['notedd'],1)); await pause();
@@ -135,7 +135,8 @@ try {
   await select(['nestednote']); await pause(); assert.equal(await layerRow('nestednote').isVisible(),true);
   await layerRow('nestednote').click({button:'right'}); assert.deepEqual(await page.evaluate(()=>aegis.canvas.selection()),['nestednote']); await page.getByRole('menuitem',{name:'Duplicate',exact:true}).click(); await pause(); assert.equal((await saved()).cards.filter(c=>c.text==='Inside section').length,2); console.log('geometric section nesting, ancestor reveal and row context menu');
   await select(['nestednote']); await page.evaluate(()=>aegis.canvas.frameIds(['nestednote'],1)); await pause();
-  assert.equal(await page.locator('#tools').isVisible(),false); assert.equal(await page.locator('#selectionBar').isVisible(),true);
+  // PM 6: selection retains usable tools alongside its selection controls.
+  assert.equal(await page.locator('#tools').isVisible(),true); assert.equal(await page.locator('#tools').evaluate(el => getComputedStyle(el).pointerEvents), 'auto'); assert.equal(await page.locator('#selectionBar').isVisible(),true);
   await clickControl('Tilt'); await page.getByRole('button',{name:'30°',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,30);
   await page.getByLabel('Tilt in degrees',{exact:true}).fill('-17'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,-17);
   await page.getByRole('button',{name:'Reset tilt',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,0); await page.getByLabel('Tilt in degrees',{exact:true}).press('Escape'); assert.equal(await page.locator('.editing-tilt').isVisible(), false); assert.equal(await page.getByRole('button', { name: 'Tilt', exact: true }).evaluate(el => document.activeElement === el), true);
@@ -166,7 +167,7 @@ try {
   const geometryReads=async(ids)=>{await select(ids);await pause();return page.evaluate(async()=>{const original=Element.prototype.getBoundingClientRect;let descendants=0,roots=0;Element.prototype.getBoundingClientRect=function(){if(this.matches('#world .card *'))descendants++;if(this.matches('#world .card'))roots++;return original.call(this);};try{for(let i=0;i<5;i++){aegis.canvas.setView({...aegis.canvas.view,x:aegis.canvas.view.x+1});await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));}return{descendants,roots};}finally{Element.prototype.getBoundingClientRect=original;}});};
   assert.deepEqual(await geometryReads([]),{descendants:0,roots:0}); assert.equal((await geometryReads(['exportimg'])).descendants,0); console.log('selection geometry avoids descendant reads and does no card reads without a selection');
 
-  await select([]); await page.locator('#stage').focus(); await page.keyboard.press('p'); await pause(); assert.equal(await page.getByLabel('Drawing controls',{exact:true}).isVisible(),true); assert.equal(await page.locator('#tools').isVisible(),false); await page.getByRole('button',{name:'Done',exact:true}).click(); await pause(); assert.equal(await page.locator('#tools').isVisible(),true);
+  await select([]); await page.locator('#stage').focus(); await page.keyboard.press('p'); await pause(); assert.equal(await page.getByLabel('Drawing controls',{exact:true}).isVisible(),true); assert.equal(await page.locator('#tools').isVisible(),true); await page.getByRole('button',{name:'Done',exact:true}).click(); await pause(); assert.equal(await page.locator('#tools').isVisible(),true);
   // The selection toolbar stays compact, follows the camera and preserves its controls on phone.
   if (await page.locator('#side').evaluate(el => el.classList.contains('open'))) await page.getByLabel('Hide library and layers', { exact: true }).click();
   await page.evaluate(() => { aegis.apply([

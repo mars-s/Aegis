@@ -19,3 +19,10 @@ body.motion-off .empty-mark *, body.motion-off .import-progress-line i { animati
   .empty-mark *, .import-progress-line i { animation: none !important; transition: none !important; }
 }
 /* end item 15 */
+
+/* PM 6: keyboard and reduced-motion chrome appears without travel or delay. */
+body.motion-off .bar-right, body.motion-off #tools.compact { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  .bar-right, #tools.compact { transition: none !important; }
+}
+/* end PM 6 */

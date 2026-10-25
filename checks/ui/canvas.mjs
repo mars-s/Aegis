@@ -63,7 +63,7 @@ try {
     verify('scrolling a fixed note leaves the canvas still', await fixed.evaluate(el => el.scrollTop > 0) && JSON.stringify(viewBefore) === await page.evaluate(() => JSON.stringify(aegis.canvas.view)));
     await fixed.blur(); await apply([{ op: 'create', newId: 'fixedtodo', type: 'todo', text: 'Fixed checklist', x: 300, y: 450, w: 240, h: 120, props: { fixedHeight: true }, items: Array.from({ length: 12 }, (_, i) => ({ text: `Task ${i}`, done: false })) }]);
     verify('fixed checklists scroll inside their border', await page.locator('.card[data-id="fixedtodo"] .items').evaluate(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === 'auto' && getComputedStyle(el).maskImage.includes('gradient')));
-    await page.locator('#settingsBtn').click();
+    await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
     const colour = page.getByRole('combobox', { name: 'Default note colour', exact: true });
     await colour.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('p');
     verify('dropdown type-ahead focuses a matching option', await page.evaluate(() => document.activeElement.dataset.label.toLowerCase().startsWith('p')));
@@ -128,7 +128,7 @@ try {
   }
   const parent = await page.evaluate(() => aegis.canvas.board.id);
   await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); }); await settle();
-  const tool = page.locator('[data-tool="canvas"]'); if (!await tool.isVisible()) await page.locator('#toolsFold').click(); await tool.click(); await page.locator('#stage').click({ position: { x: 1300, y: 780 } });
+  const tool = page.locator('[data-tool="canvas"]'); if (!await tool.isVisible()) { await page.mouse.move(24, 480); await page.locator('#toolsFold').click(); } await tool.click(); await page.locator('#stage').click({ position: { x: 1300, y: 780 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
   verify('canvas door has an accessible open button', await page.locator('.canvas-card button[aria-label^="Open"]').count() === 1);
   if (reproduce) { await page.screenshot({ path: out(`canvas-reproduction-${Date.now()}.png`) }); }
