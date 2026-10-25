@@ -10,16 +10,17 @@ export function createPanels({ side, onChange }) {
   const agents = document.getElementById('agentsPanel'); agents.hidden = false; right.prepend(agents);
   const timers = {}, arrows = { left: document.getElementById('revealLeft'), right: document.getElementById('revealRight') };
   const close = document.createElement('button'); close.className = 'icon-btn'; close.id = 'closeRight'; close.textContent = '×'; close.setAttribute('aria-label', 'Hide agent activity and panels'); right.prepend(close);
-  close.onclick = () => setOpen('right', false);
-  document.getElementById('closeSide').onclick = () => setOpen('left', false);
+  close.onclick = e => setOpen('right', false, e.detail === 0);
+  document.getElementById('closeSide').onclick = e => setOpen('left', false, e.detail === 0);
   for (const key of ['left', 'right']) arrows[key].onclick = e => setOpen(key, true, e.detail === 0);
   let hoverTimers = {};
   addEventListener('pointermove', e => {
     if (e.pointerType !== 'mouse' || e.buttons) return;
     for (const key of ['left', 'right']) {
       const distance = key === 'left' ? e.clientX : innerWidth - e.clientX;
-      if (distance < 20 && e.clientY < innerHeight - 96 && !hoverTimers[key] && !state.open[key]) hoverTimers[key] = setTimeout(() => { arrows[key].classList.add('show'); hoverTimers[key] = 0; }, 120);
-      if (distance > 96) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); }
+      const inZone = key === 'left' ? e.clientY >= 48 && e.clientY <= 104 : e.clientY < innerHeight - 96;
+      if (distance < 20 && inZone && !hoverTimers[key] && !state.open[key] && !arrows[key].classList.contains('show')) hoverTimers[key] = setTimeout(() => { arrows[key].classList.add('show'); hoverTimers[key] = 0; }, 120);
+      if (distance > 96 || !inZone) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); }
     }
   });
   addEventListener('blur', () => { for (const key of ['left', 'right']) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); } });
@@ -47,6 +48,7 @@ export function createPanels({ side, onChange }) {
       col.style.setProperty('--panel-w', `${width}px`);
       document.documentElement.style.setProperty(key === 'left' ? '--side-w' : '--right-side-w', open ? `${width}px` : '0px');
       col.classList.toggle('instant', instant);
+      if (key === 'left') document.getElementById('tools').classList.toggle('instant', instant || dragging);
       if (open) { col.hidden = false; void col.offsetWidth; }
       col.inert = !open;
       col.setAttribute('aria-hidden', String(!open));
@@ -155,7 +157,7 @@ export function createPanels({ side, onChange }) {
   for (const [col, key, direction] of [[side, 'width', 1], [right, 'rightWidth', -1]]) {
     const edge = col.querySelector('.side-resize'); edge.addEventListener('pointerdown', e => {
       e.preventDefault(); const w0 = state[key], x0 = e.clientX; edge.setPointerCapture(e.pointerId);
-      const move = ev => { state[key] = Math.round(Math.max(200, Math.min(420, w0 + direction * (ev.clientX - x0)))); syncSides(); };
+      const move = ev => { state[key] = Math.round(Math.max(200, Math.min(420, w0 + direction * (ev.clientX - x0)))); syncSides(false, true); };
       const up = () => { edge.removeEventListener('pointermove', move); save(); };
       edge.addEventListener('pointermove', move); edge.addEventListener('pointerup', up, { once: true });
     });

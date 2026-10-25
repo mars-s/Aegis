@@ -18,7 +18,7 @@
   </div>
 </header>
 
-<button class="edge-arrow edge-arrow-left" id="revealLeft" type="button" aria-controls="side" aria-expanded="false" aria-label="Show library and layers"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></button>
+<button class="edge-arrow edge-arrow-left" id="revealLeft" type="button" aria-controls="side" aria-expanded="false" aria-label="Show library and layers" title="Library and layers (⌘[)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></button>
 <button class="edge-arrow edge-arrow-right" id="revealRight" type="button" aria-controls="sideRight" aria-expanded="false" aria-label="Show agent activity and panels"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3.5-4.5 4.5 4.5 4.5"/></svg></button>
 <aside class="side" id="side" aria-label="Library and layers" hidden inert>
   <div class="side-head"><span>Library and layers</span><button class="icon-btn" id="closeSide" aria-label="Hide library and layers">×</button></div>
@@ -58,16 +58,16 @@
   <div class="side-resize" title="Drag to resize"></div>
 </aside>
 
-<nav class="tools" id="tools" aria-label="Tools">
-  <button data-tool="select" title="Select (V)" aria-pressed="true"><svg viewBox="0 0 16 16"><path d="M4 2.5 12 8l-3.6.7L10.6 13l-1.5.7-2.2-4.3L4 12z"/></svg></button>
-  <button data-tool="note" title="Note (N)"><svg viewBox="0 0 16 16"><path d="M3.5 2.5h6l3 3v8h-9z"/><path d="M9.5 2.5v3h3"/></svg></button>
-  <button data-tool="title" title="Heading (H)"><svg viewBox="0 0 16 16"><path d="M3.5 4V3h9v1M8 3v10M6 13h4"/></svg></button>
-  <button data-tool="todo" title="Checklist (C)"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="m5.5 8 1.8 1.8L10.5 6"/></svg></button>
+<nav class="tools compact" id="tools" aria-label="Tools">
+  <button data-core="true" data-tool="select" title="Select (V)" aria-pressed="true"><svg viewBox="0 0 16 16"><path d="M4 2.5 12 8l-3.6.7L10.6 13l-1.5.7-2.2-4.3L4 12z"/></svg></button>
+  <button data-core="true" data-tool="note" title="Note (N)"><svg viewBox="0 0 16 16"><path d="M3.5 2.5h6l3 3v8h-9z"/><path d="M9.5 2.5v3h3"/></svg></button>
+  <button data-core="true" data-tool="title" title="Heading (H)"><svg viewBox="0 0 16 16"><path d="M3.5 4V3h9v1M8 3v10M6 13h4"/></svg></button>
+  <button data-core="true" data-tool="todo" title="Checklist (C)"><svg viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="2"/><path d="m5.5 8 1.8 1.8L10.5 6"/></svg></button>
   <button data-tool="readme" title="Read-me note (R)"><svg viewBox="0 0 16 16"><path d="M3 3.5h4a1.5 1.5 0 0 1 1 .5 1.5 1.5 0 0 1 1-.5h4V12H9a1.5 1.5 0 0 0-1 .5 1.5 1.5 0 0 0-1-.5H3z"/><path d="M8 4v8.5"/></svg></button>
   <button data-tool="link" title="Link (L)"><svg viewBox="0 0 16 16"><path d="M7 9a2.5 2.5 0 0 0 3.5 0l2-2A2.5 2.5 0 0 0 9 3.5l-.8.8M9 7a2.5 2.5 0 0 0-3.5 0l-2 2A2.5 2.5 0 0 0 7 12.5l.8-.8"/></svg></button>
-  <button data-tool="media" title="Image or video (M)"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="2"/><circle cx="6" cy="6.5" r="1.2"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5 2.5 2.5"/></svg></button>
-  <span class="tools-sep"></span>
-  <button class="tools-fold" id="toolsFold" title="Fold tools" aria-expanded="true"><svg viewBox="0 0 16 16"><path d="M5 10l3-3 3 3"/></svg></button>
+  <button data-core="true" data-tool="media" title="Image or video (M)"><svg viewBox="0 0 16 16"><rect x="2.5" y="3" width="11" height="10" rx="2"/><circle cx="6" cy="6.5" r="1.2"/><path d="m3 12 3.5-3.5 2.5 2.5 1.5-1.5 2.5 2.5"/></svg></button>
+  <button class="tools-fold" id="toolsFold" type="button" title="More tools" aria-label="More tools" aria-controls="toolsPopover" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".75"/><circle cx="8" cy="8" r=".75"/><circle cx="13" cy="8" r=".75"/></svg></button>
+  <div class="tools-popover" id="toolsPopover" role="region" aria-label="More tools" hidden></div>
 </nav>
 <input type="file" id="mediaFile" accept="image/*,video/*" multiple hidden>
 

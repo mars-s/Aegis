@@ -23,7 +23,7 @@ try {
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
-  const chooseTool = async id => { await page.keyboard.press('Escape'); await page.locator(`[data-tool="${id}"]`).click(); };
+  const chooseTool = async id => { await page.keyboard.press('Escape'); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
   const uiMenu = title => page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
@@ -69,7 +69,7 @@ try {
   await page.waitForFunction(() => aegis.canvas.board.cards.length >= 9);
   await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.length >= 9);
   assert.equal((await api(`/boards/${parent}`)).links.length, 6); check('in-place framework saves its editable notes and six connectors');
-  await chooseTool('canvas'); await page.locator('#stage').click({ position: { x: 1050, y: 750 } });
+  await chooseTool('canvas'); await page.locator('#stage').click({ position: { x: 1300, y: 820 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
   const child = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'canvas').props.board);
   assert.equal((await api(`/boards/${child}`)).parent, parent);

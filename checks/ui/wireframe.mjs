@@ -36,7 +36,7 @@ try {
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 20000 });
   // This is a temporary board with a fake-model host. Remove its starter cards only.
   await page.evaluate(() => { if (aegis.canvas.board.cards.length) aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }]); aegis.canvas.setView({ x: 440, y: 100, z: .75 }); });
-  await page.locator('#tools [data-tool="wireframe"]').click();
+  await page.locator('#toolsFold').click(); await page.locator('#tools [data-tool="wireframe"]').click();
   await panel.locator('[data-wf="frame"]').click(); await clickAt(0, 0);
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'frame'));
   const frame = (await snapshot()).cards.find(c => c.type === 'frame');

@@ -124,34 +124,83 @@ $('showChip').onclick = () => { const ids = pendingFocus; hideShow(); if (ids) f
 // ---------- tools ----------
 const TOOL_KEYS = { v: 'select', n: 'note', h: 'title', c: 'todo', r: 'readme', l: 'link', m: 'media' };
 const TOOL_NAMES = { note: 'Note', title: 'Heading', todo: 'Checklist', readme: 'Read me', link: 'Link' };
+const CORE_TOOLS = ['select', 'note', 'title', 'todo', 'doc', 'deck', 'draw-ink', 'draw-shape', 'media'];
+const toolHomes = new Map();
+function foldTools(closed, focus = false) {
+  const dock = $('tools'), popover = $('toolsPopover'), trigger = $('toolsFold');
+  if (closed) {
+    const hadFocus = popover.contains(document.activeElement);
+    for (const [button, home] of toolHomes) home.replaceWith(button);
+    toolHomes.clear(); popover.replaceChildren(); popover.hidden = true;
+    dock.classList.remove('more-open'); trigger.setAttribute('aria-expanded', 'false');
+    if (focus || hadFocus) trigger.focus({ preventScroll: true });
+    return;
+  }
+  const groups = new Map();
+  for (const button of dock.querySelectorAll(':scope > [data-tool]:not([data-core])')) {
+    if (button.hidden) continue;
+    const feature = registry.tools.find(t => t.id === button.dataset.tool);
+    const group = feature?.group || 'Basics';
+    if (!groups.has(group)) {
+      const section = document.createElement('section'), heading = document.createElement('h3'), grid = document.createElement('div');
+      heading.textContent = group.charAt(0).toUpperCase() + group.slice(1); grid.className = 'tools-grid';
+      section.append(heading, grid); popover.append(section); groups.set(group, grid);
+    }
+    // Restore the same nodes and ordering for the existing toolbar customiser and phone hub.
+    const home = document.createComment('tool home'); button.before(home); toolHomes.set(button, home);
+    button.dataset.customised = '1'; groups.get(group).append(button);
+  }
+  const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.textContent = 'Customise toolbar';
+  customise.onclick = () => { foldTools(true); dock.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
+  popover.append(customise); popover.hidden = false; dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
+  if (focus) popover.querySelector('[data-tool]')?.focus({ preventScroll: true });
+}
 function pickTool(t) {
   if (t === 'media') { $('mediaFile').click(); t = 'select'; }
   const feature = registry.tools.find(x => x.id === t);
-  if (feature?.activate) { feature.activate(ctx); return; }
-  canvas.setTool(t === 'select' ? null : t);
+  if (feature?.activate) feature.activate(ctx);
+  else canvas.setTool(t === 'select' ? null : t);
+  foldTools(true);
 }
 $('stage').addEventListener('tool', e => {
   const t = e.detail ?? 'select';
   for (const b of $('tools').querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+  $('tools').classList.toggle('armed', t !== 'select');
   document.body.classList.toggle('placing', !!e.detail);
 });
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
-// Feature tools join the tool bar, grouped, before the fold button.
 function drawFeatureTools() {
-  $('tools').querySelectorAll('[data-feature]').forEach(b => b.remove());
-  const fold = $('tools').querySelector('.tools-sep');
-  let group = null;
+  foldTools(true);
+  const dock = $('tools'), more = $('toolsFold');
+  dock.querySelectorAll('[data-feature]').forEach(b => b.remove());
   for (const t of registry.tools) {
-    if (t.group !== group) { group = t.group; const sep = document.createElement('span'); sep.className = 'tools-sep'; sep.dataset.feature = '1'; fold.before(sep); }
-    const b = document.createElement('button'); b.dataset.tool = t.id; b.dataset.feature = '1';
-    b.title = t.key ? `${t.title} (${t.key.toUpperCase()})` : t.title; b.setAttribute('aria-pressed', 'false');
-    b.innerHTML = `<svg viewBox="0 0 16 16">${t.icon}</svg>`; fold.before(b);
+    const b = document.createElement('button'); b.type = 'button'; b.dataset.tool = t.id; b.dataset.feature = '1';
+    if (CORE_TOOLS.includes(t.id)) b.dataset.core = 'true';
+    const name = t.title.replace(/\s*\([^)]*\)$/, ''), key = t.key?.toUpperCase() || /\(([^)]+)\)$/.exec(t.title)?.[1];
+    b.title = key ? `${name} (${key})` : name; b.setAttribute('aria-label', b.title); b.setAttribute('aria-pressed', 'false');
+    if (key) b.setAttribute('aria-keyshortcuts', key);
+    b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${t.icon}</svg>`;
+    const label = document.createElement('span'); label.className = 'tools-label'; label.textContent = name; b.append(label);
+    if (key) { const hint = document.createElement('kbd'); hint.textContent = key; b.append(hint); }
+    more.before(b);
+  }
+  for (const b of dock.querySelectorAll(':scope > [data-tool]:not([data-feature])')) {
+    if (b.querySelector('.tools-label')) continue;
+    const label = document.createElement('span'); label.className = 'tools-label'; label.textContent = b.title.replace(/\s*\([^)]*\)$/, '');
+    const key = Object.keys(TOOL_KEYS).find(key => TOOL_KEYS[key] === b.dataset.tool)?.toUpperCase();
+    b.setAttribute('aria-label', b.title); if (key) b.setAttribute('aria-keyshortcuts', key);
+    b.append(label); if (key) { const hint = document.createElement('kbd'); hint.textContent = key; b.append(hint); }
   }
 }
 registry.onRegistryChange(drawFeatureTools);
-const foldTools = on => { $('tools').classList.toggle('folded', on); $('toolsFold').setAttribute('aria-expanded', String(!on)); $('toolsFold').title = on ? 'Show tools' : 'Fold tools'; localStorage.setItem('aegis:tools', on ? 'folded' : ''); };
-$('toolsFold').onclick = () => foldTools(!$('tools').classList.contains('folded'));
-foldTools(localStorage.getItem('aegis:tools') === 'folded');
+$('toolsFold').onclick = e => foldTools(!$('toolsPopover').hidden, e.detail === 0);
+$('tools').addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !$('toolsPopover').hidden) { e.preventDefault(); e.stopPropagation(); foldTools(true, true); }
+});
+addEventListener('pointerdown', e => { if (!$('tools').contains(e.target)) foldTools(true); }, true);
+$('tools').addEventListener('focusout', e => { if (e.relatedTarget && !$('tools').contains(e.relatedTarget)) foldTools(true); });
+$('tools').addEventListener('contextmenu', () => foldTools(true), true);
+addEventListener('resize', () => foldTools(true));
 // Place the armed tool where you clicked, then put the caret in it.
 function place(tool, at) {
   const feature = registry.tools.find(t => t.id === tool);
