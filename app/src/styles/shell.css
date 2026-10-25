@@ -122,7 +122,8 @@ body.motion-off .tools.compact { transition: none !important; }
 /* The pill and bar share their anchor, including beside a half-width editor. */
 body { --dock-x: 50%; }
 body.editor-open:not(.editor-wide), body.docs-open:not(.docs-full) { --dock-x: 25%; }
-.ask-pill, .composer, .run-strip { position: fixed; left: var(--dock-x, 50%); translate: -50% 0; z-index: 20; bottom: 21px; }
+/* The island composer lives inside .agent-island, which owns centring. A floating rule here would offset it. */
+.ask-pill, .composer:not(.agent-composer), .run-strip { position: fixed; left: var(--dock-x, 50%); translate: -50% 0; z-index: 20; bottom: 21px; }
 .ask-pill { display: flex; align-items: center; width: 225px; height: 48px; padding: 0 16px 0 20px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--pill); font-size: 15px; }
 .ask-pill svg { width: 17px; height: 17px; fill: currentColor; flex: none; }
 .ask-pill > span:first-of-type { margin-left: 21px; color: var(--ink-2); }
