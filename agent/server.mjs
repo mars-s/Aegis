@@ -209,12 +209,14 @@ async function sendAsset(req, res, name) {
 const SANDBOX_LIMIT = 1024 * 1024, SANDBOX_ENTRIES = 200;
 const sandboxes = new Map();
 function registerSandbox(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !['html', 'css', 'js', 'channel', 'theme', 'font', 'motionOff'].includes(k))) throw new Error('invalid sandbox fields');
+  // PM3 HTML state: saved snapshots travel only through the existing authenticated registration.
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(k => !['html', 'css', 'js', 'state', 'parentOrigin', 'channel', 'theme', 'font', 'motionOff'].includes(k))) throw new Error('invalid sandbox fields');
   if (!['html', 'css', 'js'].every(k => typeof value[k] === 'string')) throw new Error('sandbox source must be strings');
-  const data = checkObject('html', { html: value.html, css: value.css, js: value.js });
+  const data = checkObject('html', { html: value.html, css: value.css, js: value.js, state: value.state });
+  if (value.parentOrigin !== undefined && (typeof value.parentOrigin !== 'string' || value.parentOrigin.length > 2048)) throw new Error('invalid parent origin');
   if (typeof value.channel !== 'string' || !UUID.test(value.channel) || typeof value.theme !== 'string' || typeof value.motionOff !== 'boolean') throw new Error('invalid sandbox settings');
   if (value.font !== undefined && (typeof value.font !== 'string' || !/^data:font\/woff2;base64,[A-Za-z0-9+/=]+$/.test(value.font))) throw new Error('sandbox font must be an inline WOFF2 data URL');
-  const document = sandboxDocument(data, value.channel, value.theme, value.font, value.motionOff);
+  const document = sandboxDocument({ ...data, parentOrigin: value.parentOrigin }, value.channel, value.theme, value.font, value.motionOff);
   if (Buffer.byteLength(document) > SANDBOX_LIMIT) throw Object.assign(new Error('sandbox is over 1 MiB'), { status: 413 });
   const id = randomBytes(32).toString('hex');
   sandboxes.set(id, document);

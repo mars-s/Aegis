@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkObject, OBJECT_SIZE, objectSchemas, OBJECT_GUIDE } from '../../app/src/lib/board/objects.js';
 import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
-import { sandboxDocument, reportedHeight, reportedEscape, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '../../app/src/objects/kinds/html-sandbox.js';
+import { sandboxDocument, reportedHeight, reportedEscape, reportedState, parseHtmlState, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '../../app/src/objects/kinds/html-sandbox.js';
 import { genuiSamples } from './genui-fixtures.mjs';
 
 for (const [kind, data] of Object.entries(genuiSamples)) {
@@ -106,6 +106,28 @@ test('sandbox Escape reports require the owning opaque frame and channel', () =>
   }
 });
 
+const widgetState = () => JSON.stringify({ version: 1, controls: [{ index: 0, tag: 'INPUT', type: 'range', value: '50', checked: false, selected: [] }], text: [{ index: 0, text: 'Four blocks: 200 minutes' }], custom: { minutes: 50, history: [40, 50] } });
+test('widget state accepts bounded JSON only and requires source, opaque origin and channel', () => {
+  const source = {}, channel = 'channel', state = widgetState();
+  const event = { origin: 'null', source, data: { type: 'aegis:html-state', channel, state } };
+  assert.equal(reportedState(event, source, channel), state);
+  assert.equal(reportedState(event, null, channel), null);
+  for (const patch of [{ source: {} }, { origin: 'http://localhost' }, { data: { ...event.data, channel: 'other' } }, { data: { ...event.data, type: 'other' } }]) assert.equal(reportedState({ ...event, ...patch }, source, channel), null);
+  let deep = null;
+  for (let i = 0; i < 34; i++) deep = [deep];
+  const parsed = JSON.parse(state);
+  for (const bad of [null, {}, 'null', '[]', 'not JSON', '{}', state.replace('"version":1', '"version":2'), state.replace('"50"', '50'), state.replace('"range"', '"file"'), state.replace('"minutes":50', '"minutes":1e999'), JSON.stringify({ ...parsed, custom: deep }), JSON.stringify({ ...parsed, custom: 'x'.repeat(65536) }), JSON.stringify({ ...parsed, custom: '🦘'.repeat(20000) })]) {
+    assert.equal(parseHtmlState(bad), null);
+    assert.equal(reportedState({ ...event, data: { ...event.data, state: bad } }, source, channel), null);
+    if (bad !== null) assert.throws(() => checkObject('html', { ...genuiSamples.html, state: bad }), /html.state/);
+  }
+  assert.equal(checkObject('html', { ...genuiSamples.html, state }).state, state);
+  const injection = JSON.stringify({ ...parsed, custom: '</script><script>parent.pwned=true</script>' });
+  const doc = sandboxDocument({ ...genuiSamples.html, state: injection }, channel, '', '');
+  assert.ok(!doc.includes('</script><script>parent.pwned'));
+  assert.ok(doc.includes('\\u003c/script>'));
+});
+
 let child, base;
 const token = 'genui-host-' + process.pid;
 before(async () => {
@@ -137,6 +159,8 @@ test('the real host persists every new kind from a fake agent, including a revis
   await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'revise', id: html.id, data: changed }] });
   const revised = (await call('GET', `/boards/${board.id}`)).cards.find(c => c.id === html.id);
   assert.equal(revised.data.html, changed.html); assert.equal(revised.ver, 2);
+  await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'object_set', id: html.id, path: ['state'], value: widgetState() }] });
+  assert.equal((await call('GET', `/boards/${board.id}`)).cards.find(c => c.id === html.id).data.state, widgetState(), 'widget state uses the durable object save path');
 });
 
 // item 12 sandbox: exercise the real HTTP boundary, limits and capability lifetime.
@@ -163,7 +187,7 @@ test('sandbox registration needs auth; public documents have all isolation heade
 
 test('sandbox rejects invalid payloads and caps request bytes and rendered document bytes', async () => {
   const post = payload => fetch(base + '/sandbox', { method: 'POST', headers: { authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
-  for (const patch of [{ js: 1 }, { channel: 'guessable' }, { font: 'https://example.com/font.woff2' }, { motionOff: 'false' }, { theme: null }, { extra: true }]) {
+  for (const patch of [{ js: 1 }, { channel: 'guessable' }, { font: 'https://example.com/font.woff2' }, { motionOff: 'false' }, { theme: null }, { extra: true }, { state: 'not JSON' }, { state: JSON.stringify({ ...JSON.parse(widgetState()), custom: 'x'.repeat(65536) }) }, { parentOrigin: 123 }]) {
     assert.equal((await post({ ...sandboxPayload(), ...patch })).status, 400);
   }
   assert.equal((await post({ ...sandboxPayload(), theme: 'x'.repeat(1024 * 1024) })).status, 413, 'request cap');

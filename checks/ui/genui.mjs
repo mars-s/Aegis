@@ -249,6 +249,7 @@ try {
     const editor = page.locator('.side-editor.object-editor.is-open');
     await editor.waitFor({ state: 'visible' });
     assert.equal(await editor.evaluate(el => el.contains(document.activeElement)), true);
+    await page.waitForFunction(() => document.querySelector('.side-editor.is-open').getBoundingClientRect().right <= innerWidth);
     return { editor, open };
   };
   let expanded = await openEditor('table', true);
@@ -374,27 +375,47 @@ try {
   console.log('pass genui: sandbox blocks parent document, storage and fetch; height reports resize only their own frame');
 
   // Restore a normal custom UI through the same fake agent path, proving source revision.
+  const replacedChannel = await page.evaluate(() => window.__genuiHeights.findLast(r => r.ownFrame).channel);
   await page.evaluate(([id, data]) => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, brief: 'FAKE ' + JSON.stringify([{ op: 'revise', id, data }]), model: { provider: 'fake', modelId: 'fake' } }), [htmlCard.id, { ...samples.html, html: samples.html.html.replace('Try a different pace', 'Plan a focused afternoon') }]);
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'html').ver >= 3);
   await frame('html');
   await page.frameLocator('.card.kind-html iframe').getByRole('heading', { name: 'Plan a focused afternoon' }).waitFor();
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state?.includes('"value":"25"'));
+  const revisedState = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state);
+  await page.evaluate(({ channel, state }) => {
+    const saved = JSON.parse(state); saved.controls[0].value = '55';
+    dispatchEvent(new MessageEvent('message', { origin: 'null', source: document.querySelector('.card.kind-html iframe').contentWindow, data: { type: 'aegis:html-state', channel, state: JSON.stringify(saved) } }));
+  }, { channel: replacedChannel, state: revisedState });
+  await page.waitForTimeout(100);
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state), revisedState, 'late snapshots from replaced source channels are ignored');
   console.log('pass genui: agent revise replaces sandbox source in place');
 
   await page.context().setOffline(true);
   await page.frameLocator('.card.kind-html iframe').locator('#minutes').fill('35');
   assert.match(await page.frameLocator('.card.kind-html iframe').locator('#total').textContent(), /140 minutes/);
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'not saved');
   await page.context().setOffline(false);
-  await page.frameLocator('.card.kind-html iframe').locator('#minutes').fill('40');
+  await page.locator('#retrySave').press('Enter');
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  const setMinutes = async (widget, minutes) => {
+    const slider = widget.locator('#minutes');
+    const box = await slider.boundingBox();
+    const track = await slider.evaluate(el => {
+      const s = getComputedStyle(el);
+      return { left: parseFloat(s.paddingLeft) + parseFloat(s.borderLeftWidth) + 8, right: parseFloat(s.paddingRight) + parseFloat(s.borderRightWidth) + 8, min: Number(el.min), max: Number(el.max) };
+    });
+    await page.mouse.click(box.x + track.left + (minutes - track.min) / (track.max - track.min) * (box.width - track.left - track.right), box.y + box.height / 2);
+    assert.equal(await slider.inputValue(), String(minutes), 'real pointer sets calculator minutes');
+  };
+  await setMinutes(page.frameLocator('.card.kind-html iframe'), 40);
 
   const canvasHtmlHeight = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').h);
   expanded = await openEditor('html');
   const expandedFrame = page.frameLocator('.side-editor iframe');
   await expandedFrame.locator('#minutes').waitFor();
-  assert.equal(await expandedFrame.locator('#minutes').inputValue(), '25', 'Open starts its own widget instance');
-  await expandedFrame.locator('#minutes').fill('30');
-  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '40', 'Open edits do not overwrite the canvas widget');
-  await expandedFrame.locator('#minutes').fill('40');
+  assert.equal(await expandedFrame.locator('#minutes').inputValue(), '40', 'Open restores the canvas widget state');
   assert.match(await expandedFrame.locator('#total').textContent(), /160 minutes/);
+  await page.screenshot({ path: out(`genui-html-shared-40-${stamp}.png`) });
   await page.waitForFunction(() => window.__genuiHeights.some(r => r.expandedFrame && r.origin === 'null'));
   await page.evaluate(() => {
     window.__widgetFrames = [...document.querySelectorAll('.card.kind-html iframe, .side-editor iframe')].map(frame => {
@@ -468,11 +489,113 @@ try {
   await expandedFrame.locator('body').evaluate(body => { const extra = document.createElement('p'); extra.style.height = '450px'; body.append(extra); });
   await page.waitForFunction(initial => document.querySelector('.side-editor iframe').clientHeight > initial + 300, expandedHeight);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').h), canvasHtmlHeight, 'expanded widget height does not change canvas geometry');
-  await expandedFrame.locator('#minutes').press('Escape');
+  await setMinutes(expandedFrame, 50);
+  await page.waitForFunction(() => JSON.parse(aegis.canvas.board.cards.find(c => c.kind === 'html').data.state).controls[0].value === '50');
+  assert.match(await expandedFrame.locator('#total').textContent(), /200 minutes/);
+  await page.frameLocator('.card.kind-html iframe').locator('#total').filter({ hasText: '200 minutes' }).waitFor();
+  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '50', 'Open edits update the live canvas before Close');
+  await page.screenshot({ path: out(`genui-html-open-50-${stamp}.png`) });
+  await expanded.editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
+  const canvasFrame = page.frameLocator('.card.kind-html iframe');
+  assert.equal(await canvasFrame.locator('#minutes').inputValue(), '50', 'closing Open preserves its edits on the canvas');
+  assert.match(await canvasFrame.locator('#total').textContent(), /200 minutes/);
+  await page.screenshot({ path: out(`genui-html-canvas-50-${stamp}.png`) });
+  // Pointer close animates out before a new view is opened.
+  await page.locator('.side-editor').waitFor({ state: 'detached' });
+  expanded = await openEditor('html');
+  await page.frameLocator('.side-editor iframe').locator('#minutes').waitFor();
+  assert.equal(await page.frameLocator('.side-editor iframe').locator('#minutes').inputValue(), '50', 'Open again retains 50 minutes');
+  assert.match(await page.frameLocator('.side-editor iframe').locator('#total').textContent(), /200 minutes/);
+  await page.screenshot({ path: out(`genui-html-reopen-50-${stamp}.png`) });
+  await page.frameLocator('.side-editor iframe').locator('#minutes').press('Escape');
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
   assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true, 'Escape in the opaque iframe restores app focus');
-  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '40', 'closing Open preserves canvas widget state');
   console.log('pass genui: expanded custom UI runs in its isolated iframe and Escape closes from inside the widget');
+
+  const savedState = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state);
+  const stateChannel = await page.evaluate(() => window.__genuiHeights.findLast(r => r.ownFrame).channel);
+  const forged = JSON.parse(savedState); forged.controls[0].value = '55';
+  await canvasFrame.locator('html').evaluate((_, { channel, state }) => {
+    for (const bad of [undefined, {}, 'not JSON', '{"version":1}', JSON.stringify({ ...JSON.parse(state), custom: 'x'.repeat(65536) }), JSON.stringify({ ...JSON.parse(state), custom: '🦘'.repeat(20000) })]) parent.postMessage({ type: 'aegis:html-state', channel, state: bad }, '*');
+    parent.postMessage({ type: 'aegis:html-state', channel: 'wrong-channel', state }, '*');
+  }, { channel: stateChannel, state: JSON.stringify(forged) });
+  await page.evaluate(({ channel, state }) => {
+    const data = { type: 'aegis:html-state', channel, state };
+    dispatchEvent(new MessageEvent('message', { origin: 'null', source: window, data }));
+    dispatchEvent(new MessageEvent('message', { origin: location.origin, source: document.querySelector('.card.kind-html iframe').contentWindow, data }));
+    for (const bad of ['not JSON', JSON.stringify({ ...JSON.parse(state), custom: 'x'.repeat(65536) })]) document.querySelector('.card.kind-html iframe').contentWindow.postMessage({ type: 'aegis:html-restore', channel, state: bad }, '*');
+  }, { channel: stateChannel, state: JSON.stringify(forged) });
+  await canvasFrame.locator('html').evaluate((_, { channel, state }) => {
+    const data = { type: 'aegis:html-restore', channel, state };
+    dispatchEvent(new MessageEvent('message', { source: window, origin: 'null', data }));
+    dispatchEvent(new MessageEvent('message', { source: parent, origin: 'https://example.com', data }));
+  }, { channel: stateChannel, state: JSON.stringify(forged) });
+  await page.waitForTimeout(150);
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state), savedState, 'malformed, oversized, non-JSON, wrong-source, wrong-origin and wrong-channel state cannot overwrite the widget');
+  assert.equal(await canvasFrame.locator('#minutes').inputValue(), '50');
+  console.log('pass genui: malformed and oversized state messages ignored; source, opaque origin and instance channel enforced');
+  await page.waitForFunction(async ([id, state]) => (await aegis.host.get(`/boards/${id}`)).cards.find(c => c.kind === 'html').data.state === state, [boardId, savedState]);
+  await page.reload();
+  await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await frame('html');
+  await page.frameLocator('.card.kind-html iframe').locator('#minutes').waitFor();
+  assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '50', 'saved state survives app page reload');
+  assert.match(await page.frameLocator('.card.kind-html iframe').locator('#total').textContent(), /200 minutes/);
+  await page.screenshot({ path: out(`genui-html-reload-50-${stamp}.png`) });
+  console.log('pass genui: real pointer sets canvas 40, Open shows 40 and 160, Open edits 50, Close returns canvas 50, Open again and page reload retain 50 and 200');
+
+  // A separate widget exercises the full transfer contract, beyond the calculator's input listener.
+  const contractId = await page.evaluate(() => {
+    aegis.apply([{ op: 'create', type: 'object', kind: 'html', text: 'State contract', x: 0, y: 3200, data: {
+      html: '<label>Working note<textarea id="note"></textarea></label><label><input id="tick" type="checkbox">Ready</label><label>Choices<select id="choices" multiple><option>Read</option><option>Write</option><option>Review</option></select></label><button id="silent">Remember</button><button id="advance">Advance</button><output id="count" data-aegis-state>0 saved</output><p id="early"></p><input type="password" value="fixture-password"><input type="file">',
+      css: 'label,button,output{display:block;margin:12px}textarea{width:90%}',
+      js: 'window.aegisState ??= {count:0,nested:{ok:true},nonce:Math.random()}; document.querySelector("#early").textContent = "Initial script read: " + window.aegisState.count; const draw = () => document.querySelector("#count").textContent = window.aegisState.count + " saved"; document.querySelector("#silent").addEventListener("click", () => { window.aegisState.remembered = true; }); document.querySelector("#note").addEventListener("input", () => { window.aegisState.count = 99; }); document.querySelector("#advance").addEventListener("click", () => { window.aegisState.count++; draw(); }); addEventListener("aegis:restore", draw);',
+    } }]);
+    const card = aegis.canvas.board.cards.find(c => c.text === 'State contract');
+    aegis.canvas.frameIds([card.id], 1);
+    return card.id;
+  });
+  const contractCard = page.locator(`.card[data-id="${contractId}"]`);
+  const contractFrame = page.frameLocator(`.card[data-id="${contractId}"] iframe`);
+  await page.waitForFunction(id => !!aegis.canvas.board.cards.find(c => c.id === id).data.state, contractId);
+  const initialNonce = await contractFrame.locator('html').evaluate(() => window.aegisState.nonce);
+  assert.equal(await page.evaluate(id => JSON.parse(aegis.canvas.board.cards.find(c => c.id === id).data.state).custom.nonce, contractId), initialNonce, 'initial generated state is captured before any person input');
+  await contractFrame.locator('#silent').click();
+  await page.waitForFunction(id => JSON.parse(aegis.canvas.board.cards.find(c => c.id === id).data.state).custom.remembered === true, contractId);
+  await contractFrame.locator('#note').click();
+  await page.keyboard.type('Keep the evidence.');
+  await page.waitForFunction(id => JSON.parse(aegis.canvas.board.cards.find(c => c.id === id).data.state).custom.count === 99, contractId);
+  await contractFrame.locator('#tick').click();
+  await contractFrame.locator('#choices option').nth(1).click();
+  await contractFrame.locator('#choices option').nth(2).click({ modifiers: ['Meta'] });
+  await contractFrame.locator('#advance').click();
+  await page.waitForFunction(id => JSON.parse(aegis.canvas.board.cards.find(c => c.id === id).data.state).custom.count === 100, contractId);
+  const contractState = await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).data.state, contractId);
+  const contractSnapshot = JSON.parse(contractState);
+  assert.equal(contractSnapshot.controls.length, 3, 'password and file inputs never enter saved control state');
+  assert.deepEqual(contractSnapshot.controls[2].selected, [1, 2], 'multiple selected options are captured');
+  await contractCard.getByRole('button', { name: 'Open State contract', exact: true }).click();
+  const openContract = page.frameLocator('.side-editor iframe');
+  await openContract.locator('#note').waitFor();
+  assert.equal(await openContract.locator('#note').inputValue(), 'Keep the evidence.');
+  assert.equal(await openContract.locator('#tick').isChecked(), true);
+  assert.deepEqual(await openContract.locator('#choices').evaluate(el => [...el.selectedOptions].map(option => option.textContent)), ['Write', 'Review']);
+  assert.equal(await openContract.locator('#count').textContent(), '100 saved', 'marked output text is restored');
+  assert.equal(await openContract.locator('#early').textContent(), 'Initial script read: 100', 'custom JSON is available before widget source scripts run');
+  assert.deepEqual(await openContract.locator('html').evaluate(() => window.aegisState), { count: 100, nested: { ok: true }, nonce: initialNonce, remembered: true }, 'replayed field events cannot overwrite restored script state');
+  await openContract.locator('#advance').click();
+  await contractFrame.locator('#count').filter({ hasText: '101 saved' }).waitFor();
+  await openContract.locator('html').evaluate(() => { window.aegisState.nested.ok = false; dispatchEvent(new Event('aegis:statechange')); });
+  await page.waitForFunction(id => JSON.parse(aegis.canvas.board.cards.find(c => c.id === id).data.state).custom.nested.ok === false, contractId);
+  await openContract.locator('#advance').press('Escape');
+  // Cull the canvas widget and return, so a fresh instance must restore the object's snapshot.
+  await frame('html');
+  await page.evaluate(id => aegis.canvas.frameIds([id], 1), contractId);
+  await contractFrame.locator('#count').filter({ hasText: '101 saved' }).waitFor();
+  assert.deepEqual(await contractFrame.locator('html').evaluate(() => window.aegisState), { count: 101, nested: { ok: false }, nonce: initialNonce, remembered: true });
+  await page.evaluate(id => aegis.apply([{ op: 'delete', ids: [id] }]), contractId);
+  console.log('pass genui: textarea, checkbox, multiple select, marked text and custom JSON transfer; state is ready before source scripts; script-only state events and canvas culling retain it; password and file values excluded');
 
   const otherSamples = {
     reply: { headline: 'A readable result', text: 'Keep the evidence beside the answer.' },

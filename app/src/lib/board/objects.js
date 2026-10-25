@@ -2,6 +2,8 @@
 // The model fills a closed shape; the app draws it. One module for the host (validation, tool schema) and the app.
 // Kinds, field names and limits follow Zephium's Work objects (zephium-core work/objects.rs and
 // zephium-app work_lead/schema.rs, MPL-2.0), reimplemented here as plain JSON checks.
+// PM3 HTML state: share the sandbox's bounded JSON validator with saved objects.
+import { parseHtmlState } from '../../objects/kinds/html-sandbox.js';
 
 export const OBJECT_KINDS = ['reply', 'plot', 'sheet', 'diagram', 'plan', 'list', 'code', 'stats', 'timeline', 'kanban', 'table', 'progress', 'compare', 'gallery', 'stages', 'callout', 'form', 'html'];
 export const PLOT_STYLES = ['bar', 'bar_horizontal', 'bar_stacked', 'bar_grouped', 'line', 'area', 'area_stacked', 'donut', 'radial', 'radar', 'range'];
@@ -111,7 +113,7 @@ export const SHAPES = {
     description: S.text(400),
     fields: S.list(S.obj({ id: S.text(40), label: S.text(80), kind: S.one(['text', 'textarea', 'number', 'checkbox', 'choice']), value: S.tableCell(), options: S.list(S.text(80), 1, 16), required: S.bool(), hint: S.text(160) }, ['id', 'label', 'kind']), 1, 30),
   }, ['fields']),
-  html: S.obj({ html: S.text(60000), css: S.text(30000), js: S.text(30000), height: S.int(80, 2000) }, ['html', 'css', 'js']),
+  html: S.obj({ html: S.text(60000), css: S.text(30000), js: S.text(30000), height: S.int(80, 2000), state: S.text(65536) }, ['html', 'css', 'js']),
 };
 
 // Check data against its kind. Returns the cleaned data or throws an error naming the exact place: "plot.series[0].points[3].y".
@@ -183,6 +185,10 @@ const kindOf = v => (v === null ? 'null' : Array.isArray(v) ? 'a list' : typeof 
 
 // Rules that span fields.
 const extra = {
+  // PM3 HTML state: object_set cannot bypass the iframe message size or shape limits.
+  html(d) {
+    if (d.state !== undefined && !parseHtmlState(d.state)) throw new Error('html.state: must be a valid widget snapshot within 64 KiB');
+  },
   timeline(d) {
     d.events.forEach((e, i) => date(e.date, `timeline.events[${i}].date`));
   },
@@ -291,5 +297,5 @@ export const OBJECT_GUIDE = [
   '- stages: steps with title, optional detail and status pending, active, done or blocked. editable true enables saved status changes.',
   '- callout: tone quote, note, warning or tip, text and optional attribution. Quote only supplied words; do not invent quotations.',
   '- form: description and fields with distinct id, label, kind text, textarea, number, checkbox or choice; optional hint, required, value and options for choice. Values save into fields[i].value through object_set. Use strings for text/choice, numbers for number and booleans for checkbox. Empty number is null. There is no submission or external action.',
-  '- html: custom offline UI with html, css and js strings and optional initial height 80 to 2000. Runs only inside an opaque sandboxed iframe: no network, imports, parent document, storage or board commands. CSS variables carry the app theme. Prefer built-ins; use this only for UI they cannot express. Plain HTML/CSS/JS only: framework compilation is omitted because the installed browser build has no bundler to inline Svelte or React runtime imports into an isolated offline document. Never execute generated code in the app. Revise replaces the source in place.',
+  '- html: custom offline UI with html, css and js strings and optional initial height 80 to 2000. Runs only inside an opaque sandboxed iframe: no network, imports, parent document, storage or board commands. CSS variables carry the app theme. Prefer built-ins; use this only for UI they cannot express. Form values and checked state are saved automatically except password and file inputs. Mark text-only outputs with data-aegis-state. Keep other persistent JSON in window.aegisState, initialise with ??=, and render it on aegis:restore. Dispatch aegis:statechange after changes outside input/change/click or DOM mutations. Snapshots are limited to 64 KiB and share state between canvas and Open, including after restart. The app owns the optional state JSON string. Plain HTML/CSS/JS only: framework compilation is omitted because the installed browser build has no bundler to inline Svelte or React runtime imports into an isolated offline document. Never execute generated code in the app. Revise replaces the source in place.',
 ].join('\n');
