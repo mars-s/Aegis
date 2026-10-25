@@ -133,3 +133,11 @@ body.phone .selection-bar .selection-stepper button { width: 44px; }
 @media (hover: none), (pointer: coarse), (max-width: 700px) { .selection-bar input, .selection-bar select { height: 44px; } .selection-bar .selection-stepper input { min-width: 44px; } }
 body.phone .selection-bar input, body.phone .selection-bar select { height: 44px; }
 body.phone .selection-bar .selection-stepper input { min-width: 44px; }
+
+.selection-colours button { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; flex: 0 0 32px; }
+.selection-colours button::before { display: block; width: 18px; height: 18px; min-width: 18px; min-height: 18px; aspect-ratio: 1; flex: 0 0 18px; }
+.selection-colours button[aria-pressed=true]::before { outline: 1.5px solid #fff; outline-offset: 2px; }
+.selection-bar .aegis-dropdown { width: 126px; min-height: 28px; padding: 4px 6px; justify-content: space-between; background: var(--inset); }
+@media (hover: none), (pointer: coarse) { .selection-colours button { width: 44px; height: 44px; flex-basis: 44px; } }
+
+.selection-colours button[aria-pressed=true] { background: transparent; }

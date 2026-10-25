@@ -1,3 +1,4 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { uid, toolbarOrder } from './model.js';
 import { gridShapes } from './grid.js';
@@ -47,15 +48,15 @@ export function mountNavigation(ctx, { exportBoard }) {
     else handled = false;
     if (handled) { e.preventDefault(); e.stopImmediatePropagation(); }
   }, true);
-  const section = document.createElement('section'); section.className = 'sheet-sec editing-settings'; section.innerHTML = '<h3>Board</h3><label><input type="checkbox" data-hints> Shortcut hints</label><label>Grid <select data-grid><option value="dots">Dots</option><option value="lines">Lines</option><option value="none">None</option></select></label><label><input type="checkbox" data-crisp> Crisp zoom</label><h3>Your toolbar</h3><label>Tool size <select data-size><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option></select></label><div class="toolbar-options"></div><button type="button" data-reset>Reset toolbar</button><h3>Export</h3><button type="button" data-export>Download board as PNG</button><button type="button" data-pdf>Download board as PDF</button>';
+  const section = document.createElement('section'); section.className = 'sheet-sec editing-settings'; section.innerHTML = '<h3>Board</h3><label><input type="checkbox" data-hints> Shortcut hints</label><label>Grid <span data-grid-slot></span></label><label><input type="checkbox" data-crisp> Crisp zoom</label><h3>Your toolbar</h3><label>Tool size <span data-size-slot></span></label><div class="toolbar-options"></div><button type="button" data-reset>Reset toolbar</button><h3>Export</h3><button type="button" data-export>Download board as PNG</button><button type="button" data-pdf>Download board as PDF</button>';
   settings.append(section);
   const hintsInput = section.querySelector('[data-hints]'); hintsInput.checked = !hints.hidden;
   hintsInput.onchange = () => { hints.hidden = !hintsInput.checked; localStorage.setItem('aegis:hints', hints.hidden ? 'hide' : 'show'); };
-  const grid = section.querySelector('[data-grid]'); grid.replaceChildren(...gridShapes.map(([id, name]) => new Option(name, id))); grid.value = localStorage.getItem('aegis:grid') || 'dots'; grid.onchange = () => { localStorage.setItem('aegis:grid', grid.value); canvas.redraw(); };
+  const grid = createDropdown({ label: 'Grid', options: gridShapes }); grid.dataset.grid = ''; section.querySelector('[data-grid-slot]').replaceWith(grid); grid.value = localStorage.getItem('aegis:grid') || 'dots'; grid.onchange = () => { localStorage.setItem('aegis:grid', grid.value); canvas.redraw(); };
   const crisp = section.querySelector('[data-crisp]'); crisp.checked = localStorage.getItem('aegis:crisp') === 'on';
   const setCrisp = () => { document.body.classList.toggle('crisp-zoom', crisp.checked); canvas.redraw(); };
   crisp.onchange = () => { localStorage.setItem('aegis:crisp', crisp.checked ? 'on' : 'off'); setCrisp(); }; setCrisp();
-  const tools = document.getElementById('tools'), options = section.querySelector('.toolbar-options'), size = section.querySelector('[data-size]');
+  const tools = document.getElementById('tools'), options = section.querySelector('.toolbar-options'), size = createDropdown({ label: 'Tool size', options: [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']] }); size.dataset.size = ''; section.querySelector('[data-size-slot]').replaceWith(size);
   const more = document.createElement('button'); more.className = 'tools-more'; more.textContent = '···'; more.title = 'More tools'; more.setAttribute('aria-label', 'More tools'); more.hidden = true; tools.querySelector('.tools-fold').before(more);
   const overflow = document.createElement('div'); overflow.className = 'editing-tool-overflow'; overflow.hidden = true; document.body.append(overflow);
   function fitTools() {

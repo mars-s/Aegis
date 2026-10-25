@@ -1,3 +1,4 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import '../wireframe/icons/names.js';
 import { DEVICES, PIECES, TYPES, uid, wireCard, screenCommand, frameAt, pieceCommands, sectionCommands, alignmentCommands, expandDrag, snapDrag } from './model.js';
@@ -87,8 +88,7 @@ export function mountPanel(hostEl, ctx) {
       arm({ type, ...(type === 'frame' ? { device: device.value } : {}) });
     }); b.dataset.wf = type; tools.append(b);
   }
-  const device = node('select'); device.setAttribute('aria-label', 'Screen preset');
-  for (const name of Object.keys(DEVICES)) { const option = node('option', '', name); option.value = name; device.append(option); }
+  const device = createDropdown({ label: 'Screen preset', options: Object.keys(DEVICES).map(name => [name, name]) });
   device.onchange = () => arm({ type: 'frame', device: device.value }); presets.append(device);
   const gridLabel = node('label', 'wf-grid-toggle'); const gridCheck = node('input'); gridCheck.type = 'checkbox'; gridCheck.setAttribute('aria-label', 'Snap to grid');
   snapSettings.grid = localStorage.getItem('aegis:wireframe-grid') === 'on'; gridCheck.checked = snapSettings.grid;
@@ -137,9 +137,8 @@ export function mountPanel(hostEl, ctx) {
   }
   function field(grid, key, label, value, type = 'text', options) {
     const wrap = node('label', 'wf-field'), name = node('span', '', label);
-    const input = node(options ? 'select' : 'input'); input.dataset.prop = key; input.setAttribute('aria-label', label);
-    if (options) for (const item of options) { const option = node('option', '', Array.isArray(item) ? item[1] : item); option.value = String(Array.isArray(item) ? item[0] : item); input.append(option); }
-    else { input.type = type; if (type === 'number') { input.step = key === 'lh' || key === 'opacity' ? '0.1' : '1'; if (!['x', 'y', 'rot'].includes(key)) input.min = '0'; } }
+    const input = options ? createDropdown({ label, options: options.map(item => Array.isArray(item) ? item : [item, item]) }) : node('input'); input.dataset.prop = key; input.setAttribute('aria-label', label);
+    if (!options) { input.type = type; if (type === 'number') { input.step = key === 'lh' || key === 'opacity' ? '0.1' : '1'; if (!['x', 'y', 'rot'].includes(key)) input.min = '0'; } }
     input.value = String(value ?? '');
     input.onchange = () => updateProperty(key, type === 'number' ? Number(input.value) : input.value);
     if (key === 'font') { input.setAttribute('list', 'wf-browser-fonts'); }
@@ -205,7 +204,7 @@ export function mountPanel(hostEl, ctx) {
   const timer = setInterval(() => {
     if (panel.hidden || ctx.canvas.busy()) return;
     const selectionKey = ctx.canvas.board?.id + ':' + ctx.selection().join(',');
-    if (selectionKey === lastSelection && propsEl.contains(document.activeElement) && document.activeElement.matches('input, select, textarea, [contenteditable]')) return;
+    if (selectionKey === lastSelection && (propsEl.contains(document.activeElement) && document.activeElement.matches('input, .aegis-dropdown, textarea, [contenteditable]') || document.activeElement.closest('.aegis-dropdown-menu'))) return;
     const signature = JSON.stringify(selected(ctx)); if (signature !== lastSignature || selectionKey !== lastSelection) { lastSignature = signature; lastSelection = selectionKey; renderProperties(); }
     if (!ctx.canvas.tool && !popover.hidden) return;
     if (!ctx.canvas.tool) status.textContent = 'Pick a tool, then click the canvas. Drag to draw a box.';

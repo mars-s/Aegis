@@ -1,3 +1,4 @@
+import { waitForAsync } from './poll.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -67,7 +68,7 @@ try {
   assert.equal(await page.locator('.template-menu-heading').allTextContents().then(a => a.join('|')), 'Add to this board|Start a new board');
   await uiMenu('Opportunity map').click();
   await page.waitForFunction(() => aegis.canvas.board.cards.length >= 9);
-  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.length >= 9);
+  await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.length >= 9);
   assert.equal((await api(`/boards/${parent}`)).links.length, 6); check('in-place framework saves its editable notes and six connectors');
   await chooseTool('canvas'); await page.locator('#stage').click({ position: { x: 1300, y: 820 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
@@ -80,9 +81,9 @@ try {
   assert.equal(await page.locator('#boardCrumbs button').last().textContent(), 'Interview board');
   await chooseTool('note'); await page.locator('#stage').click({ position: { x: 700, y: 400 } });
   await page.locator('.card.note [contenteditable]').fill('Child board evidence'); await page.keyboard.press('Escape');
-  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.text === 'Child board evidence'));
+  await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.text === 'Child board evidence'));
   await page.evaluate(() => aegis.canvas.setView({ x: -15000, y: -12000, z: .2 }));
-  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).view.x === -15000);
+  await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).view.x === -15000);
   await page.locator('#boardCrumbs button').last().click(); await waitBoard(parent);
   await page.evaluate(() => aegis.canvas.frameIds(aegis.canvas.board.cards.filter(c => c.type === 'canvas').map(c => c.id), 1));
   await page.waitForTimeout(550);
@@ -104,7 +105,7 @@ try {
   await page.locator(`.home-tile[data-item="${otherProject}"]`).click({ button: 'right' }); await uiMenu('Rename').click();
   const homeName = page.locator(`.home-tile[data-item="${otherProject}"] strong`);
   await homeName.fill('Other project renamed'); await homeName.press('Enter');
-  await page.waitForFunction(async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).name === 'Other project renamed', otherProject);
+  await waitForAsync(page, async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).name === 'Other project renamed', otherProject);
   await homeName.waitFor();
   assert.equal(await page.locator('.library-home').evaluate(el => el.open), true);
   check('Home can rename a project outside the current board scope without closing the overview');
@@ -151,7 +152,7 @@ try {
 
   // Recursive duplication through the UI, including a child board.
   await row(project).click({ button: 'right' }); await uiMenu('Duplicate').click();
-  await page.waitForFunction(async () => (await aegis.host.get('/library')).nodes.some(n => n.name === 'Research copy'));
+  await waitForAsync(page, async () => (await aegis.host.get('/library')).nodes.some(n => n.name === 'Research copy'));
   lib = await read(); const copyProject = lib.nodes.find(n => n.name === 'Research copy').id;
   const copyFolder = lib.nodes.find(n => n.parent === copyProject).id;
   const copyParent = lib.boards.find(b => b.parent === copyFolder && !b.boardParent).id;
@@ -164,13 +165,13 @@ try {
   assert.ok(await row(child).isVisible()); assert.equal(await row(project).getAttribute('aria-expanded'), 'true'); assert.equal(await row(folder).getAttribute('aria-expanded'), 'true'); check('current board ancestors auto-open across reload');
   // Move a child out through the destination submenu, removing the old parent card.
   await row(child).click({ button: 'right' }); await uiMenu('Move to…').click(); await uiMenu('Loose boards').click();
-  await page.waitForFunction(async id => !(await aegis.host.get(`/boards/${id}`)).parent, child);
+  await waitForAsync(page, async id => !(await aegis.host.get(`/boards/${id}`)).parent, child);
   assert.equal((await api(`/boards/${parent}`)).cards.some(c => c.type === 'canvas'), false); check('Move to submenu detaches a nested board and removes its old canvas card');
   // Drag the detached board back into a folder.
   const libraryGrip = await page.locator('[data-panel="library"] .resize-handle').boundingBox();
   await page.mouse.move(libraryGrip.x + libraryGrip.width / 2, libraryGrip.y + 3); await page.mouse.down(); await page.mouse.move(libraryGrip.x + libraryGrip.width / 2, libraryGrip.y + 223, { steps: 10 }); await page.mouse.up();
   await row(child).dragTo(row(folder));
-  await page.waitForFunction(async ([id, folder]) => (await aegis.host.get('/library')).boards.find(b => b.id === id)?.parent === folder, [child, folder]); check('drag-to-move files a board into a folder');
+  await waitForAsync(page, async ([id, folder]) => (await aegis.host.get('/library')).boards.find(b => b.id === id)?.parent === folder, [child, folder]); check('drag-to-move files a board into a folder');
   // All projects exposes other projects again, and a loose folder scopes to its outermost ancestor.
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('.library-home[open]').waitFor();
   assert.ok(await row(otherProject).count()); assert.ok(await row(copyProject).count());
@@ -232,14 +233,14 @@ try {
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'coll'));
   const groupId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'coll').id);
   await page.evaluate(id => { aegis.canvas.select([id]); aegis.canvas.frameIds([id], 1); }, groupId); await page.waitForTimeout(600);
-  await page.waitForFunction(async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.id === id), groupId);
+  await waitForAsync(page, async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.id === id), groupId);
   const beforeGroup = await api(`/boards/${child}`), groupData = beforeGroup.cards.find(c => c.id === groupId), noteData = beforeGroup.cards.find(c => c.parent === groupId);
   assert.equal(groupData.props.cols, 1); assert.equal(groupData.props.kids.length, 4);
   assert.deepEqual(groupData.props.kids, beforeGroup.cards.filter(c => c.parent === groupId).map(c => c.id));
   assert.equal(beforeGroup.cards.some(c => c.type === 'template-group'), false);
   const groupBox = await page.locator(`.card[data-id="${groupId}"]`).boundingBox();
   await page.mouse.move(groupBox.x + groupBox.width - 18, groupBox.y + groupBox.height - 12); await page.mouse.down(); await page.mouse.move(groupBox.x + groupBox.width + 42, groupBox.y + groupBox.height + 28, { steps: 12 }); await page.mouse.up();
-  await page.waitForFunction(async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).x !== aegis.canvas.board.cards.find(c => c.id === id).x || !aegis.canvas.busy(), groupId);
+  await waitForAsync(page, async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).x !== aegis.canvas.board.cards.find(c => c.id === id).x || !aegis.canvas.busy(), groupId);
   await page.waitForTimeout(350);
   const afterGroup = await api(`/boards/${child}`), movedGroup = afterGroup.cards.find(c => c.id === groupId), movedNote = afterGroup.cards.find(c => c.id === noteData.id);
   assert.notEqual(movedGroup.x, groupData.x); assert.equal(movedGroup.x - groupData.x, movedNote.x - noteData.x); assert.equal(movedNote.parent, groupId);
@@ -249,22 +250,30 @@ try {
   await page.evaluate(id => { aegis.canvas.select([id]); aegis.canvas.frameIds([id], 1); }, movedNote.id); await page.waitForTimeout(550);
   const noteBox = await page.locator(`.card[data-id="${movedNote.id}"]`).boundingBox();
   await page.mouse.move(noteBox.x + noteBox.width / 2, noteBox.y + noteBox.height - 15); await page.mouse.down();
-  await page.mouse.move(noteBox.x + noteBox.width / 2 + 380, noteBox.y + noteBox.height + 150, { steps: 15 }); await page.mouse.up();
-  await page.waitForFunction(async id => !(await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent, movedNote.id);
+  const loosePoint = await page.evaluate(() => {
+    const groups = aegis.canvas.board.cards.filter(c => c.type === 'coll');
+    for (let y = 90; y < innerHeight - 110; y += 80) for (let x = 360; x < innerWidth - 40; x += 80) {
+      const p = aegis.canvas.screenToWorld(x, y);
+      if (!groups.some(c => p.x > c.x && p.x < c.x + c.w + 70 && p.y > c.y && p.y < c.y + c.h + 70)) return { x, y };
+    }
+  });
+  assert.ok(loosePoint, 'there is an empty canvas drop destination outside the collections');
+  await page.mouse.move(loosePoint.x, loosePoint.y, { steps: 15 }); await page.mouse.up();
+  await waitForAsync(page, async id => !(await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent, movedNote.id);
   assert.equal((await api(`/boards/${child}`)).cards.find(c => c.id === groupId).props.kids.includes(movedNote.id), false);
   await page.evaluate(ids => { aegis.canvas.select([]); aegis.canvas.frameIds(ids, .8); }, [movedNote.id, targetGroup.id]); await page.waitForTimeout(550);
   const looseBox = await page.locator(`.card[data-id="${movedNote.id}"]`).boundingBox(), targetBox = await page.locator(`.card[data-id="${targetGroup.id}"]`).boundingBox();
   await page.mouse.move(looseBox.x + looseBox.width / 2, looseBox.y + looseBox.height - 15); await page.mouse.down();
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 25, { steps: 15 }); await page.mouse.up();
-  await page.waitForFunction(async ([id, parent]) => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent === parent, [movedNote.id, targetGroup.id]);
+  await waitForAsync(page, async ([id, parent]) => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent === parent, [movedNote.id, targetGroup.id]);
   assert.ok((await api(`/boards/${child}`)).cards.find(c => c.id === targetGroup.id).props.kids.includes(movedNote.id));
   check('framework notes can leave a collection and join another collection with membership kept in sync');
   // Folder copies also work, and a folder can live at the top level.
   await row(folder).click({ button: 'right' }); await uiMenu('Duplicate').click();
-  await page.waitForFunction(async () => (await aegis.host.get('/library')).nodes.some(n => n.name === 'Interviews copy'));
+  await waitForAsync(page, async () => (await aegis.host.get('/library')).nodes.some(n => n.name === 'Interviews copy'));
   const folderCopy = (await read()).nodes.find(n => n.name === 'Interviews copy').id;
   await row(folderCopy).click({ button: 'right' }); await uiMenu('Move to…').click(); await uiMenu('All projects (top level)').click();
-  await page.waitForFunction(async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).parent === null, folderCopy);
+  await waitForAsync(page, async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).parent === null, folderCopy);
   check('recursive folder copy and Move to top level');
   // New-board starters create and open another board.
   await chooseTool('templates'); await uiMenu('App plan').click();
@@ -278,7 +287,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.tray-item').length === 5);
   const trayNote = brainData.tray[0].text;
   await page.locator('.tray-item').first().click();
-  await page.waitForFunction(async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.cards.length === 3 && b.tray.length === 4; });
+  await waitForAsync(page, async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.cards.length === 3 && b.tray.length === 4; });
   assert.ok((await api(`/boards/${brainDump}`)).cards.some(c => c.text === trayNote));
   await page.screenshot({ path: out('library-starter-tray.png') });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board?.name === 'Brain dump');
@@ -291,7 +300,8 @@ try {
   assert.ok((await read()).nodes.some(n => n.id === copyProject)); check('cancelling deletion leaves the project intact');
   page.on('dialog', dialog => dialog.accept());
   await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click();
-  await page.waitForFunction(async id => !(await aegis.host.get('/library')).nodes.some(n => n.id === id), copyProject);
+  await waitForAsync(page, async id => !(await aegis.host.get('/library')).nodes.some(n => n.id === id), copyProject);
+  await waitForAsync(page, async ids => !(await aegis.host.get('/library')).boards.some(b => ids.includes(b.id)), [copyParent, copyChild]);
   assert.equal((await read()).boards.some(b => b.id === copyParent || b.id === copyChild), false); check('confirmed non-empty project deletion removes its nested boards');
   // Delete the open board, then all remaining boards through their HTTP action.
   await row(starter).click({ button: 'right' }); await uiMenu('Delete').click(); await page.waitForFunction(id => aegis.canvas.board.id !== id, starter);

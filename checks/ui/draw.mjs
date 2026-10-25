@@ -1,3 +1,5 @@
+import { waitForAsync } from './poll.mjs';
+import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -24,7 +26,7 @@ const clickTool = async id => { await page.locator('#stage').focus(); await page
 const board = () => page.evaluate(() => aegis.canvas.board);
 const persist = async check => {
   await page.waitForFunction(check, null, { timeout: 6000 });
-  await page.waitForFunction(async () => { const b = await aegis.host.get('/boards/' + aegis.canvas.board.id); return JSON.stringify(b.cards) === JSON.stringify(aegis.canvas.board.cards) && JSON.stringify(b.links) === JSON.stringify(aegis.canvas.board.links); }, null, { timeout: 6000 });
+  await waitForAsync(page, async () => { const b = await aegis.host.get('/boards/' + aegis.canvas.board.id); return JSON.stringify(b.cards) === JSON.stringify(aegis.canvas.board.cards) && JSON.stringify(b.links) === JSON.stringify(aegis.canvas.board.links); }, null, { timeout: 6000 });
 };
 async function drag(from, to, steps = 20) { await page.mouse.move(...from); await page.mouse.down(); await page.mouse.move(...to, { steps }); await page.mouse.up(); await pause(); }
 async function pathPoint(selector, fraction) { return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
@@ -57,22 +59,22 @@ try {
   await controls.getByLabel('Shape text', { exact: true }).fill('From idea'); await controls.getByLabel('Shape text', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.cards.some(c => c.type === 'shape' && c.text === 'From idea'));
   await clickTool('draw-shape');
-  await controls.getByLabel('Shape', { exact: true }).selectOption('diamond');
+  await choose(controls.getByLabel('Shape', { exact: true }), 'diamond');
   await page.mouse.click(950, 520); await page.locator('.card[data-type="shape"]').nth(1).waitFor({ state: 'visible' }); await page.keyboard.press('Escape');
   await persist(() => aegis.canvas.board.cards.filter(c => c.type === 'shape').length === 2);
   await page.mouse.click(950, 520); await pause();
   await controls.getByLabel('Shape text', { exact: true }).fill('To outcome'); await controls.getByLabel('Shape text', { exact: true }).press('Tab');
-  await clickTool('draw-shape'); await controls.getByLabel('Shape', { exact: true }).selectOption('line');
+  await clickTool('draw-shape'); await choose(controls.getByLabel('Shape', { exact: true }), 'line');
   await page.mouse.click(720, 680); await page.locator('.card[data-type="shape"]').nth(2).waitFor({ state: 'visible' }); await page.keyboard.press('Escape');
   await page.mouse.click(720, 680); await pause();
   const ds = [];
   for (const style of ['wavy', 'zigzag', 'loopy', 'straight']) {
-    await controls.getByLabel('Line style', { exact: true }).selectOption(style); await pause();
+    await choose(controls.getByLabel('Line style', { exact: true }), style); await pause();
     await persist(() => aegis.canvas.board.cards.some(c => c.props?.shape === 'line'));
     ds.push(await page.locator('.card.shape').filter({ has: page.locator('.draw-art') }).last().locator('path').getAttribute('d'));
   }
   assert.equal(new Set(ds).size, 4);
-  await controls.getByLabel('Line style', { exact: true }).selectOption('loopy');
+  await choose(controls.getByLabel('Line style', { exact: true }), 'loopy');
   await controls.getByLabel('Line height', { exact: true }).fill('8'); await controls.getByLabel('Line height', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.cards.some(c => c.props?.shape === 'line' && c.props.lineHeight === 8 && c.h === 24));
   await controls.getByLabel('Line height', { exact: true }).fill('80'); await controls.getByLabel('Line height', { exact: true }).press('Tab');
@@ -103,8 +105,8 @@ try {
   await drag([knob.x + 6, knob.y + 6], [870, 520]);
   await persist(() => aegis.canvas.board.links.length === 1);
   assert.ok(await page.locator('[data-connect-bend]').count());
-  await controls.getByLabel('Connector line', { exact: true }).selectOption('dashed');
-  await controls.getByLabel('Arrow heads', { exact: true }).selectOption('both');
+  await choose(controls.getByLabel('Connector line', { exact: true }), 'dashed');
+  await choose(controls.getByLabel('Arrow heads', { exact: true }), 'both');
   await controls.getByLabel('Connector colour', { exact: true }).fill('#cd3971');
   await controls.getByLabel('Connector label', { exact: true }).fill('Next <step>'); await controls.getByLabel('Connector label', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.links[0]?.label === 'Next <step>');
@@ -157,7 +159,7 @@ try {
   await page.keyboard.press('Enter');
   const stampId = (await board()).cards.find(c => c.type === 'stamp').id;
   await page.locator(`.card[data-id="${stampId}"] .draw-emoji`).click(); await pause();
-  await controls.getByLabel('Stamp motion', { exact: true }).selectOption('float');
+  await choose(controls.getByLabel('Stamp motion', { exact: true }), 'float');
   await page.getByRole('button', { name: 'Remove favourite', exact: true }).click(); await pause();
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:draw')).favourites.includes('🌱')), false);
   await page.getByRole('button', { name: 'Add favourite', exact: true }).click();
@@ -187,19 +189,19 @@ try {
     const id = (await board()).cards.find(c => c.type === type && c.props.shape !== 'line').id;
     await page.evaluate(id => aegis.canvas.select([id]), id); await pause();
     const art = page.locator(`.card[data-id="${id}"] .draw-art path`);
-    await controls.getByLabel('Outline', { exact: true }).selectOption('dash');
+    await choose(controls.getByLabel('Outline', { exact: true }), 'dash');
     for (const [name, value] of [['Thickness', '3'], ['Dash length', '13'], ['Dash gap', '9']]) { const field = controls.getByLabel(name, { exact: true }); await field.fill(value); await field.press('Tab'); }
     await persist(() => aegis.canvas.board.cards.some(c => c.props?.dl === 13 && c.props?.dg === 9));
     assert.equal(await art.getAttribute('stroke-dasharray'), '13 9');
-    await controls.getByLabel('Outline', { exact: true }).selectOption('dot'); await pause();
+    await choose(controls.getByLabel('Outline', { exact: true }), 'dot'); await pause();
     assert.equal(await art.getAttribute('stroke-dasharray'), '0 15');
     assert.equal(await art.getAttribute('stroke-linecap'), 'round');
-    await controls.getByLabel('Outline', { exact: true }).selectOption('none'); await pause();
+    await choose(controls.getByLabel('Outline', { exact: true }), 'none'); await pause();
     assert.equal(await art.getAttribute('stroke-width'), '0');
     await page.getByRole('button', { name: 'No fill', exact: true }).click(); await pause();
     assert.equal(await art.getAttribute('fill'), 'none');
     assert.ok(Number(await art.getAttribute('stroke-width')) > 0, 'no fill restores a visible outline');
-    await controls.getByLabel('Outline', { exact: true }).selectOption('dot'); await pause();
+    await choose(controls.getByLabel('Outline', { exact: true }), 'dot'); await pause();
     await persist(() => aegis.canvas.board.cards.some(c => c.props?.sdash === 'dot'));
   }
   await clickTool('draw-stamp');
@@ -215,7 +217,7 @@ try {
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:draw')).favourites), picked.favourites, 'repeat picks leave the wheel order unchanged');
   await page.keyboard.press('Escape');
   await page.screenshot({ path: out('draw-gap-options.png') });
-  await page.waitForFunction(async () => JSON.stringify((await aegis.host.get('/boards/' + aegis.canvas.board.id)).cards) === JSON.stringify(aegis.canvas.board.cards));
+  await waitForAsync(page, async () => JSON.stringify((await aegis.host.get('/boards/' + aegis.canvas.board.id)).cards) === JSON.stringify(aegis.canvas.board.cards));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board); await pause();
   assert.equal((await board()).cards.filter(c => c.props?.sdash === 'dot').length, 2, 'both outline styles persist');
   await clickTool('draw-stamp');

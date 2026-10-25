@@ -1,3 +1,4 @@
+import { choose as pick } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -198,7 +199,7 @@ try {
   // Both model preferences are reachable and stored.
   await page.locator('#settingsBtn').click();
   assert.ok(await page.locator('#agentModel').isVisible()); assert.ok(await page.locator('#statusModel').isVisible());
-  await page.locator('#agentModel').selectOption('fake|fake'); await page.locator('#statusModel').selectOption('fake|fake');
+  await pick(page.locator('#agentModel'), 'fake|fake'); await pick(page.locator('#statusModel'), 'fake|fake');
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:model')), 'fake|fake');
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:status-model')), 'fake|fake');
   await page.locator('#closeSettings').click();

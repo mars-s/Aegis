@@ -1,3 +1,5 @@
+import { waitForAsync } from './poll.mjs';
+import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -54,7 +56,7 @@ try {
   await page.keyboard.press('Meta+a'); await page.keyboard.type('Welcome back'); await page.keyboard.press('Escape');
   const heading = (await snapshot()).cards.find(c => c.type === 'text' && c.text === 'Welcome back'); assert.ok(heading);
   await select(heading.id); await prop('Font size', 26); await prop('Font family', 'Georgia');
-  await panel.getByLabel('Font weight', { exact: true }).selectOption('700'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Font weight', { exact: true }), '700'); await panel.locator('.wf-panel-head strong').click();
   assert.equal((await snapshot()).cards.find(c => c.id === heading.id).props.size, 26);
   log('editable pieces stamped and text typed and formatted');
   const groupBefore = await snapshot(), arrow = groupBefore.cards.find(c => c.type === 'icon' && c.props.name === 'arrow_back');
@@ -84,7 +86,7 @@ try {
   await drag(330, 470, -306, -150);
   let box = (await snapshot()).cards.filter(c => c.type === 'box').at(-1); assert.ok(box); assert.equal(box.w, 306); assert.equal(box.h, 150);
   await prop('Fill', '#dbeafe'); await prop('Border width', 3); await prop('Border colour', '#2563eb');
-  await panel.getByLabel('Border style', { exact: true }).selectOption('dash'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Border style', { exact: true }), 'dash'); await panel.locator('.wf-panel-head strong').click();
   await prop('Dash length', 12); await prop('Dash gap', 7); await prop('Corner radius', 20); await prop('Image placeholder label', 'Account photo');
   await page.evaluate(() => document.addEventListener('aegis:wireframe-image-request', e => { window.__imageHook = e.detail.cardId; e.preventDefault(); }, { once: true }));
   await panel.getByRole('button', { name: 'Fill image', exact: true }).click();
@@ -101,14 +103,14 @@ try {
   await page.screenshot({ path: out('wireframe-placeholder.png') });
   const styled = (await snapshot()).cards.find(c => c.id === box.id); assert.equal(styled.props.sdash, 'dash'); assert.equal(styled.parent, frame.id);
   assert.equal(await page.locator(`[data-id="${box.id}"] rect`).getAttribute('stroke-dasharray'), '12 7');
-  await panel.getByLabel('Border style', { exact: true }).selectOption('dot'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Border style', { exact: true }), 'dot'); await panel.locator('.wf-panel-head strong').click();
   assert.equal(await page.locator(`[data-id="${box.id}"] rect`).getAttribute('stroke-linecap'), 'round');
   await panel.getByRole('button', { name: 'No fill', exact: true }).click();
   await page.waitForTimeout(250); assert.equal((await snapshot()).cards.find(c => c.id === box.id).props.fill, 'none');
   await prop('Fill', '#dbeafe'); assert.equal((await snapshot()).cards.find(c => c.id === box.id).props.fill, '#dbeafe'); await prop('Opacity', .7); await prop('Rotation', 12);
   assert.equal((await snapshot()).cards.find(c => c.id === box.id).rot, 12);
   await prop('Rotation', 0); await prop('Opacity', 1);
-  await panel.getByLabel('Border style', { exact: true }).selectOption('dash'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Border style', { exact: true }), 'dash'); await panel.locator('.wf-panel-head strong').click();
   log('drag box, solid/dashed/dotted borders, no fill, opacity, rotation and labelled image hook verified');
   // Drag the screen from its name and assert every owned child moves by exactly the same delta.
   await page.locator('.wf-panel-head strong').click();
@@ -179,12 +181,12 @@ try {
   await page.evaluate(() => aegis.canvas.setView({ x: 440, y: 70, z: .7 }));
   await select(box.id); assert.equal(await panel.getByLabel('Dash gap', { exact: true }).inputValue(), '7'); await page.screenshot({ path: out('wireframe-screen-dark.png') });
   await select(frame.id);
-  await panel.getByLabel('Device', { exact: true }).selectOption('Android'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Device', { exact: true }), 'Android'); await panel.locator('.wf-panel-head strong').click();
   assert.equal((await snapshot()).cards.find(c => c.id === frame.id).w, 412);
-  await panel.getByLabel('Device', { exact: true }).selectOption('iPhone'); await panel.locator('.wf-panel-head strong').click();
+  await choose(panel.getByLabel('Device', { exact: true }), 'iPhone'); await panel.locator('.wf-panel-head strong').click();
   await prop('Width', 410); assert.equal((await snapshot()).cards.find(c => c.id === frame.id).props.device, 'Custom'); await prop('Width', 393);
   // Wait for the board write queue by comparing host state, then reload the UI.
-  await page.waitForFunction(async () => { const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return JSON.stringify(saved.cards) === JSON.stringify(aegis.canvas.board.cards); }, null, { timeout: 15000 });
+  await waitForAsync(page, async () => { const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return JSON.stringify(saved.cards) === JSON.stringify(aegis.canvas.board.cards); }, null, { timeout: 15000 });
   const saved = await page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
   writeFileSync(out('wireframe-saved-board.json'), JSON.stringify(saved, null, 2));
   assert.equal(saved.cards.find(c => c.id === heading.id).text, 'Welcome back');
@@ -243,7 +245,7 @@ try {
   assert.notEqual(await titleBody.evaluate(el => getComputedStyle(el).color), 'rgba(0, 0, 0, 0)', 'filled letters restores the fill');
   await panel.getByRole('button', { name: 'Hollow letters', exact: true }).click();
   await page.waitForTimeout(250); await page.screenshot({ path: out('wireframe-gap-options.png') });
-  await page.waitForFunction(async () => JSON.stringify((await aegis.host.get('/boards/' + aegis.canvas.board.id)).cards) === JSON.stringify(aegis.canvas.board.cards));
+  await waitForAsync(page, async () => JSON.stringify((await aegis.host.get('/boards/' + aegis.canvas.board.id)).cards) === JSON.stringify(aegis.canvas.board.cards));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board); await page.waitForTimeout(250);
   assert.equal((await snapshot()).cards.find(c => c.id === 'glasstitle').props.hollow, true);
   assert.equal(await page.locator('[data-id="glasstitle"] .body').evaluate(el => getComputedStyle(el).webkitTextStrokeWidth), '2px', 'hollow title renders after reload');

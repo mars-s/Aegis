@@ -1,4 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+import { libraryDeletion } from '../features/library/deletion.js';
 import { createMenu } from './menu.js';
 import { createHome } from '../features/library/home.js';
 import { connectLibrary } from '../features/library/navigation.js';
@@ -32,7 +33,7 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
   async function refresh() {
     const version = ++refreshing, next = await host.get('/library');
     if (version !== refreshing) return;
-    data = next;
+    data = deletion.filter(next);
     if (target && !data.nodes.some(n => n.id === target)) setTarget(null);
     if (current() && !data.boards.some(b => b.id === current()) && data.boards.length) await open(data.boards[0].id);
     if (!editing) render();
@@ -89,6 +90,14 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
       boardsIn(null).forEach(b => boardRow(b, 0));
     }
     tree.innerHTML = rows.join('');
+    for (const row of tree.querySelectorAll('.tree-row')) {
+      const id = row.dataset.board || row.dataset.node, n = item(id);
+      row.tabIndex = 0;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'tree-delete aegis-button--destructive'; button.setAttribute('aria-label', `Delete ${n.name}`); button.title = `Delete ${n.name}`;
+      button.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M6 4V2.5h4V4M4.5 4l.5 9.5h6l.5-9.5M7 6.5v4.5M9 6.5v4.5"/></svg>';
+      button.onclick = e => { e.stopPropagation(); guard(remove)(id); }; row.append(button);
+      row.onkeydown = e => { if (e.target !== row) return; if (['Delete', 'Backspace'].includes(e.key)) { e.preventDefault(); guard(remove)(id); } else if (e.key === 'Enter') { e.preventDefault(); if (isBoard(id)) open(id); else row.click(); } };
+    }
   }
   const change = guard(async op => { const r = await host.post('/library', op); await refresh(); if (op.op === 'move' && current()) await open(current()); return r; });
   async function create(kind, parent = target) {
@@ -100,11 +109,10 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
     if (r?.created) { if (parent) expanded.add(parent); expanded.add(r.created); setTarget(r.created); saveOpen(); render(); }
     return r;
   }
+  const deletion = libraryDeletion({ host, current, refresh, open, toast });
   async function remove(id) {
     const n = item(id); if (!n) return;
-    if (!confirm(`Delete "${n.name}" and all boards, folders and canvases inside it? This cannot be undone.`)) return;
-    await host.post(isBoard(id) ? `/boards/${id}/delete` : '/library', isBoard(id) ? {} : { op: 'delete', id, recursive: true });
-    await refresh(); if (current()) await open(current());
+    await deletion.remove(n, data);
   }
   async function saveName(id, value) {
     if (isBoard(id)) {
@@ -190,5 +198,6 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
   });
   for (const kind of ['board', 'folder', 'project']) el.querySelector(`[data-add="${kind}"]`).onclick = guard(() => create(kind));
   addEventListener('focus', guard(refresh));
+  deletion.resume();
   return { refresh, render };
 }

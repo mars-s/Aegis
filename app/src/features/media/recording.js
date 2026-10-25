@@ -1,3 +1,4 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { node, button, field } from './dom.js';
 import { mediaContext, report } from './context.js';
@@ -139,8 +140,7 @@ export function renderRecording(el, c, api) {
   const cleanChoices = deviceChoices(choices, video);
   let shape, flip;
   if (video) {
-    const label = node('label', 'media-field', 'Shape'); shape = node('select'); shape.setAttribute('aria-label', 'Video shape');
-    for (const [value, text] of [['wide','Wide'],['phone','Phone']]) { const o = node('option', '', text); o.value = value; shape.append(o); }
+    const label = node('label', 'media-field', 'Shape'); shape = createDropdown({ label: 'Video shape', options: [['wide', 'Wide'], ['phone', 'Phone']] });
     shape.value = s.shape; label.append(shape); choices.append(label);
     shape.onchange = () => { s.shape = shape.value; release(s); s.phase = 'idle'; api.apply([{ op: 'update', id: c.id, set: { props: { shape: s.shape }, w: s.shape === 'phone' ? 300 : 440, h: s.shape === 'phone' ? 720 : 470 } }]); };
     flip = field('Mirror', 'checkbox', '', choices); flip.checked = s.mirror; flip.onchange = () => { s.mirror = flip.checked; api.setProps(c.id, { mirror: s.mirror }); };
@@ -175,7 +175,7 @@ export function renderRecording(el, c, api) {
     if (cancelReplacement) cancelReplacement.disabled = busy;
     startButton.hidden = busy || s.phase === 'save-error'; pauseButton.hidden = !active; stopButton.hidden = !active && !['starting','countdown'].includes(s.phase); retry.hidden = s.phase !== 'save-error';
     pauseButton.textContent = s.phase === 'paused' ? 'Resume' : 'Pause'; importButton.disabled = busy; if (previewButton) previewButton.hidden = busy || s.phase === 'preview';
-    choices.querySelectorAll('select,input').forEach(e => e.disabled = busy);
+    choices.querySelectorAll('.aegis-dropdown,input').forEach(e => e.disabled = busy);
     if (shape) shape.disabled = busy;
     status.textContent = s.error || ({ idle: 'Ready to record', starting: 'Connecting…', countdown: `Starting in ${s.count}`, recording: `Recording ${time(s.elapsed / 1000)}`, paused: `Paused ${time(s.elapsed / 1000)}`, saving: `Saving recording… ${s.percent || 0}%`, preview: 'Camera ready', saved: 'Saved' }[s.phase] || '');
     if (preview) { if (preview.srcObject !== s.stream) preview.srcObject = s.stream; preview.style.transform = s.mirror ? 'scaleX(-1)' : ''; preview.style.aspectRatio = s.shape === 'phone' ? '9 / 16' : '16 / 9'; preview.style.objectFit = 'cover'; }

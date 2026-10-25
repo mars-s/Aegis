@@ -56,6 +56,8 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
         const action = document.createElement('button'); action.className = 'layer-action'; action.textContent = text; action.setAttribute('aria-label', `${label} ${labelOf(c)}`); action.setAttribute('aria-pressed', String(!!c.props?.[flag]));
         action.onclick = e => { e.stopPropagation(); onUpdate?.(layerDescendants(board, [c.id], parents).map(k => ({ op: 'update', id: k.id, set: { props: { [flag]: !c.props?.[flag] } } }))); }; row.append(action);
       }
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'layer-action aegis-button--destructive'; remove.textContent = 'Delete'; remove.setAttribute('aria-label', `Delete ${labelOf(c)}`);
+      remove.onclick = e => { e.stopPropagation(); document.getElementById('stage').dispatchEvent(new CustomEvent('layerdelete', { detail: { ids: [c.id] } })); }; row.append(remove);
       row.querySelector('.name').ondblclick = e => {
         e.stopPropagation(); const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Layer name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
         input.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { cancelled = ev.key === 'Escape'; input.blur(); } };
@@ -108,6 +110,11 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     dragId = null;
   });
 
+  document.getElementById('stage').addEventListener('boardchange', e => {
+    if (!e.detail.first) return;
+    // Outgoing rows must disappear before card cleanup checks for remaining mounted content.
+    list.replaceChildren(); count.textContent = e.detail.board.cards.length || ''; lastSig = ''; schedule();
+  });
   return {
     update: schedule,
     select(ids) { selection = new Set(ids); const board = getBoard(); if (board) { const parents = layerParents(board), byId = new Map(board.cards.map(c => [c.id, c])); for (const card of board.cards.filter(c => selection.has(c.id))) { let c = card; const seen = new Set(); while (c && !seen.has(c.id)) { seen.add(c.id); folded.delete(c.group); const parent = parents.get(c.id); folded.delete(parent); c = byId.get(parent); } } } schedule(); },

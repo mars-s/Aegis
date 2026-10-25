@@ -9,6 +9,8 @@ import { fontPicker } from './fonts.js';
 import { selectionPosition } from './selection.js';
 import { selectionToolbar } from './toolbar.js';
 import { prepareImage } from '../media/images.js';
+import { mountLayerDeletion } from './layer-delete.js';
+import { mountNoteSizing } from './note-sizing.js';
 import { createMenu } from '../../chrome/menu.js';
 
 registerTool({ id: 'coll', title: 'Collection', key: 'g', group: 'editing', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/>', place(at, ctx) { ctx.apply([{ op: 'create', type: 'coll', text: 'Collection', x: at.x, y: at.y, props: { kids: [] }, ref: 'collection' }], ids => ctx.canvas.select([ids.collection])); } });
@@ -24,6 +26,7 @@ registerPanel({ id: 'unsorted', title: 'Unsorted', side: 'right', mount(el, ctx)
 const SQUARE_TYPES = new Set(['stamp', 'icon']);
 export function mountEditing(ctx) {
   const { canvas, apply, toast } = ctx, stage = document.getElementById('stage');
+  mountNoteSizing(ctx);
   let indexedCards, byId = new Map(), viaKeyboard = true;
   addEventListener('keydown', () => { viaKeyboard = true; }, true);
   const selectedCards = () => { const ids = canvas.selection(); if (!ids.length) return []; if (indexedCards !== canvas.board?.cards) { indexedCards = canvas.board?.cards; byId = new Map((indexedCards ?? []).map(c => [c.id, c])); } return ids.map(id => byId.get(id)).filter(Boolean); };
@@ -108,6 +111,7 @@ export function mountEditing(ctx) {
     },
     end(cards, board, kind) {
       const commands = [];
+      if (kind === 'resize') for (const c of cards.filter(c => ['note', 'todo'].includes(c.type))) commands.push({ op: 'update', id: c.id, set: { props: { fixedHeight: true } } });
       for (const c of cards.filter(c => c.type === 'coll')) if (kind === 'resize') commands.push(...collectionLayout(board, c));
       if (kind === 'move') {
         if (cards.length) { commands.push(...collectionDrop(board, cards, canvas.screenToWorld(lastPointer.x, lastPointer.y))); }
@@ -161,7 +165,7 @@ export function mountEditing(ctx) {
     if (dragging) { bar.hidden = true; shownIds = ''; clearTimeout(settleTimer); settleTimer = null; toolbar?.close(); }
     const key = JSON.stringify(cards.map(c => [c.id, c.type, c.group, c.heading, c.rot, c.props]));
     if (force || key !== barKey) {
-      const keepingFocus = bar.dataset.ids === ids && bar.dataset.locked === String(locked) && (bar.contains(document.activeElement) || bar.querySelector('details[open]') || document.activeElement?.closest('.editing-font-picker'));
+      const keepingFocus = bar.dataset.ids === ids && bar.dataset.locked === String(locked) && (bar.contains(document.activeElement) || bar.querySelector('details[open]') || document.activeElement?.closest('.aegis-dropdown-menu') || document.activeElement?.closest('.editing-font-picker'));
       if (!keepingFocus) {
         bar.dataset.ids = ids; bar.dataset.locked = String(locked); barKey = key; cleanups.forEach(f => f()); cleanups = []; bar.replaceChildren();
         toolbar = selectionToolbar(bar, () => canvas.redraw()); cleanups.push(() => toolbar.destroy());
@@ -185,7 +189,7 @@ export function mountEditing(ctx) {
             });
             const font = select('Font', [['', 'Default font'], ['system-ui', 'System'], ['serif', 'Serif'], ['monospace', 'Monospace']], text[0].props?.font || '', v => format('font', v || null));
             button('Fonts…', e => { const close = fontPicker(e.currentTarget, textCards(), ctx, value => format('font', value)); cleanups.push(close); }, { group: 'Typography' });
-            if (!text.every(c => (c.props?.font || '') === (text[0].props?.font || ''))) font.prepend(new Option('Mixed fonts', '__mixed', true, true));
+            if (!text.every(c => (c.props?.font || '') === (text[0].props?.font || ''))) font.setOptions([['__mixed', 'Mixed fonts'], ['', 'Default font'], ['system-ui', 'System'], ['serif', 'Serif'], ['monospace', 'Monospace']]), font.value = '__mixed';
             font.onkeydown = e => { if (e.key === 'Escape') { canvas.redraw(); font.blur(); } };
             const height = text[0].props?.lh ?? lineHeightDefault(text[0].type);
             const setHeight = v => { const value = Number(v); if (!Number.isFinite(value)) return; format('lh', value); for (const control of bar.querySelectorAll('[data-line-height]')) control.value = String(value); };
@@ -195,6 +199,7 @@ export function mountEditing(ctx) {
             stepper('Letter spacing', text[0].props?.ls || 0, v => format('ls', Number(v)), { min: -10, max: 50, step: .5 });
             select('Display case', [['', 'As typed'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['title', 'Title case']], text[0].props?.tcase || '', v => format('tcase', v || null));
           }
+          if (single && ['note', 'todo'].includes(cards[0].type)) button(cards[0].props?.fixedHeight ? 'Grow to fit text' : 'Keep current height', () => apply([{ op: 'update', id: cards[0].id, set: { props: { fixedHeight: !cards[0].props?.fixedHeight } } }]), { group: 'Card' });
           if (single && cards[0].type === 'note') input('Note name', cards[0].heading, v => apply([{ op: 'update', id: cards[0].id, set: { heading: v } }]));
           if (single && !['coll', 'swatch', 'ink'].includes(cards[0].type)) input(cards[0].type === 'image' ? 'Caption' : 'Label', cards[0].type === 'image' ? cards[0].props?.tagText ?? cards[0].props?.tag : cards[0].props?.tag, v => apply([{ op: 'update', id: cards[0].id, set: { props: cards[0].type === 'image' ? { tagText: v || null, tag: null } : { tag: v || null } } }]));
           if (single && cards[0].type === 'coll') button(cards[0].props?.head === false ? 'Show header' : 'Hide header', () => { const coll = { ...cards[0], props: { ...cards[0].props, head: cards[0].props?.head === false } }; apply([{ op: 'update', id: coll.id, set: { props: { head: coll.props.head } } }, ...collectionLayout(canvas.board, coll)]); }, { group: 'Card' });
@@ -239,7 +244,7 @@ export function mountEditing(ctx) {
       const t = deg * Math.PI / 180;
       let sx = Math.max(.1, (p.x - b.x) / Math.max(1, start.x - b.x)), sy = Math.max(.1, (p.y - b.y) / Math.max(1, start.y - b.y)); if (ev.shiftKey || cards.some(c => SQUARE_TYPES.has(c.type))) sx = sy = Math.max(sx, sy);
       last = cards.map(c => { const dx = c.x + c.w / 2 - centre.x, dy = c.y + c.h / 2 - centre.y;
-        const set = moving ? { x: c.x + p.x - start.x, y: c.y + p.y - start.y } : rotate ? { x: centre.x + dx * Math.cos(t) - dy * Math.sin(t) - c.w / 2, y: centre.y + dx * Math.sin(t) + dy * Math.cos(t) - c.h / 2, rot: ((c.rot || 0) + deg + 540) % 360 - 180 } : { x: b.x + (c.x - b.x) * sx, y: b.y + (c.y - b.y) * sy, w: Math.max(40, c.w * sx), h: Math.max(24, c.h * sy) };
+        const set = moving ? { x: c.x + p.x - start.x, y: c.y + p.y - start.y } : rotate ? { x: centre.x + dx * Math.cos(t) - dy * Math.sin(t) - c.w / 2, y: centre.y + dx * Math.sin(t) + dy * Math.cos(t) - c.h / 2, rot: ((c.rot || 0) + deg + 540) % 360 - 180 } : { x: b.x + (c.x - b.x) * sx, y: b.y + (c.y - b.y) * sy, w: Math.max(40, c.w * sx), h: Math.max(24, c.h * sy), ...(['note', 'todo'].includes(c.type) ? { props: { fixedHeight: true } } : {}) };
         const el = canvas.mountedEl(c.id); if (el) { const n = { ...c, ...set }; el.style.transform = `translate(${n.x}px, ${n.y}px) rotate(${n.rot || 0}deg)`; el.style.width = `${n.w}px`; el.style.height = `${n.h}px`; }
         return { op: 'update', id: c.id, set };
       });
@@ -260,8 +265,9 @@ export function mountEditing(ctx) {
   addEventListener('pointerdown', e => { if (!tiltPop.contains(e.target) && !e.target.closest('[aria-label="Tilt"]')) tiltPop.hidden = true; });
   let tiltSelection = '';
   stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPop.hidden = true; tiltSelection = ids; } });
+  mountLayerDeletion(ctx, history);
   const layerMenu = createMenu();
-  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.run(ctx, ids) })), { title: 'Bring to front', section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', section: 'Arrange', run: () => stack('back') }]); });
+  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', section: 'Arrange', run: () => stack('back') }]); });
 
   let trayEl, traySig = '';
   trayMount = el => { trayEl = el; el.classList.add('unsorted-list'); renderTray(); };

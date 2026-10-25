@@ -1,3 +1,5 @@
+import { waitForAsync } from './poll.mjs';
+import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -20,7 +22,7 @@ const board = () => page.evaluate(() => structuredClone(aegis.canvas.board));
 const select = async ids => { await page.evaluate(ids => { document.activeElement?.blur(); document.querySelector('.selection-more')?.removeAttribute('open'); aegis.canvas.select(ids); document.getElementById('stage').focus(); }, ids); await page.waitForTimeout(70); };
 const reveal = async locator => { if (!(await locator.isVisible())) { const more = page.getByLabel('More selection controls', { exact: true }); if (!(await page.locator('.selection-more').evaluate(el => el.open))) await more.click(); } return locator; };
 const clickControl = async name => (await reveal(page.getByRole('button', { name, exact: true }))).click();
-const saved = async () => { await page.waitForFunction(async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.rev === aegis.canvas.board.rev; }); return page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`)); };
+const saved = async () => { await waitForAsync(page, async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.rev === aegis.canvas.board.rev; }); return page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`)); };
 try {
   await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   await page.goto(`http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -72,7 +74,7 @@ try {
   await page.getByRole('button',{name:'Zoom menu',exact:true}).click(); await page.getByRole('button',{name:'50%',exact:true}).click(); await pause(); await page.waitForFunction(()=>aegis.canvas.view.z===.5);
   await key('Shift+1'); await pause();
   await page.screenshot({path:out('editing-overview.png')});
-  await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'Toolbar', exact: true }).click(); await page.locator('[data-size]').selectOption('large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.locator('#closeSettings').click(); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); console.log('toolbar preferences applied');
+  await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'Toolbar', exact: true }).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.locator('#closeSettings').click(); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); console.log('toolbar preferences applied');
   // Export PDF, verify cloning while dragging, and move a rich selection to another board.
   await select(['todocc']); const pdfDownload=page.waitForEvent('download'); await clickControl('PDF'); await (await pdfDownload).saveAs(out('editing-selection.pdf'));
   await select(['notedd']); await page.evaluate(()=>aegis.canvas.frameIds(['notedd'],1)); await pause();
@@ -142,7 +144,7 @@ try {
   await layerRow('nestednote').click({button:'right'}); await page.getByRole('menuitem',{name:'Reset tilts',exact:true}).click(); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').rot,0); console.log('tilt presets, exact angle, reset menu and near-angle snapping');
   await select(['nestednote']); const heightInput=await reveal(page.getByLabel('Line height',{exact:true})); await heightInput.fill('1.65'); await heightInput.press('Tab'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').props.lh,1.65);
   const slider=await reveal(page.getByLabel('Line height slider',{exact:true})); await slider.fill('1.9'); await slider.dispatchEvent('input'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').props.lh,1.9);
-  await (await reveal(page.getByLabel('Spacing',{exact:true}))).selectOption('normal'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').props.lh,undefined); console.log('continuous line height and per-type reset');
+  await choose(await reveal(page.getByLabel('Spacing',{exact:true})), 'normal'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='nestednote').props.lh,undefined); console.log('continuous line height and per-type reset');
   await page.evaluate(()=>aegis.apply([{op:'create',type:'title',newId:'heighttitle',text:'Title spacing',x:2400,y:200}])); await saved(); await select(['heighttitle']); await page.evaluate(()=>aegis.canvas.frameIds(['heighttitle'],1)); await pause(); assert.equal(await page.locator('#world [data-id="heighttitle"]').evaluate(el=>{const s=getComputedStyle(el);return Number.parseFloat(s.lineHeight)/Number.parseFloat(s.fontSize);}),1); await select(['nestednote']);
   // Narrow windows fold the same live controls into More without clipping the bar.
   await page.setViewportSize({width:900,height:900}); await pause(); await select(['nestednote']); const more=page.getByLabel('More selection controls',{exact:true}); assert.equal(await more.isVisible(),true); const barRect=await page.locator('#selectionBar').boundingBox(); assert.ok(barRect.x>=0&&barRect.x+barRect.width<=900);

@@ -20,7 +20,9 @@
 .colour-settings .media-field { margin: 8px 0; }
 .colour-settings input[type=color] { width: 56px; height: 30px; padding: 2px; }
 
-.palette-menu { z-index: 10001; position: fixed; inset: auto; margin: 0; padding: 5px; border: 1px solid var(--line); border-radius: 7px; background: var(--card); color: var(--text); box-shadow: 0 6px 24px #0003; }
+.colour-quick .colour-swatch { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; aspect-ratio: 1; flex: 0 0 32px; border-radius: 50%; }
+.colour-swatch[aria-pressed=true] { outline: 1.5px solid #fff; outline-offset: 2px; }
+.palette-row button:first-child::before { border-radius: 50%; aspect-ratio: 1; flex-shrink: 0; }
+@media (hover: none), (pointer: coarse) { .colour-quick .colour-swatch { width: 44px; height: 44px; min-width: 44px; min-height: 44px; flex-basis: 44px; } }
+
 .palette-menu { display: flex; flex-direction: column; gap: 3px; }
-.palette-menu button { text-align: left; font: inherit; font-size: 12px; padding: 7px 12px; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
-.palette-menu button:hover, .palette-menu button:focus-visible { background: var(--hover); }

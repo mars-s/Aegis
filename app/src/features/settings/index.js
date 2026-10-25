@@ -1,3 +1,4 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
 import { mountModelSettings } from '../agents/models.js';
 import { preference } from './preferences.js';
 import { registerDragHandler } from '../../canvas/engine.js';
@@ -44,9 +45,8 @@ export function mountSettings({ canvas, replayTour }) {
     label.append(input, document.createTextNode(title)); pages.get(page).append(label); return input;
   }
   toggle('general', 'Double-click creates a note', 'double-click-note', 'on');
-  const colourLabel = document.createElement('label'), colour = document.createElement('select'); colour.setAttribute('aria-label', 'Default note colour');
-  for (const value of ['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple']) colour.add(new Option(value === 'gray' ? 'Grey' : value[0].toUpperCase() + value.slice(1), value));
-  colour.value = preference('note-colour', 'plain'); colour.onchange = () => localStorage.setItem('aegis:note-colour', colour.value); colourLabel.append('Default note colour ', colour); pages.get('general').append(colourLabel);
+  const colourLabel = document.createElement('label'), colour = createDropdown({ label: 'Default note colour', options: ['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple'].map(value => [value, value === 'gray' ? 'Grey' : value[0].toUpperCase() + value.slice(1)]), value: preference('note-colour', 'plain'), onChange: value => localStorage.setItem('aegis:note-colour', value) });
+  colourLabel.append('Default note colour ', colour); pages.get('general').append(colourLabel);
   const grid = dialog.querySelector('[data-grid]');
   const gridToggle = toggle('board', 'Show grid', 'grid-visible', grid.value === 'none' ? 'off' : 'on', on => { if (on) grid.value = preference('grid-shape', 'dots'); else { localStorage.setItem('aegis:grid-shape', grid.value === 'none' ? 'dots' : grid.value); grid.value = 'none'; } grid.dispatchEvent(new Event('change')); });
   grid.addEventListener('change', () => { gridToggle.checked = grid.value !== 'none'; localStorage.setItem('aegis:grid-visible', gridToggle.checked ? 'on' : 'off'); if (gridToggle.checked) localStorage.setItem('aegis:grid-shape', grid.value); });

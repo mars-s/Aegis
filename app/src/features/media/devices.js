@@ -1,3 +1,4 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
 import { node, button } from './dom.js';
 import { setMediaContext, report } from './context.js';
 const key = kind => `aegis:media:${kind}`;
@@ -27,12 +28,11 @@ export function deviceChoices(parent, video = true) {
       if (!root.isConnected) return;
       root.replaceChildren();
       for (const [kind, deviceKind, label] of [['microphone','audioinput','Microphone'], ...(video ? [['camera','videoinput','Camera']] : [])]) {
-        const wrap = node('label', 'media-field', label), select = node('select'); select.setAttribute('aria-label', label);
-        const defaultOption = node('option', '', 'System default'); defaultOption.value = ''; select.append(defaultOption);
-        devices.filter(d => d.kind === deviceKind).forEach((d, i) => { const o = node('option', '', d.label || `${label} ${i + 1}`); o.value = d.deviceId; select.append(o); });
-        const selected = chosenDevice(kind); select.value = selected;
-        if (selected && !devices.some(d => d.kind === deviceKind && d.deviceId === selected)) { chooseDevice(kind, ''); select.value = ''; }
-        select.onchange = () => chooseDevice(kind, select.value); wrap.append(select); root.append(wrap);
+        const wrap = node('label', 'media-field', label);
+        let selected = chosenDevice(kind);
+        if (selected && !devices.some(d => d.kind === deviceKind && d.deviceId === selected)) { chooseDevice(kind, ''); selected = ''; }
+        const select = createDropdown({ label, options: [['', 'System default'], ...devices.filter(d => d.kind === deviceKind).map((d, i) => [d.deviceId, d.label || `${label} ${i + 1}`])], value: selected, onChange: value => chooseDevice(kind, value) });
+        wrap.append(select); root.append(wrap);
       }
     } catch (e) { report(e); }
   };

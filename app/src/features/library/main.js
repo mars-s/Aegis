@@ -9,7 +9,9 @@ registerDragHandler('template-groups', { start: expandTemplateDrag, end: templat
 const cleanup = new WeakMap();
 registerRenderer('canvas', {
   render(el, card) {
-    el.innerHTML = '<div class="canvas-card"><div class="canvas-preview"></div><div class="canvas-title" contenteditable="plaintext-only" role="textbox" aria-label="Canvas name"></div></div>';
+    el.innerHTML = '<div class="canvas-card"><div class="canvas-preview"></div><button type="button" class="canvas-open aegis-button aegis-button--quiet" aria-label="Open canvas">Open canvas<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg></button><div class="canvas-title" contenteditable="plaintext-only" role="textbox" aria-label="Canvas name"></div></div>';
+    const open = el.querySelector('.canvas-open');
+    open.onclick = e => { e.stopPropagation(); if (card.props?.board) openLibraryBoard(card.props.board); };
     const title = el.querySelector('.canvas-title'); title.textContent = card.text || 'Canvas';
     const refresh = async () => {
       try { const b = await loadLibraryBoard(card.props?.board); if (b && el.isConnected) { if (document.activeElement !== title) title.textContent = b.name; el.querySelector('.canvas-preview').innerHTML = boardPreview(b); } } catch { if (el.isConnected) el.querySelector('.canvas-preview').textContent = 'Canvas unavailable'; }
@@ -24,7 +26,7 @@ registerRenderer('canvas', {
   },
   drop(el) { cleanup.get(el)?.(); cleanup.delete(el); },
   open(card) { if (card.props?.board) openLibraryBoard(card.props.board); },
-  interactive: '.canvas-title',
+  interactive: '.canvas-title, .canvas-open',
 });
 registerRenderer('template-group', {
   render(el, card, api) {
@@ -36,6 +38,7 @@ registerRenderer('template-group', {
 });
 registerTool({ id: 'canvas', title: 'Canvas', group: 'Library', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 5h6M5 8h4"/>',
   place(at, ctx) {
+    document.activeElement?.blur();
     const parent = ctx.canvas.board.id;
     createLibraryBoard({ name: 'Untitled canvas', boardParent: parent, at }).then(() => openLibraryBoard(parent)).catch(e => ctx.toast(e.message));
   },

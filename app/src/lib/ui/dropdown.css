@@ -1,0 +1,14 @@
+.aegis-dropdown { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 90px; max-width: 100%; min-height: 32px; padding: 6px 10px; background: var(--inset); color: var(--text); border: 1px solid var(--line); border-radius: 7px; font: 13px/1.3 var(--font); cursor: pointer; text-align: left; }
+.aegis-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aegis-dropdown > svg, .aegis-dropdown-menu svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.aegis-dropdown-menu { position: fixed; z-index: 10010; box-sizing: border-box; min-width: 160px; max-width: calc(100vw - 16px); max-height: min(560px, calc(100dvh - 16px)); padding: 6px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); color: var(--text); box-shadow: 0 12px 32px rgb(0 0 0 / .3); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.aegis-value-menu { width: max-content; max-width: min(420px, calc(100vw - 16px)); }
+.aegis-dropdown-menu button:is([role=option], [role=menuitem]) { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; min-height: 32px; padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; color: inherit; font: 13px/1.35 var(--font); text-align: left; cursor: pointer; }
+.aegis-option-check { visibility: hidden; }
+[aria-selected=true] > .aegis-option-check { visibility: visible; }
+.aegis-dropdown-menu button:focus-visible { outline: none; background: var(--hover); }
+.aegis-dropdown:focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+.aegis-dropdown:disabled, .aegis-dropdown-menu button:disabled { opacity: .45; cursor: default; }
+@media (hover: hover) and (pointer: fine) { .aegis-dropdown:hover { border-color: var(--line-strong); } .aegis-dropdown-menu button:is([role=option], [role=menuitem]):hover { background: var(--hover); } }
+@media (hover: none), (pointer: coarse) { .aegis-dropdown, .aegis-dropdown-menu button:is([role=option], [role=menuitem]) { min-height: 44px; } }
+body.phone .aegis-dropdown, body.phone .aegis-dropdown-menu button:is([role=option], [role=menuitem]) { min-height: 44px; }

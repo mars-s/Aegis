@@ -10,8 +10,8 @@ export function selectionPosition(canvas, bar, outline) {
   let current = [], locked = false, indexedCards, byId = new Map();
   function position() {
     if (!current.length) return;
-    if (chromeDirty) {
-      const r = bar.getBoundingClientRect(); if (r.width) { barWidth = r.width; barHeight = r.height; }
+    if (chromeDirty || !bar.hidden && (barWidth !== bar.offsetWidth || barHeight !== bar.offsetHeight)) {
+      if (!bar.hidden) { barWidth = bar.offsetWidth; barHeight = bar.offsetHeight; }
       const hub = document.getElementById('mobileHub')?.getBoundingClientRect(); hubTop = hub?.height ? hub.top : innerHeight - 80;
       chromeDirty = false;
     }
@@ -21,9 +21,10 @@ export function selectionPosition(canvas, bar, outline) {
     const p = { x: Math.min(...boxes.map(r => r.left)), y: Math.min(...boxes.map(r => r.top)) }, q = { x: Math.max(...boxes.map(r => r.right)), y: Math.max(...boxes.map(r => r.bottom)) };
     const phone = innerWidth <= 700 || document.body.classList.contains('phone');
     const width = Math.min(barWidth, innerWidth - 24), left = Math.max(12, Math.min(innerWidth - width - 12, (p.x + q.x - width) / 2));
-    const gap = locked || current.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type)) ? 12 : 40;
+    const hasRotation = !locked && !current.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type));
+    const gap = hasRotation ? 40 : 10;
     const above = p.y - barHeight - gap, below = q.y + 12;
-    const top = phone ? hubTop - barHeight - 10 : Math.max(8, Math.min(innerHeight - barHeight - 12, above >= 50 ? above : below));
+    const top = phone ? hubTop - barHeight - 10 : Math.max(8, Math.min(innerHeight - barHeight - 12, above >= 8 ? above : below));
     const selectionBox = { left: p.x - 10, right: q.x + 10, top: p.y - 10, bottom: q.y + 10 };
     const chosen = new Set(current.map(c => c.id)), nearby = [];
     if (indexedCards !== canvas.board.cards) { indexedCards = canvas.board.cards; byId = new Map(indexedCards.map(c => [c.id, c])); }

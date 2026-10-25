@@ -1,3 +1,4 @@
+import { createPopup } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerRenderer } from '../../canvas/engine.js';
 import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, boardColours } from './model.js';
@@ -19,7 +20,7 @@ export function colourEditor({ hex = '#ff9ec4', name, autoName = true, at = null
   const quickRows = () => {
     quick.replaceChildren();
     const rows = [{ hex: '#000000', name: 'Black' }, { hex: '#ffffff', name: 'White' }, ...boardColours(board())].filter((p, i, a) => a.findIndex(v => v.hex === p.hex) === i);
-    for (const p of all ? rows : rows.slice(0, 16)) { const b = button('', () => setHex(p.hex), quick); b.style.background = p.hex; b.title = p.name; b.setAttribute('aria-label', p.name); }
+    for (const p of all ? rows : rows.slice(0, 16)) { const b = button('', () => setHex(p.hex), quick); b.classList.add('colour-swatch'); b.dataset.hex = p.hex; b.setAttribute('aria-pressed', String(p.hex.toLowerCase() === colour.toLowerCase())); b.style.background = p.hex; b.title = p.name; b.setAttribute('aria-label', p.name); }
     if (rows.length > 16) button(all ? 'Fewer' : 'All board colours', () => { all = !all; quickRows(); }, quick);
   };
   const draw = () => {
@@ -39,7 +40,7 @@ export function colourEditor({ hex = '#ff9ec4', name, autoName = true, at = null
     colour = h; hsv = hex2hsv(h);
     const named = board().palette?.find(p => p.hex === h);
     if (automatic) label = named?.name || colorName(h);
-    draw(); commit();
+    draw(); commit(); quick.querySelectorAll('[data-hex]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.hex.toLowerCase() === colour.toLowerCase())));
   };
   const fromHSV = () => { colour = rgb2hex(hsv2rgb(hsv.h, hsv.s, hsv.v)); if (automatic) label = board().palette?.find(p => p.hex === colour)?.name || colorName(colour); draw(); };
   const point = e => { const r = wheel.getBoundingClientRect(), dx = e.clientX - r.left - r.width / 2, dy = e.clientY - r.top - r.height / 2; hsv.h = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360; hsv.s = Math.min(1, Math.hypot(dx, dy) / (r.width / 2)); if (hsv.v < .05) hsv.v = 1; fromHSV(); };
@@ -113,29 +114,18 @@ export function mountColours(el, ctx) {
       row.oncontextmenu = event => {
         event.preventDefault(); event.stopPropagation(); closeMenu(); menuBoard = board.id;
         const menu = node('div', 'palette-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Palette colour');
-        const outside = e => { if (!menu.contains(e.target)) dismiss(); };
-        const escape = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); dismiss(); dot.focus(); } };
-        const dismiss = () => {
-          menu.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', escape, true);
-          if (closeMenu === dismiss) closeMenu = () => {};
-        };
-        closeMenu = dismiss;
+        document.body.append(menu);
+        const popup = createPopup({ trigger: dot, menu, onToggle(on) { if (!on) { menu.remove(); popup.destroy(); if (closeMenu === dismiss) closeMenu = () => {}; } } });
+        const dismiss = () => popup.destroy(); closeMenu = dismiss;
         const actions = [['Add to the board', () => createSwatch(ctx, undefined, p.hex, p.name, false)], ['Rename', () => edit(true)], ['Change colour…', () => edit()], ['Remove from board colours', () => remove.click()]];
         for (const [label, action] of actions) { const item = button(label, () => { closeMenu(); action(); }, menu); item.setAttribute('role', 'menuitem'); }
-        menu.onkeydown = e => {
-          const items = [...menu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
-          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) { e.preventDefault(); items[e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
-        };
-        document.body.append(menu);
-        document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', escape, true);
-        menu.style.left = Math.max(8, Math.min(innerWidth - menu.offsetWidth - 8, event.clientX)) + 'px';
-        menu.style.top = Math.max(8, Math.min(innerHeight - menu.offsetHeight - 8, event.clientY)) + 'px';
+        popup.open(event, { x: event.clientX, y: event.clientY });
         menu.querySelector('button').focus();
       };
     }
     el.append(node('small', '', 'Colours in use'));
     const used = node('div', 'colour-quick'); el.append(used);
-    for (const p of rows) { const b = button('', () => createSwatch(ctx, undefined, p.hex, p.name, false), used); b.style.background = p.hex; b.title = `${p.name} ${p.hex}`; b.setAttribute('aria-label', p.name); }
+    for (const p of rows) { const b = button('', () => createSwatch(ctx, undefined, p.hex, p.name, false), used); b.classList.add('colour-swatch'); b.dataset.hex = p.hex; b.style.background = p.hex; b.title = `${p.name} ${p.hex}`; b.setAttribute('aria-label', p.name); }
   };
   const timer = setInterval(refresh, 250); refresh(); return () => { closeMenu(); clearInterval(timer); cleanSettings?.(); };
 }

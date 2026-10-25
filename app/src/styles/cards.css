@@ -109,3 +109,16 @@ body.motion-off .card.window-card > :not(.resize), body.motion-off .agent-line.s
 body.motion-off .card.glow::after, body.motion-off .card.object * { animation: none !important; }
 body.motion-off .card.object * { transition: none !important; }
 
+
+/* Notes grow through saved board geometry. A deliberately resized card keeps its own scroller. */
+.card.note, .card.todo { overflow: hidden; }
+.card.note.has-head { overflow: visible; }
+.card.note.has-head .body { flex: none; overflow: visible; }
+.card.note[data-fixed-height=true] { display: flex; flex-direction: column; }
+.card.note[data-fixed-height=true] .body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); padding-bottom: 16px; }
+.card.todo[data-fixed-height=true] { display: flex; flex-direction: column; }
+.card.todo[data-fixed-height=true] .items { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); padding-bottom: 16px; }
+.card.todo .todo-item span { white-space: pre-wrap; overflow-wrap: anywhere; }
+.card.todo[data-fixed-height=true] > :is(.label, .add-item, .heading) { flex: none; }
+/* A window highlight would paint a solid segment over the dashed top edge. */
+.stage .card:is(.template-group, .coll, .section), .stage .card.frame[data-section=true] { border: 1px dashed var(--line-strong); box-shadow: none; }

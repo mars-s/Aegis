@@ -1,3 +1,5 @@
+import { waitForAsync } from './poll.mjs';
+import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -201,11 +203,11 @@ try {
   await audio.locator('audio').evaluate(p => p.play()); await page.waitForFunction(() => document.querySelector('audio').currentTime > .1); await audio.locator('audio').evaluate(p => p.pause());
   await page.screenshot({ path: out('media-audio.png') }); log('Real MediaRecorder audio captured, paused, resumed, uploaded and played');
   await tool('camera-recording'); await centreCard('video'); const video = page.locator('.card.video');
-  await video.getByLabel('Video shape', { exact: true }).selectOption('phone'); await video.getByLabel('Mirror', { exact: true }).check();
+  await choose(video.getByLabel('Video shape', { exact: true }), 'phone'); await video.getByLabel('Mirror', { exact: true }).check();
   await video.getByRole('button', { name: 'Preview camera', exact: true }).click(); await page.waitForFunction(() => document.querySelector('.camera-preview')?.videoWidth > 0);
   for (const kind of ['Camera', 'Microphone']) {
     await video.locator('.camera-preview').evaluate(el => { window.__previousPreview = el.srcObject; });
-    const choice = video.getByLabel(kind, { exact: true }); await choice.selectOption({ index: 1 });
+    const choice = video.getByLabel(kind, { exact: true }); await choose(choice, { index: 1 });
     await page.waitForFunction(() => { const stream = document.querySelector('.camera-preview')?.srcObject; return stream && stream !== window.__previousPreview && stream.getTracks().every(t => t.readyState === 'live'); });
     assert.equal(await page.evaluate(() => window.__previousPreview.getTracks().every(t => t.readyState === 'ended')), true);
     assert.equal(await video.locator('.media-status').textContent(), 'Camera ready');
@@ -279,21 +281,21 @@ try {
   await audio.getByRole('button', { name: 'Start recording', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.card.audio .media-status')?.textContent.startsWith('Recording'), null, { timeout: 10000 });
   await page.waitForTimeout(500);
-  await page.evaluate(async () => { const other = await aegis.host.post('/boards', { name: 'Capture cleanup' }); aegis.canvas.setBoard(other); });
-  await page.waitForFunction(async before => { const b = await aegis.host.get('/boards/' + before.boardId); return b.cards.find(c => c.type === 'audio').props.src !== before.src; }, beforeSwitch);
+  assert.equal(await page.evaluate(async () => { const outgoing = [...document.querySelectorAll('.layer-row')]; const other = await aegis.host.post('/boards', { name: 'Capture cleanup' }); aegis.canvas.setBoard(other); return outgoing.every(row => !row.isConnected); }), true);
+  await waitForAsync(page, async before => { const b = await aegis.host.get('/boards/' + before.boardId); return b.cards.find(c => c.type === 'audio').props.src !== before.src; }, beforeSwitch);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.length), 0);
   await page.evaluate(async id => aegis.canvas.setBoard(await aegis.host.get('/boards/' + id)), beforeSwitch.boardId);
   log('Switching boards stopped capture and saved audio into the original board');
   // Device choices survive a page reload.
-  const microphone = page.locator('[data-panel="media-devices"] select[aria-label="Microphone"]');
-  await microphone.selectOption({ index: 1 });
-  const deviceId = await microphone.inputValue(); assert.ok(deviceId);
+  const microphone = page.locator('[data-panel="media-devices"] .aegis-dropdown[aria-label="Microphone"]');
+  await choose(microphone, { index: 1 });
+  const deviceId = await microphone.evaluate(el => el.value); assert.ok(deviceId);
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:media:microphone')), deviceId);
   const saved = await page.evaluate(async () => aegis.host.get('/boards/' + aegis.canvas.board.id));
   assert.ok(saved.bg); assert.equal(saved.palette[0].name, 'Saved sky'); assert.equal(saved.cards.find(c => c.type === 'audio').props.wave.length > 0, true);
   writeFileSync(out('media-saved-board.json'), JSON.stringify(saved, null, 2));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.some(c => c.type === 'video' && c.url));
-  await page.waitForFunction(deviceId => document.querySelector('[data-panel="media-devices"] select[aria-label="Microphone"]')?.value === deviceId, deviceId);
+  await page.waitForFunction(deviceId => document.querySelector('[data-panel="media-devices"] .aegis-dropdown[aria-label="Microphone"]')?.value === deviceId, deviceId);
   // Opening another board must not carry over the background or palette.
   const firstBoard = await page.evaluate(() => aegis.canvas.board.id);
   const otherBoard = await page.evaluate(async () => aegis.host.post('/boards', { name: 'Separate palette' }));

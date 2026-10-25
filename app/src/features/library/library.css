@@ -42,3 +42,17 @@ body.panel-arranging, body.panel-arranging * { cursor: grabbing !important; user
 .template-group-title { padding: 10px 14px; font-weight: 600; min-height: 35px; outline: none; }
 
 .board-crumbs { flex: none; flex-wrap: wrap; padding: 0 4px; }
+.canvas-card { position: relative; }
+.canvas-open { position: absolute; right: 8px; top: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.canvas-open svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.canvas-card:hover .canvas-open, .canvas-card:focus-within .canvas-open { color: var(--text); }
+.library-undo { position: fixed; z-index: 11000; bottom: 90px; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 18px; max-width: calc(100vw - 24px); padding: 8px 10px 8px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); color: var(--text); font: 13px var(--font); }
+.library-undo span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tree-delete { flex: none; width: 28px; height: 28px; padding: 5px; opacity: 0; }
+.tree-delete svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.tree-row:hover .tree-delete, .tree-row:focus-within .tree-delete { opacity: 1; }
+@media (hover: none), (pointer: coarse) { .tree-delete { width: 44px; height: 44px; opacity: 1; } }
+.pbox[data-panel=library]:not(.folded) .pbody { display: flex; flex-direction: column; overflow: hidden; }
+.pbox[data-panel=library] .tree { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.pbox[data-panel=library] :is(.library-home-button, .adds) { flex: none; }
+.pbox[data-panel=library] .adds { padding-top: 6px; }

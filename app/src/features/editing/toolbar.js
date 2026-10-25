@@ -1,3 +1,4 @@
+import { createDropdown, createPopup } from '../../lib/ui/dropdown.js';
 // Selection controls share their live nodes between the toolbar and its menus.
 const paths = {
   Bold: '<path d="M4.5 2.5h4a2.75 2.75 0 0 1 0 5.5h-4m0 0H9a2.75 2.75 0 0 1 0 5.5H4.5z"/>',
@@ -42,8 +43,7 @@ export function selectionToolbar(bar, changed) {
     return row(el, label, group);
   }
   function select(label, values, value, action, group = 'Typography') {
-    const el = document.createElement('select'); el.setAttribute('aria-label', label); el.title = label;
-    for (const [v, title] of values) el.append(new Option(title, v)); el.value = value ?? ''; el.onchange = () => action(el.value); return row(el, label, group);
+    const el = createDropdown({ label, options: values, value: value ?? '', onChange: action }); el.title = label; return row(el, label, group);
   }
   function stepper(label, value, action, { inline = false, min = 6, max = 400, step = 1, group = 'Typography' } = {}) {
     const wrap = document.createElement('span'); wrap.className = 'selection-stepper';
@@ -67,26 +67,15 @@ export function selectionToolbar(bar, changed) {
     for (const [v, title] of values) { const b = document.createElement('button'); b.type = 'button'; b.textContent = title; b.setAttribute('aria-pressed', String(v === value)); b.onclick = () => { action(v); [...group.children].forEach(el => el.setAttribute('aria-pressed', String(el === b))); }; group.append(b); }
     panel.append(group);
   }
-  function positionMenus() {
-    for (const details of popovers) {
-      if (!details.open) continue;
-      const anchor = details.firstElementChild.getBoundingClientRect(), panel = details.lastElementChild;
-      const width = panel.offsetWidth, height = panel.offsetHeight, gap = 8;
-      const below = anchor.bottom + gap, above = anchor.top - gap - height;
-      const top = below + height <= innerHeight - 8 ? below : above >= 8 ? above : Math.max(8, Math.min(innerHeight - height - 8, below));
-      Object.assign(panel.style, { left: `${Math.max(8, Math.min(innerWidth - width - 8, anchor.right - width))}px`, top: `${top}px` });
-    }
-  }
-  function toggle(details) { details.firstElementChild.setAttribute('aria-expanded', String(details.open));
-    if (details.open) { for (const other of popovers) if (other !== details) other.open = false; positionMenus(); } else changed();
-  }
+  const surfaces = new Map();
+  function positionMenus() { for (const surface of surfaces.values()) surface.position(); }
   function bind(details) {
-    details.addEventListener('toggle', () => toggle(details));
-    details.firstElementChild.addEventListener('click', e => { e.preventDefault(); details.open = !details.open; toggle(details); });
+    const surface = createPopup({ trigger: details.firstElementChild, menu: details.lastElementChild, role: 'dialog', onToggle(on) { details.open = on; if (on) { for (const [other, pop] of surfaces) if (other !== details) pop.close(); } changed(); } });
+    surfaces.set(details, surface);
+    details.addEventListener('toggle', () => { if (!details.open) surface.close(); });
   }
-  const outside = e => { if (!bar.contains(e.target)) popovers.forEach(el => { el.open = false; }); };
-  const escape = e => { if (e.key === 'Escape') { const open = popovers.find(el => el.open); if (open) { e.preventDefault(); e.stopPropagation(); open.open = false; open.firstElementChild.focus(); } } };
-  popovers.forEach(el => { el.firstElementChild.setAttribute('aria-expanded', 'false'); bind(el); });
-  scroll.addEventListener('scroll', positionMenus); bar.addEventListener('keydown', escape); addEventListener('pointerdown', outside); addEventListener('resize', positionMenus);
-  return { button, input, select, stepper, popup, choices, section, more, positionMenus, close: () => popovers.forEach(el => { el.open = false; }), destroy() { removeEventListener('pointerdown', outside); removeEventListener('resize', positionMenus); bar.removeEventListener('keydown', escape); } };
+  // Popups built by the toolbar are bound as they are added.
+  popovers.forEach(bind);
+  scroll.addEventListener('scroll', positionMenus); addEventListener('resize', positionMenus);
+  return { button, input, select, stepper, popup, choices, section, more, positionMenus, close: () => surfaces.forEach(pop => pop.close()), destroy() { surfaces.forEach(pop => pop.destroy()); removeEventListener('resize', positionMenus); } };
 }
