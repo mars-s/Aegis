@@ -1,0 +1,40 @@
+/* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
+#mobileHub { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 52; display: flex; justify-content: space-around; padding: 7px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); }
+#mobileHub button { min-height: 44px; padding: 6px 9px; color: var(--text); border-radius: 10px; font-size: 12px; }
+#mobileHub button[aria-expanded=true] { background: var(--hover); }
+.mobile-veil { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / .25); }
+.mobile-sheet { position: fixed; z-index: 61; inset: auto 0 0; max-height: 82dvh; display: flex; flex-direction: column; background: var(--card); color: var(--text); border-radius: 22px 22px 0 0; border: 1px solid var(--line); box-shadow: var(--shadow-lift); padding: 0 14px max(18px, env(safe-area-inset-bottom)); }
+.mobile-grab { height: 28px; display: grid; place-items: center; touch-action: none; flex-shrink: 0; }
+.mobile-grab i { width: 42px; height: 5px; border-radius: 4px; background: var(--line); }
+.mobile-sheet header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.mobile-sheet h2 { font-size: 18px; margin: 0; }
+.mobile-sheet header button { width: 44px; height: 44px; font-size: 24px; }
+.mobile-content { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+.mobile-content > .pbox { display: block !important; position: static; max-height: none; width: auto; border: 0; box-shadow: none; }
+.mobile-content > .pbox > .phead, .mobile-content .resize-handle { display: none; }
+.mobile-content > .pbox > .pbody { display: block !important; height: auto !important; max-height: none !important; overflow: visible; }
+.mobile-content section > button { min-height: 44px; padding: 10px 14px; margin: 3px; background: var(--hover); border-radius: 9px; }
+.mobile-content .tree-row, .mobile-content .layer-row { min-height: 44px; }
+.mobile-content #agentsPanel, .mobile-content #composer { display: block; position: static; width: 100%; max-height: none; transform: none; margin: 0 0 10px; box-sizing: border-box; }
+.mobile-content #agentsPanel .panel-head { display: none; }
+.mobile-content #composer { border-radius: 12px; padding: 12px; }
+@media (max-width: 700px) {
+  body { --side-w: 0px !important; --right-side-w: 0px !important; }
+  .phone .bar { padding: env(safe-area-inset-top) 10px 0; height: 48px; }
+  .bar-left { min-width: 0; }
+  .board-name { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #boardCrumbs, #sideBtn, #followBtn, #agentsBtn, #quickCapture { display: none; }
+  .side, #tools, #app > #composer, #app > #agentsPanel, .editing-hints, .editing-tool-overflow { display: none !important; }
+  .editing-zoom { bottom: 82px !important; left: 12px !important; right: auto !important; }
+  .selection-bar { max-width: calc(100vw - 20px); overflow-x: auto; }
+  .empty { max-width: calc(100vw - 40px); }
+  .empty-sub { font-size: 12px; }
+  #settings { max-height: 88dvh; }
+  .toast { bottom: 86px; }
+  .ctx-menu { max-width: calc(100vw - 20px); max-height: 65dvh; overflow: auto; }
+}
+
+.mobile-content > .wf-design { position: static; display: block; width: auto; max-height: none; border: 0; box-shadow: none; }
+.mobile-content > .wf-design .wf-panel-head { display: none; }
+
+.phone.mobile-sheet-open .selection-bar, .phone.mobile-sheet-open .editing-outline { display: none !important; }

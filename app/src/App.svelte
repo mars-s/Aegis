@@ -9,6 +9,8 @@
     <button class="icon-btn" id="sideBtn" title="Side bar (\)" aria-pressed="true"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
     <nav class="board-crumbs" id="boardCrumbs" aria-label="Board breadcrumbs"></nav>
     <span class="board-name" id="boardName" data-tauri-drag-region>Untitled</span>
+    <span class="save-state" id="saveState" role="status" aria-live="polite">saved</span>
+    <button id="retrySave" hidden>Retry</button>
   </div>
   <div class="bar-right">
     <span class="status" id="status" aria-live="polite"></span>
@@ -96,7 +98,7 @@
 
 <dialog class="sheet" id="settings">
   <div class="sheet-head"><h2>Settings</h2><button class="text-btn" id="closeSettings">Done</button></div>
-  <section class="sheet-sec">
+  <section class="sheet-sec" data-settings="accounts">
     <h3>Accounts</h3>
     <p class="muted">Agents use your own ChatGPT or Claude subscription. Tokens stay on this Mac.</p>
     <div class="account" data-provider="openai">
@@ -116,8 +118,8 @@
       </div>
     </div>
   </section>
-  <section class="sheet-sec">
-    <h3>Appearance</h3>
+  <section class="sheet-sec" data-settings="appearance">
+    <h3>Theme</h3>
     <div class="seg" role="radiogroup" id="theme"><button data-v="system" role="radio">System</button><button data-v="light" role="radio">Light</button><button data-v="dark" role="radio">Dark</button></div>
   </section>
   <section class="sheet-sec muted small">Agents run with your user's file permissions on this Mac.</section>

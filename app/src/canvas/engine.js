@@ -3,6 +3,8 @@
 // Pan and zoom change one transform; a card re-renders only when its own data changes.
 import { effectiveFlag } from '../features/editing/model.js';
 import { drawGridMotif } from '../features/editing/grid.js';
+import { mountTouch } from '../features/mobile/touch.js';
+import { displayRotation, preference } from '../features/settings/preferences.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom, cards show as outlines
@@ -25,7 +27,7 @@ function resolveCardDrop(cards, event) {
 // Shared geometry for drawing links and their editing handles. Pins follow rotated cards.
 export function linkGeometry(link, a, b) {
   const centre = c => ({ x: c.x + c.w / 2, y: c.y + c.h / 2 });
-  const rotate = (p, c, sign = 1) => { const m = centre(c), t = (c.rot || 0) * Math.PI / 180 * sign, x = p.x - m.x, y = p.y - m.y; return { x: m.x + x * Math.cos(t) - y * Math.sin(t), y: m.y + x * Math.sin(t) + y * Math.cos(t) }; };
+  const rotate = (p, c, sign = 1) => { const m = centre(c), t = displayRotation(c) * Math.PI / 180 * sign, x = p.x - m.x, y = p.y - m.y; return { x: m.x + x * Math.cos(t) - y * Math.sin(t), y: m.y + x * Math.sin(t) + y * Math.cos(t) }; };
   const edge = (c, pin, target) => {
     if (pin) return rotate({ x: c.x + pin.u * c.w, y: c.y + pin.v * c.h }, c);
     const m = centre(c), q = rotate(target, c, -1), dx = q.x - m.x, dy = q.y - m.y;
@@ -168,8 +170,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot]);
-  const geometry = c => `${c.x},${c.y},${c.w},${c.h},${c.rot || 0}`;
-  function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)${c.rot ? ` rotate(${c.rot}deg)` : ''}`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
+  const geometry = c => `${c.x},${c.y},${c.w},${c.h},${displayRotation(c)}`;
+  function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)${displayRotation(c) ? ` rotate(${displayRotation(c)}deg)` : ''}`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
   // What a renderer may do to the board.
   const cardApi = {
     apply: (cmds, done) => onBatch.apply(cmds, done),
@@ -293,6 +295,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   // ---------- input ----------
   let drag = null;
   let ptr = null; // a pointer-driven tool's gesture in progress
+  mountTouch({ stage, getView: () => view, setView, getTool: () => tool });
   stage.addEventListener('pointerdown', e => {
     const pt = tool && e.button === 0 && !spaceHeld ? pointerTool?.(tool) : null;
     if (pt && !e.target.closest('.resize')) { ptr = pt; stage.setPointerCapture(e.pointerId); pt.down(e, screenToWorld(e.clientX, e.clientY)); e.preventDefault(); return; }
@@ -383,11 +386,13 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     }
     onSelect?.([...selected]); schedule();
   });
-  stage.addEventListener('pointercancel', () => {
+  function cancelGesture() {
+    cancelAnimationFrame(anim);
     if (drag?.cards) for (const d of drag.cards) Object.assign(d.c, { x: d.x, y: d.y, w: d.w, h: d.h });
     for (const m of mounted.values()) m.el.classList.remove('dragging');
-    drag = null; ptr = null; drawGuides(); marquee.hidden = true; schedule();
-  });
+    drag = null; ptr = null; stage.classList.remove('panning'); drawGuides(); marquee.hidden = true; schedule(true);
+  }
+  stage.addEventListener('pointercancel', cancelGesture);
   for (const type of ['click', 'dblclick']) stage.addEventListener(type, e => { const id = e.target.closest('.card')?.dataset.id; if (id && effectiveFlag(board, board.cards.find(c => c.id === id), 'locked')) { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
   stage.addEventListener('contextmenu', e => {
     if (!onContext || e.target.closest('input, textarea, [contenteditable="plaintext-only"]:focus')) return;
@@ -399,6 +404,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   stage.addEventListener('dblclick', e => {
     const hit = e.target.closest('.card') || document.elementFromPoint(e.clientX, e.clientY)?.closest('.card');
     if (hit) { const c = board.cards.find(x => x.id === hit.dataset.id); if (c && RENDERERS.get(c.type)?.open) { RENDERERS.get(c.type).open(c, cardApi); } return; }
+    if (preference('double-click-note', 'on') === 'off') return;
     const p = screenToWorld(e.clientX, e.clientY);
     onBatch.apply([{ op: 'create', type: 'note', text: '', x: Math.round(p.x - 120), y: Math.round(p.y - 30), ref: 'n' }], created => {
       requestAnimationFrame(() => mounted.get(created.n)?.el.querySelector('.body')?.focus());
@@ -434,7 +440,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let anim = 0;
   function glideTo(target, ms = 420) {
     cancelAnimationFrame(anim);
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); return; }
+    if (preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); return; }
     const from = { ...view }, t0 = performance.now(); const ease = t => 1 - Math.pow(1 - t, 3);
     const step = now => { const t = Math.min(1, (now - t0) / ms), k = ease(t);
       setView({ x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, z: from.z + (target.z - from.z) * k }, t === 1);

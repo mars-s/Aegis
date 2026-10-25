@@ -1,0 +1,12 @@
+#settings { width: min(620px, calc(100vw - 24px)); max-height: 85dvh; overflow-y: auto; }
+.settings-tabs { display: flex; gap: 3px; padding: 8px 12px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+.settings-tabs button { padding: 9px 11px; border-radius: 8px; white-space: nowrap; color: var(--muted); }
+.settings-tabs button[aria-selected=true] { background: var(--hover); color: var(--text); }
+.settings-page { padding: 14px 20px 22px; }
+.settings-page .sheet-sec { padding: 10px 0; border: 0; }
+.settings-page > label, .settings-page .editing-settings > label { display: flex; align-items: center; gap: 10px; margin: 14px 0; }
+.settings-page select { background: var(--card); color: var(--text); border: 1px solid var(--line); padding: 7px; border-radius: 7px; }
+.settings-page input[type=checkbox] { accent-color: var(--accent); }
+.save-state { font-size: 11px; color: var(--muted); white-space: nowrap; }
+#retrySave { font-size: 11px; padding: 5px; color: var(--text); text-decoration: underline; }
+.motion-off *, .motion-off *::before, .motion-off *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }

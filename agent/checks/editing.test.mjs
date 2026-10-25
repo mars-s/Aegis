@@ -57,6 +57,15 @@ test('collection resize changes columns, stacks children and inherited hide and 
   assert.equal(effectiveFlag(board, board.cards[0], 'hidden'), true); assert.equal(effectiveFlag(board, board.cards[1], 'locked'), true);
   board = batch(board, collectionLayout(board, coll, coll.props.kids, 300)); assert.equal(board.cards.at(-1).props.cols, 1); assert.ok(board.cards[1].y > board.cards[0].y);
 });
+test('inherited flags follow a batch that changes membership without changing the card count', () => {
+  let board = seed(); board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: 0, y: 0, w: 530, props: { kids: ['aaaaaa'], hidden: true } }]);
+  const card = id => board.cards.find(c => c.id === id);
+  assert.equal(effectiveFlag(board, card('aaaaaa'), 'hidden'), true); assert.equal(effectiveFlag(board, card('cccccc'), 'hidden'), false);
+  board = batch(board, [{ op: 'update', id: 'collaa', set: { props: { kids: ['cccccc'] } } }]);
+  assert.equal(effectiveFlag(board, card('aaaaaa'), 'hidden'), false); assert.equal(effectiveFlag(board, card('cccccc'), 'hidden'), true);
+  board = batch(board, [{ op: 'update', id: 'bbbbbb', set: { parent: 'collaa' } }]);
+  assert.equal(effectiveFlag(board, card('bbbbbb'), 'hidden'), true);
+});
 test('stack shortcuts move one step or all the way while preserving selection order', () => {
   let board = seed(); board = batch(board, stackCommands(board, ['aaaaaa'], 'forward')); assert.deepEqual(board.cards.map(c => c.id), ['bbbbbb', 'aaaaaa', 'cccccc']);
   board = batch(board, stackCommands(board, ['aaaaaa'], 'front')); assert.equal(board.cards.at(-1).id, 'aaaaaa');

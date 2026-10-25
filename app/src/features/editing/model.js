@@ -14,12 +14,24 @@ export function descendants(board, ids) {
   }
   return board.cards.filter(c => out.has(c.id));
 }
+// Child id -> cards that contain it (screen parent or collection kid). Batches clone the board, so a
+// cards array is rebuilt rather than edited; the length check covers anything that pushes in place.
+const parentIndexes = new WeakMap();
+function parentsOf(board, card) {
+  let index = parentIndexes.get(board.cards);
+  if (!index || index.length !== board.cards.length) {
+    const byId = new Map(board.cards.map(c => [c.id, c])), parents = new Map();
+    const add = (child, parent) => { if (!parent) return; const list = parents.get(child); if (list) list.push(parent); else parents.set(child, [parent]); };
+    for (const c of board.cards) { if (c.parent) add(c.id, byId.get(c.parent)); for (const kid of c.props?.kids ?? []) add(kid, c); }
+    index = { length: board.cards.length, parents }; parentIndexes.set(board.cards, index);
+  }
+  return index.parents.get(card.id) ?? [];
+}
 export function effectiveFlag(board, card, flag, seen = new Set()) {
   if (!card || seen.has(card.id)) return false;
   seen.add(card.id);
   if (card.props?.[flag]) return true;
-  const parents = board.cards.filter(c => c.id === card.parent || c.props?.kids?.includes(card.id));
-  return parents.some(c => effectiveFlag(board, c, flag, seen));
+  return parentsOf(board, card).some(c => effectiveFlag(board, c, flag, seen));
 }
 export function makeClip(board, ids) {
   const selected = board.cards.filter(c => ids.includes(c.id));

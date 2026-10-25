@@ -11,6 +11,11 @@ import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
 import { mountEditing } from './features/editing/main.js';
+import { mountMobile } from './features/mobile/index.js';
+import { mountSettings } from './features/settings/index.js';
+import { repairBatch } from './features/settings/preferences.js';
+import { createSaveQueue } from './features/settings/save.js';
+import { createOnboarding } from './features/onboarding/index.js';
 
 export async function start() {
 const $ = id => document.getElementById(id);
@@ -31,18 +36,26 @@ const canvas = createCanvas({
 const objects = mountObjects({ host, apply: (commands) => apply(commands) });
 
 // ---------- boards ----------
-let pending = Promise.resolve();
+const saves = createSaveQueue({
+  post: (id, commands) => host.post(`/boards/${id}/batch`, { commands }),
+  reload: () => reloadBoard(),
+  changed: state => { $('saveState').textContent = state; $('retrySave').hidden = state !== 'not saved'; if (state === 'saved' && $('toast').textContent.startsWith('Could not save:')) $('toast').hidden = true; },
+  failed: e => toast(`Could not save: ${e.message}. Your changes are kept here. Retry when ready.`),
+});
+$('retrySave').onclick = () => saves.retry();
 async function openBoard(id) {
-  await pending;
+  await saves.settled;
+  if (saves.pending) { toast('Retry saving your changes before opening another board.'); return; }
   const b = await host.get(`/boards/${id}`);
   canvas.setBoard(b); localStorage.setItem('aegis:board', id);
   $('boardName').textContent = b.name; refreshEmpty(); refreshAgents();
   library.render(); layers.update(); hideShow();
 }
 async function reloadBoard(focus) {
+  if (saves.pending) return;
   const id = canvas.board.id;
   const b = await host.get(`/boards/${id}`);
-  if (canvas.board.id !== id) return;
+  if (canvas.board.id !== id || saves.pending) return;
   if (b.rev <= canvas.board.rev && !focus) return;
   canvas.setBoard(b); refreshEmpty();
   if (focus?.ids?.length) followTo(focus.ids);
@@ -50,16 +63,13 @@ async function reloadBoard(focus) {
 function refreshEmpty() { $('empty').hidden = canvas.board.cards.length > 0; layers?.update(); }
 // Local first: apply the batch on screen at once, then commit; the host's answer wins.
 function apply(commands, done) {
+  commands = repairBatch(canvas.board, commands);
   for (const c of commands) if (c.op === 'create' && !c.newId) c.newId = Math.random().toString(36).slice(2, 12).padEnd(8, '0');
   const local = applyBatch(canvas.board, { commands });
   if (!local.ok) { toast(local.errors[0].reason); return; }
   canvas.setBoard(local.board); refreshEmpty();
   const id = canvas.board.id;
-  // The host repeats the same ids only by chance, so trust the server's board on any refusal.
-  pending = pending.then(() => host.post(`/boards/${id}/batch`, { commands })).then(r => {
-    if (!r.ok) { toast(r.errors?.[0]?.reason ?? 'That change was refused'); return reloadBoard(); }
-    return reloadBoard();
-  }).catch(e => { toast(e.message); reloadBoard(); });
+  saves.add(id, commands);
   if (done) done(local.created);
 }
 document.addEventListener('board-renamed', e => { $('boardName').textContent = e.detail; canvas.board.name = e.detail; });
@@ -79,6 +89,7 @@ function mountPanel(p) {
 const panels = createPanels({ side: $('side'), onChange: st => $('sideBtn').setAttribute('aria-pressed', String(!st.hidden)) });
 $('sideBtn').onclick = () => panels.toggle();
 const library = createLibrary({ el: document.querySelector('[data-panel="library"]'), host, current: () => canvas.board?.id, openBoard, toast });
+addEventListener('focus', () => { library.refresh().catch(e => toast(e.message)); });
 const layers = createLayers({
   el: document.querySelector('[data-panel="layers"]'), count: $('layerCount'), getBoard: () => canvas.board,
   onPick: (id, add) => { canvas.select(add ? canvas.selection().includes(id) ? canvas.selection().filter(key => key !== id) : [...canvas.selection(), id] : [id]); if (!add) canvas.frameIds([id], canvas.view.z); },
@@ -220,7 +231,7 @@ $('composer').addEventListener('submit', async e => {
   const brief = promptEl.value.trim() || 'Sort this board into clear groups.';
   const [provider, modelId] = $('model').value.split('|');
   if (provider !== 'fake' && !(await host.get('/auth'))[provider]?.connected) {
-    toast(`Sign in to ${provider === 'openai' ? 'ChatGPT' : 'Claude'} first`); renderAccounts(); $('settings').showModal(); return;
+    toast(`Sign in to ${provider === 'openai' ? 'ChatGPT' : 'Claude'} first`); settings.select('accounts'); renderAccounts(); $('settings').showModal(); return;
   }
   const count = Math.min(8, Math.max(1, Number($('count').value) || 1));
   const sel = canvas.selection();
@@ -352,7 +363,7 @@ let toastT = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
 addEventListener('keydown', e => {
   if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
-  if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/' || e.key === 'k') { e.preventDefault(); promptEl.focus(); } return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/') { e.preventDefault(); promptEl.focus(); } return; }
   if (e.key === 'a') showAgents($('agentsPanel').hidden);
   if (e.key.toLowerCase() === 'f' && e.shiftKey) setFollow(!follow);
   if (e.key === '\\') panels.toggle();
@@ -402,7 +413,11 @@ await library.refresh();
 await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
+const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
+const onboarding = createOnboarding({ mobile });
+const settings = mountSettings({ canvas, replayTour: () => onboarding.welcome() });
 window.aegis = { canvas, host, apply, editing };
+onboarding.firstRun();
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.
 if (location.protocol === 'http:' && location.pathname.startsWith('/ui/')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; if (r !== 'ok') toast(`Native bridge: ${r}`); });
 }
