@@ -6,9 +6,33 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, cp, readFile, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { homedir, tmpdir } from 'node:os';
-import { chromium } from './ui/playwright.mjs';
 import { out } from './ui/out.mjs';
+import { pathToFileURL } from 'node:url';
 
+// Inspect the input received by the provider, rather than its timing counters.
+export function inspectModelInput(input, forbiddenBody = '') {
+  const messages = JSON.stringify(input.messages.filter(m => m.role === 'user'));
+  const summaryPart = input.messages.flatMap(m => m.role === 'user' && Array.isArray(m.content) ? m.content : []).find(p => p.type === 'text' && p.text.startsWith('Current board summary'));
+  assert.ok(summaryPart, 'first model input includes the board summary');
+  const summaryText = summaryPart.text.slice(summaryPart.text.indexOf('\n') + 1);
+  if (forbiddenBody) assert.ok(!JSON.stringify(input).includes(forbiddenBody), 'first model input must omit full document bodies');
+  const summary = JSON.parse(summaryText), summaryBytes = Buffer.byteLength(summaryText);
+  assert.ok(summaryBytes <= 24000, `compact board summary exceeds 24000 bytes: ${summaryBytes}`);
+  assert.ok(Buffer.byteLength(messages) <= 32000, 'first-turn messages stay within 32000 bytes');
+  assert.ok(summary.cards.every(c => !('props' in c) && !('data' in c)), 'summary omits document bodies and object datasets');
+  return { summary, summaryBytes, messageBytes: Buffer.byteLength(messages), payloadBytes: Buffer.byteLength(JSON.stringify(input)) };
+}
+export function assertBoundedGrowth(small, large) {
+  assert.equal(small.summary.total, 25); assert.equal(large.summary.total, 250);
+  assert.equal(large.summary.truncated, true);
+  assert.ok(large.summary.cards.length <= 100, 'first turn pages large boards');
+  assert.ok(large.summaryBytes <= small.summaryBytes * 4.5, '10x more cards must cost at most 4.5x summary bytes');
+  assert.ok(large.payloadBytes <= small.payloadBytes * 4.5, 'actual provider payload grows sublinearly');
+  assert.ok(large.payloadBytes - small.payloadBytes <= 20000, 'provider payload growth is bounded by 20000 bytes');
+}
+
+async function run() {
+const { chromium } = await import('./ui/playwright.mjs');
 const baseline = process.argv.includes('--baseline'), live = process.argv.includes('--live');
 const label = `${live ? 'live' : 'scripted'}-${baseline ? 'before' : 'after'}`;
 const root = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
@@ -24,7 +48,7 @@ if (live) {
 const token = `speed-${process.pid}`, records = [];
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(root, 'agent'), env: {
   ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_PROFILE_TOOLS: '1',
-  AEGIS_FAKE_MODEL: live ? '' : '1', AEGIS_FAKE_DELAY_MS: process.env.AEGIS_FAKE_DELAY_MS || '60',
+  AEGIS_FAKE_MODEL: live ? '' : '1', AEGIS_FAKE_CAPTURE_INPUT: live ? '' : join(data, 'model-input.jsonl'), AEGIS_FAKE_DELAY_MS: process.env.AEGIS_FAKE_DELAY_MS || '60',
 }, stdio: ['ignore', 'pipe', 'pipe'] });
 let buffer = '', errors = '';
 host.stderr.on('data', d => { errors += d; });
@@ -107,11 +131,27 @@ try {
     }
     [compactProbeBytes, detailProbeBytes] = records.filter(r => r.kind === 'tool' && r.conversationId === probe.id && r.name === 'board_read').map(r => r.outputBytes);
   }
+  let inputCoverage = null;
+  if (!live) {
+    const captured = (await readFile(join(data, 'model-input.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    const first = captured.find(input => input.messages.some(m => m.role === 'user' && m.content?.some?.(p => p.text === brief)));
+    const small = inspectModelInput(first, 'Project context and evidence. '.repeat(300));
+    const largeBoard = await call('/boards', { name: '250-card payload probe' });
+    await call(`/boards/${largeBoard.id}/batch`, { commands: Array.from({ length: 250 }, (_, i) => ({ ...seed[i % 25], newId: `large${String(i).padStart(4, '0')}` })) });
+    const probeBrief = 'Payload growth probe, 250 cards';
+    const [probe] = await call('/agents', { boardId: largeBoard.id, model: { provider: 'fake', modelId: 'fake' }, brief: probeBrief });
+    const deadline = Date.now() + 10000;
+    while ((await call(`/agents?board=${largeBoard.id}`)).find(a => a.id === probe.id)?.running) { assert.ok(Date.now() < deadline); await new Promise(r => setTimeout(r, 20)); }
+    const inputs = (await readFile(join(data, 'model-input.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    const large = inspectModelInput(inputs.find(input => JSON.stringify(input.messages).includes(probeBrief)), 'Project context and evidence. '.repeat(300));
+    assertBoundedGrowth(small, large);
+    inputCoverage = { small: { ...small, summary: undefined }, large: { ...large, summary: undefined } };
+  }
   const mean = list => list.length ? list.reduce((a, b) => a + b, 0) / list.length : null;
   const report = { label, model: final.model, simulatedModelDelayMs: live ? null : Number(process.env.AEGIS_FAKE_DELAY_MS || 60), elapsedMs,
     toolCalls: tools.length, perTool: tools, modelTurns: jobRecords.filter(r => r.kind === 'model'),
     meanHostToolMs: mean(tools.map(t => t.durationMs)), boardReadBytes: tools.filter(t => t.name === 'board_read').map(t => t.outputBytes), compactProbeBytes, detailProbeBytes,
-    context: jobRecords.find(r => r.kind === 'context'), policy: jobRecords.find(r => r.kind === 'policy'),
+    inputCoverage, context: jobRecords.find(r => r.kind === 'context'), policy: jobRecords.find(r => r.kind === 'policy'),
     batchCount: batches.length, meanBatchApplyMs: mean(batches.map(t => t.applyMs)), meanBatchTotalMs: mean(batches.map(t => t.totalMs)),
     uiBoardReloads: boardReads, eventCount: ui.events.length, meanEventLatencyMs: mean(ui.events.map(e => e.latencyMs)),
     meanEventToPaintMs: mean(ui.events.map(e => ui.paints.find(p => p.rev >= e.rev && p.at >= e.receivedAt)?.at - e.receivedAt).filter(Number.isFinite)),
@@ -125,3 +165,6 @@ try {
   await browser?.close(); host.kill(); web?.kill();
   await rm(data, { recursive: true, force: true });
 }
+
+}
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await run();

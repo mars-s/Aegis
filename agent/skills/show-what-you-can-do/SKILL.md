@@ -1,29 +1,21 @@
 ---
 name: show-what-you-can-do
-description: The person asks what you can do, to be surprised or for a demo. Make one finished composition with varied components on a tidy 12-column grid.
+description: When asked what you can do, for a demo or to be surprised, create one curated composition with a focal document and varied working windows.
 ---
 # Show what you can do
 
-Pick one useful subject from the board's name, read-me note or cards. An empty board can use a practical topic such as planning a week of focused work. Make a finished result with a clear reading order, rather than a list of abilities.
+1. Pick one useful subject from the board name or compact summary. For an empty board, use a practical subject such as a calmer working week. Keep existing work and put the composition in free space. Read full cards only when their details matter.
+2. Build a finished set about that subject: a document with Markdown and inline and block KaTeX maths, a sheet, a three-slide deck, a thin-line plot, a short diagram, three or four built-in generative kinds, and one small offline HTML sandbox widget. Stats, progress and a callout work well together. Use the same figures across the document, sheet, plot and slides. Label invented values "Demo data", set knowledge:true on the plot, and explain in chat that the values are illustrative. Use original drawn graphics for slides.
+3. Send one board_apply containing all creates, a grid layout and focus. Give creates refs and use $refs in the layout. The document leads on the left. A tidy grid of smaller windows supports it on the right, with the deck below the document. Keep the whole set concise enough to read after Fit.
 
-Use the compact board summary already supplied with the request. Read individual cards with `board_read {ids:[...],detail:true}` only when you need their full contents. Keep existing work and put the composition in free space.
-
-Create varied components about that one subject: a short reply with the finding, a plot with numbers worth comparing, a diagram with a small flow, a sheet with values, and a plan with next actions. Use fewer components if the subject needs fewer. Never invent sources. Label illustrative values with basis "Demo data" and knowledge true, and say they are illustrative in the reply.
-
-## One composition, one batch
-
-Use one `board_apply` with all creates, a layout and a focus. Give each create a `ref` and use `$ref` in the layout. Do not call `create` once per object or manually place each window with `near` and `below`.
-
-The layout command gives alignment for free:
+Use this layout for refs in the listed order:
 
 ```json
-{"op":"layout","shape":"grid","ids":["$answer","$plot","$flow","$values","$plan"],"cols":12,"spans":[12,6,6,7,5],"columnWidth":84,"gap":24,"fit":true,"x":0,"y":0}
+{"op":"layout","shape":"grid","ids":["$document","$stats","$goals","$flow","$plot","$sheet","$deck","$principle","$widget"],"cols":12,"spans":[6,3,3,6,6,6,6,3,3],"columns":[0,6,9,6,6,6,0,6,9],"columnWidth":104,"gap":24,"fit":true,"pack":"compact","x":0,"y":0}
 ```
 
-This is a 1272px composition with 24px gutters. The reply starts at the top left across 12 columns. Plot and flow share the next row's top edge, six columns each. Values and plan follow, seven and five columns. Each row starts 24px below the tallest window in the preceding row. The list order is the reading order. End with `focus` on these five refs.
+The grid is 1512px wide. The optional columns list fixes each starting column, counting from zero, so the document and deck stay on the left. Compact packing closes vertical gaps within those columns. Renderers measure their intrinsic heights after mounting and repack the group. Diagrams use their laid-out graph bounds. Keep natural heights instead of stretching every window to match a tall neighbour. End with focus on the complete set. If a span is too narrow, give it more columns or shorten its content, then retry the complete batch.
 
-`fit:true` sizes each object's height to its content, including the title strip and padding. A diagram uses its real node layout and scales only as far as needed. A reply gets enough room for its headline, text and figures. Do not override these heights to make every window equal. The edges and gutters should align while each window hugs its content.
+Use a few document sections, a clear equation, five sheet rows, four diagram nodes in a rightward flow, two stat values and two progress goals. The HTML widget should do one useful thing, such as changing block length to calculate focused hours, using the provided theme variables. It has no network or parent access. Prefer built-in kinds for the other windows.
 
-Keep demo content concise: one reply paragraph, three to five plot categories, three or four diagram nodes with short labels, three short sheet columns with three to five rows, and three or four plan steps. Use a rightward diagram for a short linear flow. Avoid unnecessary layers and long node notes. Sheet cells hold values, not sentences.
-
-If the host says content needs more width, give that window more columns, put it on its own row, or shorten its content. Retry the complete batch. Never shrink text or clip content to force it into a span. Never stretch a short diagram over a tall empty window. Inspect the result, then revise the existing objects if a follow-up asks for a change.
+Finish with a short explanation in the island chat and point out one thing to try. Create zero reply or note cards for your answer. A capability demo asks for working artefacts; its conversational answer belongs in chat.

@@ -11,7 +11,7 @@ import { conversationFromView, displayBrief } from './status.mjs';
 // item 9 end
 import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat, appendFile } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { pipeline } from 'node:stream/promises';
 import { join, dirname, normalize } from 'node:path';
@@ -262,6 +262,8 @@ if (process.env.AEGIS_FAKE_MODEL) {
     fake.appendResponses([step]);
     // item 10: profile only sizes, so the harness proves context arrives on the first turn.
     timing({ kind: 'model', inputBytes: Buffer.byteLength(JSON.stringify(ctx.messages)), hasBoardSummary: JSON.stringify(ctx.messages).includes('Current board summary') });
+    // Round 2 speed checks: opt-in capture of the actual fake-provider input, never live traffic.
+    if (process.env.AEGIS_FAKE_CAPTURE_INPUT) await appendFile(process.env.AEGIS_FAKE_CAPTURE_INPUT, JSON.stringify(ctx) + '\n');
     // end item 10
     if (process.env.AEGIS_FAKE_DELAY_MS) await new Promise(resolve => setTimeout(resolve, Math.min(5000, Number(process.env.AEGIS_FAKE_DELAY_MS) || 0)));
     const msgs = ctx.messages;
@@ -422,7 +424,7 @@ const editBoard = boardTool({
     'Ops: create {type, text, heading?, badge?, color?, x?, y?, w?, h?, rot?, items? (todo), url? (link/image/video/web; https: or asset:), group?, parent? (card id), props? (type-specific, listed below), near? (card id), ref? (name to reuse as "$name" later in the batch)};',
     'update {id, set: {text|heading|badge|color|x|y|w|h|rot|items|url|group|parent|props}} (props merges; a null value removes that key); move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
     // item 11: spans share one grid and content fitting, rather than hand-picked window positions.
-    'layout {ids, shape: grid|column|row, x?, y?, cols?, spans?, columnWidth?, gap?, fit?}. For a composed demo use shape:"grid", cols:12, spans:[12,6,6,7,5] (one span per id), columnWidth:84, gap:24, fit:true. Rows wrap in reading order, share top edges, and start 24px below the tallest window above. Content fitting sizes objects and refuses columns too narrow for their contents. order {ids, to: front|back|index} changes stacking; focus {ids} shows the result.',
+    'layout {ids, shape: grid|column|row, x?, y?, cols?, spans?, columns?, columnWidth?, gap?, fit?, pack?: rows|compact}. For a composed demo use shape:"grid", cols:12, a leading document spanning 6 columns, supports spanning 3 or 6, columnWidth:104, gap:24, fit:true, pack:"compact". Compact packing fills the highest free span, from the left. Optional columns gives one zero-based starting column per window, preserving focal and support columns. Rendered content heights repack the group. Content fitting refuses columns too narrow for their contents. order {ids, to: front|back|index} changes stacking; focus {ids} shows the result.',
     'A note with a heading and a badge such as "read me first" explains how the board works.',
     'Colors: plain gray blue green yellow orange red purple, or "#rrggbb". Omit x/y to let the board find free space. Titles label groups; put a title above each cluster.',
     'Basic types: note, title, todo, link, image, video, web. More types:\n' + cardTypeGuide(),
@@ -600,7 +602,7 @@ const BoardExtension = defineExtension({
   section('aegis-layout', () => [
     'Compose demos as one tidy block on a 12-column grid with 24px gutters. Load show-what-you-can-do for a demo.',
     'Create the whole composition with board_apply, refs and a final grid layout in ONE batch. Use spans to give each window the columns it needs, fit:true to size its height to content, and focus on the result.',
-    'Keep top and left edges aligned, gaps consistent, and reading order left to right then down. Use varied typed components for one subject. Never stretch a short diagram to a huge empty height or squeeze a reply so its text clips. If a span is too narrow, widen it or shorten the content, then retry the batch.',
+    'Give the composition one focal document or dashboard on the left, with compact supporting windows on the right. Use pack:"compact" for a 12-column grid with consistent gutters and measured content heights. Load show-what-you-can-do for the curated set. Your answer goes in the island chat. Create zero reply or note cards for the demo. If a span is too narrow, widen it or shorten the content, then retry the batch.',
     'The board summary arrives with the request. Read only missing details. Independent tools may run together, but every dependent edit belongs in the same batch using refs.',
   ].join('\n'), { tag: false })],
   // end item 11

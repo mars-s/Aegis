@@ -4,11 +4,14 @@ import { mount, unmount } from 'svelte';
 import { writable, fromStore } from 'svelte/store';
 import ObjectCard from './ObjectCard.svelte';
 import type { Host } from '../lib/host';
+import { mountIntrinsicSizing } from './intrinsic-sizing.js';
+import { emptyBoard } from '../lib/board/commands.js';
 
 type Card = { id: string; kind: string; data: unknown; text: string; ver?: number; updated?: number; h?: number };
 type Apply = (commands: unknown[]) => void;
 
-export function mountObjects({ host, apply }: { host: Host; apply: Apply }) {
+export function mountObjects({ host, apply, getBoard }: { host: Host; apply: Apply; getBoard: () => ReturnType<typeof emptyBoard> }) {
+  mountIntrinsicSizing({ getBoard, apply });
   const live = new Map<Element, { instance: ReturnType<typeof mount>; update: (card: Card) => void }>();
   return {
     render(el: HTMLElement, card: Card) {

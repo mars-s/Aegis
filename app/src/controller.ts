@@ -40,7 +40,8 @@ const canvas = createCanvas({
   renderObject: (el, card) => objects.render(el, card),
   dropObject: el => objects.drop(el),
 });
-const objects = mountObjects({ host, apply: (commands) => apply(commands) });
+// Round 2 demo: rendered content sizes use the current board when repacking.
+const objects = mountObjects({ host, apply: (commands) => apply(commands), getBoard: () => canvas.board });
 
 // ---------- boards ----------
 const saves = createSaveQueue({

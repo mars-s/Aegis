@@ -37,8 +37,6 @@ export function layout(d: Diagram): Laid {
   });
   const at = new Map(nodes.map(p => [p.node.id, p]));
   const edges: Routed[] = d.edges.map(e => route(e, at.get(e.from)!, at.get(e.to)!, across));
-  const width = Math.max(...nodes.map(p => p.x + p.w)) + 8;
-  const height = Math.max(...nodes.map(p => p.y + p.h)) + 8;
   // A band behind each layer's nodes, named at its edge.
   const bands = (d.layers ?? []).flatMap(l => {
     const members = nodes.filter(p => p.node.layer === l.id);
@@ -53,7 +51,10 @@ export function layout(d: Diagram): Laid {
     for (const b of bands) { b.x -= left; b.y -= top; }
     for (const r of edges) Object.assign(r, route(r.edge, at.get(r.edge.from)!, at.get(r.edge.to)!, across));
   }
-  return { width: width - left, height: height - top, nodes, edges, bands };
+  // Round 2 demo: intrinsic bounds include the full layer bands, including their outer padding.
+  const width = Math.max(...nodes.map(p => p.x + p.w), ...bands.map(b => b.x + b.w)) + 8;
+  const height = Math.max(...nodes.map(p => p.y + p.h), ...bands.map(b => b.y + b.h)) + 8;
+  return { width, height, nodes, edges, bands };
 }
 
 // Leave from the side facing the target, arrive on the side facing the source, as one cubic curve.

@@ -198,7 +198,14 @@ export function applyBatch(input, batch) {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : []).map(ref);
           const cards = ids.map(id => board.cards.find(c => c.id === id)).filter(Boolean);
           if (cards.length !== ids.length) throw new Error('layout lists a card that does not exist');
-          layout(cards, cmd.shape ?? 'grid', { ...cmd, x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, cmd.spans ? 12 : 3), 1, 20) });
+          const options = { ...cmd, x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, cmd.spans ? 12 : 3), 1, 20) };
+          layout(cards, cmd.shape ?? 'grid', options);
+          // Round 2 demo: keep the grid with the content so measured heights can repack it.
+          for (const c of board.cards) if (c.props?.contentLayout?.ids.some(id => ids.includes(id))) { delete c.props.contentLayout; touched.add(c.id); }
+          if (cmd.fit && cmd.spans && cards.length) {
+            for (const c of cards) c.props = { ...c.props, contentFit: true, ...(['note', 'todo'].includes(c.type) ? { autoHeightMin: 80 } : {}) };
+            cards[0].props.contentLayout = { ids, x: options.x, y: options.y, cols: options.cols, spans: cmd.spans, columns: cmd.columns, columnWidth: cmd.columnWidth ?? 84, gap: cmd.gap ?? GAP, pack: cmd.pack ?? 'rows' };
+          }
           cards.forEach(c => touched.add(c.id)); break;
         }
         case 'order': {
@@ -247,6 +254,18 @@ export function applyBatch(input, batch) {
     }
   });
   if (errors.length) return { ok: false, board: input, created: {}, errors };
+  // Round 2 demo: only height changes repack a composition. Manual positioning releases it.
+  const compositions = board.cards.filter(c => c.props?.contentLayout);
+  const before = compositions.length ? new Map(input.cards.map(c => [c.id, c])) : new Map();
+  for (const leader of compositions) {
+    const plan = leader.props.contentLayout;
+    const released = commands.some(cmd => (cmd.op === 'move' || cmd.op === 'update' && (['x', 'y', 'w'].some(k => k in (cmd.set ?? {})) || cmd.set?.props?.fixedHeight)) && plan.ids.includes(ref(cmd.id)));
+    const members = plan.ids.map(id => board.cards.find(c => c.id === id));
+    if (released || members.some(c => !c)) { delete leader.props.contentLayout; touched.add(leader.id); continue; }
+    if (!members.some(c => touched.has(c.id) && before.has(c.id) && before.get(c.id).h !== c.h)) continue;
+    layout(members, 'grid', { ...plan, fit: false });
+    members.forEach(c => touched.add(c.id));
+  }
   // Collection membership: a card listed in props.kids without the collection as its parent was just
   // added (an agent usually only fills kids), so all members get the app's column layout and the link.
   // Cards dropped from kids lose the link. Linked members keep their place, so paste and undo stay exact.
@@ -271,19 +290,29 @@ export function applyBatch(input, batch) {
 }
 
 // item 11: spans opt into a fixed-column composition; existing layouts keep their sizes.
-export function layout(cards, shape, { x, y, cols, spans, columnWidth = 84, gap = GAP, fit = false }) {
+export function layout(cards, shape, { x, y, cols, spans, columns, columnWidth = 84, gap = GAP, fit = false, pack = 'rows' }) {
   if (shape === 'grid' && spans) {
     if (!Number.isInteger(cols) || !Array.isArray(spans) || spans.length !== cards.length || spans.some(s => !Number.isInteger(s) || s < 1 || s > cols)) throw new Error('grid needs one whole column span per card, between 1 and cols');
     if (!Number.isFinite(columnWidth) || columnWidth < 24 || columnWidth > 300 || !Number.isFinite(gap) || gap < 0 || gap > 120) throw new Error('grid columnWidth must be 24..300 and gap 0..120');
+    if (!['rows', 'compact'].includes(pack)) throw new Error('grid pack must be rows or compact');
+    if (columns && (pack !== 'compact' || columns.length !== cards.length || columns.some((at, i) => !Number.isInteger(at) || at < 0 || at + spans[i] > cols))) throw new Error('compact grid columns must fit each span within the grid');
     let column = 0, rowY = y, rowHeight = 0;
+    const bottoms = Array(cols).fill(y);
     cards.forEach((c, i) => {
       const span = spans[i], width = span * columnWidth + (span - 1) * gap;
       if (width > 4000) throw new Error('grid window exceeds 4000px; use narrower columns');
       if (column + span > cols) { rowY += rowHeight + gap; column = 0; rowHeight = 0; }
-      const size = fit && c.type === 'object' ? objectContentSize(c, width) : { w: 40, h: c.h };
+      const size = fit ? objectContentSize(c, width) : { w: 40, h: c.h };
       if (size.w > width) throw new Error(`${c.kind ?? c.type} needs at least ${size.w}px; give it more columns or shorten its content`);
       if (size.h > 4000) throw new Error('content exceeds 4000px; split it into smaller objects');
+      if (pack === 'compact') {
+        // Place each window in the highest free span, breaking ties from the left.
+        const candidates = Array.from({ length: cols - span + 1 }, (_, at) => ({ at, y: Math.max(...bottoms.slice(at, at + span)) }));
+        const next = columns ? candidates[columns[i]] : candidates.reduce((best, candidate) => candidate.y < best.y ? candidate : best);
+        column = next.at; rowY = next.y;
+      }
       Object.assign(c, { x: x + column * (columnWidth + gap), y: rowY, w: width, h: Math.ceil(size.h), rot: 0 });
+      bottoms.fill(c.y + c.h + gap, column, column + span);
       rowHeight = Math.max(rowHeight, c.h); column += span;
     });
     return;
@@ -300,6 +329,10 @@ export function layout(cards, shape, { x, y, cols, spans, columnWidth = 84, gap 
 export function objectContentSize(card, width = card.w) {
   const d = card.data, inner = Math.max(80, width - 42), chrome = 70;
   const lines = (text, available, char = 8) => String(text ?? '').split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length * char / Math.max(40, available))), 0);
+  if (card.type === 'doc') return { w: 480, h: Math.max(200, 100 + lines(card.props?.body, width - 124, 10) * 30) };
+  if (card.type === 'deck') return { w: 660, h: Math.max(340, 70 + (width - 172) * 9 / 16) };
+  if (['note', 'todo'].includes(card.type)) return { w: 160, h: Math.max(80, 42 + lines(card.text, width - 40) * 24 + (card.heading ? 36 : 0) + (card.items?.length ?? 0) * 30) };
+  if (card.type !== 'object') return { w: 40, h: card.h };
   switch (card.kind) {
     case 'diagram': {
       // Renderer node metrics: 28px horizontal padding, 18px title lines, 16px note lines.
@@ -331,6 +364,10 @@ export function objectContentSize(card, width = card.w) {
     case 'list': return { w: 280, h: chrome + d.items.reduce((n, s) => n + lines(s.title, inner - 80) * 18 + (s.detail ? 3 + lines(s.detail, inner - 80) * 20 : 0) + 17, 0) };
     case 'code': return { w: Math.max(280, 90 + Math.max(...d.text.split('\n').map(s => s.length)) * 7.5), h: chrome + d.text.split('\n').length * 20 + (d.notes ?? []).reduce((n, s) => n + lines(s.text, inner - 50, 7) * 20 + 16, 0) };
     case 'plot': return { w: 420, h: chrome + (d.style === 'radar' ? 280 : ['donut', 'radial'].includes(d.style) ? 188 : d.style === 'bar_horizontal' ? Math.max(140, d.series[0].points.length * 28) : 220) + (d.headline ? 66 : 0) + 40 + lines(d.basis, inner, 6) * 18 + (d.series.length > 1 ? Math.ceil(d.series.length / 3) * 28 : 0) };
+    case 'stats': return { w: 280, h: chrome + Math.ceil(d.tiles.length / Math.max(1, Math.floor(inner / 160))) * 130 + (d.note ? 40 : 0) };
+    case 'progress': return { w: 300, h: chrome + d.goals.length * 74 };
+    case 'callout': return { w: 260, h: chrome + 28 + lines(d.text, inner) * 25 + (d.attribution ? 34 : 0) };
+    case 'html': return { w: 260, h: chrome + (d.height ?? 240) };
     default: return { w: OBJECT_SIZE[card.kind]?.[0] ?? 520, h: OBJECT_SIZE[card.kind]?.[1] ?? 360 };
   }
 }
