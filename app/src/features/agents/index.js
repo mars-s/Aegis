@@ -81,7 +81,7 @@ export function mountAgents({ canvas, host, toast, showAll }) {
   composer.addEventListener('open-composer', () => open(true));
   composer.addEventListener('close-composer', () => { if (!prompt.value.trim()) close(true); });
   addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
       e.preventDefault(); e.stopImmediatePropagation(); open(true);
     } else if (menu.contains(e.target)) {
       // Menu keys must reach the menu before the canvas's capture-phase shortcuts.

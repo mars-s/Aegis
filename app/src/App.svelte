@@ -45,11 +45,15 @@
       <div><kbd>⌘</kbd><kbd>scroll</kbd><span>zoom</span></div>
       <div><kbd>0</kbd><span>fit board</span></div>
       <div><kbd>⌘[ / ⌘]</kbd><span>Side bars, or stack selection</span></div>
-      <div><kbd>⌘K</kbd><span>Quick capture</span></div>
+      <!-- fix1: Ask and quick capture have separate shortcuts. -->
+      <div><kbd>⌘K / Ctrl+K</kbd><span>Ask</span></div>
+      <div><kbd>/</kbd><span>Ask</span></div>
+      <div><kbd>⇧⌘K / Shift+Ctrl+K</kbd><span>Quick capture</span></div>
+      <div><kbd>⌘Return / Ctrl+Return</kbd><span>Add as notes in Ask</span></div>
+      <!-- end fix1 -->
       <div><kbd>F</kbd><span>focus selection</span></div>
       <div><kbd>Shift+F</kbd><span>follow agents</span></div>
       <div><kbd>A</kbd><span>agents</span></div>
-      <div><kbd>/</kbd><span>composer</span></div>
       <div><kbd>\</kbd><span>side bar</span></div>
       <div><kbd>⌫</kbd><span>delete</span></div>
     </div>

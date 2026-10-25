@@ -5,7 +5,7 @@ import { registerDragHandler } from '../../canvas/engine.js';
 import './settings.css';
 
 export function mountSettings({ canvas, replayTour }) {
-  const capture = document.createElement('button'); capture.id = 'quickCapture'; capture.className = 'text-btn'; capture.textContent = '+ Idea'; capture.title = 'Quick capture (Cmd+K)';
+  const capture = document.createElement('button'); capture.id = 'quickCapture'; capture.className = 'text-btn'; capture.textContent = '+ Idea'; capture.title = 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)';
   capture.onclick = () => { const dialog = document.querySelector('.editing-capture'); const input = dialog.querySelector('input'); input.value = ''; if (!dialog.open) dialog.showModal(); input.focus(); };
   document.getElementById('retrySave').after(capture);
   const dialog = document.getElementById('settings');

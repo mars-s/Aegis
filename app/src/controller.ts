@@ -155,6 +155,14 @@ function foldTools(closed, focus = false) {
     const home = document.createComment('tool home'); button.before(home); toolHomes.set(button, home);
     button.dataset.customised = '1'; groups.get(group).append(button);
   }
+  // fix1: notes use the island's existing action without adding another pill control.
+  const notesSection = document.createElement('section'), notesHeading = document.createElement('h3'), notesGrid = document.createElement('div');
+  notesHeading.textContent = 'Writing'; notesGrid.className = 'tools-grid';
+  const notes = document.createElement('button'); notes.type = 'button'; notes.title = 'Add as notes (⌘Return / Ctrl+Return)';
+  notes.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3M5.5 8h5M5.5 10.5h5"/></svg><span class="tools-label">Add as notes</span>';
+  notes.onclick = () => { foldTools(true); $('composer').dispatchEvent(new Event('add-as-notes')); };
+  notesGrid.append(notes); notesSection.append(notesHeading, notesGrid); popover.append(notesSection);
+  // end fix1
   const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.textContent = 'Customise toolbar';
   customise.onclick = () => { foldTools(true); dock.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
   popover.append(customise); popover.hidden = false; dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
@@ -281,18 +289,19 @@ $('composer').addEventListener('submit', async e => {
     toast(`Sign in to ${provider === 'openai' ? 'ChatGPT' : 'Claude'} first`); settings.select('accounts'); renderAccounts(); $('settings').showModal(); return;
   }
   const count = Math.min(8, Math.max(1, Number($('count').value) || 1));
-  const sel = canvas.selection();
-  const full = sel.length ? `${brief}\n\n(Work on the selected cards: ${sel.join(', ')}.)` : brief;
+  // fix1: selection is host context, separate from the person's words.
+  const selectedIds = canvas.selection();
   $('send').disabled = true;
   const draft = promptEl.value;
   if (!current) agentUi.starting();
   promptEl.value = ''; promptEl.dispatchEvent(new Event('input')); closeComposer(composerViaKey);
   try {
-    if (current) await host.post(`/agents/${current.id}/message`, { content: full });
+    if (current) await host.post(`/agents/${current.id}/message`, { content: brief, selectedIds });
     else {
-      const spawned = await host.post('/agents', { boardId: canvas.board.id, brief: full, model: { provider, modelId }, statusModel: modelChoice(localStorage.getItem('aegis:status-model')), count });
+      const spawned = await host.post('/agents', { boardId: canvas.board.id, brief, selectedIds, model: { provider, modelId }, statusModel: modelChoice(localStorage.getItem('aegis:status-model')), count });
       agentUi.sent(spawned[0]?.id);
     }
+    // end fix1
     await refreshAgents();
   } catch (err) {
     if (!promptEl.value) { promptEl.value = draft; openComposer(true); }

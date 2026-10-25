@@ -7,7 +7,7 @@ import { checkObject } from '../app/src/lib/board/objects.js';
 // item 12 sandbox end
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
 // item 9: publish durable conversation replies to the island and agent windows.
-import { conversationFromView } from './status.mjs';
+import { conversationFromView, displayBrief } from './status.mjs';
 // item 9 end
 import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -388,10 +388,15 @@ function compactBoard(board, { ids, offset = 0, limit = 100, detail = false } = 
     truncated: offset + cards.length < chosen.length,
   };
 }
-function boardInput(brief, board) {
+function boardInput(brief, board, selectedIds = []) {
   const summary = JSON.stringify(compactBoard(board));
   timing({ kind: 'context', summaryBytes: Buffer.byteLength(summary), cards: board.cards.length });
-  return [{ type: 'text', text: brief }, { type: 'text', text: 'Current board summary (use these ids directly; board_read is only needed for details or later changes):\n' + summary }];
+  // fix1: only the first content part is chat. Selection and board data stay model context.
+  const selected = Array.isArray(selectedIds) ? board.cards.filter(c => selectedIds.includes(c.id)).map(c => c.id) : [];
+  return [{ type: 'text', text: brief },
+    ...(selected.length ? [{ type: 'text', text: `Work on the selected cards: ${selected.join(', ')}.` }] : []),
+    { type: 'text', text: 'Current board summary (use these ids directly; board_read is only needed for details or later changes):\n' + summary }];
+  // end fix1
 }
 const layoutWork = brief => /\b(sort|tidy|organis[ez]|arrange|align|layout|lay out|clean up)\b/i.test(brief) && !/\b(research|analyse|analyze|investigate)\b/i.test(brief);
 const layoutThinking = (brief, target) => layoutWork(brief) && target.reasoning && target.thinkingLevelMap?.low !== null ? 'low' : null;
@@ -654,13 +659,14 @@ function summarise(id, value) {
   const tools = Object.values(live?.tools ?? {}).map(t => t.name ?? t.call?.name).filter(Boolean);
   const partial = live?.generation?.message?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
-  return { id, boardId: meta.boardId, brief: meta.brief, model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ?? null, summary: meta.summary ?? null,
+  // fix1: clean legacy briefs before every chat, title and activity display.
+  return { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
     // item 9
     ...conversation, error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
     // item 9 end
 }
-async function spawnAgent({ boardId, brief, model, statusModel, parent, title }) {
+async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, parent, title }) {
   // item 10: include compact context immediately and use low effort for mechanical layout work.
   const board = await loadBoard(boardId); if (!board) throw new Error('no such board');
   const choices = modelList();
@@ -676,11 +682,11 @@ async function spawnAgent({ boardId, brief, model, statusModel, parent, title })
   run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, statusModel, created: Date.now(), ...(parent ? { parent, title } : {}) });
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
-  await conversation.submit({ type: 'input', content: boardInput(brief, board), requestId: randomUUID() }, context);
+  await conversation.submit({ type: 'input', content: boardInput(brief, board, selectedIds), requestId: randomUUID() }, context);
   // end item 10
   return { id };
 }
-async function message(id, content) {
+async function message(id, content, selectedIds) {
   const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
   if (!conversation || !run.has(String(id))) throw new Error('no such agent');
   const meta = run.get(String(id)); meta.brief = content.slice(0, 2000); meta.stopped = false; statuses.delete(String(id));
@@ -689,7 +695,7 @@ async function message(id, content) {
   // item 10: follow-ups also receive the latest revision, so they need no speculative board_read.
   const board = await loadBoard(meta.boardId);
   await conversation.configure({ thinkingLevel: layoutThinking(content, models.getModel(meta.model.provider, meta.model.modelId)) }, context);
-  await conversation.submit({ type: 'input', content: board ? boardInput(content, board) : content, requestId: randomUUID() }, context);
+  await conversation.submit({ type: 'input', content: board ? boardInput(content, board, selectedIds) : content, requestId: randomUUID() }, context);
   // end item 10
 }
 async function stop(id) {
@@ -786,13 +792,18 @@ const server = http.createServer(async (req, res) => {
     if (p === '/ui-update/rollback' && m === 'POST') return send(res, 200, await ui.rollback());
     if (p === '/agents' && m === 'GET') return send(res, 200, await agents(url.searchParams.get('board')));
     if (p === '/agents' && m === 'POST') {
-      const { boardId, brief, model, statusModel, count } = await body(req);
+      const { boardId, brief, selectedIds, model, statusModel, count } = await body(req);
       const n = Math.min(8, Math.max(1, Number(count) || 1)); const out = [];
-      for (let i = 0; i < n; i++) out.push(await spawnAgent({ boardId, brief: String(brief ?? '').trim() || 'Sort this board.', model, statusModel }));
+      for (let i = 0; i < n; i++) out.push(await spawnAgent({ boardId, brief: String(brief ?? '').trim() || 'Sort this board.', selectedIds, model, statusModel }));
       return send(res, 200, out);
     }
     const am = p.match(/^\/agents\/([a-zA-Z0-9-]+)\/(message|stop)$/);
-    if (am && m === 'POST') { if (am[2] === 'stop') await stop(am[1]); else await message(am[1], String((await body(req)).content ?? '')); return send(res, 200, { ok: true }); }
+    // fix1: follow-ups carry the same separate selection context as new requests.
+    if (am && m === 'POST') {
+      if (am[2] === 'stop') await stop(am[1]);
+      else { const { content, selectedIds } = await body(req); await message(am[1], String(content ?? ''), selectedIds); }
+      return send(res, 200, { ok: true });
+    }
     if (p === '/models') return send(res, 200, modelList());
     if (p === '/rewrite' && m === 'POST') return send(res, 200, await rewriteText(await body(req)));
     if (p === '/auth' && m === 'GET') return send(res, 200, await authState());

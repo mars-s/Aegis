@@ -40,7 +40,7 @@ export function mountMobile({ pickTool, tools, showAgents }) {
           const b = document.createElement('button'); b.textContent = tool?.title ?? source.title.replace(/\s*\([^)]*\)$/, ''); b.onclick = () => { const id = source.dataset.tool; close(); if (id === 'wireframe') open('wireframe'); else pickTool(id); }; section.append(b);
         }
         if (name === 'Basics') {
-          const capture = document.createElement('button'); capture.dataset.capture = '1'; capture.textContent = 'Quick capture (Cmd+K)'; capture.onclick = () => { close(); document.getElementById('quickCapture').click(); }; section.append(capture);
+          const capture = document.createElement('button'); capture.dataset.capture = '1'; capture.textContent = 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)'; capture.onclick = () => { close(); document.getElementById('quickCapture').click(); }; section.append(capture);
         }
         body.append(section);
       }

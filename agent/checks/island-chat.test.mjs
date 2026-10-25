@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { conversationFromView } from '../status.mjs';
+import { conversationFromView, displayBrief } from '../status.mjs';
 
 let child, base;
 const token = 'island-chat-' + process.pid;
@@ -26,6 +26,13 @@ const respond = async ctx => {
   const messages = ctx.messages;
   const latest = messages.findLastIndex(m => m.role === 'user');
   const content = messages[latest].content;
+  if (Array.isArray(content) && content[0]?.text.startsWith('Selection check')) {
+    assert.equal(content.length, 3);
+    assert.match(content[0].text, /^Selection check: (first|follow-up)$/);
+    assert.equal(content[1].text, 'Work on the selected cards: selecta, selectb.');
+    assert.match(content[2].text, /^Current board summary/);
+    return say('I received the selection separately.');
+  }
   const request = typeof content === 'string' ? content : content.filter(c => c.type === 'text').map(c => c.text).join('');
   const results = messages.slice(latest).filter(m => m.role === 'toolResult');
   if (!results.length) return say(tool('board_read', {}), { stopReason: 'toolUse' });
@@ -111,4 +118,37 @@ test('tool commentary and tool results stay out of conversation; streaming text 
     { id: 'a', kind: 'pi.assistant', model: [{ content: [{ type: 'text', text: 'All tidy.' }] }] },
   ], docs: { 'pi.live': { generation: { message: { content: [{ type: 'text', text: 'Writing a follow-up' }] } } } } });
   assert.deepEqual(result, { turns: [{ id: 'u', role: 'user', text: 'Tidy this board' }, { id: 'a', role: 'assistant', text: 'All tidy.' }], text: 'All tidy.', partial: 'Writing a follow-up' });
+});
+
+test('new requests and follow-ups deliver selection context to the model without adding it to chat or the brief', async () => {
+  const board = await call('/boards', { name: 'Selection context' });
+  await call(`/boards/${board.id}/batch`, { commands: ['selecta', 'selectb', 'outside'].map(newId => ({ op: 'create', newId, type: 'note', text: newId })) });
+  const selectedIds = ['selecta', 'selectb', 'missing'];
+  const [{ id }] = await call('/agents', { boardId: board.id, brief: 'Selection check: first', selectedIds, model });
+  const agent = await done(board.id, id, 1);
+  assert.equal(agent.brief, 'Selection check: first');
+  assert.equal(agent.turns[0].text, agent.brief);
+  assert.equal(agent.text, 'I received the selection separately.');
+  await call(`/agents/${id}/message`, { content: 'Selection check: follow-up', selectedIds });
+  const follow = await done(board.id, id, 2);
+  assert.equal(follow.brief, 'Selection check: follow-up');
+  assert.deepEqual(follow.turns.filter(t => t.role === 'user').map(t => t.text), ['Selection check: first', 'Selection check: follow-up']);
+  assert.equal(follow.text, 'I received the selection separately.');
+});
+
+test('legacy selection suffixes are stripped on display while typed prose and assistant replies stay intact', async () => {
+  const typed = 'Tidy these ideas\nKeep the headings';
+  const legacy = typed + '\n\n(Work on the selected cards: selecta, selectb.)';
+  const result = conversationFromView({ entries: [
+    { kind: 'pi.user', model: [{ content: legacy }] },
+    { kind: 'pi.user', model: [{ content: [{ type: 'text', text: legacy }, { type: 'text', text: 'Current board summary: private context' }] }] },
+    { kind: 'pi.assistant', model: [{ content: [{ type: 'text', text: legacy }] }] },
+  ] });
+  assert.deepEqual(result.turns.map(t => t.text), [typed, typed, legacy]);
+  assert.equal(displayBrief('Explain (Work on the selected cards: selecta.) in this sentence'), 'Explain (Work on the selected cards: selecta.) in this sentence');
+  const board = await call('/boards', { name: 'Legacy brief' });
+  const [{ id }] = await call('/agents', { boardId: board.id, brief: legacy, model });
+  const agent = await done(board.id, id, 1);
+  assert.equal(agent.brief, typed);
+  assert.equal(agent.turns[0].text, typed);
 });

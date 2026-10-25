@@ -1,0 +1,141 @@
+import { chromium } from './playwright.mjs';
+import { out } from './out.mjs';
+import { spawn } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import assert from 'node:assert/strict';
+
+const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
+const webPort = 5196 + Number(process.env.AEGIS_PORT_OFFSET || 0), token = 'polish-' + process.pid;
+const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+  cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-polish-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
+});
+host.stderr.on('data', d => process.stderr.write(d));
+const port = await new Promise((resolve, reject) => {
+  host.stdout.on('data', d => { const match = /"port":(\d+)/.exec(String(d)); if (match) resolve(match[1]); });
+  host.on('exit', code => reject(Error('Host exited: ' + code)));
+});
+const vite = spawn('npx', ['vite', '--port', String(webPort), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
+await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.on('exit', code => reject(Error('Vite exited: ' + code))); });
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
+await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+const errors = [], requests = [], capture = Date.now();
+page.on('pageerror', error => errors.push(error.message));
+page.on('request', r => { if (r.method() === 'POST' && /\/agents(?:$|\/)/.test(new URL(r.url()).pathname)) requests.push({ path: new URL(r.url()).pathname, data: r.postDataJSON() }); });
+const saved = async () => {
+  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).rev === aegis.canvas.board.rev);
+  return page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
+};
+const agents = () => page.evaluate(() => aegis.host.get(`/agents?board=${aegis.canvas.board.id}`));
+const shot = name => page.screenshot({ path: out(`fix1-${capture}-${name}.png`) });
+const assertChat = async (id, text) => {
+  await page.waitForFunction(({ id, text }) => [...document.querySelectorAll(`.agent-window[data-agent-id="${id}"] .island-turn.user p`)].at(-1)?.textContent === text, { id, text });
+  const window = page.locator(`.agent-window[data-agent-id="${id}"]`);
+  assert.equal(await window.locator('.island-turn.user p').last().textContent(), text);
+  assert.equal(await window.locator('.agent-window-title').textContent(), `Agent · ${text.split('\n')[0].slice(0, 42)}`);
+  await page.keyboard.press('Meta+k');
+  await page.waitForFunction(text => [...document.querySelectorAll('#composer .island-turn.user p')].at(-1)?.textContent === text, text);
+  assert.equal(await page.locator('#composer .island-turn.user p').last().textContent(), text);
+  assert.doesNotMatch(await page.locator('#composer .island-turns').textContent(), /Work on the selected cards|Current board summary/);
+};
+
+try {
+  await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
+  await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
+  const prompt = page.locator('#prompt'), captureDialog = page.getByRole('dialog', { name: 'Quick capture', exact: true });
+  const hints = await page.locator('.editing-hints').textContent();
+  assert.match(hints, /⌘K Ask/); assert.match(hints, /⇧⌘K Quick capture/); assert.doesNotMatch(hints, /⌘K Capture/);
+  assert.equal(await page.locator('#quickCapture').getAttribute('title'), 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)');
+  assert.match(await page.locator('[data-panel="keys"] .keys').textContent(), /⌘K \/ Ctrl\+KAsk/);
+  assert.match(await page.locator('[data-panel="keys"] .keys').textContent(), /⇧⌘K \/ Shift\+Ctrl\+KQuick capture/);
+  for (const mod of ['Meta', 'Control']) {
+    await page.keyboard.press(`${mod}+k`);
+    assert.equal(await prompt.evaluate(el => document.activeElement === el), true);
+    assert.equal(await captureDialog.isVisible(), false);
+    await prompt.fill('A draft kept while capturing');
+    await page.keyboard.press(`${mod}+Shift+k`);
+    assert.equal(await captureDialog.isVisible(), true);
+    assert.equal(await page.getByLabel('Capture idea', { exact: true }).evaluate(el => document.activeElement === el), true);
+    assert.equal(await prompt.inputValue(), 'A draft kept while capturing');
+    await page.getByLabel('Capture idea', { exact: true }).fill(`${mod} captured idea`);
+    await page.getByLabel('Capture idea', { exact: true }).press('Enter');
+    assert.equal((await saved()).tray[0].text, `${mod} captured idea`);
+    assert.equal(await prompt.inputValue(), 'A draft kept while capturing');
+    await prompt.fill(''); await prompt.press('Escape');
+  }
+  assert.equal((await saved()).tray.length, 2);
+  assert.equal(requests.length, 0);
+  await page.locator('#quickCapture').click(); assert.equal(await captureDialog.isVisible(), true); await page.keyboard.press('Escape');
+  console.log('PASS Cmd/Ctrl+K opens Ask, Shift+Cmd/Ctrl+K captures once, drafts survive, hints/panel/Idea labels match');
+
+  await page.evaluate(() => { window.notesEvents = 0; document.getElementById('composer').addEventListener('add-as-notes', () => window.notesEvents++); });
+  await page.keyboard.press('Meta+k'); await prompt.fill('Grid first idea\nGrid second idea'); await prompt.press('Escape');
+  await page.locator('#toolsFold').click();
+  const gridNotes = page.locator('#toolsPopover').getByRole('button', { name: 'Add as notes', exact: true });
+  assert.equal(await gridNotes.isVisible(), true); assert.ok((await gridNotes.boundingBox()).height >= 44);
+  await shot('more-tools-1440');
+  await page.setViewportSize({ width: 1586, height: 992 });
+  await page.waitForFunction(() => document.getElementById('toolsPopover').hidden);
+  if (!(await gridNotes.isVisible())) await page.locator('#toolsFold').click();
+  await shot('more-tools-1586');
+  await gridNotes.press('Enter');
+  let board = await saved();
+  assert.deepEqual(board.cards.map(c => c.text).sort(), ['Grid first idea', 'Grid second idea']);
+  assert.equal(await prompt.inputValue(), ''); assert.equal(await page.locator('#toolsPopover').isVisible(), false);
+  await page.keyboard.press('Meta+k'); await prompt.fill('Menu idea'); await page.locator('#orbMenuButton').click();
+  const menuNotes = page.locator('#orbMenu').getByRole('menuitem', { name: /^Add as notes/ });
+  assert.ok((await menuNotes.boundingBox()).height >= 44); await shot('notes-options-1586'); await menuNotes.press('Enter');
+  board = await saved(); assert.ok(board.cards.some(c => c.text === 'Menu idea'));
+  assert.equal(await page.evaluate(() => window.notesEvents), 2); assert.equal(requests.length, 0);
+  await page.keyboard.press('Meta+k'); await prompt.fill('Keyboard idea'); await prompt.press('Meta+Enter');
+  board = await saved(); assert.ok(board.cards.some(c => c.text === 'Keyboard idea'));
+  console.log('PASS More tools and orb options dispatch add-as-notes, save typed notes, clear the draft and start zero agents; Cmd+Return still works');
+
+  const selectedIds = board.cards.slice(0, 2).map(c => c.id);
+  await page.evaluate(ids => aegis.canvas.select(ids), selectedIds);
+  await page.keyboard.press('Meta+k'); const brief = 'Tidy just these ideas\nKeep all my words'; await prompt.fill(brief); await prompt.press('Enter');
+  await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).some(a => !a.running && a.turns.length === 2));
+  const [{ id }] = await agents();
+  assert.equal(requests[0].data.brief, brief); assert.deepEqual(requests[0].data.selectedIds, selectedIds);
+  await assertChat(id, brief); await shot('selected-conversation-1586');
+  const follow = 'Keep these headings'; await prompt.fill(follow); await prompt.press('Enter');
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 4, id);
+  assert.equal(requests[1].path, `/agents/${id}/message`); assert.equal(requests[1].data.content, follow); assert.deepEqual(requests[1].data.selectedIds, selectedIds);
+  await assertChat(id, follow); await prompt.press('Escape');
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await assertChat(id, follow); await prompt.press('Escape');
+  const legacy = 'Saved request';
+  const [{ id: oldId }] = await page.evaluate(({ brief, selectedIds }) => aegis.host.post('/agents', {
+    boardId: aegis.canvas.board.id, brief: `${brief}\n\n(Work on the selected cards: ${selectedIds.join(', ')}.)`, model: { provider: 'fake', modelId: 'fake' },
+  }), { brief: legacy, selectedIds });
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 2, oldId);
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await assertChat(oldId, legacy); await shot('legacy-conversation-1440'); await prompt.press('Escape');
+  console.log('PASS selection IDs travel separately on spawn/follow-up; windows, titles and island show only typed text; reload and legacy saved suffixes are clean');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const hub = page.locator('#mobileHub');
+  await hub.getByRole('button', { name: 'Add', exact: true }).click();
+  assert.equal(await page.getByRole('button', { name: 'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)', exact: true }).isVisible(), true);
+  await shot('phone-add-390'); await page.getByLabel('Close sheet', { exact: true }).click();
+  await hub.getByRole('button', { name: 'Agents', exact: true }).click();
+  await prompt.fill('Touch menu idea'); await page.locator('#orbMenuButton').click(); await shot('phone-notes-options-390');
+  const beforePhoneNotes = requests.length;
+  await page.locator('#orbMenu').getByRole('menuitem', { name: /^Add as notes/ }).click();
+  assert.ok((await saved()).cards.some(c => c.text === 'Touch menu idea')); assert.equal(requests.length, beforePhoneNotes);
+  await page.getByLabel('Close sheet', { exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 992 });
+  await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'About', exact: true }).click();
+  await page.getByRole('button', { name: 'Replay welcome and tour', exact: true }).click();
+  await page.getByRole('button', { name: 'Start tour', exact: true }).click(); await page.keyboard.press('ArrowRight');
+  assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Cmd\+K/); assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Ctrl\+K/);
+  await page.keyboard.press('Meta+Shift+k'); assert.equal(await captureDialog.isVisible(), false, 'capture cannot steal the onboarding modal');
+  await page.keyboard.press('Control+k'); assert.equal(await prompt.evaluate(el => document.activeElement === el), false, 'Ask cannot steal the onboarding modal');
+  await page.getByRole('button', { name: 'Skip', exact: true }).click();
+  assert.deepEqual(errors, []);
+  console.log('PASS phone Add label, touch Add as notes and onboarding shortcuts match behaviour; open dialogs retain focus; no page errors');
+} catch (error) {
+  console.error(error); console.error('page errors', errors); process.exitCode = 1; await shot('failure');
+} finally { await browser.close(); host.kill(); vite.kill(); }

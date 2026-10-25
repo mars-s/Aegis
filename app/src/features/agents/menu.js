@@ -35,6 +35,9 @@ export function mountIslandMenu({ island, current, shortTitle, agents, newAgent,
       localStorage.setItem('aegis:status-model', value); document.dispatchEvent(new Event('aegis-models'));
     }), { value: [...source.options].find(o => o.value === statusValue)?.textContent, submenu: true });
     menu.append(document.createElement('hr'));
+    item('Add as notes', () => {
+      close(); document.getElementById('composer').dispatchEvent(new Event('add-as-notes'));
+    }, { value: '⌘Return / Ctrl+Return' });
     item('New agent', newAgent);
     item('All agents', () => { close(); showAll(); });
     for (const a of agents()) item(shortTitle(a), () => { close(); show(a.id); }, { value: a.running ? 'Working' : 'Ready', checked: current()?.id === a.id });

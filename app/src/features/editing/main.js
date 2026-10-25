@@ -80,7 +80,7 @@ export function mountEditing(ctx) {
   }
   addEventListener('keydown', e => {
     const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
-    if (mod && key === 'k') { e.preventDefault(); e.stopImmediatePropagation(); navigation.capture(); return; }
+    if (mod && e.shiftKey && !e.altKey && key === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); e.stopImmediatePropagation(); navigation.capture(); return; }
     if (typing(e) || gesture || canvas.busy()) return;
     let handled = true;
     if (mod && key === 'z') { if (!history.travel(e.shiftKey ? 1 : -1)) toast(e.shiftKey ? 'Nothing left to redo' : 'Nothing left to undo'); }
@@ -275,7 +275,7 @@ export function mountEditing(ctx) {
     if (!trayEl || !canvas.board) return;
     const sig = JSON.stringify([canvas.board.id, canvas.board.tray]); if (sig === traySig) return; traySig = sig;
     trayEl.replaceChildren(); const items = canvas.board.tray ?? [];
-    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : 'Capture ideas with ⌘K. Drag cards here to put them aside.'; trayEl.append(hint);
+    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : 'Capture ideas with ⇧⌘K. Drag cards here to put them aside.'; trayEl.append(hint);
     for (const item of items) {
       const row = document.createElement('button'); row.className = 'tray-item'; row.textContent = item.text || item.heading || item.url || item.type; row.dataset.id = item.id;
       row.onclick = () => release(item, canvas.centre());

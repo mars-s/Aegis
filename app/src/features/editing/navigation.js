@@ -22,7 +22,7 @@ export function mountNavigation(ctx, { exportBoard }) {
   const showPanels = document.createElement('button'); showPanels.className = 'show-panels pill'; showPanels.textContent = 'Show panels'; showPanels.hidden = true; document.body.append(showPanels);
   const clean = on => { document.body.classList.toggle('just-board', on); showPanels.hidden = !on; canvas.redraw(); };
   showPanels.onclick = () => clean(false);
-  const hints = document.createElement('div'); hints.className = 'editing-hints'; hints.innerHTML = '<button aria-label="Hide keyboard hints" title="Hide keyboard hints">×</button><span>⌘K Capture</span><span>Double-click Note</span><span>F Focus · Shift+F Follow agents</span><span>⌘\\ Just the board · Space+drag Pan</span>'; document.body.append(hints);
+  const hints = document.createElement('div'); hints.className = 'editing-hints'; hints.innerHTML = '<button aria-label="Hide keyboard hints" title="Hide keyboard hints">×</button><span>⌘K Ask</span><span>⇧⌘K Quick capture</span><span>Double-click Note</span><span>F Focus · Shift+F Follow agents</span><span>⌘\\ Just the board · Space+drag Pan</span>'; document.body.append(hints);
   hints.hidden = localStorage.getItem('aegis:hints') === 'hide';
   hints.querySelector('button').onclick = () => { hints.hidden = true; localStorage.setItem('aegis:hints', 'hide'); };
   const zoom = document.createElement('button'); zoom.className = 'text-btn zoom-readout'; zoom.title = 'Zoom'; zoom.setAttribute('aria-label', 'Zoom menu'); document.querySelector('.bar-right').prepend(zoom);
