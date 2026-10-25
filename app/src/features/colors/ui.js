@@ -89,7 +89,10 @@ export function mountColours(el, ctx) {
   const refresh = () => {
     const board = ctx.canvas.board; if (!board) return;
     if (menuBoard && menuBoard !== board.id) closeMenu();
-    const rows = boardColours(board), sig = JSON.stringify([board.id, board.bg, board.palette, rows]); if (sig === signature) return; signature = sig;
+    const rows = boardColours(board), sig = JSON.stringify([board.id, board.bg, board.palette, rows]); if (sig === signature) return;
+    // A rebuild would replace the open menu's trigger and close it; rebuild once the menu closes.
+    if (menuBoard && menuBoard === board.id && document.querySelector('.palette-menu')) return;
+    signature = sig;
     el.replaceChildren();
     const controls = node('div', 'colour-actions'); el.append(controls);
     button('Add colour', () => createSwatch(ctx), controls);
@@ -115,7 +118,7 @@ export function mountColours(el, ctx) {
         event.preventDefault(); event.stopPropagation(); closeMenu(); menuBoard = board.id;
         const menu = node('div', 'palette-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Palette colour');
         document.body.append(menu);
-        const popup = createPopup({ trigger: dot, menu, onToggle(on) { if (!on) { menu.remove(); popup.destroy(); if (closeMenu === dismiss) closeMenu = () => {}; } } });
+        const popup = createPopup({ trigger: dot, menu, onToggle(on) { if (!on) { menu.remove(); popup.destroy(); if (closeMenu === dismiss) closeMenu = () => {}; menuBoard = undefined; queueMicrotask(refresh); } } });
         const dismiss = () => popup.destroy(); closeMenu = dismiss;
         const actions = [['Add to the board', () => createSwatch(ctx, undefined, p.hex, p.name, false)], ['Rename', () => edit(true)], ['Change colour…', () => edit()], ['Remove from board colours', () => remove.click()]];
         for (const [label, action] of actions) { const item = button(label, () => { closeMenu(); action(); }, menu); item.setAttribute('role', 'menuitem'); }
