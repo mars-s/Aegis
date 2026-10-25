@@ -68,7 +68,9 @@ function withBoard(id, fn) {
   const prev = boardLocks.get(id) ?? Promise.resolve();
   const next = prev.then(fn, fn); boardLocks.set(id, next.catch(() => {})); return next;
 }
-async function loadBoard(id) { return readJson(boardPath(id), null); }
+// Round 3 Undo: summaries use the latest saved board to show conflicts before clicking.
+const historyBoards = new Map();
+async function loadBoard(id) { const board = await readJson(boardPath(id), null); if (board && board.rev >= (historyBoards.get(id)?.rev ?? -1)) historyBoards.set(id, board); return board; }
 async function listBoards() {
   const out = [];
   for (const f of await readdir(BOARDS).catch(() => [])) if (f.endsWith('.json')) {
@@ -88,6 +90,7 @@ async function commit(boardId, batch, author, expectedRev) {
     const applied = performance.now();
     if (!result.ok) return { ok: false, rev: board.rev, errors: result.errors };
     await atomicJson(boardPath(boardId), result.board);
+    historyBoards.set(boardId, result.board);
     const saved = performance.now();
     // item 10: publish the committed diff before the tool returns or the next model turn starts.
     const before = new Map(board.cards.map(c => [c.id, c]));
@@ -122,6 +125,8 @@ async function commit(boardId, batch, author, expectedRev) {
       }
     }
     broadcast({ type: 'board', boardId, baseRev: board.rev, rev: result.board.rev, patch, author, touched: result.touched, focus: result.board.focus ?? null, sentAt: Date.now() });
+    // Round 3 Undo: person edits also refresh the request's availability in both timelines.
+    for (const [id, view] of watching) if (run.get(id)?.boardId === boardId) broadcast({ type: 'agent', ...summarise(id, view.value) });
     timing({ kind: 'batch', boardId, commands: batch.commands.length, loadMs: loaded - started, applyMs: applied - loaded, saveMs: saved - applied, totalMs: performance.now() - started });
     return { ok: true, rev: result.board.rev, created: result.created };
   });
@@ -720,7 +725,7 @@ function summarise(id, value) {
   return { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
     // item 9
-    ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
+    ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }, historyBoards.get(meta.boardId)), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
     // item 9 end
 }
 async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, parent, title }) {
@@ -771,6 +776,8 @@ async function stop(id) {
 }
 async function agents(boardId) {
   const out = [];
+  // Round 3 Undo: refresh saved field values after a host restart too.
+  for (const id of new Set([...run.values()].filter(meta => !boardId || meta.boardId === boardId).map(meta => meta.boardId))) await loadBoard(id);
   for (const [id, meta] of run) if (!boardId || meta.boardId === boardId) {
     const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
     if (!conversation) continue;

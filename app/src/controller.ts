@@ -121,7 +121,8 @@ function setFollow(on) {
 function followTo(ids, force = false) {
   ids = ids.filter(id => canvas.board.cards.some(c => c.id === id)); if (!ids.length) return;
   if (force || (follow && !canvas.busy() && performance.now() - lastTouch > 1500)) {
-    canvas.frameIds(ids); setTimeout(() => canvas.glow(ids), 450); return;
+    // Round 3 agents: frame the result together with its spatial agent windows.
+    canvas.frameIds(ids, 1, true); setTimeout(() => canvas.glow(ids), 450); return;
   }
   pendingFocus = ids; $('showChip').hidden = false; canvas.glow(ids);
 }
@@ -381,12 +382,14 @@ async function agentBoardEvent(ev) {
     const next = { ...canvas.board, rev: ev.rev, focus: ev.focus, cards: byId ? ev.patch.order.map(id => byId.get(id)).filter(Boolean) : cards, links: ev.patch.links ?? canvas.board.links };
     for (const [key, value] of Object.entries(ev.patch.fields)) { if (value === null) delete next[key]; else next[key] = value; }
     canvas.setBoard(next, { animate: true, agentIds: [...ev.patch.cards.map(c => c.id), ...ev.patch.removed] }); refreshEmpty();
-    if (focus?.ids?.length) followTo(focus.ids);
-  } else await reloadBoard(focus);
+  } else await reloadBoard();
+  // Round 3 agents: place the window before calculating the result's camera bounds.
+  if (!ev.author.undoRequest && ev.touched?.length) agentUi.near(ev.author.conversationId, ev.touched);
+  if (focus?.ids?.length) followTo(focus.ids);
   clearTimeout(libraryRefreshTimer); libraryRefreshTimer = setTimeout(() => library.refresh(), 200);
   // Round 2 agents: undo clears stale lines; all other changes use the one blue.
   if (ev.author.undoRequest) { canvas.clearAgentLine(); editing.history.flush(); }
-  else if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, 'var(--data)', 4000, `${who ? agentUi.nameOf(who) : 'Agent'}: ${who?.title || who?.brief?.split('\n')[0]?.replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId), lineStyleOf(ev.author.conversationId)); }
+  else if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); canvas.ring(ev.touched, 'var(--data)', 4000, `${who ? agentUi.nameOf(who) : 'Agent'}: ${who?.title || who?.brief?.split('\n')[0]?.replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId), lineStyleOf(ev.author.conversationId)); }
 }
 // end item 10
 function listen() {
@@ -500,6 +503,8 @@ function showContext(x, y, at, ids) {
 }
 addEventListener('keydown', e => {
   if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
+  // R3 merge: let focused controls handle their own native activation keys.
+  if (['Enter', ' '].includes(e.key) && e.target.closest?.('button, summary, a, [role="button"], [role="combobox"]')) return;
   const combo = `${e.metaKey || e.ctrlKey ? 'mod+' : ''}${e.shiftKey ? 'shift+' : ''}${e.altKey ? 'alt+' : ''}${e.key.toLowerCase()}`;
   const c = registry.commands.find(x => x.keys === combo && (!x.when || x.when(ctx)));
   if (c) { e.preventDefault(); e.stopImmediatePropagation(); c.run(ctx); }

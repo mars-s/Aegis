@@ -24,7 +24,7 @@ try {
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
-  const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
+  const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
   const uiMenu = title => page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
@@ -351,6 +351,7 @@ try {
   assert.equal(brainData.cards.length, 2); assert.equal(brainData.tray.length, 5);
   await page.waitForFunction(() => document.querySelectorAll('.tray-item').length === 5);
   const trayNote = brainData.tray[0].text;
+  if (await page.locator('#boardName').getAttribute('aria-expanded') !== 'true') await page.locator('#boardName').click();
   await page.locator('.tray-item').first().click();
   await waitForAsync(page, async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.cards.length === 3 && b.tray.length === 4; });
   assert.ok((await api(`/boards/${brainDump}`)).cards.some(c => c.text === trayNote));

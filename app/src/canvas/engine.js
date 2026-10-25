@@ -611,19 +611,24 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (t < 1) anim = requestAnimationFrame(step); };
     anim = requestAnimationFrame(step);
   }
-  function frameIds(ids, maxZ = 1) {
-    const cards = board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')); if (!cards.length) return;
-    const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y));
-    const x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
+  // Round 3 agents: spatial windows join Fit and agent-result framing only.
+  let agentBounds = () => [];
+  function frameArea() {
     // Frame inside the free area: right of the side bar and tool bar, above the composer.
     const left = Math.max(0, ...[...document.querySelectorAll('.side:not(.side-right):not([hidden]) .pbox:not([hidden]), .tools')].map(el => el.getBoundingClientRect().right)) + 24;
     const rightPanel = document.querySelector('.side-right:not([hidden])');
     const right = rightPanel && rightPanel.getBoundingClientRect().width ? stage.clientWidth - rightPanel.getBoundingClientRect().left + 24 : 24;
-    const W = Math.max(160, stage.clientWidth - left - right), H = stage.clientHeight - (document.body.classList.contains('just-board') ? 64 : 160), pad = 56;
-    const z = Math.min(maxZ, (W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
-    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: 44 + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) });
+    return { x: left, y: 44, w: Math.max(160, stage.clientWidth - left - right), h: Math.max(160, stage.clientHeight - (document.body.classList.contains('just-board') ? 64 : 160)) };
   }
-  function fit() { if (board?.cards.length) frameIds(board.cards.map(c => c.id)); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
+  function frameIds(ids, maxZ = 1, includeAgents = false) {
+    const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...(includeAgents ? agentBounds() : [])]; if (!cards.length) return;
+    const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y));
+    const x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
+    const { x: left, y: top, w: W, h: H } = frameArea(), pad = 56;
+    const z = Math.min(maxZ, (W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
+    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: top + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) });
+  }
+  function fit() { if (board?.cards.length || agentBounds().length) frameIds(board.cards.map(c => c.id), 1, true); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
   function glow(ids) {
     for (const id of ids) {
       clearTimeout(flashes.get(id));
@@ -712,6 +717,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     // PM 7: shared editor open and close hook.
     setEditorSource,
     // end PM 7
+    setAgentBounds(provider) { agentBounds = provider; },
+    viewportRect() { const area = frameArea(), p = screenToWorld(area.x, area.y); return { ...p, w: area.w / view.z, h: area.h / view.z }; },
     exportCard: renderCard, releaseCard: removeEl,
     get tool() { return tool; },
     screenToWorld, worldToScreen: (x, y) => ({ x: x * view.z + view.x, y: y * view.z + view.y }),

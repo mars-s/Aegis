@@ -118,9 +118,24 @@ body.motion-off .agent-island .island-icon { transition-property: opacity, backg
 .agent-history-summary { color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 .agent-history-window { margin-top: 4px !important; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .agent-history time { display: block; margin-top: 5px; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
-.agent-history-undo { flex: none; width: 44px; min-width: 44px; height: 44px; padding: 14px; color: var(--muted); }
+.agent-history .agent-history-undo { display: flex; align-items: center; justify-content: center; gap: 5px; flex: none; width: auto; min-width: 64px; height: 44px; padding: 0 6px; color: var(--muted); font-size: 12px; }
 .agent-history-undo svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .agent-summary .agent-history { margin: 16px 0 0 3px; }
+/* Round 3 agents: quiet disclosures and a reachable off-screen star. */
+.agent-edges { position: fixed; inset: 0; z-index: 19; pointer-events: none; }
+.agent-history-details > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; color: var(--muted); cursor: pointer; font-size: 12px; }
+.agent-history-details > summary::before { content: '›'; flex: none; font-size: 16px; }
+.agent-history-details[open] > summary::before { transform: rotate(90deg); }
+.agent-history-details > summary:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; border-radius: 3px; }
+.agent-history-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-history-more { flex: none; color: var(--faint); }
+.agent-history-blocked { margin-top: 6px !important; font-size: 11px; line-height: 1.5; color: var(--muted); }
+.agent-edge { position: absolute; left: 0; top: 0; z-index: 19; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--data); pointer-events: auto; }
+.agent-edge::before { content: ''; position: absolute; inset: 10px; border: 1px solid var(--data); border-radius: 50%; background: var(--card); }
+.agent-edge .orb-mark { transform: scale(.48); }
+.agent-edge .orb-colours, .agent-edge .orb-light { animation: none; }
+.agent-edge > svg { position: absolute; inset: 0; width: 44px; height: 44px; padding: 14px 0 14px 28px; fill: none; stroke: currentColor; stroke-width: 1.4; transform: rotate(var(--direction)); }
+.agent-edge:focus-visible { outline: 1.5px solid var(--data); outline-offset: -3px; }
 .agent-first-hint { position: absolute; left: calc(100% + 12px); top: 50%; translate: 0 -50%; width: max-content; max-width: 160px; padding: 5px 0; color: var(--muted); font-size: 12px; white-space: pre; opacity: 0; pointer-events: none; transition: opacity 160ms var(--ease-out); }
 .agent-first-hint.visible { opacity: 1; }
 body.motion-off .agent-first-hint { transition: none; }

@@ -14,6 +14,30 @@ import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite
 const request = { kind: 'aegis.request', data: { requestId: 'request', brief: 'Tidy the work', started: 100 } };
 const change = (before, after) => ({ kind: 'aegis.change', data: { requestId: 'request', before: { cards: before, fields: {} }, after: { cards: after, removed: before.filter(c => !after.some(n => n.id === c.id)).map(c => c.id), fields: {} } } });
 const card = (id, text, x = 0) => ({ id, text, type: 'note', x, y: 0, w: 200, h: 100 });
+test('request Undo restores only the fields changed by the agent', () => {
+  const before = card('review01', 'Review plan'), after = { ...before, x: 400, w: 240 };
+  const entries = [request, change([before], [after])];
+  const later = { ...after, text: 'Keep my revised plan', props: { colour: 'blue' } };
+  assert.deepEqual(requestUndoCommands({ cards: [later], links: [] }, entries, 'request')[0].cards,
+    [{ ...later, x: before.x, w: before.w }]);
+  assert.throws(() => requestUndoCommands({ cards: [{ ...later, x: 500 }], links: [] }, entries, 'request'), /Position of Review plan changed since/);
+  const finished = [...entries, { kind: 'aegis.request.end', data: { requestId: 'request', finished: 200 } }];
+  assert.equal(historyFromView({ entries: finished }, { cards: [later], links: [] })[0].canUndo, true);
+  const [blocked] = historyFromView({ entries: finished }, { cards: [{ ...later, x: 500 }], links: [] });
+  assert.equal(blocked.canUndo, false); assert.match(blocked.undoBlockedReason, /Position of Review plan changed since/);
+  const styled = { ...before, props: { colour: 'plain', locked: false } }, coloured = { ...styled, props: { ...styled.props, colour: 'blue' } };
+  assert.deepEqual(requestUndoCommands({ cards: [{ ...coloured, props: { ...coloured.props, locked: true } }], links: [] }, [request, change([styled], [coloured])], 'request')[0].cards,
+    [{ ...styled, props: { colour: 'plain', locked: true } }]);
+  const nextMove = { ...later, y: 100 };
+  const interleaved = [...entries, change([later], [nextMove])];
+  assert.deepEqual(requestUndoCommands({ cards: [nextMove], links: [] }, interleaved, 'request')[0].cards, [{ ...later, x: before.x, y: before.y, w: before.w }]);
+  assert.deepEqual(historyFromView({ entries: interleaved })[0].changes[0].actions, ['Moved', 'Edited']);
+  const addedColour = { ...before, props: { colour: 'blue' } }, thenLocked = { ...addedColour, props: { ...addedColour.props, locked: true } };
+  const twoSettings = [request, change([before], [addedColour]), change([addedColour], [thenLocked])];
+  assert.deepEqual(requestUndoCommands({ cards: [thenLocked], links: [] }, twoSettings, 'request')[0].cards, [before]);
+  assert.deepEqual(requestUndoCommands({ cards: [{ ...addedColour, props: { ...addedColour.props, locked: true } }], links: [] }, [request, change([before], [addedColour])], 'request')[0].cards,
+    [{ ...before, props: { locked: true } }]);
+});
 test('request history folds batches, names moves, edits, creates and deletes, and rejects later edits', () => {
   const a = card('aaaaaa', 'Draft'), b = card('bbbbbb', 'Old idea'), c = card('cccccc', 'New plan');
   const moved = { ...a, x: 300 }, edited = { ...moved, text: 'Final draft' };
@@ -25,7 +49,7 @@ test('request history folds batches, names moves, edits, creates and deletes, an
   const unrelated = card('dddddd', 'My later note');
   const commands = requestUndoCommands({ cards: [edited, c, unrelated], links: [] }, entries, 'request');
   assert.deepEqual(commands[0].cards.sort((a, b) => a.id.localeCompare(b.id)), [a, b, unrelated]);
-  assert.throws(() => requestUndoCommands({ cards: [{ ...edited, text: 'Later work' }, c], links: [] }, entries, 'request'), /edited again/);
+  assert.throws(() => requestUndoCommands({ cards: [{ ...edited, text: 'Later work' }, c], links: [] }, entries, 'request'), /Text of Final draft changed since/);
   const grown = { ...c, h: 300, props: { autoHeightMin: c.h } };
   const autoEntries = [request, change([], [{ ...c, props: {} }])];
   assert.equal(requestUndoCommands({ cards: [grown], links: [] }, autoEntries, 'request')[0].cards.length, 0, 'automatic note growth remains undoable');

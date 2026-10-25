@@ -14,7 +14,7 @@ export function mountIdleChrome() {
   const held = group => touch.matches || near.has(group) || pointerInside.has(group) || active()
     || group.contains(document.activeElement) || group.matches('.armed, .more-open')
     || !!group.querySelector('[aria-expanded="true"], details[open]')
-    || group === controls && (document.body.matches('.left-open, .right-open, .onboarding-open') || !!document.querySelector('#settings[open]') || !document.getElementById('retrySave').hidden);
+    || group === controls && (document.body.matches('.left-open, .right-open, .onboarding-open') || !!document.querySelector('#settings[open]') || !document.getElementById('retrySave').hidden || !document.getElementById('showChip').hidden);
   function reveal(group, instant = false) {
     clearTimeout(timers.get(group)); timers.delete(group);
     group.classList.toggle('chrome-instant', instant);

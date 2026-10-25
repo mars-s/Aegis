@@ -135,6 +135,62 @@ try {
   await shot('demo-1440');
   await page.setViewportSize({ width: 1586, height: 992 }); await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500); await shot('demo-1586');
   await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500); await shot('demo-phone-390');
+  // Round 3 agents: Fit includes spatial windows on both PM layout fixtures.
+  await page.setViewportSize({ width: 1440, height: 992 });
+  // A pending result must reveal Show even with Follow off and the pointer away.
+  await page.locator('#showChip').evaluate(button => button.click());
+  await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); });
+  await page.mouse.move(700, 800);
+  await page.keyboard.press('Shift+F');
+  await page.waitForFunction(() => document.querySelector('.bar-right').classList.contains('chrome-visible') === false);
+  assert.equal(await page.locator('#followBtn').getAttribute('aria-checked'), 'false');
+  for (const count of [12, 25]) {
+    await page.evaluate(async count => {
+      document.querySelectorAll('.agent-window:not([hidden]) .agent-close').forEach(b => b.click());
+      const commands = [{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }, ...Array.from({ length: count }, (_, i) => ({ op: 'create', type: 'note', newId: `fit${String(i).padStart(3, '0')}`, text: `Plan ${i + 1}`, x: i % 5 * 260, y: Math.floor(i / 5) * 180, w: 220, h: 120 }))];
+      await aegis.host.post(`/boards/${aegis.canvas.board.id}/batch`, { commands });
+      aegis.canvas.setBoard(await aegis.host.get(`/boards/${aegis.canvas.board.id}`)); aegis.canvas.fit();
+    }, count);
+    await page.waitForTimeout(500);
+    await page.keyboard.press('Escape');
+    const [{ id: layoutAgent }] = await page.evaluate(count => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify([['board_apply', { commands: [...Array.from({ length: count }, (_, i) => ({ op: 'move', id: `fit${String(i).padStart(3, '0')}`, x: i % 5 * 260 + 400, y: Math.floor(i / 5) * 180 + 200 })), { op: 'focus', ids: Array.from({ length: count }, (_, i) => `fit${String(i).padStart(3, '0')}`) }] }]]) }), count);
+    await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, layoutAgent);
+    await settle();
+    const win = page.locator(`.agent-window[data-agent-id="${layoutAgent}"]`);
+    const assertInView = async label => {
+      const rect = await win.boundingBox();
+      assert.ok(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 1440 && rect.y + rect.height <= 992, `${label}: agent window fits the viewport: ${JSON.stringify(rect)}`);
+    };
+    await page.locator('#showChip').waitFor({ state: 'visible' });
+    await page.waitForTimeout(1400);
+    await page.waitForFunction(() => { const style = getComputedStyle(document.querySelector('.bar-right')); return style.pointerEvents === 'auto' && style.opacity === '1'; });
+    assert.equal(await page.locator('.bar-right').evaluate(el => getComputedStyle(el).opacity), '1', 'pending Show stays visible without an edge reveal');
+    await shot(`pending-show-${count}-notes`);
+    await page.locator('#showChip').click();
+    await page.waitForTimeout(500); await assertInView(`Framed result with ${count} notes`);
+    await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
+    await assertInView(`Fit with ${count} notes`);
+    assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false');
+    await shot(`fit-${count}-notes`);
+    await page.evaluate(() => aegis.canvas.setView({ ...aegis.canvas.view, x: aegis.canvas.view.x - 5000 }, false));
+    const edge = page.locator(`.agent-edge[data-agent-id="${layoutAgent}"]`);
+    await edge.waitFor({ state: 'visible' });
+    assert.equal(await edge.evaluate(el => getComputedStyle(el).color), 'rgb(63, 141, 253)');
+    const pinned = await edge.boundingBox(); assert.ok(pinned.x >= 0 && pinned.x + pinned.width <= 1440 && pinned.y >= 0 && pinned.y + pinned.height <= 992);
+    await shot(`edge-${count}-notes`); await edge.click(); await page.waitForTimeout(500);
+    await assertInView(`Edge return with ${count} notes`);
+    assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false', 'edge navigation preserves collapse');
+    assert.equal(await edge.isVisible(), false);
+    await win.locator('.agent-window-toggle').click();
+    await win.locator('.agent-history-details > summary').click();
+    await page.evaluate(() => new Promise(requestAnimationFrame));
+    await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
+    await assertInView(`Expanded history Fit with ${count} notes`);
+    assert.ok(await win.locator('.agent-history time').evaluate(el => { const r = el.getBoundingClientRect(), body = el.closest('.agent-window-body').getBoundingClientRect(); return r.top >= body.top && r.bottom <= body.bottom; }), 'time stays visible above the expanded change list');
+    await shot(`fit-${count}-expanded`);
+    await win.locator('.agent-close').click(); assert.equal(await edge.isVisible(), false);
+  }
+  console.log('PASS Fit keeps agent windows inside the viewport at 12 and 25 notes; blue edge indicators pan back without expanding');
   assert.deepEqual(errors, []);
   console.log('PASS agent diffs without reloads, 320ms moves, 30ms stagger, 12-card cap, interruption, pointer handover, enter/exit, reduced motion, local edits and fitted demo at 1440, 1586 and 390');
   console.log(JSON.stringify({ screenshots, fit }));

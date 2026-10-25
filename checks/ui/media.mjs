@@ -28,7 +28,7 @@ debug.on('Debugger.scriptFailedToParse', async info => { console.error('SCRIPT P
 const errors = []; page.on('pageerror', error => errors.push(error.stack || error.message));
 const log = message => console.log(message);
 const centreCard = async type => { await page.evaluate(type => { const card = aegis.canvas.board.cards.find(c => c.type === type); aegis.canvas.frameIds([card.id], 1); }, type); await page.waitForTimeout(400); };
-const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); const button = page.locator(`#tools [data-tool="${name}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
+const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${name}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
 try {
   await page.goto(`http://127.0.0.1:${5183 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -46,6 +46,7 @@ try {
   await page.getByRole('button', { name: 'Done', exact: true }).click();
   await page.locator('#boardName').click();
   const palette = page.locator('[data-panel="board-colours"]');
+  await palette.locator('.fold').click();
   await palette.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByLabel('Colour name', { exact: true }).fill('Saved sky'); await page.getByLabel('Colour name', { exact: true }).press('Tab');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -287,6 +288,7 @@ try {
   await page.evaluate(async id => aegis.canvas.setBoard(await aegis.host.get('/boards/' + id)), beforeSwitch.boardId);
   log('Switching boards stopped capture and saved audio into the original board');
   // Device choices survive a page reload.
+  await page.locator('[data-panel="media-devices"] .fold').click();
   const microphone = page.locator('[data-panel="media-devices"] .aegis-dropdown[aria-label="Microphone"]');
   await choose(microphone, { index: 1 });
   const deviceId = await microphone.evaluate(el => el.value); assert.ok(deviceId);

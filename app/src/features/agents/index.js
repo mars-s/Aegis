@@ -2,7 +2,7 @@ import './style.css';
 import { createIslandMorph } from './morph.js';
 import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
-import { cardRect, freeAgentRect, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
+import { cardRect, freeAgentRect, intersects, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
 import { displayRotation } from '../settings/preferences.js';
 // Round 3 navigation: first-use timing belongs to onboarding.
 import { createOrbHint } from '../onboarding/orb-hint.js';
@@ -33,9 +33,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const island = $('agentIsland'), orb = $('askPill'), composer = $('composer'), prompt = $('prompt'), stage = $('stage');
   const head = composer.querySelector('.island-head'), history = composer.querySelector('.island-turns');
   const overlay = document.createElement('div'); overlay.className = 'agent-windows'; stage.append(overlay);
+  const edges = document.createElement('div'); edges.className = 'agent-edges'; document.body.append(edges);
   const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, doneTimer = 0, restoringFocus = false, hoverSuppressed = false;
   // Round 3 navigation: keep this hookup separate from history and placement.
   const { discover, dismiss: dismissHint } = createOrbHint({ island, host });
+  // Round 3 agents: camera framing reads cached geometry only when asked to Fit.
+  canvas.setAgentBounds(() => [...windows.values()].filter(w => !w.el.hidden && w.agent.boardId === canvas.board?.id).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH, h: w.height ?? COLLAPSED_HEIGHT })));
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
@@ -117,9 +120,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const anchor = anchorOverride ?? (c ? { x: c.x - WINDOW_WIDTH - 24, y: c.y } : { x: at.x - WINDOW_WIDTH / 2, y: at.y - 180 });
     const height = w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight;
     const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: WINDOW_WIDTH, h: n.collapsed ? COLLAPSED_HEIGHT : n.el.offsetHeight }));
-    const p = freeAgentRect([...cardSpace, ...movingSpace], neighbours, anchor, height, preferred);
+    const occupied = [...cardSpace, ...movingSpace, ...neighbours];
+    // Once placed, a free window stays spatial even if a later camera move leaves it outside.
+    const keep = w.placed && preferred && !occupied.some(c => intersects({ ...preferred, w: WINDOW_WIDTH, h: height }, c));
+    const p = keep ? preferred : freeAgentRect([...cardSpace, ...movingSpace], neighbours, anchor, height, preferred, canvas.viewportRect());
     if (p.x !== w.x || p.y !== w.y) canvas.clearAgentLine();
-    w.x = p.x; w.y = p.y; w.height = height; save(w);
+    w.x = p.x; w.y = p.y; w.height = height; w.placed = true; save(w);
   }
   stage.addEventListener('boardchange', e => {
     clearTimeout(spaceTimer);
@@ -141,9 +147,20 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     for (const w of windows.values()) place(w); paint();
   });
   function paint() {
+    if (!windows.size) return;
+    const width = stage.clientWidth, height = stage.clientHeight;
     for (const w of windows.values()) {
       const p = canvas.worldToScreen(w.x, w.y), z = canvas.view.z;
       w.el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${z})`;
+      // Round 3 agents: only open spatial windows get a constant-size edge target.
+      const h = (w.height ?? COLLAPSED_HEIGHT) * z;
+      w.edge.hidden = w.el.hidden || (p.x + WINDOW_WIDTH * z > 0 && p.x < width && p.y + h > 0 && p.y < height);
+      if (!w.edge.hidden) {
+        const dx = p.x + WINDOW_WIDTH * z / 2 - width / 2, dy = p.y + h / 2 - height / 2;
+        const k = Math.min((width / 2 - 28) / Math.max(1, Math.abs(dx)), (height / 2 - 72) / Math.max(1, Math.abs(dy)));
+        w.edge.style.transform = `translate(${width / 2 + dx * k - 22}px, ${height / 2 + dy * k - 22}px)`;
+        w.edge.style.setProperty('--direction', `${Math.atan2(dy, dx)}rad`);
+      }
     }
   }
   stage.addEventListener('canvaspaint', paint);
@@ -152,6 +169,13 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const at = canvas.centre();
     const w = { agent: a, x: saved?.x ?? at.x - 170, y: saved?.y ?? at.y - 180, closed: saved?.closed ?? false, collapsed: saved?.collapsed ?? true, moved: !!saved, el: document.createElement('section') };
     w.el.className = 'agent-window'; w.el.dataset.agentId = a.id; w.el.setAttribute('aria-label', 'Agent window');
+    w.edge = document.createElement('button'); w.edge.type = 'button'; w.edge.className = 'agent-edge'; w.edge.dataset.agentId = a.id; w.edge.hidden = true;
+    w.edge.innerHTML = `${STAR}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>`;
+    w.edge.onpointerdown = e => e.stopPropagation();
+    w.edge.onclick = e => {
+      const z = canvas.view.z, view = { x: stage.clientWidth / 2 - (w.x + WINDOW_WIDTH / 2) * z, y: stage.clientHeight / 2 - (w.y + (w.height ?? COLLAPSED_HEIGHT) / 2) * z, z };
+      if (e.detail === 0) canvas.setView(view); else canvas.glideTo(view);
+    };
     w.el.innerHTML = `<header class="agent-window-strip"><button type="button" class="agent-window-toggle" aria-expanded="false">${STAR}<span class="agent-window-title"></span><span class="agent-window-status" role="status"></span></button><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><ol class="agent-history" aria-label="Request changes"></ol><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
     const toggle = w.el.querySelector('.agent-window-toggle'), body = w.el.querySelector('.agent-window-body');
     body.id = `agent-body-${a.id}`; toggle.setAttribute('aria-controls', body.id);
@@ -168,7 +192,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     });
     for (const type of ['dblclick', 'wheel']) w.el.addEventListener(type, e => e.stopPropagation());
     w.el.addEventListener('keydown', e => { if (['Enter', ' ', 'Backspace', 'Delete'].includes(e.key)) e.stopPropagation(); });
-    w.el.querySelector('.agent-close').onclick = () => { w.closed = true; w.el.hidden = true; save(w); };
+    w.el.querySelector('.agent-close').onclick = () => { w.closed = true; w.el.hidden = true; w.edge.hidden = true; save(w); };
     w.el.querySelector('.agent-stop').onclick = () => stop(a.id);
     const form = w.el.querySelector('form');
     form.onsubmit = async e => {
@@ -188,7 +212,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     });
     const end = () => { if (drag) { drag = null; place(w, { x: w.x, y: w.y }, { x: w.x, y: w.y }); paint(); save(w); setTimeout(() => { w.dragged = false; }, 0); } };
     strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
-    overlay.append(w.el); windows.set(a.id, w); collapse(w.collapsed); return w;
+    overlay.append(w.el); edges.append(w.edge); windows.set(a.id, w); collapse(w.collapsed);
+    // History disclosure changes geometry without an agent update or a camera paint.
+    const size = new ResizeObserver(() => {
+      if (!w.el.hidden && w.height !== w.el.offsetHeight) { place(w); paint(); }
+    }); size.observe(w.el);
+    return w;
   }
   function show(id) {
     const a = all.find(a => a.id === id); if (!a) return;
@@ -206,18 +235,27 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     } catch (e) { toast(e.message); }
   }
   function renderList(list, agents) {
-    list.replaceChildren();
+    const previous = new Map([...list.querySelectorAll('.agent-summary')].map(row => [row.dataset.id, row]));
     if (!agents.length) { list.textContent = 'Ask from the orb to start an agent.'; return; }
+    if (!previous.size) list.replaceChildren();
     for (const a of agents) {
+      const existing = previous.get(a.id);
+      if (existing) {
+        existing.querySelector('.agent-summary-head span').textContent = `${nameOf(a)} · ${shortTitle(a)}`;
+        existing.querySelector('.agent-summary-head small').textContent = a.error || a.status;
+        existing.querySelector('.agent-summary-stop').hidden = !a.running;
+        renderHistory(existing.querySelector('.agent-history'), a, undo); list.append(existing); previous.delete(a.id); continue;
+      }
       const row = document.createElement('section'); row.className = 'agent-summary'; row.dataset.id = a.id;
       const head = document.createElement('div'); head.className = 'agent-summary-head';
       const info = document.createElement('div'), title = document.createElement('span'), status = document.createElement('small');
       title.textContent = `${nameOf(a)} · ${shortTitle(a)}`; status.textContent = a.error || a.status; info.append(title, status);
       const showButton = document.createElement('button'); showButton.className = 'text-btn'; showButton.textContent = 'Show'; showButton.onclick = () => show(a.id);
-      const stopButton = document.createElement('button'); stopButton.className = 'text-btn'; stopButton.textContent = 'Stop'; stopButton.hidden = !a.running; stopButton.onclick = () => stop(a.id);
+      const stopButton = document.createElement('button'); stopButton.className = 'text-btn agent-summary-stop'; stopButton.textContent = 'Stop'; stopButton.hidden = !a.running; stopButton.onclick = () => stop(a.id);
       const timeline = document.createElement('ol'); timeline.className = 'agent-history'; timeline.setAttribute('aria-label', 'Request changes'); renderHistory(timeline, a, undo);
       head.append(info, showButton, stopButton); row.append(head, timeline); list.append(row);
     }
+    for (const row of previous.values()) row.remove();
   }
   function renderOrb(instant = false) {
     morph(() => {
@@ -244,6 +282,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       const w = windows.get(a.id) ?? makeWindow(a); w.agent = a; w.el.hidden = w.closed;
       w.el.classList.toggle('running', a.running); w.el.classList.toggle('failed', !!a.error);
       w.el.querySelector('.agent-window-title').textContent = `${nameOf(a)} · ${shortTitle(a)}`;
+      w.edge.setAttribute('aria-label', `Pan to ${nameOf(a)}: ${shortTitle(a)}`); w.edge.title = `Pan to ${nameOf(a)}`;
       w.el.querySelector('.agent-window-toggle').setAttribute('aria-label', `${nameOf(a)}: ${shortTitle(a)}`);
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
       renderTurns(w.el.querySelector('.agent-window-answer'), a);

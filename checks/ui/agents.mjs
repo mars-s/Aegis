@@ -160,6 +160,7 @@ try {
   await page.waitForFunction(() => !aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'));
   assert.equal(await page.evaluate(() => aegis.canvas.board.rev), beforeUndo + 1, 'request Undo is one board commit');
   assert.ok(await page.evaluate(() => aegis.canvas.board.cards.some(c => c.text === 'Note without a model')), 'unrelated user note survives');
+  await page.waitForFunction(id => document.querySelector(`#agentList [data-id="${id}"] .agent-history`)?.textContent.includes('Undone'), first);
   await page.locator('#closeAgents').click(); await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'));
   await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
@@ -228,7 +229,7 @@ try {
   assert.equal(await page.locator('#askPill .orb-colours').evaluate(el => getComputedStyle(el).animationPlayState), 'paused');
   await page.evaluate(() => { delete document.hidden; document.dispatchEvent(new Event('visibilitychange')); });
   // Both model preferences are reachable and stored.
-  await page.locator('#settingsBtn').click();
+  await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
   assert.ok(await page.locator('#agentModel').isVisible()); assert.ok(await page.locator('#statusModel').isVisible());
   await pick(page.locator('#agentModel'), 'fake|fake'); await pick(page.locator('#statusModel'), 'fake|fake');
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:model')), 'fake|fake');
@@ -272,6 +273,60 @@ try {
   await page.locator('#settings[open]').waitFor(); assert.equal(await page.locator('#settings-tab-accounts').getAttribute('aria-selected'), 'true');
   assert.match(await page.locator('#toast').textContent(), /Sign in to ChatGPT first/); assert.equal(requests.length, beforeSignIn);
   await page.locator('#closeSettings').click();
+  // Round 3 history: a 25-window layout can be rejected after unrelated writing.
+  await page.keyboard.press('Escape');
+  const undoBoard = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Request Undo fixture' }); localStorage.setItem('aegis:board', board.id); return board.id; });
+  await page.reload(); await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, undoBoard);
+  await page.evaluate(() => {
+    document.querySelectorAll('.agent-window:not([hidden]) .agent-close').forEach(b => b.click());
+    aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }, ...Array.from({ length: 25 }, (_, i) => ({ op: 'create', type: 'note', newId: `undo${String(i).padStart(3, '0')}`, text: i ? `Plan ${i + 1}` : 'Review plan', x: i % 5 * 260, y: Math.floor(i / 5) * 180, w: 220, h: 120 }))]);
+  });
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  const positions = await page.evaluate(() => aegis.canvas.board.cards.map(({ id, x, y }) => ({ id, x, y })));
+  const [{ id: layoutAgent }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify([['board_apply', { commands: aegis.canvas.board.cards.map(c => ({ op: 'move', id: c.id, x: c.x + 400, y: c.y + 200 })) }]]) }));
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, layoutAgent, { timeout: 20000 });
+  if (await page.locator('#agentsBtn').getAttribute('aria-pressed') !== 'true') { await page.mouse.move(1400, 20); await page.locator('#agentsBtn').click(); }
+  await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
+  const layoutHistory = page.locator(`#agentList [data-id="${layoutAgent}"] .agent-history-entry`), disclosure = layoutHistory.locator('details');
+  assert.equal(await disclosure.getAttribute('open'), null);
+  assert.equal(await layoutHistory.locator('.agent-history-more').textContent(), '+22 more');
+  assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 0);
+  assert.match(await layoutHistory.locator('.agent-history-preview').textContent(), /Review plan, Plan 2, Plan 3/);
+  assert.equal(await layoutHistory.locator('time').isVisible(), true);
+  assert.equal(await layoutHistory.getByRole('button', { name: /^Undo request:/ }).isEnabled(), true);
+  await shot('r3-history-compact');
+  await disclosure.locator('summary').click(); assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 25);
+  await page.evaluate(() => aegis.apply([{ op: 'update', id: 'undo000', set: { text: 'My later writing stays' } }]));
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  assert.equal(await disclosure.getAttribute('open'), '', 'disclosure stays expanded when availability refreshes');
+  assert.equal(await layoutHistory.getByRole('button', { name: /^Undo request:/ }).isEnabled(), true, 'text does not conflict with a move');
+  await disclosure.locator('summary').click();
+  const layoutRev = await page.evaluate(() => aegis.canvas.board.rev);
+  await layoutHistory.getByRole('button', { name: /^Undo request:/ }).click();
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').x === 0);
+  assert.equal(await page.evaluate(() => aegis.canvas.board.rev), layoutRev + 1);
+  assert.deepEqual(await page.evaluate(() => aegis.canvas.board.cards.map(({ id, x, y }) => ({ id, x, y }))), positions);
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text), 'My later writing stays');
+  await page.waitForFunction(id => document.querySelector(`#agentList [data-id="${id}"] .agent-history`)?.textContent.includes('Undone'), layoutAgent);
+  await page.locator('#closeAgents').click(); await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').x === 400);
+  assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text), 'My later writing stays');
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  const [{ id: textAgent }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify([['board_apply', { commands: [{ op: 'update', id: 'undo000', set: { text: 'Review plan' } }] }]]) }));
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, textAgent, { timeout: 20000 });
+  await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text === 'Review plan');
+  await page.evaluate(() => aegis.apply([{ op: 'update', id: 'undo000', set: { text: 'My newer review' } }]));
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.mouse.move(1400, 20); await page.locator('#agentsBtn').click();
+  const blocked = page.locator(`#agentList [data-id="${textAgent}"] .agent-history-entry`);
+  await blocked.locator('.agent-history-undo:disabled').waitFor();
+  assert.equal(await blocked.locator('.agent-history-blocked').textContent(), 'Text of Review plan changed since this request');
+  assert.equal(await blocked.locator('.agent-history-undo').getAttribute('title'), 'Text of Review plan changed since this request');
+  assert.equal(await page.locator(`.agent-window[data-agent-id="${textAgent}"] .agent-history-undo`).isDisabled(), true);
+  await shot('r3-history-blocked');
+  const conflict = await page.evaluate(async id => { const rev = aegis.canvas.board.rev; try { await aegis.host.post(`/agents/${id}/history/${(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).history[0].id}/undo`, {}); } catch (e) { return { message: e.message, rev, after: (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).rev }; } }, textAgent);
+  assert.match(conflict.message, /Text of Review plan changed since/); assert.equal(conflict.after, conflict.rev);
+  console.log('PASS compact history previews three names and +22 more; disclosure expands 25 names and survives updates; request Undo restores positions, retains later text, is one board change and normal-undoable; overlapping text disables Undo with a reason in both timelines');
   assert.deepEqual(errors, []);
   console.log('PASS island idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models and menu keyboard navigation, fade-only motion, durable chat reload, phone options and hidden-page pause');
 } catch (e) { writeFileSync(out(`island-${captureId}-failure.log`), String(e.stack ?? e)); console.error(e); console.error('page errors', errors); console.error('requests', requests); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }
