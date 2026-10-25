@@ -25,6 +25,17 @@ const inside = async locator => {
   assert.ok(box && box.x >= 8 && box.y >= 8 && box.x + box.width <= viewport.width - 8 && box.y + box.height <= viewport.height - 8, `menu stays inside viewport: ${JSON.stringify(box)}`);
   return box;
 };
+// PM6.5: inspect the heading at a real wheel or keyboard scroll position.
+const stickyProvider = async menu => {
+  assert.ok(await menu.evaluate(el => {
+    const rect = el.getBoundingClientRect();
+    const group = [...el.querySelectorAll('[role=group]')].find(group => { const r = group.getBoundingClientRect(); return r.top <= rect.top + 8 && r.bottom > rect.top + 48; });
+    const heading = group?.querySelector('.aegis-model-group');
+    if (!heading) return false;
+    const box = heading.getBoundingClientRect(), style = getComputedStyle(heading);
+    return style.position === 'sticky' && style.backgroundColor === getComputedStyle(el).backgroundColor && box.top >= rect.top && box.top <= rect.top + 8 && heading.contains(document.elementFromPoint(box.x + 12, box.y + box.height / 2));
+  }), 'current provider stays visible on an opaque heading above scrolling choices');
+};
 try {
   host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   host.stderr.on('data', data => process.stderr.write(data));
@@ -60,6 +71,8 @@ try {
       await page.mouse.wheel(0, 360);
       await page.waitForFunction(() => document.getElementById('orbMenu').scrollTop > 0);
       await inside(menu);
+      await stickyProvider(menu);
+      await page.screenshot({ path: out(`r7-sticky-provider-${viewport.width}-${stamp}.png`) });
       // Keep the menu open while both the viewport and island change size.
       await page.setViewportSize({ width: viewport.width, height: 720 });
       await page.waitForTimeout(100); await inside(menu);
@@ -84,7 +97,7 @@ try {
     const spacer = document.createElement('div'); spacer.id = 'r6MenuSpacer'; root.append(spacer);
     const action = document.createElement('button'); action.id = 'r6Action'; action.textContent = 'Shared actions'; action.style.height = '44px'; root.append(action);
     const popup = createMenu({ trigger: action, label: 'Shared actions fixture', items: Array.from({ length: 30 }, (_, i) => ({ title: `Action ${i + 1}`, run() {} })) });
-    const picker = createDropdown({ label: 'Shared values fixture', options: Array.from({ length: 30 }, (_, i) => ({ value: i, label: `Value ${i + 1}` })) });
+    const picker = createDropdown({ label: 'Shared values fixture', options: Array.from({ length: 30 }, (_, i) => ({ value: i, label: `Value ${i + 1}`, group: i < 15 ? 'Provider A' : 'Provider B', groupDescription: 'Connected' })) });
     picker.id = 'r6Picker'; picker.style.width = '260px'; root.append(picker); document.body.append(root);
     window.__r6MenuFixture = { root, popup, picker };
   });
@@ -104,6 +117,16 @@ try {
     assert.ok(await menu.evaluate(el => el.scrollHeight > el.clientHeight), 'height cap leaves the choices internally scrollable');
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.wheel(0, 350);
     await page.waitForFunction(id => document.getElementById(id).scrollTop > 0, id);
+    if (selector === '#r6Picker') {
+      await stickyProvider(menu);
+      await page.keyboard.press('End'); await stickyProvider(menu);
+      assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), 'Value 30');
+      const activeBox = await page.locator(':focus').boundingBox(), headingBox = await menu.locator('[role=group]').last().locator('.aegis-model-group').boundingBox();
+      assert.ok(activeBox.y >= headingBox.y + headingBox.height, 'keyboard choice stays below the sticky provider');
+      await page.keyboard.press('Enter');
+      assert.equal(await trigger.evaluate(el => el.value), '29');
+      await centreClick(trigger);
+    }
     await page.setViewportSize({ width: 1440, height: 1100 }); await page.waitForTimeout(100);
     anchor = await trigger.boundingBox(); box = await inside(menu);
     assert.ok(box.y >= anchor.y + anchor.height + 5, 'window resize flips back below when it has more space');

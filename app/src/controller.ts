@@ -123,14 +123,18 @@ function setFollow(on) {
   $('followBtn').setAttribute('aria-checked', String(on));
   if (on && pendingFocus) { const ids = pendingFocus; hideShow(); followTo(ids, true); }
 }
-function followTo(ids, force = false) {
+// PM6.3: describe the pending result through its agent and window count.
+function followTo(ids, force = false, agentId) {
   ids = ids.filter(id => canvas.board.cards.some(c => c.id === id)); if (!ids.length) return;
   if (force || (follow && !canvas.busy() && performance.now() - lastTouch > 1500)) {
     // Round 3 agents: frame the result together with its spatial agent windows.
     canvas.frameIds(ids, 1, true); setTimeout(() => canvas.glow(ids), 450); return;
   }
+  const who = agentState.get(agentId);
+  $('showChip').setAttribute('aria-description', `${who ? `Show what ${agentUi.nameOf(who)} changed` : 'Show changes'}: ${ids.length} ${ids.length === 1 ? 'window' : 'windows'}`);
   pendingFocus = ids; $('showChip').hidden = false; canvas.glow(ids);
 }
+// End PM6.3.
 function hideShow() { pendingFocus = null; $('showChip').hidden = true; }
 $('followBtn').onclick = () => setFollow(!follow);
 $('showChip').onclick = () => { const ids = pendingFocus; hideShow(); if (ids) followTo(ids, true); };
@@ -395,7 +399,8 @@ async function agentBoardEvent(ev) {
   } else await reloadBoard();
   // Round 3 agents: place the window before calculating the result's camera bounds.
   if (!ev.author.undoRequest && ev.touched?.length) agentUi.near(ev.author.conversationId, ev.touched);
-  if (focus?.ids?.length) followTo(focus.ids);
+  // PM6.3: keep the result's agent identity with the pending action.
+  if (focus?.ids?.length) followTo(focus.ids, false, ev.author.conversationId);
   clearTimeout(libraryRefreshTimer); libraryRefreshTimer = setTimeout(() => library.refresh(), 200);
   // Round 2 agents: undo clears stale lines; all other changes use the one blue.
   if (ev.author.undoRequest) { canvas.clearAgentLine(); editing.history.flush(); }

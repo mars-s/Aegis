@@ -7,7 +7,7 @@ export function createOrientation(stage, getView, schedule, onPick) {
     .canvas-orientation span { position: absolute; box-sizing: border-box; max-width: 160px; padding: 2px 4px; border-radius: 3px; background: rgb(0 0 0 / .8); color: var(--muted); font: 400 11px/16px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .8; pointer-events: auto; }
     .canvas-orientation span:focus-visible { outline: 1px solid var(--text); outline-offset: 1px; }
     .canvas-orientation span:is(:hover, :focus) { color: var(--text); opacity: 1; }
-    .canvas-orientation .orientation-more { position: absolute; right: 12px; bottom: 72px; min-width: 64px; min-height: 44px; padding: 8px 12px; pointer-events: auto; background: var(--pill); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 400 12px/16px var(--font); }
+    .canvas-orientation .orientation-more { position: absolute; min-width: 64px; min-height: 44px; padding: 8px 12px; pointer-events: auto; background: var(--pill); border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font: 400 12px/16px var(--font); }
     .canvas-orientation .orientation-more:is(:hover, :focus-visible) { color: var(--text); border-color: var(--line-strong); }
     .canvas-orientation .orientation-more:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
     .orientation-aid { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; color: var(--data); }
@@ -114,6 +114,17 @@ export function createOrientation(stage, getView, schedule, onPick) {
       const omitted = visible.length - layout.length;
       more.hidden = !omitted; more.textContent = `+${omitted} more`; more.setAttribute('aria-label', `Show ${omitted} more windows`);
       if (layer.lastChild !== more) layer.append(more);
+      // PM6.6: put omitted names beside the displayed cluster, then clamp to the stage.
+      if (omitted) {
+        const bounds = layout.length ? layout.map(r => ({ left: r.left, top: r.top, right: r.left + r.label.offsetWidth, bottom: r.top + labelHeight() })) : candidates.map(r => ({ left: r.x, top: r.y, right: r.x + r.w, bottom: r.y + r.h }));
+        const left = Math.min(...bounds.map(r => r.left)), right = Math.max(...bounds.map(r => r.right));
+        const top = Math.min(...bounds.map(r => r.top)), bottom = Math.max(...bounds.map(r => r.bottom));
+        const w = more.offsetWidth, h = more.offsetHeight, gap = 12;
+        const x = right + gap + w <= width - 8 ? right + gap : left - gap - w >= 8 ? left - gap - w : left;
+        const y = x === left ? bottom + gap : (top + bottom - h) / 2;
+        more.style.left = `${Math.max(8, Math.min(width - w - 8, x))}px`;
+        more.style.top = `${Math.max(8, Math.min(height - h - 8, y))}px`;
+      }
       if (!omitted) moreMenu?.close(false, true);
       paintAid();
     },

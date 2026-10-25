@@ -211,11 +211,14 @@ try {
       assert.ok(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 1440 && rect.y + rect.height <= 992, `${label}: agent window fits the viewport: ${JSON.stringify(rect)}`);
     };
     await page.locator('#showChip').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#showChip').textContent(), 'Show changes');
+    assert.match(await page.locator('#showChip').getAttribute('aria-description'), new RegExp(`^Show what Agent \\d+ changed: ${count} windows$`));
     await page.waitForTimeout(1400);
     await page.waitForFunction(() => { const style = getComputedStyle(document.querySelector('.bar-right')); return style.pointerEvents === 'auto' && style.opacity === '1'; });
     assert.equal(await page.locator('.bar-right').evaluate(el => getComputedStyle(el).opacity), '1', 'pending Show stays visible without an edge reveal');
     await shot(`pending-show-${count}-notes`);
-    await page.locator('#showChip').click();
+    if (count === 25) { await page.locator('#showChip').focus(); await page.keyboard.press('Enter'); }
+    else await page.locator('#showChip').click();
     await page.waitForTimeout(500); await assertInView(`Framed result with ${count} notes`);
     await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
     await assertInView(`Fit with ${count} notes`);

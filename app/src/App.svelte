@@ -14,7 +14,8 @@
     <span class="save-state" id="saveState" role="status" aria-live="polite">saved</span>
     <button id="retrySave" hidden>Retry</button>
     <span class="status" id="status" aria-live="polite"></span>
-    <button class="chip" id="showChip" hidden>Show</button>
+    <!-- PM6.3: name the pending result action. -->
+    <button class="chip" id="showChip" hidden>Show changes</button>
     <button class="follow" id="followBtn" role="switch" aria-checked="true" title={`${shortcutTitle("follow")}: the camera glides to what agents make`}><span class="knob"></span>Follow</button>
     <button class="icon-btn" id="agentsBtn" title={shortcutTitle("agents")} aria-pressed="false"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="11" cy="6" r="2.2" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M1.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3M7.5 13c.6-2 2-3 3.5-3s2.9 1 3.5 3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg><span class="count" id="agentCount" hidden></span></button>
     <button class="icon-btn" id="settingsBtn" title="Settings"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.3" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></button>

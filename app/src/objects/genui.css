@@ -73,3 +73,8 @@ body.motion-off .object-editor.is-open { transition-duration: 160ms; }
 .genui .inline-value textarea { grid-area: 1 / 1; position: relative; margin: -3px -4px; width: calc(100% + 8px); min-height: 0; padding: 2px 3px; font: inherit; letter-spacing: inherit; line-height: inherit; text-align: inherit; border-radius: 2px; outline: none; border: 1px solid var(--text); resize: none; }
 .object-editor .side-editor-body { position: relative; }
 .object-editor .expanded.gallery > .content { container-type: normal; }
+/* PM6.2: guidance belongs beside the active generated text field. */
+.genui .generated-text { display: inline-grid; max-width: 100%; min-width: 0; vertical-align: baseline; }
+.genui .generated-text.multiline { display: grid; }
+.genui .text-edit-hint { display: none; margin-top: 8px; color: var(--muted); font: 400 12px/1.5 var(--font); letter-spacing: normal; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.genui .generated-text:has(> .inline-value.editing) > .text-edit-hint { display: block; }

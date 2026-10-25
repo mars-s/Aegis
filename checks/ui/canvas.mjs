@@ -242,6 +242,11 @@ try {
       verify(`${width}px collisions offer every omitted name`, labelled.length > 0 && labelled.length < 9 && await more.textContent() === `+${9 - labelled.length} more`);
       const chipBox = await more.boundingBox();
       verify(`${width}px more chip is a reachable 44px target within the viewport`, chipBox.width >= 44 && chipBox.height >= 44 && chipBox.x >= 0 && chipBox.x + chipBox.width <= width && chipBox.y + chipBox.height <= 992);
+      verify(`${width}px more chip sits beside the visible label cluster`, await more.evaluate(el => {
+        const chip = el.getBoundingClientRect(), labels = [...el.parentElement.querySelectorAll('span')].map(label => label.getBoundingClientRect());
+        const left = Math.min(...labels.map(r => r.left)), right = Math.max(...labels.map(r => r.right)), top = Math.min(...labels.map(r => r.top)), bottom = Math.max(...labels.map(r => r.bottom));
+        return Math.max(0, left - chip.right, chip.left - right) <= 13 && Math.max(0, top - chip.bottom, chip.top - bottom) <= 13 && labels.every(r => chip.left >= r.right || chip.right <= r.left || chip.top >= r.bottom || chip.bottom <= r.top);
+      }));
       await page.emulateMedia({ reducedMotion: 'no-preference' });
       if (width === 1586) {
         await orientation.locator('span').last().focus(); await page.keyboard.press('Tab');

@@ -19,8 +19,10 @@ body.phone .aegis-dropdown, body.phone .aegis-dropdown-menu button:is([role=opti
 .aegis-menu-separator { height: 1px; margin: 5px 4px; background: var(--line); }
 /* PM4.6 and 7: context and provider status belong above their choices. */
 .aegis-menu-heading { max-width: 280px; padding: 8px 10px 6px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-.aegis-model-group { padding: 8px 10px 4px; display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 11px; }
+.aegis-model-group { position: sticky; top: 0; z-index: 1; padding: 8px 10px 6px; display: flex; justify-content: space-between; gap: 20px; background: var(--raised); color: var(--muted); font-size: 11px; }
 .aegis-model-group span:first-child { color: var(--ink-2); font-weight: 500; }
+/* PM6.5: keyboard scrolling leaves the chosen model below its provider heading. */
+.aegis-dropdown-menu [role=group] > button { scroll-margin-top: 40px; }
 .aegis-action-menu button[aria-checked=true]::after { content: '✓'; color: var(--ink-2); }
 .aegis-action-menu button.aegis-menu-destructive { color: var(--danger, #ed9797); }
 .aegis-dropdown-menu[aria-hidden=true] { pointer-events: none; }

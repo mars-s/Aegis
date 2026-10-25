@@ -81,7 +81,9 @@ try {
   console.log('pass genui: exact Tauri CSP blocks parent inline scripts; anonymous registration denied; unknown sandbox is 404');
   const boardId = await page.evaluate(() => aegis.canvas.board.id);
   const samples = structuredClone(genuiSamples);
-  const assets = await page.evaluate(async artwork => Promise.all(artwork.map((svg, i) => aegis.host.upload(new File([svg], `study-${i}.svg`, { type: 'image/svg+xml' })))), galleryArtwork);
+  // PM6.7: the same original artwork at a dense size exercises both pan axes at 100%.
+  const denseArtwork = galleryArtwork.map(svg => svg.replace(/<svg\b[^>]*>/, root => root.replace(/\s(?:width|height)="[^"]*"/g, '').replace('<svg', '<svg width="1800" height="1350"')));
+  const assets = await page.evaluate(async artwork => Promise.all(artwork.map((svg, i) => aegis.host.upload(new File([svg], `study-${i}.svg`, { type: 'image/svg+xml' })))), denseArtwork);
   samples.gallery.images.forEach((image, i) => image.url = assets[i].url);
   const batch = Object.entries(samples).map(([kind, data], i) => ({ op: 'create', type: 'object', kind, text: `Sample ${kind}`, data, x: i % 3 * 820, y: Math.floor(i / 3) * 560 }));
   const agent = await page.evaluate(([boardId, batch]) => aegis.host.post('/agents', { boardId, brief: 'FAKE ' + JSON.stringify(batch), model: { provider: 'fake', modelId: 'fake' } }), [boardId, batch]);
@@ -336,6 +338,8 @@ try {
   await page.keyboard.press('ArrowLeft');
   assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[0].caption);
   await page.keyboard.press('Tab');
+  assert.equal(await inspection.getByRole('button', { name: 'Magnify image' }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Tab');
   assert.equal(await inspection.getByRole('button', { name: 'Previous image' }).evaluate(el => el === document.activeElement), true);
   await page.keyboard.press('Escape');
   assert.equal(await inspection.count(), 0);
@@ -353,22 +357,55 @@ try {
     else await page.evaluate(() => document.body.classList.add('motion-off'));
     await artwork.click(); await inspection.waitFor();
     assert.equal(await inspection.evaluate(el => getComputedStyle(el).animationName), 'none', `${mode} motion preference suppresses scale and fade`);
+    await inspection.getByRole('button', { name: 'Magnify image' }).click();
+    assert.equal(await inspection.locator('img').evaluate(el => el.getBoundingClientRect().width === el.naturalWidth && el.getAnimations().length === 0 && getComputedStyle(el).transitionDuration === '0s'), true, `${mode}: magnification has no travel or scale animation`);
+    await page.keyboard.press('0');
     await inspection.getByRole('button', { name: 'Close image inspection' }).click();
     await inspection.waitFor({ state: 'detached' });
     if (mode === 'os') await page.emulateMedia({ reducedMotion: 'no-preference' });
     else await page.evaluate(() => document.body.classList.remove('motion-off'));
   }
-  for (const width of [1586, 390]) {
+  for (const width of [1440, 1586, 390]) {
     await page.setViewportSize({ width, height: 992 });
     await artwork.click(); await page.waitForTimeout(220);
     const imageBox = await inspection.locator('img').boundingBox(), overlayBox = await inspection.boundingBox();
     assert.ok(imageBox.x >= overlayBox.x && imageBox.x + imageBox.width <= overlayBox.x + overlayBox.width + 1 && imageBox.y + imageBox.height <= overlayBox.y + overlayBox.height, `image fits at ${width}px`);
     await page.screenshot({ path: out(`r6-gallery-inspection-${width}-${stamp}.png`) });
+    const magnify = inspection.getByRole('button', { name: 'Magnify image' });
+    const viewport = inspection.getByRole('region', { name: 'Image viewport' });
+    await magnify.click();
+    assert.equal(await magnify.getAttribute('aria-pressed'), 'true');
+    assert.equal(await magnify.textContent(), 'Fit');
+    assert.equal(await inspection.locator('img').evaluate(el => el.getBoundingClientRect().width === el.naturalWidth && el.getBoundingClientRect().height === el.naturalHeight), true, '100% uses intrinsic pixels');
+    const start = await viewport.evaluate(el => ({ left: el.scrollLeft, top: el.scrollTop }));
+    assert.ok(start.left > 0 && start.top > 0, 'magnification starts centred with both axes pannable');
+    const bounds = await viewport.boundingBox();
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.wheel(85, 110);
+    await page.waitForFunction(({ left, top }) => { const el = document.querySelector('.inspection-viewport'); return el.scrollLeft > left + 40 && el.scrollTop > top + 60; }, start);
+    const scrolled = await viewport.evaluate(el => ({ left: el.scrollLeft, top: el.scrollTop }));
+    await page.mouse.down(); await page.mouse.move(bounds.x + bounds.width / 2 + 50, bounds.y + bounds.height / 2 + 65, { steps: 5 }); await page.mouse.up();
+    const dragged = await viewport.evaluate(el => ({ left: el.scrollLeft, top: el.scrollTop }));
+    assert.ok(Math.abs(dragged.left - (scrolled.left - 50)) <= 1 && Math.abs(dragged.top - (scrolled.top - 65)) <= 1, 'pointer drag pans one to one');
+    await page.screenshot({ path: out(`r7-gallery-magnified-${width}-${stamp}.png`) });
+    await page.keyboard.press('-');
+    assert.equal(await magnify.getAttribute('aria-pressed'), 'false');
+    assert.equal(await viewport.evaluate(el => el.scrollLeft === 0 && el.scrollTop === 0), true);
+    await page.keyboard.press('+');
+    assert.equal(await magnify.getAttribute('aria-pressed'), 'true');
+    await page.keyboard.press('Tab');
+    assert.equal(await viewport.evaluate(el => el === document.activeElement), true, 'keyboard can reach the magnified viewport');
+    await page.keyboard.press('0');
+    assert.equal(await magnify.getAttribute('aria-pressed'), 'false');
+    await page.keyboard.press('+'); await page.keyboard.press('ArrowRight');
+    assert.equal(await magnify.getAttribute('aria-pressed'), 'false', 'next image returns to fit');
+    await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('Escape');
   }
   await page.keyboard.press('Escape');
   await page.setViewportSize({ width: 1440, height: 1000 });
   console.log('pass genui: gallery click/Enter inspection fills editor pane, fitted image/caption, arrows, focus return, 200ms pointer motion and both reduced-motion settings');
+  console.log('pass genui: PM6 gallery 100% toggle, centred intrinsic pixels, real wheel and drag pan, + / - / 0, focus trap and motion preferences at 1440, 1586 and 390px');
 
   // PM5 9: every read-only generated text route keeps its resting presentation.
   const revisions = [
@@ -392,17 +429,33 @@ try {
     assert.equal(await trigger.evaluate(el => getComputedStyle(el).borderWidth), '0px');
     await trigger.click();
     const field = view.editor.getByRole('textbox', { name: label, exact: true });
+    const hint = view.editor.locator('.text-edit-hint:visible');
+    const guidance = `Return to save · ${multiline ? 'Shift Return for a new line · ' : ''}Esc to cancel`;
+    assert.equal(await hint.count(), 1, 'only the active text field has guidance');
+    assert.equal(await hint.textContent(), guidance);
+    assert.equal(await field.getAttribute('aria-description'), guidance);
     const original = await field.inputValue();
     await field.fill('Cancelled wording'); await page.keyboard.press('Escape');
     assert.equal(await view.editor.isVisible(), true);
     assert.equal(await trigger.textContent(), original);
     assert.deepEqual(errors, [], `${kind}: cancelling text must not cause a render or focus error`);
     assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
+    assert.equal(await hint.count(), 0, 'Escape hides the guidance');
     await page.keyboard.press('Enter');
     await field.fill(next);
     if (multiline) { await page.keyboard.press('Shift+Enter'); await page.keyboard.type('A second line.'); }
     if (['callout', 'compare', 'timeline', 'stages'].includes(kind)) await page.screenshot({ path: out(`r6-edit-text-${kind}-active-${stamp}.png`) });
+    if (kind === 'callout') {
+      for (const width of [1586, 390]) {
+        await page.setViewportSize({ width, height: 992 });
+        const box = await hint.boundingBox();
+        assert.ok(box.x >= 0 && box.x + box.width <= width, `${width}px guidance wraps within the editor`);
+        await page.screenshot({ path: out(`r7-text-hint-${width}-${stamp}.png`) });
+      }
+      await page.setViewportSize({ width: 1440, height: 1000 });
+    }
     await page.keyboard.press('Enter');
+    assert.equal(await hint.count(), 0, 'Return hides the guidance after saving');
     const committed = multiline ? next + '\nA second line.' : next;
     await page.waitForFunction(async ({ kind, path, value }) => {
       const board = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
