@@ -58,3 +58,6 @@ body.panel-arranging, body.panel-arranging * { cursor: grabbing !important; user
 .pbox[data-panel=library] .tree { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .pbox[data-panel=library] :is(.library-home-button, .adds) { flex: none; }
 .pbox[data-panel=library] .adds { padding-top: 6px; }
+/* PM5.5: Library receives the space released by a filtered Windows section. */
+.side:has(> .pbox[data-panel=layers].is-filtered:not(.folded)) > .pbox[data-panel=library]:not(.folded) { flex: 1 1 0; min-height: 0; }
+.side:has(> .pbox[data-panel=layers].is-filtered:not(.folded)) > .pbox[data-panel=library]:not(.folded) > .pbody { flex: 1 1 auto; height: auto !important; max-height: none; }

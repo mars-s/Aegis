@@ -73,6 +73,43 @@ try {
   await windows.locator('.fold').click(); assert.equal(await filter.isVisible(), false, 'a folded Windows section hides its filter');
   await windows.locator('.fold').click(); await filter.waitFor();
   check('Windows filter appears for long lists, matches names live, shows an empty result, clears with Escape and follows its disclosure');
+  // PM5.5: filtering borrows only the space it needs, without saving a new panel size.
+  const resizeWindows = windows.locator('.resize-handle'), resizeBox = await resizeWindows.boundingBox();
+  await page.mouse.move(resizeBox.x + resizeBox.width / 2, resizeBox.y + resizeBox.height / 2);
+  await page.mouse.down(); await page.mouse.move(resizeBox.x + resizeBox.width / 2, resizeBox.y - 80, { steps: 6 }); await page.mouse.up();
+  const unfiltered = await windows.locator('.pbody').boundingBox(), libraryBefore = await library.boundingBox();
+  const savedSize = await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:panels')).heights.layers);
+  // Give exactly two of the 25 fixture windows the same searchable name.
+  await page.evaluate(() => new Promise(resolve => aegisCtx.apply([0, 1].map(i => ({ op: 'update', id: `navwindow${i}`, set: { heading: `Proposal ${i + 1}` } })), resolve)));
+  for (const width of [1440, 1586]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await filter.click(); await page.keyboard.type('proposal');
+    await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 2);
+    assert.equal(await windows.locator('.pcount').textContent(), '2 of 25');
+    assert.ok((await windows.locator('.pbody').boundingBox()).height <= 150, 'two results use only their content height');
+    assert.ok((await library.boundingBox()).height > libraryBefore.height + 100, 'Library receives the reclaimed height');
+    assert.equal(await windows.locator('.pbody').evaluate(el => el.scrollHeight <= el.clientHeight + 1), true, 'both results fit without a scrollbar');
+    await page.screenshot({ path: out(`r6-windows-filter-${width}-${Date.now()}.png`) });
+    await filter.press('Escape');
+    assert.equal(await windows.locator('.pcount').textContent(), '25');
+    assert.ok(Math.abs((await windows.locator('.pbody').boundingBox()).height - unfiltered.height) <= 1, 'clearing restores the manually resized Windows height');
+  }
+  await filter.click(); await page.keyboard.type('no such window'); await windows.getByRole('status').waitFor();
+  assert.equal(await windows.locator('.pcount').textContent(), '0 of 25');
+  assert.ok((await windows.locator('.pbody').boundingBox()).height <= 170, 'empty results do not reserve blank space');
+  await page.screenshot({ path: out(`r6-windows-empty-${Date.now()}.png`) });
+  await windows.getByRole('button', { name: 'Clear filter', exact: true }).click();
+  assert.equal(await filter.inputValue(), '');
+  assert.equal(await filter.evaluate(el => el === document.activeElement), true);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:panels')).heights.layers), savedSize, 'filtering never overwrites the saved panel height');
+  await page.keyboard.type('window'); await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 23);
+  assert.ok((await windows.locator('.pbody').boundingBox()).height <= 320, 'many matching windows stay within the sensible maximum');
+  assert.equal(await windows.locator('.pbody').evaluate(el => el.scrollHeight > el.clientHeight), true, 'a long filtered result remains scrollable');
+  await filter.press('Escape');
+  // Restore the default layout for the independent scrolling checks below.
+  await page.evaluate(() => { const state = JSON.parse(localStorage.getItem('aegis:panels')); delete state.heights.layers; localStorage.setItem('aegis:panels', JSON.stringify(state)); });
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  check('filtered Windows shows 2 of 25, gives spare height to Library, has a compact empty state, and restores the saved unfiltered size');
   for (const width of [1440, 1586]) {
     await page.setViewportSize({ width, height: 992 });
     await page.waitForFunction(() => Math.abs(document.getElementById('side').getBoundingClientRect().left - 8) < .5);

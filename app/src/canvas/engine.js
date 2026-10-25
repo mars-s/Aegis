@@ -53,7 +53,8 @@ export function registerDragHandler(id, handler) { DRAG_HANDLERS.set(id, handler
 export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
-  const orientation = createOrientation(stage, () => view, () => schedule());
+  // PM5.6: omitted names use the same camera framing as Windows rows.
+  const orientation = createOrientation(stage, () => view, () => schedule(), (id, keyboard) => frameIds([id], 1, false, keyboard));
   const guides = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   guides.classList.add('drag-guides');
   Object.assign(guides.style, { position: 'absolute', inset: '0', width: '1px', height: '1px', overflow: 'visible', pointerEvents: 'none', zIndex: '2147483647', color: 'var(--focus, #ed65a6)' });
@@ -633,7 +634,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let anim = 0;
   function glideTo(target, ms = 420) {
     cancelAnimationFrame(anim);
-    if (preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); return; }
+    if (!ms || preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); return; }
     const from = { ...view }, t0 = performance.now(); const ease = t => 1 - Math.pow(1 - t, 3);
     const step = now => { const t = Math.min(1, (now - t0) / ms), k = ease(t);
       setView({ x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, z: from.z + (target.z - from.z) * k }, t === 1);
@@ -649,13 +650,14 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const right = rightPanel && rightPanel.getBoundingClientRect().width ? stage.clientWidth - rightPanel.getBoundingClientRect().left + 24 : 24;
     return { x: left, y: 44, w: Math.max(160, stage.clientWidth - left - right), h: Math.max(160, stage.clientHeight - (document.body.classList.contains('just-board') ? 64 : 160)) };
   }
-  function frameIds(ids, maxZ = 1, includeAgents = false) {
+  function frameIds(ids, maxZ = 1, includeAgents = false, instant = false) {
     const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...(includeAgents ? agentBounds() : [])]; if (!cards.length) return;
     const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y));
     const x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
     const { x: left, y: top, w: W, h: H } = frameArea(), pad = 56;
     const z = Math.min(maxZ, (W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
-    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: top + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) });
+    // PM5.6: pointer recovery glides; choosing a name with the keyboard jumps.
+    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: top + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) }, instant ? 0 : 420);
   }
   function fit() { if (board?.cards.length || agentBounds().length) frameIds(board.cards.map(c => c.id), 1, true); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
   function glow(ids) {

@@ -199,6 +199,20 @@ try {
       return el.dataset.cardId === id && Math.abs(Number(r.getAttribute('x')) - (c.x * v.z + v.x)) < .1 && Math.abs(Number(r.getAttribute('y')) - (c.y * v.z + v.y)) < .1 && Math.abs(Number(r.getAttribute('width')) - c.w * v.z) < .1 && Math.abs(Number(r.getAttribute('height')) - c.h * v.z) < .1 && getComputedStyle(r).stroke === 'rgb(63, 141, 253)' && getComputedStyle(r).strokeWidth === '1px' && getComputedStyle(el).pointerEvents === 'none' && Math.hypot(Number(l.getAttribute('x2')) - Number(l.getAttribute('x1')), Number(l.getAttribute('y2')) - Number(l.getAttribute('y1'))) > 0;
     }, labelId));
     await page.screenshot({ path: out(`r5-orientation-hover-${Date.now()}.png`) });
+    // PM5.3: keep the pointer parked over the clicked label while navigating.
+    await label.click(); await page.keyboard.press('Tab');
+    verify('Tab after a hovered label click moves the aid to the focused window without pointer movement', await orientation.evaluate(el => el.contains(document.activeElement) && document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId) && await page.evaluate(id => document.activeElement.dataset.cardId !== id, labelId));
+    await page.screenshot({ path: out(`r6-orientation-tab-${Date.now()}.png`) });
+    await page.keyboard.press('Shift+Tab');
+    verify('Shift+Tab with the pointer parked keeps focusId equal to aidId', await orientation.evaluate(el => document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId) && await page.evaluate(id => document.activeElement.dataset.cardId === id, labelId));
+    const labelBox = await label.boundingBox();
+    await page.mouse.move(labelBox.x + labelBox.width / 2 - 2, labelBox.y + labelBox.height / 2);
+    verify('pointer hover again after Shift+Tab keeps focusId equal to aidId', await orientation.evaluate(el => document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId));
+    await page.keyboard.press('Tab');
+    await page.mouse.move(labelBox.x + labelBox.width / 2 + 2, labelBox.y + labelBox.height / 2);
+    verify('pointer movement over the parked label takes the aid back from keyboard focus', await aid.getAttribute('data-card-id') === labelId);
+    verify('the more chip counts all unlabelled visible windows beyond the 30-name cap', await orientation.locator('.orientation-more').textContent() === `+${40 - await orientation.locator('span').count()} more`);
+    await page.locator('#boardName').focus();
     await page.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
     verify('orientation clears when the pointer leaves the edge', !await orientation.isVisible());
     await page.keyboard.press('Tab'); await page.locator('#stage').focus(); await orientation.waitFor({ state: 'visible' });
@@ -216,6 +230,54 @@ try {
     verify('crowded far view uses the same bounded labels without mounting all cards', await page.locator('#stage').evaluate(el => el.classList.contains('far')) && await orientation.locator('span').count() > 0 && await orientation.locator('span').count() <= 30 && (await page.evaluate(() => aegis.canvas.stats().mounted)) < 400);
     await page.screenshot({ path: out(`r4-orientation-crowded-${Date.now()}.png`) });
     await page.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
+    // PM5.6: fewer than 30 overlapping windows must also offer omitted names.
+    await apply(Array.from({ length: 9 }, (_, i) => ({ op: 'create', newId: `supporting${i}`, type: 'note', heading: `Supporting window ${i + 1}`, text: 'Collision fixture', x: 100000 + i * 40, y: 100000 + i * 40, w: 600, h: 400 })));
+    const more = orientation.locator('.orientation-more'), namesMenu = page.getByRole('menu', { name: 'More window names', exact: true });
+    for (const width of [1440, 1586, 390]) {
+      await page.setViewportSize({ width, height: 992 }); await page.locator('#boardName').focus(); await page.mouse.move(width - 100, 600);
+      await page.evaluate(() => aegis.canvas.setView({ x: -4900, y: -4900, z: .05 })); await settle();
+      verify(`${width}px omitted names and chip stay absent on the idle board`, !await orientation.isVisible() && !await more.isVisible() && !await namesMenu.isVisible());
+      await page.mouse.move(width - 4, 450); await orientation.waitFor({ state: 'visible' });
+      const labelled = await orientation.locator('span').evaluateAll(nodes => nodes.map(el => el.textContent));
+      verify(`${width}px collisions offer every omitted name`, labelled.length > 0 && labelled.length < 9 && await more.textContent() === `+${9 - labelled.length} more`);
+      const chipBox = await more.boundingBox();
+      verify(`${width}px more chip is a reachable 44px target within the viewport`, chipBox.width >= 44 && chipBox.height >= 44 && chipBox.x >= 0 && chipBox.x + chipBox.width <= width && chipBox.y + chipBox.height <= 992);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      if (width === 1586) {
+        await orientation.locator('span').last().focus(); await page.keyboard.press('Tab');
+        verify('Tab reaches the more chip after the displayed labels', await more.evaluate(el => el === document.activeElement));
+        await page.keyboard.press('Enter');
+      } else await more.click();
+      await namesMenu.waitFor({ state: 'visible' });
+      const omitted = Array.from({ length: 9 }, (_, i) => `Supporting window ${i + 1}`).filter(name => !labelled.includes(name));
+      const choices = namesMenu.getByRole('menuitem');
+      verify(`${width}px themed menu lists exactly the omitted windows`, JSON.stringify((await choices.allTextContents()).sort()) === JSON.stringify(omitted.sort()) && await namesMenu.evaluate(el => el.classList.contains('aegis-action-menu') && getComputedStyle(el).backgroundColor === 'rgb(36, 39, 43)'));
+      const menuBox = await namesMenu.boundingBox();
+      verify(`${width}px omitted-name menu stays within the screen`, menuBox.x >= 8 && menuBox.y >= 8 && menuBox.x + menuBox.width <= width - 7 && menuBox.y + menuBox.height <= 985);
+      await page.waitForTimeout(180); await page.screenshot({ path: out(`r6-omitted-names-${width}-${Date.now()}.png`) });
+      await page.keyboard.press('Escape');
+      verify(`${width}px Escape closes the names menu and restores chip focus`, !await namesMenu.isVisible() && await more.evaluate(el => el === document.activeElement));
+      if (width === 1586) {
+        await page.keyboard.press('Enter'); await namesMenu.waitFor({ state: 'visible' });
+        verify('keyboard opens the omitted-name menu instantly', await namesMenu.evaluate(el => el.getAnimations().length === 0));
+        await page.keyboard.press('ArrowDown');
+        const target = await page.evaluate(() => document.activeElement.textContent);
+        verify('arrow keys move to another omitted name', target === await choices.nth(1).textContent());
+        await page.keyboard.press('Enter');
+        const after = await page.evaluate(() => ({ ...aegis.canvas.view })); await page.waitForTimeout(60);
+        verify('keyboard name choice frames its window instantly', after.z > .2 && JSON.stringify(after) === await page.evaluate(() => JSON.stringify(aegis.canvas.view)) && await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return Math.abs((c.y + c.h / 2) * v.z + v.y - (innerHeight / 2 - 36)) < 1; }, target));
+      } else {
+        await more.click(); await namesMenu.waitFor({ state: 'visible' });
+        const target = await choices.first().textContent();
+        await choices.first().click();
+        await page.waitForFunction(() => aegis.canvas.view.z > .05 && aegis.canvas.view.z < 1);
+        verify(`${width}px pointer name choice starts a camera glide`, await page.evaluate(() => aegis.canvas.view.z > .05 && aegis.canvas.view.z < 1));
+        await page.waitForTimeout(450);
+        verify(`${width}px camera reaches the chosen window`, await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return v.z > .2 && c.x * v.z + v.x >= 0 && c.y * v.z + v.y >= 0 && (c.x + c.w) * v.z + v.x <= innerWidth && (c.y + c.h) * v.z + v.y <= innerHeight && Math.abs((c.y + c.h / 2) * v.z + v.y - (innerHeight / 2 - 36)) < 1; }, target));
+      }
+      verify(`${width}px framing dismisses far zoom controls`, !await orientation.isVisible() && !await namesMenu.isVisible());
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+    }
   }
   writeFileSync(out(`canvas-${reproduce ? 'reproduction' : 'results'}-${Date.now()}.json`), JSON.stringify({ results, errors }, null, 2));
   verify('no browser errors', errors.length === 0);

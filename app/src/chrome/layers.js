@@ -45,13 +45,15 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     if (filter.hidden) filter.value = '';
     const query = filter.value.trim().toLocaleLowerCase();
     const matches = query ? board.cards.filter(c => String(labelOf(c)).toLocaleLowerCase().includes(query)) : board.cards;
+    // PM5.5: CSS borrows spare space for Library without changing saved panel heights.
+    el.classList.toggle('is-filtered', !!query);
+    count.textContent = query ? `${matches.length} of ${board.cards.length}` : board.cards.length || '';
     const cards = matches.slice().reverse().slice(0, LIMIT);
     const parents = layerParents(board);
     const byParent = new Map();
     for (const c of cards) { const parent = parents.get(c.id); if (!byParent.has(parent)) byParent.set(parent, []); byParent.get(parent).push(c); }
-    const sig = JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? '', parents.get(c.id), c.group, c.props])) + [...selection].join() + [...folded].join();
+    const sig = query + JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? '', parents.get(c.id), c.group, c.props])) + [...selection].join() + [...folded].join();
     if (sig === lastSig) return; lastSig = sig;
-    count.textContent = board.cards.length || '';
     const focused = list.contains(document.activeElement) ? document.activeElement.closest('.layer-row')?.dataset.id : null;
     menu.close(); list.textContent = '';
     const frag = document.createDocumentFragment();
@@ -115,7 +117,13 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       } else append(c);
     }
     if (matches.length > LIMIT) { const more = document.createElement('p'); more.className = 'muted small pad'; more.textContent = `${matches.length - LIMIT} more not shown`; frag.appendChild(more); }
-    if (query && !cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'No matching windows'; p.setAttribute('role', 'status'); frag.appendChild(p); }
+    if (query && !cards.length) {
+      const empty = document.createElement('div'); empty.className = 'layer-empty'; empty.setAttribute('role', 'status');
+      const message = document.createElement('p'); message.textContent = 'No matching windows';
+      const clear = document.createElement('button'); clear.type = 'button'; clear.className = 'aegis-button aegis-button--quiet'; clear.textContent = 'Clear filter';
+      clear.onclick = () => { filter.value = ''; lastSig = ''; render(); filter.focus(); };
+      empty.append(message, clear); frag.append(empty);
+    }
     if (!board.cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'Nothing on this board yet.'; frag.appendChild(p); }
     list.appendChild(frag);
     if (focused) [...list.querySelectorAll('.layer-row')].find(row => row.dataset.id === focused)?.querySelector('.row-more')?.focus({ preventScroll: true });

@@ -26,6 +26,13 @@
 .side > .pbox[data-panel=layers]:not(.folded) { flex: 1 1 0; min-height: 140px; }
 .side > .pbox[data-panel=layers]:not(.folded):has(> .pbody[style*="height"]) { flex: 0 1 auto; }
 .side > .pbox[data-panel=layers]:not(.folded) > .pbody { flex: 1 1 auto; height: auto; max-height: none; }
+/* PM5.5: temporary search sizing leaves the person's inline resize value intact. */
+.side > .pbox[data-panel=layers].is-filtered:not(.folded) { flex: 0 1 auto; min-height: 0; }
+.side > .pbox[data-panel=layers].is-filtered:not(.folded) > .pbody { flex: 0 1 auto; height: auto !important; max-height: min(320px, 40vh); }
+.pbox[data-panel=layers].is-filtered > .resize-handle { display: none; }
+.layer-empty { padding: 8px 10px; color: var(--muted); font-size: 12px; }
+.layer-empty p { margin: 0 0 4px; }
+.layer-empty button { min-height: 44px; padding: 8px 10px; }
 .side > .pbox[data-panel=library] { flex: 0 1 auto; }
 .side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 144px; max-height: 24vh; }
 .side > .pbox[data-panel=keys] > .pbody { max-height: 24vh; }

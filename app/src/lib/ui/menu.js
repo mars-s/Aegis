@@ -3,7 +3,7 @@ import './rows.css';
 
 // Action menus and radio choices share the value picker's theme and input handling.
 // R4 polish: declare the live item factory used by generated-window menus.
-/** @typedef {{ title: string, run: () => unknown, ariaLabel?: string, checked?: boolean, section?: string, shortcut?: string, disabled?: boolean, destructive?: boolean }} MenuItem */
+/** @typedef {{ title: string, run: (event: MouseEvent) => unknown, ariaLabel?: string, checked?: boolean, section?: string, shortcut?: string, disabled?: boolean, destructive?: boolean }} MenuItem */
 /** @param {{ trigger?: HTMLElement, menu?: HTMLElement, items?: MenuItem[] | (() => MenuItem[]), label?: string, heading?: string, portal?: boolean, onToggle?: (open: boolean) => void, bindTrigger?: boolean }} [options] */
 export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, heading, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
   menu.classList.add('aegis-action-menu');
@@ -42,7 +42,8 @@ export function createMenu({ trigger, menu = document.createElement('div'), item
       button.onclick = event => {
         // A long press can open a wide menu beneath the finger. Its release is not a choice.
         if (event.detail && pressed !== button) return;
-        pressed = null; popup.close(true); item.run();
+        // PM5.6: actions may distinguish keyboard activation from a pointer click.
+        pressed = null; popup.close(true); item.run(event);
       };
       menu.append(button);
     }
