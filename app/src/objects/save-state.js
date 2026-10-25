@@ -1,6 +1,15 @@
 // PM4 saving feedback: generated views share the board's host-confirmed queue state.
-import { writable } from 'svelte/store';
+import { readable, writable } from 'svelte/store';
 export const objectSaveState = writable('saved');
+// Canvas confirmations recede together; editor confirmations keep the full state.
+export const canvasSaveVisible = readable(true, set => {
+  let timer;
+  const unsubscribe = objectSaveState.subscribe(state => {
+    clearTimeout(timer); set(true);
+    if (state === 'saved') timer = setTimeout(() => set(false), 1500);
+  });
+  return () => { clearTimeout(timer); unsubscribe(); };
+});
 export const objectSaveLabel = state => state === 'saving' ? 'Saving…' : state === 'not saved' ? 'Not saved' : 'Saved';
 export const retryObjectSave = () => document.getElementById('retrySave')?.click();
 

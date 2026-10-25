@@ -490,6 +490,11 @@ try {
   await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: /^\s*Saved\s*$/ }).waitFor();
   await page.unroute('**/boards/*/batch', holdSave);
   await page.screenshot({ path: out(`r5-table-saved-${stamp}.png`) });
+  // PM5: settled success recedes only on the canvas, after the host confirms it.
+  await page.waitForTimeout(1800);
+  assert.equal(await page.locator('.card.kind-table [data-object-saved]').evaluate(el => getComputedStyle(el).opacity), '0', 'canvas Saved fades after 1.5 seconds');
+  assert.equal(await expanded.editor.locator('[data-saved]').textContent(), 'Saved', 'the editor keeps its confirmation');
+  await page.screenshot({ path: out(`r6-canvas-saved-faded-${stamp}.png`) });
   assert.equal(await expanded.editor.getByRole('gridcell', { name: 'Day, row 2', exact: true }).evaluate(cell => cell === document.activeElement), true);
   await expandedDay.press('Enter');
   await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Retry table draft');
@@ -499,6 +504,10 @@ try {
   await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
   await page.locator('.card.kind-table').getByRole('button', { name: 'Retry save', exact: true }).waitFor();
   assert.match(await expanded.editor.locator('[data-saved]').textContent(), /Not saved/);
+  await page.waitForTimeout(1800);
+  assert.equal(await page.locator('.card.kind-table [data-object-saved]').evaluate(el => getComputedStyle(el).opacity), '1', 'failure stays visible beyond the success timeout');
+  assert.equal(await page.locator('.card.kind-table').getByRole('button', { name: 'Retry save', exact: true }).isVisible(), true);
+  await page.screenshot({ path: out(`r6-canvas-failure-persists-${stamp}.png`) });
   await page.screenshot({ path: out(`r5-table-retry-${stamp}.png`) });
   await page.unroute('**/boards/*/batch', refuseSave);
   await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).click();

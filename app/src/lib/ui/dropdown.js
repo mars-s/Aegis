@@ -8,7 +8,20 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
   menu.classList.add('aegis-dropdown-menu'); menu.setAttribute('role', role); menu.hidden = true;
   if (!menu.id) menu.id = `aegis-menu-${++serial}`;
   if (trigger) { trigger.setAttribute('aria-controls', menu.id); trigger.setAttribute('aria-haspopup', role); trigger.setAttribute('aria-expanded', 'false'); }
-  let opened = false, point, parent, animation, search = '', lastKey = 0;
+  let opened = false, point, parent, animation, search = '', lastKey = 0, positionFrame = 0;
+  const originalMaxHeight = menu.style.maxHeight, originalMaxWidth = menu.style.maxWidth, originalMinWidth = menu.style.minWidth;
+  let desiredMinWidth = originalMinWidth;
+  const resizeObserver = new ResizeObserver(() => queuePosition());
+  function queuePosition(event) {
+    if (!opened || event?.target instanceof Element && menu.contains(event.target)) return;
+    if (!positionFrame) positionFrame = requestAnimationFrame(() => { positionFrame = 0; position(); });
+  }
+  function watchPosition() {
+    resizeObserver.disconnect();
+    resizeObserver.observe(menu);
+    // The trigger can move when an ancestor, including the island, grows.
+    for (let el = trigger; el && el !== document.body; el = el.parentElement) resizeObserver.observe(el);
+  }
   const easing = () => getComputedStyle(menu).getPropertyValue('--ease-out').trim() || 'cubic-bezier(0.23, 1, 0.32, 1)';
   function motion(show, instant = false) {
     const current = !menu.hidden && animation ? { opacity: getComputedStyle(menu).opacity, transform: getComputedStyle(menu).transform } : { opacity: show ? 0 : 1, transform: show ? 'scale(.97)' : 'scale(1)' };
@@ -20,16 +33,35 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
   }
   function position() {
     if (!opened) return;
-    const r = trigger?.getBoundingClientRect(), width = menu.offsetWidth, height = menu.offsetHeight;
-    const x = point?.x ?? r?.left ?? 8, below = point?.y ?? (r ? r.bottom + 6 : 8), above = r ? r.top - 6 - height : below;
-    const flip = below + height > innerHeight - 8 && above >= 8;
-    menu.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, x))}px`;
-    menu.style.top = `${Math.max(8, Math.min(innerHeight - height - 8, flip ? above : below))}px`;
-    menu.style.transformOrigin = `${r ? Math.max(0, Math.min(width, r.left + r.width / 2 - parseFloat(menu.style.left))) : 12}px ${flip ? '100%' : '0'}`;
+    const margin = 10, gap = 6, viewportWidth = document.documentElement.clientWidth, viewportHeight = innerHeight;
+    const r = trigger?.getBoundingClientRect();
+    // Measure the themed height before applying the current side's space limit.
+    menu.style.position = 'fixed'; menu.style.right = 'auto'; menu.style.bottom = 'auto';
+    menu.style.maxHeight = originalMaxHeight; menu.style.maxWidth = originalMaxWidth;
+    const maxWidth = getComputedStyle(menu).maxWidth;
+    menu.style.maxWidth = maxWidth === 'none' ? `${viewportWidth - margin * 2}px` : `min(${maxWidth}, ${viewportWidth - margin * 2}px)`;
+    menu.style.minWidth = desiredMinWidth;
+    const minWidth = getComputedStyle(menu).minWidth;
+    menu.style.minWidth = `min(${minWidth}, ${viewportWidth - margin * 2}px)`;
+    const themedMaxHeight = getComputedStyle(menu).maxHeight, wantedHeight = menu.offsetHeight;
+    const below = Math.max(margin, Math.min(viewportHeight - margin, point?.y ?? (r ? r.bottom + gap : margin)));
+    const above = Math.max(margin, Math.min(viewportHeight - margin, point?.y ?? (r ? r.top - gap : margin)));
+    const belowSpace = viewportHeight - margin - below, aboveSpace = above - margin;
+    const flip = wantedHeight > belowSpace && aboveSpace > belowSpace;
+    const available = Math.max(0, flip ? aboveSpace : belowSpace);
+    menu.style.maxHeight = themedMaxHeight === 'none' ? `${available}px` : `min(${themedMaxHeight}, ${available}px)`;
+    const width = menu.offsetWidth, height = menu.offsetHeight;
+    const left = Math.max(margin, Math.min(viewportWidth - width - margin, point?.x ?? r?.left ?? margin));
+    menu.style.left = `${left}px`;
+    menu.style.top = `${Math.max(margin, Math.min(viewportHeight - height - margin, flip ? above - height : below))}px`;
+    menu.style.transformOrigin = `${r ? Math.max(0, Math.min(width, r.left + r.width / 2 - left)) : 12}px ${flip ? '100%' : '0'}`;
   }
+
   function close(focus = false, instant = false) {
     if (!opened) return;
     if (active !== api && active && menu.contains(active.trigger)) active.close();
+    resizeObserver.disconnect(); cancelAnimationFrame(positionFrame); positionFrame = 0;
+    removeEventListener('resize', queuePosition); removeEventListener('scroll', queuePosition, true);
     opened = false; menu.inert = true; menu.setAttribute('aria-hidden', 'true'); trigger?.setAttribute('aria-expanded', 'false'); onToggle(false); motion(false, instant);
     if (active === api) active = parent?.opened ? parent : null;
     if (focus && trigger?.isConnected) trigger.focus({ preventScroll: true });
@@ -39,7 +71,9 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     parent = active?.menu.contains(trigger) ? active : null; if (!parent) active?.close(); active = api; point = at; if (event) keyboardInput = event.type === 'keydown' || event.type === 'click' && event.detail === 0; search = '';
     if (portal) (trigger?.closest('dialog[open]') ?? document.body).append(menu);
     opened = true; menu.inert = false; menu.removeAttribute('aria-hidden');
-    motion(true); menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true'); onToggle(true); position();
+    motion(true); menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true');
+    menu.style.minWidth = originalMinWidth; onToggle(true); desiredMinWidth = menu.style.minWidth; position(); watchPosition();
+    addEventListener('resize', queuePosition); addEventListener('scroll', queuePosition, true);
   }
   function key(event) {
     if (event.key === 'Escape') { event.preventDefault(); close(true); return; }
@@ -60,6 +94,7 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
   function setTrigger(next) {
     if (bindTrigger) trigger?.removeEventListener('click', click);
     trigger = next;
+    if (opened) { watchPosition(); queuePosition(); }
     if (trigger) { trigger.setAttribute('aria-controls', menu.id); trigger.setAttribute('aria-haspopup', role); trigger.setAttribute('aria-expanded', String(opened)); if (bindTrigger) trigger.addEventListener('click', click); }
   }
   setTrigger(trigger);
@@ -73,7 +108,7 @@ export function createDropdown({ label, options = [], value, onChange = () => {}
   trigger.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 6.5 3 3 3-3"/></svg>'; trigger.prepend(caption);
   const menu = document.createElement('div'); menu.className = 'aegis-value-menu'; menu.setAttribute('aria-label', label + ' options');
   let choices = [], selected = value == null ? undefined : String(value);
-  const popup = createPopup({ trigger, menu, portal: true, role: 'listbox', onToggle(on) { if (on) { menu.style.minWidth = `${trigger.offsetWidth}px`; popup.position(); } } });
+  const popup = createPopup({ trigger, menu, portal: true, role: 'listbox', onToggle(on) { if (on) menu.style.minWidth = `${trigger.offsetWidth}px`; } });
   function sync() {
     const choice = choices.find(o => o.value === selected); caption.textContent = choice?.label || label;
     for (const el of menu.querySelectorAll('[role=option]')) el.setAttribute('aria-selected', String(el.dataset.value === selected));
@@ -147,6 +182,5 @@ export function mountDropdowns() {
     }
     else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
   }, true);
-  addEventListener('resize', () => active?.position()); addEventListener('scroll', () => active?.position(), true);
   addEventListener('blur', () => { while (active) active.close(); });
 }

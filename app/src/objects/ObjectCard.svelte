@@ -23,7 +23,7 @@
   import { OBJECT_NAMES, canOpenObject } from './presentation.js';
   import './genui.css';
   // PM4 saving feedback: share the queue with the Open view.
-  import { objectSaveState, objectSaveLabel, retryObjectSave } from './save-state.js';
+  import { objectSaveState, canvasSaveVisible, objectSaveLabel, retryObjectSave } from './save-state.js';
   type Card = { id: string; kind: string; data: any; text: string; ver?: number; updated?: number };
   let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {}, expanded = false, onescape = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void; expanded?: boolean; onescape?: () => void } = $props();
   const NAMES: Record<string, string> = OBJECT_NAMES;
@@ -50,7 +50,7 @@
     <header class="win-strip">
       <h3>{card.text || NAMES[card.kind]}<span class="kind">{`\u00a0· ${NAMES[card.kind] || card.kind}`}</span></h3>
       {#if generative}
-        <span class="updated" title={`Version ${card.ver}, updated ${time(card.updated)}`} role="status" data-object-saved>
+        <span class="updated" class:save-settled={!$canvasSaveVisible} aria-hidden={!$canvasSaveVisible} title={`Version ${card.ver}, updated ${time(card.updated)}`} role="status" data-object-saved>
           {objectSaveLabel($objectSaveState)}
           {#if $objectSaveState === 'not saved'}<button class="text-btn" type="button" aria-label="Retry save" onclick={retryObjectSave}>Retry</button>{/if}
         </span>
@@ -95,11 +95,14 @@
   .win-open:hover { background: var(--hover); color: var(--text); }
   .win-open:active { transform: scale(0.97); }
   .updated { color: var(--color-faint); font-size: var(--text-caption); white-space: nowrap; }
+  [data-object-saved] { opacity: 1; transition: opacity 180ms var(--ease-out); }
+  .save-settled { opacity: 0; pointer-events: none; }
   .content { flex: 1; min-block-size: 0; overflow: auto; padding: 16px 20px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .diagram .content { overflow: auto; }
   .sheet .content { padding: 0; }
   .unknown { color: var(--color-muted); }
   @media (hover: none), (pointer: coarse) { header { height: 44px; } .win-open { opacity: 1; min-height: 44px; } }
-  @media (prefers-reduced-motion: reduce) { .win-open { transition: none; } .win-open:active { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { [data-object-saved] { transition: none; } .win-open { transition: none; } .win-open:active { transform: none; } }
+  :global(body.motion-off) [data-object-saved] { transition: none; }
   :global(body.motion-off) .win-open { transition: none; transform: none; }
 </style>

@@ -48,7 +48,7 @@
 .island-turn p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
 .island-turn.user p { color: var(--muted); }
 .agent-island.failed .orb-activity, .agent-island.failed .orb-status { color: var(--danger); }
-.orb-menu { position: absolute; left: 0; bottom: calc(100% + 8px); width: min(340px, calc(100vw - 24px)); max-height: min(55vh, 480px); overflow: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--raised); transform-origin: 22px 100%; scrollbar-width: thin; overscroll-behavior: contain; }
+.orb-menu.aegis-dropdown-menu { position: fixed; width: min(340px, calc(100vw - 24px)); max-height: min(55vh, 480px); overflow: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--raised); transform-origin: 22px 100%; scrollbar-width: thin; overscroll-behavior: contain; }
 .orb-menu button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); text-align: left; font: 13px var(--font); }
 .orb-menu button > span:first-child { flex-shrink: 0; }
 .orb-menu-value { min-width: 0; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); font-size: 12px; }
@@ -156,3 +156,10 @@ body.motion-off .agent-island .island-icon { transition-property: opacity, backg
 body.motion-off .agent-first-hint { transition: none; }
 @media (prefers-reduced-motion: reduce) { .agent-first-hint { transition: none; } }
 @media (max-width: 420px) { .agent-first-hint { left: auto; right: calc(100% + 8px); font-size: 11px; } }
+
+.orb-menu.aegis-dropdown-menu button[role^="menuitem"] { min-height: 44px; }
+
+.agent-edge-cluster::before { inset: 5px; background: var(--raised); }
+.agent-edge-count { position: relative; font: 500 13px var(--font); }
+.agent-edge-chooser { width: max-content; max-width: min(340px, calc(100vw - 20px)); }
+.agent-edge-chooser.aegis-dropdown-menu button[role=menuitem] { min-height: 44px; overflow-wrap: anywhere; }

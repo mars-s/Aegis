@@ -6,6 +6,8 @@ const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'i
 all.push('polish');
 // PM4: pan modifiers take priority over canvas gestures.
 all.push('pan');
+// PM5: menu containment and collision-free spatial agent recovery.
+all.push('agent-edges');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

@@ -1,12 +1,12 @@
-// A local menu over the existing model preferences. Source selects stay hidden for settings sync.
+// Source selects stay hidden for settings sync; the shared popup owns placement and input.
+import { createPopup } from '../../lib/ui/dropdown.js';
 export function mountIslandMenu({ island, current, shortTitle, agents, newAgent, show, showAll }) {
   const button = document.getElementById('orbMenuButton'), menu = document.getElementById('orbMenu');
   const source = document.getElementById('model'), count = document.getElementById('count');
-  let typeahead = '', typedAt = 0;
-  function close(focus = false) {
-    menu.hidden = true; button.setAttribute('aria-expanded', 'false');
-    if (focus) button.focus({ preventScroll: true });
-  }
+  const popup = createPopup({ trigger: button, menu, portal: true, onToggle(on) {
+    if (on) { render(); menu.querySelector('button')?.focus({ preventScroll: true }); }
+  } });
+  const close = (focus = false) => popup.close(focus);
   function item(label, run, { value, checked, submenu = false, description, parent = menu } = {}) {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', checked === undefined ? 'menuitem' : 'menuitemradio');
     if (checked !== undefined) b.setAttribute('aria-checked', String(checked));
@@ -19,7 +19,7 @@ export function mountIslandMenu({ island, current, shortTitle, agents, newAgent,
   }
   function choices(label, options, value, set) {
     menu.replaceChildren(); menu.setAttribute('aria-label', label);
-    item('Back to agent options', () => { render(); menu.querySelector('button')?.focus(); });
+    item('Back to agent options', () => { render(); popup.position(); menu.querySelector('button')?.focus({ preventScroll: true }); });
     const groups = new Map();
     for (const o of options) {
       let parent = menu;
@@ -34,7 +34,8 @@ export function mountIslandMenu({ island, current, shortTitle, agents, newAgent,
       }
       item(o.textContent, () => { set(o.value); close(true); }, { checked: o.value === value, description: o.getAttribute('aria-description'), parent });
     }
-    menu.querySelector('[aria-checked="true"]')?.focus();
+    popup.position();
+    menu.querySelector('[aria-checked="true"]')?.focus({ preventScroll: true });
   }
   function render() {
     menu.replaceChildren(); menu.setAttribute('aria-label', 'Agent options');
@@ -56,31 +57,9 @@ export function mountIslandMenu({ island, current, shortTitle, agents, newAgent,
     item('All agents', () => { close(); showAll(); });
     for (const a of agents()) item(shortTitle(a), () => { close(); show(a.id); }, { value: a.running ? 'Working' : 'Ready', checked: current()?.id === a.id });
   }
-  button.onclick = e => {
-    if (!menu.hidden) return close();
-    render(); menu.hidden = false; button.setAttribute('aria-expanded', 'true');
-    if (e.detail !== 0 && !matchMedia('(prefers-reduced-motion: reduce)').matches && !document.body.classList.contains('motion-off')) {
-      menu.animate([{ transform: 'scale(.97)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 140, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
-    }
-    menu.querySelector('button')?.focus();
-  };
-  function keydown(e) {
-    const items = [...menu.querySelectorAll('button')], index = items.indexOf(document.activeElement);
-    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(true); }
-    else if (e.key === 'Tab') close();
-    else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) {
-      e.preventDefault();
-      const next = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : (index + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-      items[next]?.focus();
-    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && e.key !== ' ') {
-      e.preventDefault(); const now = Date.now(); typeahead = now - typedAt < 700 ? typeahead + e.key.toLowerCase() : e.key.toLowerCase(); typedAt = now;
-      items.find(b => b.textContent.toLowerCase().startsWith(typeahead))?.focus();
-    }
-  }
-  document.addEventListener('pointerdown', e => { if (!menu.contains(e.target) && !button.contains(e.target)) close(); });
   island.addEventListener('focusout', e => {
-    if (island.contains(e.relatedTarget)) return;
-    setTimeout(() => { if (!island.contains(document.activeElement)) close(); }, 0);
+    if (island.contains(e.relatedTarget) || menu.contains(e.relatedTarget)) return;
+    setTimeout(() => { if (!island.contains(document.activeElement) && !menu.contains(document.activeElement)) close(); }, 0);
   });
-  return { close, keydown, contains: target => menu.contains(target) };
+  return { close, keydown: popup.key, contains: target => menu.contains(target) };
 }

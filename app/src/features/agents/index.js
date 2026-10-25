@@ -3,6 +3,7 @@ import { createIslandMorph } from './morph.js';
 import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
 import { mountAgentIdentity } from './identity.js';
+import { mountAgentEdges } from './edges.js';
 import { cardRect, freeAgentRect, intersects, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
 import { displayRotation } from '../settings/preferences.js';
 // Round 3 navigation: first-use timing belongs to onboarding.
@@ -43,6 +44,14 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
+  const paintEdges = mountAgentEdges({ edges, recover, label: a => `${nameOf(a)}: ${shortTitle(a)}` });
+  function recover(w, event) {
+    const z = canvas.view.z, view = { x: stage.clientWidth / 2 - (w.x + WINDOW_WIDTH / 2) * z, y: stage.clientHeight / 2 - (w.y + (w.height ?? COLLAPSED_HEIGHT) / 2) * z, z };
+    if (event.detail === 0) {
+      canvas.setView(view);
+      w.el.querySelector('.agent-window-toggle').focus({ preventScroll: true });
+    } else canvas.glideTo(view);
+  }
   const menu = mountIslandMenu({ island, current, shortTitle, agents: () => all,
     newAgent: () => { newAgent = true; closeMenu(); renderOrb(); open(true); }, show: id => show(id), showAll });
   const closeMenu = () => menu.close();
@@ -150,7 +159,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   });
   function paint() {
     if (!windows.size) return;
-    const width = stage.clientWidth, height = stage.clientHeight;
+    const width = stage.clientWidth, height = stage.clientHeight, offscreen = [];
     for (const w of windows.values()) {
       const p = canvas.worldToScreen(w.x, w.y), z = canvas.view.z;
       w.el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${z})`;
@@ -159,12 +168,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       w.edge.hidden = w.el.hidden || (p.x + WINDOW_WIDTH * z > 0 && p.x < width && p.y + h > 0 && p.y < height);
       if (!w.edge.hidden) {
         const dx = p.x + WINDOW_WIDTH * z / 2 - width / 2, dy = p.y + h / 2 - height / 2;
-        const k = Math.min((width / 2 - 28) / Math.max(1, Math.abs(dx)), (height / 2 - 72) / Math.max(1, Math.abs(dy)));
-        w.edge.style.transform = `translate(${width / 2 + dx * k - 22}px, ${height / 2 + dy * k - 22}px)`;
-        w.edge.style.setProperty('--direction', `${Math.atan2(dy, dx)}rad`);
+        offscreen.push({ window: w, dx, dy });
       }
     }
+    paintEdges(offscreen, width, height);
   }
+
   stage.addEventListener('canvaspaint', paint);
   function makeWindow(a) {
     let saved; try { saved = JSON.parse(localStorage.getItem(`aegis:agent-window:${a.id}`)); } catch { /* use the view centre */ }
@@ -174,10 +183,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     w.edge = document.createElement('button'); w.edge.type = 'button'; w.edge.className = 'agent-edge'; w.edge.dataset.agentId = a.id; w.edge.hidden = true;
     w.edge.innerHTML = `${STAR}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>`;
     w.edge.onpointerdown = e => e.stopPropagation();
-    w.edge.onclick = e => {
-      const z = canvas.view.z, view = { x: stage.clientWidth / 2 - (w.x + WINDOW_WIDTH / 2) * z, y: stage.clientHeight / 2 - (w.y + (w.height ?? COLLAPSED_HEIGHT) / 2) * z, z };
-      if (e.detail === 0) canvas.setView(view); else canvas.glideTo(view);
-    };
+    w.edge.onclick = e => recover(w, e);
     w.el.innerHTML = `<header class="agent-window-strip"><button type="button" class="agent-window-toggle" aria-expanded="false">${STAR}<span class="agent-window-title"></span><span class="agent-window-status" role="status"></span></button><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><ol class="agent-history" aria-label="Request changes"></ol><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
     const toggle = w.el.querySelector('.agent-window-toggle'), body = w.el.querySelector('.agent-window-body');
     body.id = `agent-body-${a.id}`; toggle.setAttribute('aria-controls', body.id);
