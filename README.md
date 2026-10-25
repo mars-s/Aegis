@@ -14,9 +14,11 @@ npm --prefix app install
 npm run dev        # the app with live UI updates (Vite dev server inside the Tauri window)
 npm run build      # Aegis.app in src-tauri/target/release/bundle/macos
 npm run check      # board and agent-host checks (scripted local model, no provider calls) and svelte-check
+npm run check:ui   # browser checks for each feature, one after another (needs Playwright with Chromium)
+npm run bench      # pan and zoom over 5,000 cards, with the slowest functions
 ```
 
-Open the Vite dev page with `?port=<host port>&token=<token>&bench=5000` to measure the canvas on 5,000 cards.
+The UI checks start their own agent host on a temporary data folder and a Vite server on ports 5181 to 5189. Screenshots and downloads go to `AEGIS_CHECK_OUT`, or `aegis-check` in the temp folder. Set `PLAYWRIGHT=/path/to/playwright/index.mjs` if Node can't find Playwright. `node checks/ui/run.mjs docs draw` runs only those two.
 
 ### The UI updates itself
 
@@ -30,7 +32,10 @@ The window loads `~/Library/Application Support/Aegis/ui/current` when one is in
 | `app/src/lib/board/objects.js` | Object kinds (reply, plot, sheet, diagram, plan, list, code): shapes, limits, and checks that name the exact bad field |
 | `app/src/objects/` | Svelte object cards; `chart/` is Zephium's chart (MPL-2.0) |
 | `app/src/canvas/engine.js` | The canvas: viewport culling, one transform for pan and zoom, shapes when zoomed far out |
-| `app/src/controller.ts`, `app/src/chrome/` | Boards, library, layers, tools, cursor, composer, agents panel, settings |
+| `app/src/controller.ts`, `app/src/chrome/` | Boards, library, layers, tools, composer, agents panel, settings |
+| `app/src/features/` | Docs, drawing, wireframes, colours and media, library, editing, phone layout, settings, first-run tour. Each has a README |
+| `app/src/lib/board/types/` | Feature card types and the one-line guide agents read for each |
+| `checks/ui/` | Browser checks and the canvas benchmark |
 | `agent/server.mjs` | Agent host: Pi Durable, board and object tools, parts (lead and helpers), skills, sign-in, loopback HTTP and live events |
 | `agent/skills/` | How to do a kind of job (analyse data, explain a flow and so on); your own skills in the data folder override them |
 | `agent/ui-update.mjs` | Build, check, swap and roll back the installed UI |

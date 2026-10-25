@@ -132,3 +132,31 @@ test('props merge, rot and custom colours are kept; a registered type is accepte
   c = r.board.cards.find(x => x.id === id);
   assert.deepEqual(c.props, { a: 1, c: 3 });
 });
+
+test('"$name" refs resolve in parent and in props.kids, on create and update', () => {
+  const r = applyBatch(emptyBoard('refs'), { commands: [
+    { op: 'create', type: 'note', text: 'Screen', ref: 'f' },
+    { op: 'create', type: 'note', text: 'Child', parent: '$f', ref: 'a' },
+    { op: 'create', type: 'note', text: 'Later', ref: 'b' },
+    { op: 'update', id: '$b', set: { parent: '$f' } },
+    { op: 'update', id: '$f', set: { props: { kids: ['$a', '$b'] } } },
+  ] });
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  const [f, a, b] = r.board.cards;
+  assert.equal(a.parent, f.id); assert.equal(b.parent, f.id); assert.deepEqual(f.props.kids, [a.id, b.id]);
+});
+
+test('a collection made in one batch lays out its members in columns', async () => {
+  await import('../../app/src/lib/board/types/index.js');
+  const r = applyBatch(emptyBoard('coll'), { commands: [
+    { op: 'create', type: 'note', text: 'A', x: 900, y: 900, ref: 'a' },
+    { op: 'create', type: 'note', text: 'B', x: 900, y: 900, ref: 'b' },
+    { op: 'create', type: 'coll', text: 'Ideas', x: 0, y: 0, w: 530, props: { kids: ['$a', '$b'] } },
+  ] });
+  assert.equal(r.ok, true, JSON.stringify(r.errors));
+  const [coll, a, b] = r.board.cards;
+  assert.equal(coll.type, 'coll', 'the collection sits behind its members');
+  assert.equal(a.parent, coll.id); assert.equal(b.parent, coll.id);
+  assert.equal(coll.props.cols, 2); assert.equal(a.y, b.y); assert.ok(b.x > a.x + a.w - 1);
+  assert.ok(a.x >= coll.x && b.x + b.w <= coll.x + coll.w, 'members sit inside the collection');
+});

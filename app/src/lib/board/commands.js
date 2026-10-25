@@ -1,15 +1,20 @@
 // Board commands: the one way anything changes a board, for people and agents alike.
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
 import { checkObject, OBJECT_SIZE } from './objects.js';
+import { collectionLayout } from './collection.js';
 
 // Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
 // so the host, the canvas and the checks all accept them. Type-specific data lives in card.props.
 export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent', 'object'];
-const EXTRA = new Map(); // type -> { size: [w, h] }
-export function registerCardType(type, { size = [240, 160] } = {}) {
+const EXTRA = new Map(); // type -> { size: [w, h], guide }
+// guide: one line for agents on what the type is for and which props it reads.
+export function registerCardType(type, { size = [240, 160], guide = '' } = {}) {
   if (!/^[a-z][a-z0-9-]{1,23}$/.test(type)) throw new Error(`bad card type name ${type}`);
   if (!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
-  EXTRA.set(type, { size });
+  EXTRA.set(type, { size, guide });
+}
+export function cardTypeGuide() {
+  return [...EXTRA].filter(([, v]) => v.guide).map(([type, v]) => `- ${type}: ${v.guide}`).join('\n');
 }
 const MAX_PROPS = 1_000_000; // bytes of JSON in card.props
 function cleanProps(v, at) {
@@ -90,6 +95,13 @@ export function applyBatch(input, batch) {
   const created = {}; const errors = []; const touched = new Set();
   const ref = id => (typeof id === 'string' && id.startsWith('$') ? created[id.slice(1)] : id);
   const byId = id => board.cards.find(c => c.id === ref(id));
+  // Card ids also live in parent and props.kids (collections), so "$name" works there too.
+  const withRefs = cmd => {
+    const out = { ...cmd };
+    if ('parent' in out) out.parent = ref(out.parent);
+    if (Array.isArray(out.props?.kids)) out.props = { ...out.props, kids: out.props.kids.map(ref) };
+    return out;
+  };
   const commands = Array.isArray(batch?.commands) ? batch.commands : [];
   if (!commands.length) errors.push({ index: -1, reason: 'empty batch', hint: 'send at least one command' });
   if (typeof batch?.baseRev === 'number' && batch.baseRev !== board.rev) {
@@ -100,15 +112,16 @@ export function applyBatch(input, batch) {
       switch (cmd?.op) {
         case 'create': {
           const anchor = cmd.near ? byId(cmd.near) : null;
-          const card = cleanCard(cmd.type ?? 'note', cmd, board, anchor ? { x: anchor.x + anchor.w + GAP, y: anchor.y } : null);
+          const card = cleanCard(cmd.type ?? 'note', withRefs(cmd), board, anchor ? { x: anchor.x + anchor.w + GAP, y: anchor.y } : null);
           board.cards.push(card); touched.add(card.id);
           if (cmd.ref) created[cmd.ref] = card.id;
           break;
         }
         case 'update': {
           const c = byId(cmd.id); if (!c) throw new Error(`no card ${cmd.id}`);
-          for (const k of EDITABLE) if (k in (cmd.set ?? {})) {
-            const v = cmd.set[k];
+          const set = withRefs(cmd.set ?? {});
+          for (const k of EDITABLE) if (k in set) {
+            const v = set[k];
             if (['x', 'y'].includes(k)) c[k] = num(v, c[k]);
             else if (['w', 'h'].includes(k)) c[k] = clamp(num(v, c[k]), 24, 4000);
             else if (k === 'color') { if (COLORS.includes(v) || /^#[0-9a-f]{6}$/i.test(v)) c.color = v; }
@@ -234,6 +247,24 @@ export function applyBatch(input, batch) {
     }
   });
   if (errors.length) return { ok: false, board: input, created: {}, errors };
+  // Collection membership: a card listed in props.kids without the collection as its parent was just
+  // added (an agent usually only fills kids), so all members get the app's column layout and the link.
+  // Cards dropped from kids lose the link. Linked members keep their place, so paste and undo stay exact.
+  const kidsBefore = new Map(input.cards.filter(c => c.type === 'coll').map(c => [c.id, c.props?.kids ?? []]));
+  for (const coll of board.cards) {
+    if (coll.type !== 'coll' || !touched.has(coll.id)) continue;
+    const kids = coll.props?.kids ?? [];
+    for (const id of kidsBefore.get(coll.id) ?? []) { const c = board.cards.find(k => k.id === id); if (c && !kids.includes(id) && c.parent === coll.id) { delete c.parent; touched.add(id); } }
+    if (!kids.some(id => board.cards.find(k => k.id === id && k.parent !== coll.id))) continue;
+    // Cards are listed back to front: the collection goes just behind its first member.
+    const first = Math.min(...kids.map(id => board.cards.findIndex(k => k.id === id)).filter(i => i >= 0));
+    const at = board.cards.indexOf(coll);
+    if (at > first) { board.cards.splice(at, 1); board.cards.splice(first, 0, coll); }
+    for (const { id, set } of collectionLayout(board, coll)) {
+      const c = board.cards.find(k => k.id === id);
+      Object.assign(c, { ...set, props: set.props ? { ...c.props, ...set.props } : c.props }); touched.add(id);
+    }
+  }
   board.rev = input.rev + 1;
   return { ok: true, board, created, touched: [...touched], errors: [] };
 }

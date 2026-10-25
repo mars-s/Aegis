@@ -6,6 +6,8 @@
     "dev": "npx --yes @tauri-apps/cli@2.12.4 dev",
     "build": "npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
     "check": "npm --prefix agent run check && npm --prefix app run check",
-    "ui": "npm --prefix app run dev"
+    "ui": "npm --prefix app run dev",
+    "check:ui": "node checks/ui/run.mjs",
+    "bench": "node checks/ui/bench.mjs"
   }
 }

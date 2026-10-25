@@ -14,7 +14,7 @@ const seed = () => batch(emptyBoard('board-a'), [
 ]);
 test('copy expands groups and remaps links, groups and nested collection membership across boards', () => {
   let board = seed();
-  board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: -12, y: -52, props: { kids: ['aaaaaa', 'bbbbbb'], cols: 1 } }, { op: 'update', id: 'aaaaaa', set: { parent: 'collaa', rot: 15, props: { bold: true, tag: 'Read this' } } }]);
+  board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: -12, y: -52, props: { kids: ['aaaaaa', 'bbbbbb'], cols: 1 } }, { op: 'update', id: 'aaaaaa', set: { parent: 'collaa', rot: 15, props: { bold: true, tag: 'Read this' } } }, { op: 'update', id: 'bbbbbb', set: { parent: 'collaa' } }]);
   const clip = makeClip(board, ['collaa']); assert.equal(clip.cards.length, 3);
   const pasted = cloneCommands(clip, emptyBoard('board-b'), { x: 1000, y: 600 });
   const saved = batch(emptyBoard('board-b'), pasted.commands), first = saved.cards.find(c => c.text === 'First'), todo = saved.cards.find(c => c.type === 'todo'), coll = saved.cards.find(c => c.type === 'coll');
@@ -52,10 +52,11 @@ test('align treats a group as a unit and distribute makes equal gaps for three c
 });
 test('collection resize changes columns, stacks children and inherited hide and lock apply to children', () => {
   let board = seed(); board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: 0, y: 0, w: 530, props: { kids: ['aaaaaa', 'bbbbbb', 'cccccc'], hidden: true, locked: true } }]);
-  board = batch(board, collectionLayout(board, board.cards.at(-1)));
-  const coll = board.cards.find(c => c.id === 'collaa'); assert.equal(coll.props.cols, 2); assert.equal(board.cards[0].x, board.cards[2].x); assert.equal(board.cards[1].y, board.cards[0].y);
-  assert.equal(effectiveFlag(board, board.cards[0], 'hidden'), true); assert.equal(effectiveFlag(board, board.cards[1], 'locked'), true);
-  board = batch(board, collectionLayout(board, coll, coll.props.kids, 300)); assert.equal(board.cards.at(-1).props.cols, 1); assert.ok(board.cards[1].y > board.cards[0].y);
+  const card = id => board.cards.find(c => c.id === id);
+  board = batch(board, collectionLayout(board, card('collaa')));
+  const coll = card('collaa'); assert.equal(coll.props.cols, 2); assert.equal(card('aaaaaa').x, card('cccccc').x); assert.equal(card('bbbbbb').y, card('aaaaaa').y);
+  assert.equal(effectiveFlag(board, card('aaaaaa'), 'hidden'), true); assert.equal(effectiveFlag(board, card('bbbbbb'), 'locked'), true);
+  board = batch(board, collectionLayout(board, coll, coll.props.kids, 300)); assert.equal(card('collaa').props.cols, 1); assert.ok(card('bbbbbb').y > card('aaaaaa').y);
 });
 test('inherited flags follow a batch that changes membership without changing the card count', () => {
   let board = seed(); board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: 0, y: 0, w: 530, props: { kids: ['aaaaaa'], hidden: true } }]);

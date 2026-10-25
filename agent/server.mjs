@@ -15,7 +15,7 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
-import { applyBatch, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
+import { applyBatch, cardTypeGuide, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
 import '../app/src/lib/board/types/index.js';
 import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
@@ -306,11 +306,12 @@ const editBoard = defineTool({
   name: 'board_apply',
   description: [
     'Change the board with an ordered batch of commands, applied together or not at all (one undo step).',
-    'Ops: create {type: note|title|todo|link|image|video|web, text, heading?, badge?, color?, x?, y?, w?, h?, items? (todo), url? (link/image/video/web; https: or asset:), group?, near? (card id), ref? (name to reuse as "$name" later in the batch)};',
-    'update {id, set: {text|heading|badge|color|x|y|w|h|items|url|group}}; move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
+    'Ops: create {type, text, heading?, badge?, color?, x?, y?, w?, h?, rot?, items? (todo), url? (link/image/video/web; https: or asset:), group?, parent? (card id), props? (type-specific, listed below), near? (card id), ref? (name to reuse as "$name" later in the batch)};',
+    'update {id, set: {text|heading|badge|color|x|y|w|h|rot|items|url|group|parent|props}} (props merges; a null value removes that key); move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
     'layout {ids, shape: grid|column|row, x?, y?, cols?}; order {ids, to: front|back|index} (stacking; cards are listed back to front); focus {ids} (show the user what you made; end every batch that adds things with focus).',
     'A note with a heading and a badge such as "read me first" explains how the board works.',
-    'Colors: plain gray blue green yellow orange red purple. Omit x/y to let the board find free space. Titles label groups; put a title above each cluster.',
+    'Colors: plain gray blue green yellow orange red purple, or "#rrggbb". Omit x/y to let the board find free space. Titles label groups; put a title above each cluster.',
+    'Basic types: note, title, todo, link, image, video, web. More types:\n' + cardTypeGuide(),
   ].join(' '),
   parameters: Type.Object({ commands: Type.Array(Command, { minItems: 1, maxItems: 500 }) }),
   execute: async (args, api) => {
@@ -451,7 +452,8 @@ const BoardExtension = defineExtension({
   sections: [section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
     'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',
-    'Two ways to change the board. board_apply moves, groups and edits the person\'s own cards (notes, titles, todos, links). create and revise place objects: typed results the app draws well (charts, sheets, diagrams, plans, lists, code, and a reply on top).',
+    'Two ways to change the board. board_apply moves, groups and edits the person\'s own cards (notes, titles, todos, links) and makes board pieces: documents, shapes, swatches, collections and wireframe screens (its description lists each type and its props). create and revise place objects: typed results the app draws well (charts, sheets, diagrams, plans, lists, code, and a reply on top).',
+    'A wireframe is a frame card with box, text and icon cards inside it, each with parent set to the frame id and placed within its bounds. A long write-up goes in a doc card with Markdown in props.body.',
     'When the person asks for a result (an answer, an analysis, a comparison, a chart, a flow, a plan), make objects, never imitate them with notes: no text bar charts, no boxes drawn from notes.',
     'What you make: the one result the person came for, plus a reply on top: a headline and one to three sentences that answer the request. The reply never restates an object beside it. Place the reply first, then each object below or beside it (below: the reply id).',
     'One object per purpose. Keep text short and exact; cells hold values, not sentences. On a follow-up, revise the objects it changes instead of adding copies.',
