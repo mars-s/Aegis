@@ -3,6 +3,7 @@
 import { mount, unmount } from 'svelte';
 import { writable, fromStore } from 'svelte/store';
 import ObjectCard from './ObjectCard.svelte';
+import './editor.js';
 import type { Host } from '../lib/host';
 import { mountIntrinsicSizing } from './intrinsic-sizing.js';
 import { emptyBoard } from '../lib/board/commands.js';

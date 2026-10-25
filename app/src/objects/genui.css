@@ -1,7 +1,7 @@
 .genui { container-type: inline-size; font-size: 14px; line-height: 1.45; color: var(--text); font-variant-numeric: tabular-nums; user-select: text; }
 .genui p { margin: 0; }
 .genui .meta, .genui .empty { color: var(--muted); font-size: 12px; }
-.genui .empty { padding: 16px 0; }
+.genui .empty { position: static; inset: auto; display: revert; place-content: normal; max-width: none; text-align: left; padding: 16px 0; }
 .genui .footnote { margin-top: 16px; color: var(--muted); font-size: 12px; }
 .genui button, .genui summary { color: var(--ink-2); font: inherit; font-size: 12px; cursor: pointer; }
 .genui button { min-height: 32px; padding: 4px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--inset); transition: transform 120ms var(--ease-out); }
@@ -24,3 +24,20 @@
 @media (pointer: coarse), (hover: none) { .genui button, .genui summary { min-height: 44px; } .genui input:not([type=checkbox]):not([type=radio]) { min-height: 44px; } }
 @media (prefers-reduced-motion: reduce) { .genui button { transition: none; transform: none !important; } }
 body.motion-off .genui button { transition: none; transform: none !important; }
+
+/* PM 1: focused generated windows use the document side editor and one title bar. */
+.side-editor.object-editor.is-open { transition-duration: 240ms; }
+.object-editor .side-editor-body { overflow: hidden; }
+.object-editor .object.expanded { flex: 1; min-height: 0; }
+.object-editor .object.expanded > .content { padding: 32px clamp(20px, 4vw, 56px) 56px; outline-offset: -3px; }
+.object-editor .object.expanded > .genui { font-size: 16px; line-height: 1.6; }
+.object-editor .object.expanded.form > .content,
+.object-editor .object.expanded.progress > .content,
+.object-editor .object.expanded.callout > .content { width: 100%; max-width: 800px; margin-inline: auto; }
+.object-editor .expanded.diagram .fit { min-width: 640px; }
+.object-editor.is-wide .expanded.diagram .fit { min-width: 0; }
+@media (max-width: 760px) {
+  .object-editor .object.expanded > .content { padding: 24px 20px 40px; }
+}
+@media (prefers-reduced-motion: reduce) { .side-editor.object-editor.is-open { transition-duration: 160ms; } }
+body.motion-off .object-editor.is-open { transition-duration: 160ms; }

@@ -2,8 +2,8 @@
   import { onMount } from 'svelte';
   import font from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?inline';
   import type { Host } from '../../lib/host';
-  import { reportedHeight, THEME_KEYS } from './html-sandbox.js';
-  let { data, title, post, onheight }: { data: { html: string; css: string; js: string; height?: number }; title: string; post: Host['post']; onheight: (height: number) => void } = $props();
+  import { reportedHeight, reportedEscape, THEME_KEYS } from './html-sandbox.js';
+  let { data, title, post, onheight, onescape = () => {} }: { data: { html: string; css: string; js: string; height?: number }; title: string; post: Host['post']; onheight: (height: number) => void; onescape?: () => void } = $props();
   let frame = $state<HTMLIFrameElement>();
   let theme = $state<string | null>(null);
   let height = $state(240);
@@ -25,6 +25,7 @@
   });
   onMount(() => {
     const receive = (event: MessageEvent) => {
+      if (reportedEscape(event, frame?.contentWindow, channel)) onescape();
       const next = reportedHeight(event, frame?.contentWindow, channel);
       if (next === null) return;
       height = next;

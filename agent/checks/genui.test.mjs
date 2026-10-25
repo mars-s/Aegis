@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkObject, OBJECT_SIZE, objectSchemas, OBJECT_GUIDE } from '../../app/src/lib/board/objects.js';
 import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
-import { sandboxDocument, reportedHeight, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '../../app/src/objects/kinds/html-sandbox.js';
+import { sandboxDocument, reportedHeight, reportedEscape, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '../../app/src/objects/kinds/html-sandbox.js';
 import { genuiSamples } from './genui-fixtures.mjs';
 
 for (const [kind, data] of Object.entries(genuiSamples)) {
@@ -94,6 +94,16 @@ test('sandbox source keeps the CSP first and height reports require origin, sour
   assert.doesNotMatch(SANDBOX_CSP, /https?:|unsafe-eval/);
   assert.match(OBJECT_GUIDE, /Prefer built-in kinds/);
   assert.match(OBJECT_GUIDE, /framework compilation is omitted/);
+});
+
+test('sandbox Escape reports require the owning opaque frame and channel', () => {
+  const source = {}, channel = 'channel';
+  const event = { origin: 'null', source, data: { type: 'aegis:html-escape', channel } };
+  assert.equal(reportedEscape(event, source, channel), true);
+  assert.equal(reportedEscape(event, null, channel), false);
+  for (const patch of [{ origin: 'https://example.com' }, { source: {} }, { data: { ...event.data, channel: 'other' } }, { data: { ...event.data, type: 'aegis:html-height' } }, { data: null }]) {
+    assert.equal(reportedEscape({ ...event, ...patch }, source, channel), false);
+  }
 });
 
 let child, base;

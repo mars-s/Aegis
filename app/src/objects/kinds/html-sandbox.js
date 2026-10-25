@@ -23,6 +23,11 @@ export function sandboxDocument(data, channel, theme, font, motionOff = false) {
       queue();
     }, { once: true });
     addEventListener('load', queue);
+    addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !event.defaultPrevented) {
+        event.preventDefault(); send({ type: 'aegis:html-escape', channel: ${encodedChannel} }, '*');
+      }
+    });
   })();`;
   // The trusted CSP comes first. A later policy in agent HTML can only add restrictions.
   return `<!doctype html><html lang="en-AU"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -35,4 +40,8 @@ export function reportedHeight(event, source, channel) {
   const d = event.data;
   if (!source || event.source !== source || event.origin !== 'null' || !d || d.type !== 'aegis:html-height' || d.channel !== channel || typeof d.height !== 'number' || !Number.isFinite(d.height)) return null;
   return Math.max(80, Math.min(2000, Math.ceil(d.height)));
+}
+
+export function reportedEscape(event, source, channel) {
+  return !!source && event.source === source && event.origin === 'null' && event.data?.type === 'aegis:html-escape' && event.data.channel === channel;
 }

@@ -4,6 +4,12 @@
 
 Built-ins are the first choice: stats, timeline, kanban, table, progress, compare, gallery, stages, callout and form. Kanban supports dragging and keyboard or touch Move controls. Forms save each field on change, with text and numbers saving when focus leaves the field. They have no external submission. Galleries accept uploaded local image assets only. The test artwork is original SVG geometry.
 
+## Focused views
+
+Open in either the window strip or selection toolbar, double-click, and Return on a selected window open the shared document side editor. Sheets keep their cell editor. Other supported object kinds reuse `ObjectCard.svelte` with `expanded`, which omits its strip and renders the content with more space. Unsupported kinds have no Open button. `presentation.js` shares the names and checks kinds against the board schema list.
+
+`editor.js` listens for `boardchange` while open, so saved edits, undo and agent revisions update the view without polling. Switching boards, removing the object or changing its kind closes it. Closing blurs the active field to flush its change event, disposes the Svelte instance and listener, and restores focus through `openSide`. Escape inside custom HTML reports through a source, opaque-origin and channel check. Expanded HTML height stays local to its view and does not resize the canvas window.
+
 ## Custom HTML
 
 The `html` kind accepts `{ html, css, js, height? }`. Source strings are stored and revised like any object. The app registers that source with the authenticated local host using `POST /sandbox`. The host builds the isolated document and returns a loopback URL with a random 256-bit ID. Only that document executes the source. The app never evaluates it. The iframe has exactly `sandbox="allow-scripts"`, with an opaque origin and no same-origin, pop-up, form, top-navigation or download permission.

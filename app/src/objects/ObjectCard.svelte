@@ -19,14 +19,17 @@
   import Form from './kinds/Form.svelte';
   import Html from './kinds/Html.svelte';
   import type { Host } from '../lib/host';
+  import { OBJECT_NAMES, canOpenObject } from './presentation.js';
   import './genui.css';
   type Card = { id: string; kind: string; data: any; text: string; ver?: number; updated?: number };
-  let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void } = $props();
-  const NAMES: Record<string, string> = { reply: 'Reply', plot: 'Plot', sheet: 'Sheet', diagram: 'Diagram', plan: 'Plan', list: 'List', code: 'Code', inline: 'Inline', stats: 'Stats', timeline: 'Timeline', kanban: 'Kanban', table: 'Table', progress: 'Progress', compare: 'Comparison', gallery: 'Gallery', stages: 'Stages', callout: 'Callout', form: 'Form', html: 'Custom UI' };
+  let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {}, expanded = false, onescape = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void; expanded?: boolean; onescape?: () => void } = $props();
+  const NAMES: Record<string, string> = OBJECT_NAMES;
   const generative = $derived(['stats', 'timeline', 'kanban', 'table', 'progress', 'compare', 'gallery', 'stages', 'callout', 'form', 'html'].includes(card.kind));
   const time = (t?: number) => (t ? new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '');
   function open(event: MouseEvent) {
-    event.currentTarget instanceof HTMLElement && event.currentTarget.closest('.card')?.dispatchEvent(new CustomEvent('aegis:open-card', { bubbles: true, detail: { id: card.id } }));
+    // The selection toolbar forwards a click, so keep its actual focus modality.
+    const keyboard = event.detail === 0 && (event.isTrusted || !!document.activeElement?.matches('button:focus-visible'));
+    event.currentTarget instanceof HTMLElement && event.currentTarget.closest('.card')?.dispatchEvent(new CustomEvent('aegis:open-card', { bubbles: true, detail: { id: card.id, keyboard } }));
   }
   function keepControlsLocal(node: HTMLDivElement) {
     const pointer = (e: PointerEvent) => { if (e.target instanceof Element && e.target.closest('textarea, label, .ticket, .lane, .choices')) e.stopPropagation(); };
@@ -37,12 +40,14 @@
   }
 </script>
 
-<section class="object {card.kind}">
+<section class="object {card.kind}" class:expanded>
+  {#if !expanded}
     <header class="win-strip">
       <h3>{card.text || NAMES[card.kind]}<span class="kind">{`\u00a0· ${NAMES[card.kind] || card.kind}`}</span></h3>
       {#if (card.ver ?? 1) > 1}<span class="updated" title={`Version ${card.ver}`}>Updated · {time(card.updated)}</span>{/if}
-      <button class="win-open" type="button" aria-label={`Open ${card.text || NAMES[card.kind]}`} onclick={open}>Open</button>
+      {#if canOpenObject(card.kind)}<button class="win-open" type="button" aria-label={`Open ${card.text || NAMES[card.kind]}`} onclick={open}>Open</button>{/if}
     </header>
+  {/if}
   <div class="content" class:genui={generative} use:keepControlsLocal>
     {#if card.kind === 'reply'}<Reply data={card.data} />
     {:else if card.kind === 'plot'}<Plot data={card.data} title={card.text || 'Chart'} />
@@ -61,7 +66,7 @@
     {:else if card.kind === 'stages'}<Stages data={card.data} {onset} />
     {:else if card.kind === 'callout'}<Callout data={card.data} />
     {:else if card.kind === 'form'}<Form data={card.data} {onset} />
-    {:else if card.kind === 'html'}<Html data={card.data} title={card.text || 'Custom UI'} {post} {onheight} />
+    {:else if card.kind === 'html'}<Html data={card.data} title={card.text || 'Custom UI'} {post} {onheight} {onescape} />
     {:else}<p class="unknown">Unknown object kind: {card.kind}</p>{/if}
   </div>
 </section>
