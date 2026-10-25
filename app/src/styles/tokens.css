@@ -1,7 +1,7 @@
 /* Design tokens. Names and values follow Zephium's frame/src/styles/tokens.css (MPL-2.0), so ported
    object components read the same variables. Dark is set by data-theme="dark" on <html>. */
 :root {
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --text-caption: 11px; --text-label: 12px; --text-body: 13px; --text-title: 22px;
   --text-overview-label: 22px; --text-overview-figure: 40px; --text-headline: 26px; --text-reading: 15px;
@@ -21,20 +21,22 @@
   --color-ring: rgb(24 24 27 / 0.4); --color-tint-graphite: #5e5e64;
   --color-term: #2b5ea7; --color-code-chip: rgb(24 24 27 / 0.06); --color-code-chip-ink: #3a3a40;
   --shadow-float: 0 6px 22px rgb(24 24 27 / 0.16), 0 0 0 0.5px rgb(24 24 27 / 0.1);
-  --chart-1: #5d8fcc; --chart-2: #a6531e; --chart-3: #449d7a; --chart-4: #7f5f0a;
+  --chart-1: #0a6cff; --chart-2: #a6531e; --chart-3: #449d7a; --chart-4: #7f5f0a;
   --chart-5: #bc6082; --chart-6: #3e6f25; --chart-7: #7b68af; --chart-8: #9d4547;
 }
 :root[data-theme="dark"] {
-  --color-text: #f4f4f6; --color-muted: rgb(244 244 246 / 0.68); --color-faint: rgb(244 244 246 / 0.44);
-  --color-label-secondary: #d8d8db; --color-lit: #ededf0;
-  --color-surface: #26262a; --color-float: #3d3d44;
+  /* Mapped onto the Aegis dark theme in app.css so ported object components share its surfaces. */
+  --color-text: #ffffff; --color-muted: rgb(255 255 255 / 0.74); --color-faint: #959ba4;
+  --color-label-secondary: #d8dbe0; --color-lit: #ffffff;
+  --color-surface: #141618; --color-float: #24272b;
   --color-fill: rgb(255 255 255 / 0.05); --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-border: rgb(255 255 255 / 0.07); --color-border-strong: rgb(255 255 255 / 0.13);
-  --color-ring: rgb(255 255 255 / 0.5); --color-tint-graphite: #8e8e95;
-  --color-term: #9cc0f0; --color-code-chip: rgb(255 255 255 / 0.08); --color-code-chip-ink: #e2e2e6;
-  --shadow-float: 0 6px 22px rgb(0 0 0 / 0.34), 0 0 0 0.5px rgb(255 255 255 / 0.08);
-  --chart-1: #6193db; --chart-2: #b37046; --chart-3: #2da58f; --chart-4: #a47d00;
-  --chart-5: #b77094; --chart-6: #679936; --chart-7: #7e68ab; --chart-8: #c6685b;
+  --color-ring: rgb(255 255 255 / 0.5); --color-tint-graphite: #8e939b;
+  --color-term: #8db8ff; --color-code-chip: rgb(255 255 255 / 0.08); --color-code-chip-ink: #e2e4e8;
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.09), 0 16px 40px rgb(0 0 0 / 0.6);
+  /* Charts lead with the data blue; the rest are quiet and only appear in multi-series charts. */
+  --chart-1: #3f8dfd; --chart-2: #9aa3ae; --chart-3: #3dbf9a; --chart-4: #c9a23a;
+  --chart-5: #c27aa0; --chart-6: #7fae4a; --chart-7: #8a7cc4; --chart-8: #d0715f;
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --motion-fast: 0ms; --motion-base: 0ms; --motion-slow: 0ms; --motion-page: 0ms; }

@@ -58,7 +58,7 @@ export function mountSettings({ canvas, replayTour }) {
   const about = pages.get('about');
   const version = document.createElement('p'); version.textContent = `Aegis ${__AEGIS_VERSION__}`; about.append(version);
   const licences = document.createElement('ul');
-  for (const text of ['LICENSE.mochiboard: MIT', 'Zephium: MPL-2.0 (LICENSE.zephium)', 'Material Icons: Apache-2.0', 'Fonts: SIL Open Font Licence (OFL)']) { const li = document.createElement('li'); li.textContent = text; licences.append(li); }
+  for (const text of ['LICENSE.mochiboard: MIT', 'Zephium: MPL-2.0 (LICENSE.zephium)', 'Material Icons: Apache-2.0', 'Fonts: Inter and others, SIL Open Font Licence (OFL)']) { const li = document.createElement('li'); li.textContent = text; licences.append(li); }
   const data = document.createElement('p'); data.textContent = 'Default data folder: ~/Library/Application Support/Aegis. Custom launches may use another folder.';
   const replay = document.createElement('button'); replay.className = 'pill'; replay.textContent = 'Replay welcome and tour'; replay.onclick = () => { dialog.close(); replayTour(); }; about.append(licences, data, replay);
   // The editing feature's Customise toolbar entry point still lands on its controls.

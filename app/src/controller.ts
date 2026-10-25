@@ -359,7 +359,7 @@ function applyTheme(v) {
   for (const b of $('theme').children) b.setAttribute('aria-checked', String(b.dataset.v === v));
 }
 $('theme').onclick = e => { const v = e.target.closest('button')?.dataset.v; if (v) { applyTheme(v); canvas.setBoard(canvas.board); } };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(localStorage.getItem('aegis:theme') || 'system'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(localStorage.getItem('aegis:theme') || 'dark'));
 
 let toastT = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
@@ -401,7 +401,7 @@ addEventListener('keydown', e => {
 }, true);
 
 // ---------- start ----------
-applyTheme(localStorage.getItem('aegis:theme') || 'system');
+applyTheme(localStorage.getItem('aegis:theme') || 'dark');
 setFollow(follow);
 drawFeatureTools();
 for (const p of registry.panels) mountPanel(p);
