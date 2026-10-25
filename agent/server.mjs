@@ -266,6 +266,26 @@ function modelList() {
     ...pick('openai', /^gpt-6/), ...pick('anthropic', /^claude-(opus|sonnet|haiku)-5|^claude-fable-5/)];
 }
 
+// ---------- one-shot text rewrite for the document editor (no board access, no tools) ----------
+async function rewriteText({ text: input, how, title, around, model }) {
+  if (typeof input !== 'string' || !input.trim()) throw Object.assign(new Error('nothing to rewrite'), { status: 400 });
+  if (input.length > 12000) throw Object.assign(new Error('select fewer than 12,000 characters'), { status: 400 });
+  const list = modelList();
+  const ready = [];
+  for (const m of list) if (m.provider === 'fake' || (await credentials.read(m.provider))) ready.push(m);
+  const choice = (model && ready.find(m => m.provider === model.provider && m.modelId === model.modelId)) || ready[0];
+  if (!choice) throw Object.assign(new Error('Sign in to ChatGPT or Claude in Settings first'), { status: 400 });
+  if (choice.provider === 'fake') return { text: `${input} (rewritten)` };
+  const target = models.getModel(choice.provider, choice.modelId);
+  const reply = await models.completeSimple(target, {
+    systemPrompt: 'You rewrite a passage from the person\'s document. Return only the rewritten passage: no preamble, no quotes, no notes. Keep the meaning and the language. Australian English unless the passage is in another language. Never use em dashes.',
+    messages: [{ role: 'user', timestamp: Date.now(), content: `Document: ${String(title || 'Untitled').slice(0, 200)}\nInstruction: ${String(how || 'Improve the writing').slice(0, 500)}\n\nText around it (context only, do not return it):\n${String(around || '').slice(0, 3000)}\n\nPassage to rewrite:\n${input}` }],
+  });
+  const out = (reply.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+  if (!out) throw new Error(reply.errorMessage || 'the model returned nothing');
+  return { text: out, model: choice.modelId };
+}
+
 // ---------- board tools for agents ----------
 const run = new Map(); // conversation id -> { boardId, agentCard }
 const boardOf = api => run.get(String(api.conversationId ?? api.conversation?.id))?.boardId;
@@ -584,6 +604,7 @@ const server = http.createServer(async (req, res) => {
     const am = p.match(/^\/agents\/([a-zA-Z0-9-]+)\/(message|stop)$/);
     if (am && m === 'POST') { if (am[2] === 'stop') await stop(am[1]); else await message(am[1], String((await body(req)).content ?? '')); return send(res, 200, { ok: true }); }
     if (p === '/models') return send(res, 200, modelList());
+    if (p === '/rewrite' && m === 'POST') return send(res, 200, await rewriteText(await body(req)));
     if (p === '/auth' && m === 'GET') return send(res, 200, await authState());
     if (p === '/auth/start' && m === 'POST') { signIn((await body(req)).provider); return send(res, 200, await authState()); }
     if (p === '/auth/cancel' && m === 'POST') { cancelSignIn((await body(req)).provider); return send(res, 200, await authState()); }

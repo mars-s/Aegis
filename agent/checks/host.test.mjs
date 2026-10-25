@@ -185,3 +185,9 @@ test('an agent can load a built-in skill, and an unknown skill names the ones th
   const a = await until(async () => { const { body } = await call('GET', `/agents?board=${board.id}`); return body[0] && !body[0].running && body[0].text ? body[0] : null; });
   assert.equal(a.error, null);
 });
+
+test('the document rewrite endpoint returns rewritten text and refuses an empty selection', async () => {
+  const r = await call('POST', '/rewrite', { text: 'make this better', how: 'Shorter' });
+  assert.equal(r.status, 200); assert.equal(r.body.text, 'make this better (rewritten)');
+  assert.equal((await call('POST', '/rewrite', { text: '  ' })).status, 400);
+});
