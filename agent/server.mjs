@@ -2,7 +2,9 @@
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat } from 'node:fs/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import { pipeline } from 'node:stream/promises';
 import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import { BACKGROUND_CONTEXT as context } from '@earendil-works/chord/context';
@@ -13,11 +15,14 @@ import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { applyBatch, describe, emptyBoard } from '../web/board/commands.js';
+import { applyLibraryOp, emptyLibrary, tidyLibrary } from './library.mjs';
 
 const DATA = process.env.AEGIS_DATA || join(homedir(), 'Library', 'Application Support', 'Aegis');
 const BOARDS = join(DATA, 'boards');
+const ASSETS = join(DATA, 'assets');
 const PORT = Number(process.env.AEGIS_PORT || 4790);
 await mkdir(BOARDS, { recursive: true, mode: 0o700 });
+await mkdir(ASSETS, { recursive: true, mode: 0o700 });
 
 async function atomicJson(path, value) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
@@ -65,6 +70,64 @@ async function commit(boardId, batch, author) {
     broadcast({ type: 'board', boardId, rev: result.board.rev, author, touched: result.touched, focus: result.board.focus ?? null });
     return { ok: true, rev: result.board.rev, created: result.created };
   });
+}
+
+// ---------- library: projects and folders holding boards ----------
+const libraryPath = join(DATA, 'library.json');
+let libraryChain = Promise.resolve();
+async function library() {
+  const boards = await listBoards();
+  const lib = tidyLibrary(await readJson(libraryPath, emptyLibrary()), boards.map(b => b.id));
+  return { nodes: lib.nodes, boards: boards.map(b => ({ ...b, parent: lib.boards[b.id] ?? null })) };
+}
+function changeLibrary(op) {
+  const task = libraryChain.then(async () => {
+    const ids = (await listBoards()).map(b => b.id);
+    const r = applyLibraryOp(await readJson(libraryPath, emptyLibrary()), op, ids);
+    if (!r.ok) throw Object.assign(new Error(r.error), { status: 400 });
+    await atomicJson(libraryPath, r.library);
+    broadcast({ type: 'library' });
+    return { ok: true, created: r.created ?? null };
+  });
+  libraryChain = task.catch(() => {}); return task;
+}
+
+// ---------- assets: images and video, stored by random name ----------
+// Reading needs no token (img and video tags can't send one); the 128-bit name is the capability.
+const MEDIA = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+  mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm' };
+const EXT_OF = Object.fromEntries(Object.entries(MEDIA).reverse().map(([e, t]) => [t, e]));
+const ASSET_RE = /^[a-f0-9]{32}\.([a-z0-9]{3,4})$/;
+async function saveAsset(req) {
+  const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  const ext = EXT_OF[type]; if (!ext) throw Object.assign(new Error(`unsupported file type ${type || '(none)'}`), { status: 415 });
+  const name = `${randomBytes(16).toString('hex')}.${ext}`, tmp = join(ASSETS, `${name}.tmp`);
+  let size = 0;
+  req.on('data', c => { size += c.length; if (size > 1024 ** 3) req.destroy(new Error('file is over 1 GB')); });
+  await pipeline(req, createWriteStream(tmp, { mode: 0o600 }));
+  if (!size) { await unlink(tmp).catch(() => {}); throw new Error('empty file'); }
+  await rename(tmp, join(ASSETS, name));
+  return { url: `asset:${name}`, type, size };
+}
+async function sendAsset(req, res, name) {
+  const m = ASSET_RE.exec(name); if (!m || !MEDIA[m[1]]) return send(res, 404, { error: 'no asset' });
+  const path = join(ASSETS, name); let info;
+  try { info = await stat(path); } catch { return send(res, 404, { error: 'no asset' }); }
+  const headers = { 'content-type': MEDIA[m[1]], 'accept-ranges': 'bytes', 'cache-control': 'private, max-age=31536000, immutable',
+    'x-content-type-options': 'nosniff', 'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; sandbox" };
+  // WebKit seeks video with byte ranges.
+  const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+  if (range && (range[1] || range[2])) {
+    let start = range[1] ? Number(range[1]) : Math.max(0, info.size - Number(range[2]));
+    let end = range[1] && range[2] ? Math.min(Number(range[2]), info.size - 1) : info.size - 1;
+    if (start > end || start >= info.size) { res.writeHead(416, { 'content-range': `bytes */${info.size}` }); res.end(); return; }
+    res.writeHead(206, { ...headers, 'content-range': `bytes ${start}-${end}/${info.size}`, 'content-length': end - start + 1 });
+    if (req.method === 'HEAD') return res.end();
+    return pipeline(createReadStream(path, { start, end }), res).catch(() => {});
+  }
+  res.writeHead(200, { ...headers, 'content-length': info.size });
+  if (req.method === 'HEAD') return res.end();
+  return pipeline(createReadStream(path), res).catch(() => {});
 }
 
 // ---------- events to the canvas ----------
@@ -191,9 +254,10 @@ const editBoard = defineTool({
   name: 'board_apply',
   description: [
     'Change the board with an ordered batch of commands, applied together or not at all (one undo step).',
-    'Ops: create {type: note|title|todo|link|web, text, color?, x?, y?, w?, h?, items? (todo), url? (link/web), group?, near? (card id), ref? (name to reuse as "$name" later in the batch)};',
-    'update {id, set: {text|color|x|y|w|h|items|url|group}}; move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
-    'layout {ids, shape: grid|column|row, x?, y?, cols?}; focus {ids} (glide the user\'s camera there; end every batch that adds things with focus).',
+    'Ops: create {type: note|title|todo|link|image|video|web, text, heading?, badge?, color?, x?, y?, w?, h?, items? (todo), url? (link/image/video/web; https: or asset:), group?, near? (card id), ref? (name to reuse as "$name" later in the batch)};',
+    'update {id, set: {text|heading|badge|color|x|y|w|h|items|url|group}}; move {id, x, y}; delete {id | ids}; connect {a, b, label?};',
+    'layout {ids, shape: grid|column|row, x?, y?, cols?}; order {ids, to: front|back|index} (stacking; cards are listed back to front); focus {ids} (show the user what you made; end every batch that adds things with focus).',
+    'A note with a heading and a badge such as "read me first" explains how the board works.',
     'Colors: plain gray blue green yellow orange red purple. Omit x/y to let the board find free space. Titles label groups; put a title above each cluster.',
   ].join(' '),
   parameters: Type.Object({ commands: Type.Array(Command, { minItems: 1, maxItems: 500 }) }),
@@ -209,6 +273,7 @@ const BoardExtension = defineExtension({
   tools: [readBoard, editBoard],
   sections: [section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
+    'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',
     'Work through board_read and board_apply. Group related ideas under a title card, pull tasks into todo cards, connect related cards, and finish with a focus command on what you made.',
     'Keep card text short and plain. Australian English. Reply in one or two sentences saying what you changed.',
   ].join('\n'), { tag: false })],
@@ -303,6 +368,8 @@ const server = http.createServer(async (req, res) => {
   if (!/^(127\.0\.0\.1|localhost):\d+$/.test(host)) return send(res, 403, { error: 'loopback only' });
   const url = new URL(req.url, 'http://127.0.0.1');
   if (url.pathname === '/health') return send(res, 200, { ok: true, runtime: 'Pi Durable 1.3.0' });
+  const asset = url.pathname.match(/^\/assets\/([^/]+)$/);
+  if (asset && (req.method === 'GET' || req.method === 'HEAD')) return sendAsset(req, res, asset[1]);
   const sseToken = url.searchParams.get('token');
   if (!authorised(req) && !(url.pathname === '/events' && sseToken && sseToken.length === TOKEN.length && timingSafeEqual(Buffer.from(sseToken), Buffer.from(TOKEN)))) return send(res, 401, { error: 'unauthorised' });
   try {
@@ -314,8 +381,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (p === '/boards' && m === 'GET') return send(res, 200, await listBoards());
     if (p === '/boards' && m === 'POST') {
-      const { name } = await body(req); const id = randomUUID().slice(0, 8);
-      const b = emptyBoard(id, String(name || 'Untitled').slice(0, 120)); await atomicJson(boardPath(id), b); return send(res, 200, b);
+      const { name, parent } = await body(req); const id = randomUUID().slice(0, 8);
+      const b = emptyBoard(id, String(name || 'Untitled').slice(0, 120)); await atomicJson(boardPath(id), b);
+      if (parent) await changeLibrary({ op: 'move', id, parent }).catch(async e => { await unlink(boardPath(id)); throw e; });
+      return send(res, 200, b);
     }
     const bm = p.match(/^\/boards\/([a-zA-Z0-9-]+)(\/batch|\/view|\/name)?$/);
     if (bm && m === 'GET' && !bm[2]) { const b = await loadBoard(bm[1]); return b ? send(res, 200, b) : send(res, 404, { error: 'no board' }); }
@@ -330,6 +399,9 @@ const server = http.createServer(async (req, res) => {
       await withBoard(bm[1], async () => { const b = await loadBoard(bm[1]); if (b) { b.name = String(name || 'Untitled').slice(0, 120); await atomicJson(boardPath(bm[1]), b); } });
       return send(res, 200, { ok: true });
     }
+    if (p === '/library' && m === 'GET') return send(res, 200, await library());
+    if (p === '/library' && m === 'POST') return send(res, 200, await changeLibrary(await body(req)));
+    if (p === '/assets' && m === 'POST') return send(res, 200, await saveAsset(req));
     if (p === '/agents' && m === 'GET') return send(res, 200, await agents(url.searchParams.get('board')));
     if (p === '/agents' && m === 'POST') {
       const { boardId, brief, model, count } = await body(req);

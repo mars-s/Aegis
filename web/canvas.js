@@ -4,13 +4,14 @@ const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom, cards show as outlines
 const MIN_Z = 0.05, MAX_Z = 4;
 
-export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl }) {
+export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, resolveUrl = u => u }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
   const mounted = new Map();      // id -> { el, sig }
   const selected = new Set();
   const rings = new Map();        // card id -> colour, cards an agent touched recently
   let frame = 0, dirtyAll = true;
+  let tool = null;                // armed tool: the next click on empty canvas places it
   const ctx = grid.getContext('2d');
 
   // ---------- view ----------
@@ -74,24 +75,30 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   function mountVisible() {
     if (!board) return;
     const r = visibleRect(); const keep = new Set();
-    for (const c of board.cards) {
-      if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) continue;
+    board.cards.forEach((c, z) => {
+      if (c.x > r.x1 || c.x + c.w < r.x0 || c.y > r.y1 || c.y + c.h < r.y0) return;
       keep.add(c.id);
-      const sig = signature(c);
-      const m = mounted.get(c.id);
-      if (!m) { const el = renderCard(c); world.appendChild(el); mounted.set(c.id, { el, sig }); }
-      else if (m.sig !== sig) {
-        if (m.el.contains(document.activeElement) && document.activeElement.isContentEditable) { place(m.el, c); m.sig = sig; continue; }
-        const el = renderCard(c); m.el.replaceWith(el); m.el = el; m.sig = sig;
+      const sig = signature(c), geo = geometry(c);
+      let m = mounted.get(c.id);
+      if (!m) { m = { el: renderCard(c), sig, geo: '', z: -1 }; world.appendChild(m.el); mounted.set(c.id, m); }
+      else if (m.sig !== sig && !(m.el.contains(document.activeElement) && document.activeElement.isContentEditable)) {
+        // Content changed: redraw the card. Moves and resizes only re-place it, so a playing video keeps playing.
+        const refocus = m.el.contains(document.activeElement) && document.activeElement.matches('.add-item');
+        const el = renderCard(c); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
+        if (refocus) el.querySelector('.add-item')?.focus();
       }
-      const el = mounted.get(c.id).el;
+      m.sig = sig;
+      if (m.geo !== geo) { place(m.el, c); m.geo = geo; }
+      if (m.z !== z) { m.el.style.zIndex = z; m.z = z; }
+      const el = m.el;
       el.classList.toggle('selected', selected.has(c.id));
       if (rings.has(c.id)) { el.classList.add('agent-ring'); el.style.setProperty('--ring', rings.get(c.id)); } else el.classList.remove('agent-ring');
-    }
+    });
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; m.el.remove(); mounted.delete(id); }
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-  const signature = c => JSON.stringify([c.type, c.x, c.y, c.w, c.h, c.text, c.color, c.items, c.url]);
+  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url]);
+  const geometry = c => `${c.x},${c.y},${c.w},${c.h}`;
   function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
 
   function renderCard(c) {
@@ -99,8 +106,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     el.className = `card ${c.type}`; el.dataset.id = c.id; el.dataset.color = c.color || 'plain';
     place(el, c);
     const ghost = '<div class="ghost"><i style="width:70%"></i><i style="width:90%"></i><i style="width:50%"></i></div>';
+    if (c.badge || c.heading) el.classList.add('has-head');
+    if (c.badge) { const b = document.createElement('span'); b.className = 'badge'; b.contentEditable = 'plaintext-only'; b.textContent = c.badge; el.appendChild(b); }
+    if (c.heading) { const h = document.createElement('div'); h.className = 'heading'; h.contentEditable = 'plaintext-only'; h.textContent = c.heading; el.appendChild(h); }
     if (c.type === 'todo') {
-      el.innerHTML = `<div class="label body" contenteditable="plaintext-only"></div><div class="items"></div>${ghost}`;
+      el.insertAdjacentHTML('beforeend', `<div class="label body" contenteditable="plaintext-only"></div><div class="items"></div><input class="add-item" placeholder="Add item" aria-label="Add checklist item">${ghost}`);
       el.querySelector('.label').textContent = c.text;
       const items = el.querySelector('.items');
       (c.items ?? []).forEach((it, i) => {
@@ -110,22 +120,46 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
         box.addEventListener('change', () => { const next = c.items.map((x, j) => j === i ? { ...x, done: box.checked } : x); onBatch.apply([{ op: 'update', id: c.id, set: { items: next } }]); });
         items.appendChild(row);
       });
+      const add = el.querySelector('.add-item');
+      add.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key === 'Escape') add.blur();
+        if (e.key !== 'Enter' || !add.value.trim()) return;
+        onBatch.apply([{ op: 'update', id: c.id, set: { items: [...(c.items ?? []), { text: add.value.trim(), done: false }] } }]);
+      });
+    } else if (c.type === 'link' && !c.url) {
+      // A new link card asks for its address.
+      el.innerHTML = `<input class="url-input" placeholder="Paste a link" aria-label="Link address" spellcheck="false">${ghost}`;
+      const input = el.querySelector('input');
+      input.addEventListener('keydown', e => {
+        e.stopPropagation();
+        if (e.key === 'Escape') input.blur();
+        if (e.key === 'Enter' && input.value.trim()) { const v = input.value.trim(); onBatch.apply([{ op: 'update', id: c.id, set: { url: /^[a-z]+:/i.test(v) ? v : 'https://' + v } }]); }
+      });
     } else if (c.type === 'link') {
       el.innerHTML = `<div class="body" contenteditable="plaintext-only"></div><a href="#"></a>${ghost}`;
       el.querySelector('.body').textContent = c.text || hostOf(c.url); const a = el.querySelector('a'); a.textContent = c.url;
       a.addEventListener('click', e => { e.preventDefault(); onOpenUrl?.(c.url); });
+    } else if (c.type === 'image') {
+      el.innerHTML = `<img alt="" draggable="false" decoding="async" loading="lazy">`;
+      const img = el.querySelector('img'); img.src = resolveUrl(c.url); img.alt = c.text || 'Image';
+    } else if (c.type === 'video') {
+      el.innerHTML = `<div class="media-head"><span></span></div><video controls preload="metadata" playsinline></video>`;
+      el.querySelector('.media-head span').textContent = c.text || 'Video';
+      el.querySelector('video').src = resolveUrl(c.url);
     } else if (c.type === 'web') {
       el.innerHTML = `<div class="web-head"><span class="url"></span></div><div class="web-body"><div class="body" contenteditable="plaintext-only"></div><small>Live pages arrive in a later build.</small></div>${ghost}`;
       el.querySelector('.url').textContent = c.url; el.querySelector('.body').textContent = c.text;
     } else {
-      el.innerHTML = `<div class="body" contenteditable="plaintext-only"></div>${ghost}`;
+      el.insertAdjacentHTML('beforeend', `<div class="body" contenteditable="plaintext-only"></div>${ghost}`);
       el.querySelector('.body').textContent = c.text;
     }
     if (c.type !== 'title') el.insertAdjacentHTML('beforeend', '<div class="resize"></div>');
-    el.querySelectorAll('.body').forEach(body => {
+    el.querySelectorAll('.body, .heading, .badge').forEach(body => {
+      const field = body.classList.contains('heading') ? 'heading' : body.classList.contains('badge') ? 'badge' : 'text';
       body.addEventListener('blur', () => {
-        const value = body.textContent; const cur = board.cards.find(x => x.id === c.id);
-        if (cur && value !== cur.text) onBatch.apply([{ op: 'update', id: c.id, set: { text: value } }]);
+        const value = field === 'text' ? body.textContent : body.textContent.trim(); const cur = board.cards.find(x => x.id === c.id);
+        if (cur && value !== (cur[field] ?? '')) onBatch.apply([{ op: 'update', id: c.id, set: { [field]: value } }]);
       });
       body.addEventListener('keydown', e => { if (e.key === 'Escape') body.blur(); e.stopPropagation(); });
     });
@@ -163,7 +197,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (e.button !== 0 && e.button !== 1) return;
     const cardEl = e.target.closest('.card');
     if (e.target.isContentEditable && document.activeElement === e.target) return;
-    if (e.target.closest('input, a')) return;
+    if (e.target.closest('input, a, video')) return;
     stage.focus({ preventScroll: true });
     if (cardEl && e.button === 0) {
       const id = cardEl.dataset.id;
@@ -174,10 +208,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       const resize = e.target.classList.contains('resize');
       const cards = [...selected].map(sid => board.cards.find(c => c.id === sid)).filter(Boolean);
       drag = { kind: resize ? 'resize' : 'move', start, sx: e.clientX, sy: e.clientY, moved: false, cards: cards.map(c => ({ c, x: c.x, y: c.y, w: c.w, h: c.h })), target: id };
-      if (!resize && e.target.closest('.body')) drag.maybeEdit = e.target.closest('.body');
+      if (!resize && e.target.closest('.body, .heading, .badge')) drag.maybeEdit = e.target.closest('.body, .heading, .badge');
       stage.setPointerCapture(e.pointerId); schedule(); e.preventDefault(); return;
     }
     if (e.button === 1 || spaceHeld) { drag = { kind: 'pan', sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y }; stage.classList.add('panning'); stage.setPointerCapture(e.pointerId); return; }
+    if (tool) { const t = tool; setTool(null); onPlace?.(t, screenToWorld(e.clientX, e.clientY)); e.preventDefault(); return; }
     // empty canvas: marquee select
     selected.clear(); onSelect?.([]);
     drag = { kind: 'marquee', sx: e.clientX, sy: e.clientY };
@@ -200,7 +235,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     for (const d of drag.cards) {
       if (drag.kind === 'move') { d.c.x = Math.round(d.x + wdx); d.c.y = Math.round(d.y + wdy); }
       else if (d.c.id === drag.target) { d.c.w = Math.max(80, Math.round(d.w + wdx)); d.c.h = Math.max(40, Math.round(d.h + wdy)); }
-      const m = mounted.get(d.c.id); if (m) { place(m.el, d.c); m.el.classList.add('dragging'); m.sig = signature(d.c); }
+      const m = mounted.get(d.c.id); if (m) { place(m.el, d.c); m.el.classList.add('dragging'); m.geo = geometry(d.c); }
     }
     drawLinks();
   });
@@ -238,12 +273,15 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (e.code === 'Space') { spaceHeld = true; e.preventDefault(); }
     if ((e.key === 'Backspace' || e.key === 'Delete') && selected.size) { onBatch.apply([{ op: 'delete', ids: [...selected] }]); selected.clear(); }
     if (e.key === '0') fit();
+    if ((e.key === ']' || e.key === '[') && selected.size) onBatch.apply([{ op: 'order', ids: board.cards.filter(c => selected.has(c.id)).map(c => c.id), to: e.key === ']' ? 'front' : 'back' }]);
+    if (e.key === 'Escape') { if (tool) setTool(null); else if (selected.size) { selected.clear(); onSelect?.([]); schedule(); } }
     if ((e.metaKey || e.ctrlKey) && e.key === 'a') { e.preventDefault(); board.cards.forEach(c => selected.add(c.id)); schedule(); }
   });
   addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
   addEventListener('resize', () => schedule(true));
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => schedule(true));
 
+  function setTool(t) { tool = t; stage.classList.toggle('placing', !!t); stage.dispatchEvent(new CustomEvent('tool', { detail: t })); }
   function placeCaret(el) { const r = document.createRange(); r.selectNodeContents(el); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
 
   // ---------- camera ----------
@@ -281,7 +319,12 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     get board() { return board; },
     get view() { return view; },
     selection: () => [...selected],
-    frameIds, glow, fit,
+    frameIds, glow, fit, setTool,
+    get tool() { return tool; },
+    busy: () => !!drag,
+    select(ids) { selected.clear(); for (const id of ids) selected.add(id); onSelect?.([...selected]); schedule(); },
+    // Put the caret in a card's first editable field (or its link box).
+    edit(id) { requestAnimationFrame(() => { const el = mounted.get(id)?.el; const f = el?.querySelector('.url-input, .body'); if (f) { f.focus(); if (f.isContentEditable) placeCaret(f); } }); },
     ring(ids, colour, ms = 4000) { for (const id of ids) rings.set(id, colour); schedule(); setTimeout(() => { for (const id of ids) if (rings.get(id) === colour) rings.delete(id); schedule(); }, ms); },
     centre: () => screenToWorld(stage.clientWidth / 2, stage.clientHeight / 2),
     stats: () => ({ mounted: mounted.size, cards: board?.cards.length ?? 0, z: view.z }),

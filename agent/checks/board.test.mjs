@@ -64,3 +64,27 @@ test('describe gives a model ids, positions and text', () => {
   const d = describe(board());
   assert.deepEqual(d.cards.map(c => [c.id, c.text]), [['aaaaaaaa', 'one'], ['bbbbbbbb', 'two']]);
 });
+
+test('notes keep a heading and badge, agents see them, and clearing removes them', () => {
+  let r = applyBatch(board(), { commands: [{ op: 'create', type: 'note', text: 'Dump here.', heading: 'How this board works', badge: 'read me first', ref: 'r' }] });
+  const id = r.created.r;
+  const seen = describe(r.board).cards.find(c => c.id === id);
+  assert.equal(seen.heading, 'How this board works'); assert.equal(seen.badge, 'read me first');
+  r = applyBatch(r.board, { commands: [{ op: 'update', id, set: { badge: '' } }] });
+  assert.equal('badge' in r.board.cards.find(c => c.id === id), false);
+});
+
+test('order restacks cards: later in the list draws on top', () => {
+  const b = applyBatch(board(), { commands: [{ op: 'create', type: 'note', text: 'three', newId: 'cccccccc', x: 0, y: 400 }] }).board;
+  const ids = r => r.board.cards.map(c => c.id);
+  assert.deepEqual(ids(applyBatch(b, { commands: [{ op: 'order', ids: ['aaaaaaaa'], to: 'front' }] })), ['bbbbbbbb', 'cccccccc', 'aaaaaaaa']);
+  assert.deepEqual(ids(applyBatch(b, { commands: [{ op: 'order', ids: ['cccccccc'], to: 'back' }] })), ['cccccccc', 'aaaaaaaa', 'bbbbbbbb']);
+  assert.deepEqual(ids(applyBatch(b, { commands: [{ op: 'order', ids: ['cccccccc'], to: 1 }] })), ['aaaaaaaa', 'cccccccc', 'bbbbbbbb']);
+  assert.equal(applyBatch(b, { commands: [{ op: 'order', ids: ['nope'], to: 'front' }] }).ok, false);
+});
+
+test('video cards keep their url and get a 16:9 default size', () => {
+  const r = applyBatch(board(), { commands: [{ op: 'create', type: 'video', url: 'asset:0123456789abcdef0123456789abcdef.mp4', ref: 'v' }] });
+  const v = r.board.cards.find(c => c.id === r.created.v);
+  assert.equal(v.url, 'asset:0123456789abcdef0123456789abcdef.mp4'); assert.deepEqual([v.w, v.h], [480, 270]);
+});

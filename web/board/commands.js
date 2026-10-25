@@ -1,11 +1,11 @@
 // Board commands: the one way anything changes a board, for people and agents alike.
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
 
-export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'web', 'agent'];
+export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent'];
 const COLORS = ['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple'];
 const DEFAULT_SIZE = {
   note: [220, 96], title: [360, 56], todo: [260, 160], link: [260, 76],
-  image: [320, 220], web: [480, 340], agent: [300, 160],
+  image: [320, 220], video: [480, 270], web: [480, 340], agent: [300, 160],
 };
 const GAP = 24;
 
@@ -49,13 +49,17 @@ function cleanCard(type, o, board, anchor) {
   const id = ID_RE.test(o.newId ?? '') && !board.cards.some(c => c.id === o.newId) ? o.newId : newId(board);
   const card = { id, type, x: pos.x, y: pos.y, w, h, text: str(o.text), color: COLORS.includes(o.color) ? o.color : 'plain' };
   if (type === 'todo') card.items = Array.isArray(o.items) ? o.items.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : [];
-  if (type === 'link' || type === 'web' || type === 'image') card.url = str(o.url, 4000);
+  if (type === 'link' || type === 'web' || type === 'image' || type === 'video') card.url = str(o.url, 4000);
+  // Notes can carry a short heading and a badge (e.g. "read me first") above the body.
+  if (str(o.heading)) card.heading = str(o.heading, 200);
+  if (str(o.badge)) card.badge = str(o.badge, 40);
   if (type === 'agent') card.agent = str(o.agent, 100);
   if (o.group) card.group = str(o.group, 100);
   return card;
 }
 
-const EDITABLE = ['text', 'color', 'x', 'y', 'w', 'h', 'items', 'url', 'group', 'done'];
+const EDITABLE = ['text', 'heading', 'badge', 'color', 'x', 'y', 'w', 'h', 'items', 'url', 'group', 'done'];
+const LIMIT = { url: 4000, heading: 200, badge: 40 };
 
 // Apply one batch atomically. Returns { ok, board, created, errors }. The input board is never mutated.
 export function applyBatch(input, batch) {
@@ -86,7 +90,8 @@ export function applyBatch(input, batch) {
             else if (['w', 'h'].includes(k)) c[k] = clamp(num(v, c[k]), 24, 4000);
             else if (k === 'color') { if (COLORS.includes(v)) c.color = v; }
             else if (k === 'items') c.items = Array.isArray(v) ? v.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : c.items;
-            else c[k] = typeof v === 'boolean' ? v : str(v, k === 'url' ? 4000 : 20000);
+            else if ((k === 'heading' || k === 'badge') && !str(v)) delete c[k];
+            else c[k] = typeof v === 'boolean' ? v : str(v, LIMIT[k] ?? 20000);
           }
           touched.add(c.id); break;
         }
@@ -114,11 +119,21 @@ export function applyBatch(input, batch) {
           layout(cards, cmd.shape ?? 'grid', { x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, 3), 1, 20) });
           cards.forEach(c => touched.add(c.id)); break;
         }
+        case 'order': {
+          // Card list order is stacking order: later cards draw on top.
+          const ids = (Array.isArray(cmd.ids) ? cmd.ids : [cmd.id]).map(ref);
+          const moving = ids.map(id => board.cards.find(c => c.id === id));
+          if (!ids.length || moving.some(c => !c)) throw new Error('order lists a card that does not exist');
+          const rest = board.cards.filter(c => !ids.includes(c.id));
+          const at = cmd.to === 'back' ? 0 : cmd.to === 'front' || typeof cmd.to !== 'number' ? rest.length : clamp(Math.round(cmd.to), 0, rest.length);
+          rest.splice(at, 0, ...moving); board.cards = rest;
+          moving.forEach(c => touched.add(c.id)); break;
+        }
         case 'focus': {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : [cmd.id]).map(ref).filter(Boolean);
           board.focus = { ids, at: Date.now() }; break;
         }
-        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, move, delete, connect, layout or focus`);
+        default: throw new Error(`unknown op "${cmd?.op}". Use create, update, move, delete, connect, layout, order or focus`);
       }
     } catch (e) {
       errors.push({ index, reason: e.message, hint: 'read the board again to get current card ids' });
@@ -137,11 +152,11 @@ export function layout(cards, shape, { x, y, cols }) {
   cards.forEach((c, i) => { c.x = x + (i % cols) * cw; c.y = y + Math.floor(i / cols) * ch; });
 }
 
-// A compact view of a board for a model: ids, types, positions, text.
+// A compact view of a board for a model: ids, types, positions, text. Cards are listed back to front.
 export function describe(board, limit = 400) {
   return {
     id: board.id, name: board.name, rev: board.rev,
-    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}) })),
+    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}) })),
     links: board.links.map(l => ({ a: l.a, b: l.b, label: l.label })),
     truncated: board.cards.length > limit,
   };

@@ -84,3 +84,32 @@ test('starting a sign-in again replaces the unfinished one', async () => {
   assert.equal((await call('GET', '/auth')).body.anthropic.state, 'pending');
   await call('POST', '/auth/cancel', { provider: 'anthropic' });
 });
+
+test('the library files boards under projects and folders, and old boards show as loose', async () => {
+  const { body: loose } = await call('POST', '/boards', { name: 'Loose' });
+  const { body: proj } = await call('POST', '/library', { op: 'create', kind: 'project', name: 'Work' });
+  const { body: folder } = await call('POST', '/library', { op: 'create', kind: 'folder', name: 'Q4', parent: proj.created });
+  const { body: filed } = await call('POST', '/boards', { name: 'Filed', parent: folder.created });
+  const { body: lib } = await call('GET', '/library');
+  assert.equal(lib.boards.find(b => b.id === loose.id).parent, null);
+  assert.equal(lib.boards.find(b => b.id === filed.id).parent, folder.created);
+  const bad = await call('POST', '/library', { op: 'delete', id: proj.created });
+  assert.equal(bad.status, 400); assert.match(bad.body.error, /not empty/);
+});
+
+test('media uploads come back by name, with byte ranges for video, and no token is needed to read', async () => {
+  const bytes = Buffer.from(Array.from({ length: 1000 }, (_, i) => i % 256));
+  const up = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'video/mp4' }, body: bytes });
+  const { url } = await up.json();
+  assert.match(url, /^asset:[a-f0-9]{32}\.mp4$/);
+  const path = '/assets/' + url.slice(6);
+  const whole = await fetch(base + path);
+  assert.equal(whole.status, 200); assert.deepEqual(Buffer.from(await whole.arrayBuffer()), bytes);
+  const part = await fetch(base + path, { headers: { range: 'bytes=10-19' } });
+  assert.equal(part.status, 206); assert.equal(part.headers.get('content-range'), 'bytes 10-19/1000');
+  assert.deepEqual(Buffer.from(await part.arrayBuffer()), bytes.subarray(10, 20));
+  const html = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'text/html' }, body: '<script>' });
+  assert.equal(html.status, 415);
+  assert.equal((await fetch(base + '/assets/..%2fauth.json')).status, 404);
+  assert.equal((await fetch(base + '/assets', { method: 'POST', headers: { 'content-type': 'image/png' }, body: bytes })).status, 401);
+});

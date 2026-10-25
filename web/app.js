@@ -1,29 +1,38 @@
 // Aegis app: boards, composer, agents and settings, talking to the local agent host.
 import { createCanvas } from './canvas.js';
 import { applyBatch } from './board/commands.js';
+import { createCursor } from './chrome/cursor.js';
+import { createPanels } from './chrome/panels.js';
+import { createLibrary } from './chrome/library.js';
+import { createLayers } from './chrome/layers.js';
 
 const $ = id => document.getElementById(id);
 const host = await connect();
 const canvas = createCanvas({
   stage: $('stage'), world: $('world'), grid: $('grid'), links: $('links'), marquee: $('marquee'),
   onBatch: { apply: (commands, done) => apply(commands, done), view: v => host.post(`/boards/${canvas.board.id}/view`, { view: v }).catch(() => {}) },
-  onSelect: () => {},
+  onSelect: ids => layers?.select(ids),
   onOpenUrl: url => host.openUrl(url),
+  onPlace: (tool, at) => place(tool, at),
+  resolveUrl: url => host.assetUrl(url),
 });
 
 // ---------- host connection: Tauri gives us the port and token; a browser uses ?port=&token= ----------
 async function connect() {
   let port, token;
   if (window.__TAURI_INTERNALS__) {
-    for (let i = 0; i < 60 && !port; i++) {
+    // The first launch after an update can take a while (macOS checks the new files), so wait up to two minutes.
+    for (let i = 0; i < 480 && !port; i++) {
       const info = await window.__TAURI_INTERNALS__.invoke('agent_info').catch(() => null);
       if (info?.port) ({ port, token } = info); else await new Promise(r => setTimeout(r, 250));
+      if (i === 8) document.getElementById('status').textContent = 'Starting Aegis…';
     }
+    document.getElementById('status').textContent = '';
   } else {
     const q = new URLSearchParams(location.search); port = q.get('port') || localStorage.getItem('aegis:port'); token = q.get('token') || localStorage.getItem('aegis:token');
     if (port) { localStorage.setItem('aegis:port', port); localStorage.setItem('aegis:token', token); }
   }
-  if (!port) { document.body.innerHTML = '<p style="font:14px system-ui;padding:40px">The Aegis agent host is not running.</p>'; throw new Error('no host'); }
+  if (!port) { document.body.innerHTML = '<p style="font:14px system-ui;padding:60px 40px">The Aegis agent host did not start. Quit Aegis and open it again.</p>'; throw new Error('no host'); }
   const base = `http://127.0.0.1:${port}`;
   const call = async (method, path, body) => {
     const r = await fetch(base + path, { method, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -32,6 +41,12 @@ async function connect() {
   return {
     get: p => call('GET', p), post: (p, b) => call('POST', p, b ?? {}),
     events: () => new EventSource(`${base}/events?token=${encodeURIComponent(token)}`),
+    // Boards store "asset:<name>"; the host serves it on this launch's port.
+    assetUrl: url => (typeof url === 'string' && url.startsWith('asset:') ? `${base}/assets/${encodeURIComponent(url.slice(6))}` : url),
+    upload: async file => {
+      const r = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': file.type }, body: file });
+      const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+    },
     openUrl: url => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('open_url', { url }) : open(url, '_blank'),
     copy: text => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('copy_text', { text }) : navigator.clipboard.writeText(text),
   };
@@ -43,14 +58,15 @@ async function openBoard(id) {
   const b = await host.get(`/boards/${id}`);
   canvas.setBoard(b); localStorage.setItem('aegis:board', id);
   $('boardName').textContent = b.name; refreshEmpty(); refreshAgents();
+  library.render(); layers.update(); hideShow();
 }
 async function reloadBoard(focus) {
   const b = await host.get(`/boards/${canvas.board.id}`);
   if (b.rev <= canvas.board.rev && !focus) return;
   canvas.setBoard(b); refreshEmpty();
-  if (focus?.ids?.length) { canvas.frameIds(focus.ids); setTimeout(() => canvas.glow(focus.ids), 450); }
+  if (focus?.ids?.length) followTo(focus.ids);
 }
-function refreshEmpty() { $('empty').hidden = canvas.board.cards.length > 0; }
+function refreshEmpty() { $('empty').hidden = canvas.board.cards.length > 0; layers?.update(); }
 // Local first: apply the batch on screen at once, then commit; the host's answer wins.
 function apply(commands, done) {
   for (const c of commands) if (c.op === 'create' && !c.newId) c.newId = Math.random().toString(36).slice(2, 12).padEnd(8, '0');
@@ -65,23 +81,111 @@ function apply(commands, done) {
   }).catch(e => { toast(e.message); reloadBoard(); });
   if (done) done(local.created);
 }
-async function boardsMenu() {
-  const menu = $('boardsMenu'); const list = await host.get('/boards');
-  menu.innerHTML = '';
-  for (const b of list) {
-    const btn = document.createElement('button'); btn.innerHTML = '<span></span><span class="meta"></span>';
-    btn.firstChild.textContent = b.name; btn.lastChild.textContent = b.cards;
-    btn.onclick = () => { closeMenu(); openBoard(b.id); }; menu.appendChild(btn);
-  }
-  menu.insertAdjacentHTML('beforeend', '<div class="sep"></div>');
-  const add = document.createElement('button'); add.textContent = 'New board'; add.onclick = async () => { closeMenu(); const b = await host.post('/boards', { name: 'Untitled' }); openBoard(b.id); };
-  const rename = document.createElement('button'); rename.textContent = 'Rename…'; rename.onclick = async () => { closeMenu(); const name = prompt('Board name', canvas.board.name); if (name) { await host.post(`/boards/${canvas.board.id}/name`, { name }); $('boardName').textContent = name; canvas.board.name = name; } };
-  menu.append(add, rename);
-  menu.hidden = false; $('boardsBtn').setAttribute('aria-expanded', 'true');
+document.addEventListener('board-renamed', e => { $('boardName').textContent = e.detail; canvas.board.name = e.detail; });
+
+// ---------- side bar, layers, library ----------
+const panels = createPanels({ side: $('side'), onChange: st => $('sideBtn').setAttribute('aria-pressed', String(!st.hidden)) });
+$('sideBtn').onclick = () => panels.toggle();
+const library = createLibrary({ el: document.querySelector('[data-panel="library"]'), host, current: () => canvas.board?.id, openBoard, toast });
+const layers = createLayers({
+  el: document.querySelector('[data-panel="layers"]'), count: $('layerCount'), getBoard: () => canvas.board,
+  onPick: (id, add) => { canvas.select(add ? [...new Set([...canvas.selection(), id])] : [id]); if (!add) canvas.frameIds([id], canvas.view.z); },
+  onOrder: (id, to) => apply([{ op: 'order', ids: [id], to }]),
+});
+
+// ---------- following agents ----------
+// On: glide to what an agent made, unless you're mid-drag or typed in the last moment. Off: offer a Show chip.
+let follow = localStorage.getItem('aegis:follow') !== 'off', lastTouch = 0, pendingFocus = null;
+const touched = () => { lastTouch = performance.now(); };
+for (const t of ['pointerdown', 'wheel', 'keydown']) addEventListener(t, touched, { capture: true, passive: true });
+function setFollow(on) {
+  follow = on; localStorage.setItem('aegis:follow', on ? 'on' : 'off');
+  $('followBtn').setAttribute('aria-checked', String(on));
+  if (on && pendingFocus) { const ids = pendingFocus; hideShow(); followTo(ids, true); }
 }
-function closeMenu() { $('boardsMenu').hidden = true; $('boardsBtn').setAttribute('aria-expanded', 'false'); }
-$('boardsBtn').onclick = e => { e.stopPropagation(); $('boardsMenu').hidden ? boardsMenu() : closeMenu(); };
-addEventListener('click', e => { if (!e.target.closest('#boardsMenu')) closeMenu(); });
+function followTo(ids, force = false) {
+  ids = ids.filter(id => canvas.board.cards.some(c => c.id === id)); if (!ids.length) return;
+  if (force || (follow && !canvas.busy() && performance.now() - lastTouch > 1500)) {
+    canvas.frameIds(ids); setTimeout(() => canvas.glow(ids), 450); return;
+  }
+  pendingFocus = ids; $('showChip').hidden = false; canvas.glow(ids);
+}
+function hideShow() { pendingFocus = null; $('showChip').hidden = true; }
+$('followBtn').onclick = () => setFollow(!follow);
+$('showChip').onclick = () => { const ids = pendingFocus; hideShow(); if (ids) followTo(ids, true); };
+
+// ---------- tools ----------
+const TOOL_KEYS = { v: 'select', n: 'note', h: 'title', c: 'todo', r: 'readme', l: 'link', m: 'media' };
+const TOOL_NAMES = { note: 'Note', title: 'Heading', todo: 'Checklist', readme: 'Read me', link: 'Link' };
+function pickTool(t) {
+  if (t === 'media') { $('mediaFile').click(); t = 'select'; }
+  canvas.setTool(t === 'select' ? null : t);
+}
+$('stage').addEventListener('tool', e => {
+  const t = e.detail ?? 'select';
+  for (const b of $('tools').querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
+  document.body.classList.toggle('placing', !!e.detail); cursor.label(TOOL_NAMES[e.detail]);
+});
+$('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
+const foldTools = on => { $('tools').classList.toggle('folded', on); $('toolsFold').setAttribute('aria-expanded', String(!on)); $('toolsFold').title = on ? 'Show tools' : 'Fold tools'; localStorage.setItem('aegis:tools', on ? 'folded' : ''); };
+$('toolsFold').onclick = () => foldTools(!$('tools').classList.contains('folded'));
+foldTools(localStorage.getItem('aegis:tools') === 'folded');
+// Place the armed tool where you clicked, then put the caret in it.
+function place(tool, at) {
+  const x = Math.round(at.x), y = Math.round(at.y);
+  const spec = {
+    note: { type: 'note', x: x - 110, y: y - 30 },
+    title: { type: 'title', x: x - 20, y: y - 28 },
+    todo: { type: 'todo', x: x - 130, y: y - 30, items: [] },
+    readme: { type: 'note', x: x - 120, y: y - 40, w: 260, h: 150, color: 'green', heading: 'How this board works', badge: 'read me first' },
+    link: { type: 'link', x: x - 130, y: y - 38 },
+  }[tool];
+  if (!spec) return;
+  apply([{ op: 'create', text: '', ...spec, ref: 'n' }, { op: 'order', ids: ['$n'], to: 'front' }], created => { canvas.select([created.n]); canvas.edit(created.n); });
+}
+
+// ---------- media: drop, paste or pick images and video ----------
+async function addMedia(files, at) {
+  files = [...files].filter(f => /^(image|video)\//.test(f.type)); if (!files.length) return false;
+  at ??= canvas.centre();
+  let dx = 0;
+  for (const f of files) {
+    try {
+      toast(`Adding ${f.name || 'media'}…`);
+      const size = await mediaSize(f); const { url } = await host.upload(f);
+      const w = Math.round(Math.max(160, Math.min(480, size.w))), h = Math.round(w * size.h / size.w) + (f.type.startsWith('video') ? 30 : 0);
+      apply([{ op: 'create', type: f.type.startsWith('video') ? 'video' : 'image', url, text: f.name?.replace(/\.[^.]+$/, '') ?? '', x: Math.round(at.x - w / 2 + dx), y: Math.round(at.y - h / 2), w, h, ref: 'm' }, { op: 'order', ids: ['$m'], to: 'front' }]);
+      dx += w + 24;
+    } catch (e) { toast(e.message); }
+  }
+  return true;
+}
+function mediaSize(file) {
+  const url = URL.createObjectURL(file);
+  return new Promise(resolve => {
+    const done = (w, h) => { URL.revokeObjectURL(url); resolve(w && h ? { w, h } : { w: 480, h: 270 }); };
+    if (file.type.startsWith('video')) { const v = document.createElement('video'); v.preload = 'metadata'; v.onloadedmetadata = () => done(v.videoWidth, v.videoHeight); v.onerror = () => done(); v.src = url; }
+    else { const i = new Image(); i.onload = () => done(i.naturalWidth, i.naturalHeight); i.onerror = () => done(); i.src = url; }
+  });
+}
+$('mediaFile').onchange = async e => { await addMedia(e.target.files); e.target.value = ''; };
+const stageEl = $('stage');
+stageEl.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); stageEl.classList.add('dropping'); } });
+stageEl.addEventListener('dragleave', e => { if (!stageEl.contains(e.relatedTarget)) stageEl.classList.remove('dropping'); });
+stageEl.addEventListener('drop', e => {
+  stageEl.classList.remove('dropping'); if (!e.dataTransfer.files.length) return; e.preventDefault();
+  const v = canvas.view; addMedia(e.dataTransfer.files, { x: (e.clientX - v.x) / v.z, y: (e.clientY - v.y) / v.z });
+});
+addEventListener('paste', async e => {
+  if (e.target.closest?.('textarea, input, [contenteditable]')) return;
+  if (e.clipboardData.files.length && await addMedia(e.clipboardData.files)) { e.preventDefault(); return; }
+  const text = e.clipboardData.getData('text/plain').trim();
+  if (/^https?:\/\/\S+$/.test(text)) {
+    e.preventDefault(); const c = canvas.centre();
+    const isImg = /\.(png|jpe?g|gif|webp|avif)(\?|$)/i.test(text);
+    apply([{ op: 'create', type: isImg ? 'image' : 'link', url: text, x: Math.round(c.x - 130), y: Math.round(c.y - 40), ref: 'l' }, { op: 'order', ids: ['$l'], to: 'front' }]);
+  }
+});
 
 // ---------- composer ----------
 const promptEl = $('prompt');
@@ -173,10 +277,12 @@ function listen() {
     const ev = JSON.parse(m.data);
     if (ev.type === 'board' && ev.boardId === canvas.board?.id && ev.author?.kind === 'agent') {
       await reloadBoard(ev.focus && Date.now() - ev.focus.at < 5000 ? ev.focus : null);
+      library.refresh();
       if (ev.touched?.length) canvas.ring(ev.touched, colourOf(ev.author.conversationId));
     }
     if (ev.type === 'agent') { agentState.set(ev.id, ev); renderAgents(); }
     if (ev.type === 'auth') { renderAccounts(); loadModels(); }
+    if (ev.type === 'library') library.refresh();
   };
   es.onerror = () => { es.close(); setTimeout(listen, 1500); };
 }
@@ -233,17 +339,29 @@ let toastT = 0;
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 3200); }
 addEventListener('keydown', e => {
   if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
-  if (e.key === 'a' && !e.metaKey && !e.ctrlKey) showAgents($('agentsPanel').hidden);
-  if (e.key === '/' || (e.key === 'k' && e.metaKey)) { e.preventDefault(); promptEl.focus(); }
+  if (e.metaKey || e.ctrlKey || e.altKey) { if (e.key === '/' || e.key === 'k') { e.preventDefault(); promptEl.focus(); } return; }
+  if (e.key === 'a') showAgents($('agentsPanel').hidden);
+  if (e.key === 'f') setFollow(!follow);
+  if (e.key === '\\') panels.toggle();
+  if (TOOL_KEYS[e.key]) pickTool(TOOL_KEYS[e.key]);
+  if (e.key === '/') { e.preventDefault(); promptEl.focus(); }
 });
+
+// ---------- cursor ----------
+const cursor = createCursor({ native: !!window.__TAURI_INTERNALS__ });
+cursor.enabled = localStorage.getItem('aegis:cursor') !== 'off';
+$('fancyCursor').checked = cursor.enabled;
+$('fancyCursor').onchange = e => { cursor.enabled = e.target.checked; localStorage.setItem('aegis:cursor', e.target.checked ? 'on' : 'off'); };
 
 // ---------- start ----------
 applyTheme(localStorage.getItem('aegis:theme') || 'system');
+setFollow(follow);
 const benchCount = Number(new URLSearchParams(location.search).get('bench'));
 if (benchCount) { (await import('./bench.js')).bench(canvas, benchCount); throw new Error('bench mode: boards untouched'); }
 let boards = await host.get('/boards');
 if (!boards.length) boards = [await host.post('/boards', { name: 'First board' })];
 const saved = localStorage.getItem('aegis:board');
+await library.refresh();
 await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
