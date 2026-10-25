@@ -1,5 +1,6 @@
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
+import { assertSlideFits } from './deck-fit.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
@@ -127,9 +128,17 @@ try {
   for (const picture of pptx.props.slides[0].images) await verifyAsset(picture.src, 'image/png');
   await verifyAsset(pptx.props.import.original, 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'two-slides.pptx');
   await screenshots('pptx', pptx.id);
+  const pptxCard = page.locator(`.card[data-id="${pptx.id}"]`);
+  for (const [w, h] of [[470, 352], [760, 292]]) {
+    await page.evaluate(({ id, w, h }) => aegisCtx.apply([{ op: 'update', id, set: { w, h } }]), { id: pptx.id, w, h });
+    await assertSlideFits(pptxCard.locator('.deck-main > .deck-fit'), { label: `Imported PPTX ${w} by ${h}`, pictures: 2 });
+    await assertSlideFits(pptxCard.locator('.deck-thumb > .deck-fit').first(), { label: 'Imported PPTX thumbnail', pictures: 2 });
+  }
   await page.locator(`.card[data-id="${pptx.id}"] .deck-open`).click();
   await page.locator('.deck-panel').waitFor();
   assert.equal(await page.locator('.deck-panel .deck-slide-wrap').count(), 2);
+  await assertSlideFits(page.locator('.deck-panel .deck-slide-wrap > .deck-fit').first(), { label: 'Imported PPTX editor', pictures: 2 });
+  await assertSlideFits(page.locator('.deck-panel .deck-film-item > .deck-fit').first(), { label: 'Imported PPTX filmstrip', pictures: 2 });
   await page.getByRole('textbox', { name: 'Slide 1 title', exact: true }).fill('Edited import title');
   await page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved');
   pptx = (await stored()).cards.find(card => card.id === pptx.id);

@@ -1,12 +1,19 @@
-import { deckSlides, slideIndex, slideHTML, escapeHTML } from './slides.js';
+import { deckSlides, slideIndex, slideHTML, escapeHTML, observeSlideFits } from './slides.js';
 import { openDeck } from './editor.js';
 import { downloadOriginal } from '../imports/assets.js';
+
+const fits = new WeakMap();
+export function dropDeck(el) {
+  fits.get(el)?.();
+  fits.delete(el);
+}
 
 export function openDeckCard(card, options = {}) {
   if (globalThis.aegisCtx) openDeck(card, globalThis.aegisCtx, options);
 }
 
 export function renderDeck(el, card, api) {
+  dropDeck(el);
   const slides = deckSlides(card), current = slideIndex(card.props?.current, slides.length);
   el.tabIndex = 0;
   el.setAttribute('role', 'group');
@@ -27,4 +34,5 @@ export function renderDeck(el, card, api) {
   el.querySelectorAll('.deck-thumb').forEach(button => {
     button.onclick = () => api.setProps(card.id, { current: Number(button.dataset.i) });
   });
+  fits.set(el, observeSlideFits(el));
 }

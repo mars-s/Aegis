@@ -1,11 +1,11 @@
 import './deck.css';
 import { registerRenderer } from '../../canvas/engine.js';
 import { registerTool, registerCommand, registerCardMenu } from '../registry';
-import { renderDeck, openDeckCard } from './renderer.js';
+import { renderDeck, dropDeck, openDeckCard } from './renderer.js';
 import { openDeck, findDeck, installDeckOpenEvent } from './editor.js';
 import { newSlide } from './slides.js';
 
-registerRenderer('deck', { render: renderDeck, open: openDeckCard, interactive: '.deck-open, .deck-thumb, .deck-source' });
+registerRenderer('deck', { render: renderDeck, drop: dropDeck, open: openDeckCard, interactive: '.deck-open, .deck-thumb, .deck-source' });
 registerTool({
   id: 'deck', title: 'Slides (B)', key: 'b', group: 'write',
   icon: '<rect x="2.5" y="3.5" width="11" height="7.5" rx="1.2"/><path d="M5.5 13.5h5"/>',

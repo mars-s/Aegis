@@ -20,6 +20,8 @@ Alt+Up and Alt+Down reorder the active slide. Delete or Backspace on a focused t
 
 `openDeckPanel` in `editor.js` is the temporary panel adapter. Replace it with the shared `features/docs/side.js` panel at merge. It owns the `.side-editor*` frame, `body.editor-open` and `body.editor-wide`, focus return, camera centring, 260 ms open and 200 ms close motion. Keyboard opens and closes are instant. Reduced motion and `body.motion-off` use a 160 ms crossfade with no travel.
 
+The canvas preview, thumbnails and editor render the same native 960 by 540 slide. Each frame centres and scales the entire slide to fit both available dimensions, with the card colour filling any spare space. Imported slides use the same fit. A ResizeObserver updates the scale on frame resize, including corner-grip resizing and editor width changes, without reacting to canvas pan or zoom. Observers disconnect on card removal, editor close and slide rerender.
+
 The renderer has no frame listener or polling. SVG ridge art is built once per module. Slides redraw only when card content changes. Editor scroll work is limited to the open deck and runs once per scroll frame.
 
 Checks: `agent/checks/deck.test.mjs` and `checks/ui/deck.mjs`. Browser checks use temporary data and base port 5192 plus `AEGIS_PORT_OFFSET`. Screenshots go to `AEGIS_CHECK_OUT`.

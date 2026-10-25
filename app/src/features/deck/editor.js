@@ -1,4 +1,4 @@
-import { deckSlides, slideIndex, slideHTML, escapeHTML, newSlide } from './slides.js';
+import { deckSlides, slideIndex, slideHTML, escapeHTML, newSlide, observeSlideFits } from './slides.js';
 import { openSide, centreCardInLeft } from '../docs/side.js';
 import { downloadOriginal } from '../imports/assets.js';
 
@@ -25,6 +25,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   let slides = deckSlides(card), current = slideIndex(card.props?.current, slides.length);
   let dirty = false, saving = false, version = 0, timer, closed = false;
   let pending = Promise.resolve(), observed = JSON.stringify(card.props ?? {});
+  let stopFitting = () => {};
   const shell = openDeckPanel(card, ctx, { viaKey, onClose: dispose });
   shell.body.innerHTML = '<div class="deck-ed"><div class="deck-stage" tabindex="0" aria-label="Slides. Scroll to move through them."></div><div class="deck-film" role="tablist" aria-label="Slide strip"></div></div>';
   const { panel } = shell, stage = panel.querySelector('.deck-stage'), film = panel.querySelector('.deck-film');
@@ -76,8 +77,10 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   }
 
   function render() {
+    stopFitting();
     stage.innerHTML = slides.length ? slides.map((slide, i) => `<section class="deck-slide-wrap" data-i="${i}" role="tabpanel" aria-label="Slide ${i + 1}"><div class="deck-slide-meta"><span>Slide ${i + 1}</span><div class="deck-slide-actions"><button type="button" data-move="-1" aria-label="Move slide ${i + 1} up" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" data-move="1" aria-label="Move slide ${i + 1} down" ${i === slides.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-delete aria-label="Delete slide ${i + 1}">Delete</button></div></div>${slideHTML(slide, true, i + 1)}</section>`).join('') : '<p class="deck-empty">Add your first slide below.</p>';
     film.innerHTML = slides.map((slide, i) => `<button class="deck-film-item" type="button" role="tab" aria-label="Go to slide ${i + 1}" data-i="${i}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Delete">${slideHTML(slide)}<span>${i + 1}</span></button>`).join('') + '<button class="deck-film-add" type="button">Add slide</button>';
+    stopFitting = observeSlideFits(panel);
     mark(current, false);
   }
   function mark(index, persist = true) {
@@ -179,6 +182,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   function visibility() { if (document.hidden) save(); }
   function dispose() {
     save(); closed = true; clearTimeout(timer); cancelAnimationFrame(scrollFrame);
+    stopFitting();
     window.removeEventListener('keydown', keys, true);
     window.removeEventListener('pagehide', save);
     document.removeEventListener('visibilitychange', visibility);

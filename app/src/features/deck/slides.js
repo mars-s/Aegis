@@ -1,4 +1,17 @@
 // Shared HTML for the canvas preview, editor stage and filmstrip. No frame-time work.
+const SLIDE_WIDTH = 960, SLIDE_HEIGHT = 540;
+
+// ResizeObserver measures local layout sizes, so canvas zoom never changes the fit.
+export function observeSlideFits(root) {
+  const observer = new ResizeObserver(entries => {
+    for (const { target, contentRect: { width, height } } of entries) {
+      target.style.setProperty('--slide-scale', String(Math.min(width / SLIDE_WIDTH, height / SLIDE_HEIGHT)));
+    }
+  });
+  root.querySelectorAll('.deck-fit').forEach(frame => observer.observe(frame));
+  return () => observer.disconnect();
+}
+
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const slideIndex = (index, length) => Math.max(0, Math.min(length - 1, Number.isFinite(index) ? Math.trunc(index) : 0));
 export const newSlide = () => ({ id: crypto.randomUUID(), layout: 'title', title: 'New slide', sub: '', body: '' });
@@ -65,6 +78,6 @@ export function slideHTML(slide, editable = false, number = 1, resolveUrl = url 
   // item 14: imported pictures stay as asset references, separate from editable text.
   const images = Array.isArray(slide.images) ? slide.images : [];
   const art = layout === 'title' ? ridges : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
-  return `<div class="deck-slide l-${layout}${slide.imageOnly ? ' image-only' : ''}" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div>`;
+  return `<div class="deck-fit"><div class="deck-slide l-${layout}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
   // end item 14
 }
