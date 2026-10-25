@@ -4,7 +4,6 @@ import { createCanvas } from './canvas/engine.js';
 import { applyBatch } from './lib/board/commands.js';
 import { connect as connectHost } from './lib/host';
 import { mountObjects } from './objects/mount';
-import { createCursor } from './chrome/cursor.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
@@ -97,7 +96,7 @@ function pickTool(t) {
 $('stage').addEventListener('tool', e => {
   const t = e.detail ?? 'select';
   for (const b of $('tools').querySelectorAll('[data-tool]')) b.setAttribute('aria-pressed', String(b.dataset.tool === t));
-  document.body.classList.toggle('placing', !!e.detail); cursor.label(TOOL_NAMES[e.detail]);
+  document.body.classList.toggle('placing', !!e.detail);
 });
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
 const foldTools = on => { $('tools').classList.toggle('folded', on); $('toolsFold').setAttribute('aria-expanded', String(!on)); $('toolsFold').title = on ? 'Show tools' : 'Fold tools'; localStorage.setItem('aegis:tools', on ? 'folded' : ''); };
@@ -322,12 +321,6 @@ addEventListener('keydown', e => {
   if (TOOL_KEYS[e.key]) pickTool(TOOL_KEYS[e.key]);
   if (e.key === '/') { e.preventDefault(); promptEl.focus(); }
 });
-
-// ---------- cursor ----------
-const cursor = createCursor({ native: !!window.__TAURI_INTERNALS__ });
-cursor.enabled = localStorage.getItem('aegis:cursor') !== 'off';
-$('fancyCursor').checked = cursor.enabled;
-$('fancyCursor').onchange = e => { cursor.enabled = e.target.checked; localStorage.setItem('aegis:cursor', e.target.checked ? 'on' : 'off'); };
 
 // ---------- start ----------
 applyTheme(localStorage.getItem('aegis:theme') || 'system');

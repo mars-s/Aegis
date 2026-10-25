@@ -118,10 +118,6 @@
     <h3>Appearance</h3>
     <div class="seg" role="radiogroup" id="theme"><button data-v="system" role="radio">System</button><button data-v="light" role="radio">Light</button><button data-v="dark" role="radio">Dark</button></div>
   </section>
-  <section class="sheet-sec">
-    <h3>Cursor</h3>
-    <label class="check"><input type="checkbox" id="fancyCursor"> Reticle cursor that locks on to what you point at</label>
-  </section>
   <section class="sheet-sec muted small">Agents run with your user's file permissions on this Mac.</section>
 </dialog>
 

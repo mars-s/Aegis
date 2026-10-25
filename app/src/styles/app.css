@@ -235,20 +235,7 @@ kbd { font: 10.5px var(--mono); min-width: 18px; height: 18px; padding: 0 4px; b
 .stage.placing { cursor: crosshair; }
 .check { display: flex; align-items: center; gap: 8px; color: var(--muted); }
 
-/* reticle cursor (original Aegis art): a dot that tracks exactly, brackets that lock on */
-.reticle { position: fixed; inset: 0; pointer-events: none; z-index: 100; opacity: 0; transition: opacity .12s ease; }
-.reticle.show { opacity: 1; }
-.reticle.hide { opacity: 0; }
-.reticle i { position: absolute; left: 0; top: 0; width: 7px; height: 7px; border-left: 1.5px solid var(--text); border-top: 1.5px solid var(--text); transform-origin: 0 0; opacity: .75;
-  transition: transform .14s var(--ease-out), border-color .14s ease, opacity .14s ease; will-change: transform; }
-.reticle.locked i { border-color: var(--focus); opacity: 1; }
-.reticle .dot { position: absolute; left: -2.5px; top: -2.5px; width: 5px; height: 5px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 1.5px var(--canvas); will-change: transform; }
-.reticle.locked .dot { background: var(--focus); }
-.reticle.down .dot { width: 7px; height: 7px; left: -3.5px; top: -3.5px; }
-.reticle .cur-label { position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 999px; background: var(--text); color: var(--canvas); font: 600 10px/1.5 var(--mono); letter-spacing: .04em; text-transform: uppercase; display: none; }
-.reticle.labelled .cur-label { display: block; }
-body.fancy-cursor:not(.cur-native), body.fancy-cursor:not(.cur-native) * { cursor: none !important; }
-@media (prefers-reduced-motion: reduce) { .reticle i, .follow .knob::after, .twisty svg, .tools .tools-fold svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .follow .knob::after, .twisty svg, .tools .tools-fold svg { transition: none; } }
 
 /* object cards: typed results drawn by Svelte inside the canvas card */
 .card.object { padding: 18px 20px 16px; display: flex; flex-direction: column; background: var(--color-surface); }
