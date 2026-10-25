@@ -28,14 +28,16 @@ async function atomicJson(path, value) {
 async function readJson(path, fallback) {
   try { return JSON.parse(await readFile(path, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return fallback; throw e; }
 }
-async function secret(name) {
+async function secret(name, make = () => randomBytes(32).toString('base64url'), valid = () => true) {
   const path = join(DATA, name);
-  try { return (await readFile(path, 'utf8')).trim(); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-  const value = randomBytes(32).toString('base64url');
+  try { const v = (await readFile(path, 'utf8')).trim(); if (valid(v)) return v; } catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const value = make();
   await writeFile(path, value, { mode: 0o600 }); return value;
 }
 const TOKEN = process.env.AEGIS_TOKEN || await secret('agent-token');
-const DEVICE = await secret('device-id');
+// ChatGPT sign-in identifies this install by a UUID; earlier builds wrote a non-UUID here, so replace it.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DEVICE = await secret('device-id', () => randomUUID(), v => UUID.test(v));
 
 // ---------- boards: one JSON file each, every change through applyBatch ----------
 const safeId = id => String(id ?? '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
@@ -112,15 +114,18 @@ if (process.env.AEGIS_FAKE_MODEL) {
 const signIns = new Map();
 function signIn(provider) {
   if (!['openai', 'anthropic'].includes(provider)) throw new Error('provider must be openai or anthropic');
-  if (signIns.get(provider)?.job) return;
-  const s = { state: 'pending', events: [], prompt: null, abort: new AbortController() };
+  // Starting again replaces an unfinished attempt, so a stale callback port is always released first.
+  const previous = signIns.get(provider);
+  if (previous?.job) { previous.cancelled = true; previous.abort.abort(); }
+  const s = { state: 'pending', events: [], prompt: null, abort: new AbortController(), started: Date.now() };
   signIns.set(provider, s);
   const timer = setTimeout(() => s.abort.abort(), 15 * 60 * 1000);
-  s.job = models.login(provider, 'oauth', {
+  const job = (previous?.job ?? Promise.resolve()).catch(() => {}).then(() => models.login(provider, 'oauth', {
     signal: s.abort.signal,
     notify: e => { s.events.push(e); if (s.events.length > 12) s.events.shift(); broadcast({ type: 'auth', provider }); },
     prompt: p => {
-      if (provider === 'anthropic' && p.type === 'select' && p.options?.some(o => o.id === 'copy_code')) return Promise.resolve('copy_code');
+      // Aegis runs on this Mac, so the browser can return to the local callback: no code to paste.
+      if (p.type === 'select') return Promise.resolve(p.options?.find(o => o.id === 'browser')?.id ?? p.options?.[0]?.id);
       return new Promise((resolve, reject) => {
         s.prompt = { type: p.type, message: p.message, placeholder: p.placeholder };
         s.answer = v => { s.prompt = null; s.answer = null; resolve(v); };
@@ -128,17 +133,34 @@ function signIn(provider) {
         broadcast({ type: 'auth', provider });
       });
     },
-  }, { getDeviceId: () => DEVICE, agentName: 'Aegis' })
-    .then(() => { s.state = 'connected'; })
-    .catch(e => { s.state = 'failed'; s.error = provider === 'anthropic' ? 'Claude sign-in did not finish. Start again and paste the code shown after you authorise.' : 'ChatGPT sign-in did not finish. Start again, or paste the final callback URL.'; })
-    .finally(() => { clearTimeout(timer); s.prompt = null; s.job = null; broadcast({ type: 'auth', provider }); });
+  }, { getDeviceId: () => DEVICE, agentName: 'Aegis' }))
+    .then(() => { s.state = 'connected'; s.error = null; })
+    .catch(e => {
+      s.state = s.abort.signal.aborted && s.cancelled ? 'idle' : 'failed';
+      s.error = s.state === 'idle' ? null : friendlyAuthError(provider, e);
+      if (s.state === 'failed') console.error(`[auth] ${provider} sign-in failed: ${e?.message || e}`);
+    })
+    .finally(() => { clearTimeout(timer); s.prompt = null; s.answer = null; if (s.job === job) s.job = null; broadcast({ type: 'auth', provider }); });
+  s.job = job;
+}
+function cancelSignIn(provider) {
+  const s = signIns.get(provider);
+  if (s?.job) { s.cancelled = true; s.abort.abort(); }
+}
+function friendlyAuthError(provider, e) {
+  const m = String(e?.message || e || '');
+  if (/aborted|closed|cancel/i.test(m)) return 'Sign-in timed out. Try again.';
+  if (/in use|EADDRINUSE/i.test(m)) return 'Another sign-in (Codex or Pi) is holding the login port. Finish or close it, then try again.';
+  if (/state mismatch/i.test(m)) return 'That link belonged to an older attempt. Try again and use the newest browser tab.';
+  if (/callback URL|redirect URL|authorization code/i.test(m)) return m;
+  return `${provider === 'openai' ? 'ChatGPT' : 'Claude'} sign-in failed: ${m.slice(0, 200)}`;
 }
 async function authState() {
   const out = {};
   for (const p of ['openai', 'anthropic']) {
     const s = signIns.get(p);
     out[p] = { connected: !!(await credentials.read(p)), state: s?.state ?? 'idle', prompt: s?.prompt ?? null, error: s?.error ?? null,
-      link: s?.events?.findLast?.(e => e.url)?.url ?? null };
+      link: s?.events?.findLast?.(e => e.url)?.url ?? null, progress: s?.events?.findLast?.(e => e.type === 'progress')?.message ?? null, started: s?.started ?? null };
   }
   return out;
 }
@@ -320,6 +342,7 @@ const server = http.createServer(async (req, res) => {
     if (p === '/models') return send(res, 200, modelList());
     if (p === '/auth' && m === 'GET') return send(res, 200, await authState());
     if (p === '/auth/start' && m === 'POST') { signIn((await body(req)).provider); return send(res, 200, await authState()); }
+    if (p === '/auth/cancel' && m === 'POST') { cancelSignIn((await body(req)).provider); return send(res, 200, await authState()); }
     if (p === '/auth/answer' && m === 'POST') {
       const { provider, answer } = await body(req); const s = signIns.get(provider);
       if (!s?.answer || typeof answer !== 'string' || !answer.trim()) throw new Error('no sign-in is waiting for an answer');

@@ -2,7 +2,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -14,8 +14,11 @@ const call = async (method, path, body) => {
 };
 const until = async (fn, ms = 10000) => { const t = Date.now(); for (;;) { const v = await fn(); if (v) return v; if (Date.now() - t > ms) throw new Error('timed out'); await new Promise(r => setTimeout(r, 100)); } };
 
+let data;
 before(async () => {
-  const data = await mkdtemp(join(tmpdir(), 'aegis-host-'));
+  data = await mkdtemp(join(tmpdir(), 'aegis-host-'));
+  // An older build wrote a non-UUID device id; ChatGPT sign-in refuses one.
+  await writeFile(join(data, 'device-id'), 'not-a-uuid');
   child = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: new URL('..', import.meta.url).pathname,
     env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
   const port = await new Promise((resolve, reject) => {
@@ -58,4 +61,26 @@ test('a bad batch from an agent changes nothing', async () => {
 test('sign-in state lists both providers', async () => {
   const { body } = await call('GET', '/auth');
   assert.deepEqual(Object.keys(body).sort(), ['anthropic', 'openai']);
+});
+
+test('ChatGPT sign-in starts with a login link and a paste box, and the device id is a UUID', async () => {
+  await call('POST', '/auth/start', { provider: 'openai' });
+  const s = await until(async () => { const { body } = await call('GET', '/auth'); return body.openai.link ? body.openai : null; });
+  assert.equal(s.state, 'pending', s.error ?? '');
+  assert.match(s.link, /^https:\/\/auth\.openai\.com\//);
+  assert.equal(s.prompt.type, 'manual_code');
+  assert.match(await readFile(join(data, 'device-id'), 'utf8'), /^[0-9a-f-]{36}$/);
+  await call('POST', '/auth/cancel', { provider: 'openai' });
+  const after = await until(async () => { const { body } = await call('GET', '/auth'); return body.openai.state !== 'pending' ? body.openai : null; });
+  assert.equal(after.state, 'idle'); assert.equal(after.error, null);
+});
+
+test('starting a sign-in again replaces the unfinished one', async () => {
+  await call('POST', '/auth/start', { provider: 'anthropic' });
+  const first = await until(async () => (await call('GET', '/auth')).body.anthropic.link);
+  await call('POST', '/auth/start', { provider: 'anthropic' });
+  const second = await until(async () => { const l = (await call('GET', '/auth')).body.anthropic.link; return l && l !== first ? l : null; });
+  assert.notEqual(first, second);
+  assert.equal((await call('GET', '/auth')).body.anthropic.state, 'pending');
+  await call('POST', '/auth/cancel', { provider: 'anthropic' });
 });

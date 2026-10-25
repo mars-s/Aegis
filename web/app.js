@@ -33,6 +33,7 @@ async function connect() {
     get: p => call('GET', p), post: (p, b) => call('POST', p, b ?? {}),
     events: () => new EventSource(`${base}/events?token=${encodeURIComponent(token)}`),
     openUrl: url => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('open_url', { url }) : open(url, '_blank'),
+    copy: text => window.__TAURI_INTERNALS__ ? window.__TAURI_INTERNALS__.invoke('copy_text', { text }) : navigator.clipboard.writeText(text),
   };
 }
 
@@ -183,19 +184,41 @@ function listen() {
 // ---------- settings ----------
 $('settingsBtn').onclick = () => { renderAccounts(); $('settings').showModal(); };
 $('closeSettings').onclick = () => $('settings').close();
+const opened = new Map(); // provider -> link already opened in the browser
 async function renderAccounts() {
-  const auth = await host.get('/auth'); let waiting = null;
+  const auth = await host.get('/auth');
   for (const row of document.querySelectorAll('.account')) {
-    const p = row.dataset.provider, s = auth[p]; const btn = row.querySelector('button');
-    row.querySelector('.acct-state').textContent = s.connected ? ' · Connected' : s.state === 'pending' ? ' · Waiting for sign-in…' : s.error ? ` · ${s.error}` : '';
-    btn.textContent = s.connected ? 'Sign out' : s.state === 'pending' ? 'Cancel' : 'Sign in';
-    btn.onclick = async () => { if (s.connected) await host.post('/auth/logout', { provider: p }); else await host.post('/auth/start', { provider: p }); renderAccounts(); loadModels(); };
-    if (s.link && s.state === 'pending' && !row.dataset.opened) { row.dataset.opened = '1'; host.openUrl(s.link); }
-    if (s.state !== 'pending') delete row.dataset.opened;
-    if (s.prompt) waiting = { p, ...s.prompt };
+    const p = row.dataset.provider, s = auth[p], name = p === 'openai' ? 'ChatGPT' : 'Claude';
+    const state = row.querySelector('.acct-state'), btn = row.querySelector('.acct-btn'), flow = row.querySelector('.acct-flow');
+    const pending = s.state === 'pending';
+    state.className = 'acct-state' + (s.connected ? ' ok' : s.error ? ' bad' : '');
+    state.textContent = s.connected ? 'Connected' : pending ? (s.progress ?? 'Waiting for you to approve in the browser…') : s.error ?? 'Not connected';
+    btn.textContent = s.connected ? 'Sign out' : pending ? 'Cancel' : s.error ? 'Try again' : 'Sign in';
+    btn.onclick = async () => {
+      btn.disabled = true;
+      try {
+        if (s.connected) await host.post('/auth/logout', { provider: p });
+        else if (pending) await host.post('/auth/cancel', { provider: p });
+        else await host.post('/auth/start', { provider: p });
+      } catch (e) { toast(e.message); }
+      btn.disabled = false; renderAccounts(); loadModels();
+    };
+    // Open the provider's page once per attempt, as soon as the link exists.
+    if (pending && s.link && opened.get(p) !== s.link) { opened.set(p, s.link); host.openUrl(s.link); }
+    flow.hidden = !(pending && s.link);
+    if (!flow.hidden) {
+      flow.querySelector('.acct-help').textContent = `A ${name} sign-in page opened in your browser. Approve it there and this updates by itself. If the browser shows an error or a code instead, paste the address or code below.`;
+      flow.querySelector('.acct-open').onclick = () => host.openUrl(s.link);
+      flow.querySelector('.acct-copy').onclick = () => host.copy(s.link).then(() => toast('Link copied'), () => toast('Could not copy'));
+      const input = flow.querySelector('input'); input.placeholder = s.prompt?.placeholder ?? '';
+      flow.querySelector('.acct-paste').hidden = !s.prompt;
+      flow.querySelector('.acct-paste').onsubmit = async e => {
+        e.preventDefault(); const answer = input.value.trim(); if (!answer) return;
+        try { await host.post('/auth/answer', { provider: p, answer }); input.value = ''; } catch (err) { toast(err.message); }
+        renderAccounts();
+      };
+    }
   }
-  const form = $('authAnswer'); form.hidden = !waiting;
-  if (waiting) { $('authPrompt').textContent = waiting.message || 'Paste the code or callback URL'; $('authInput').placeholder = waiting.placeholder || ''; form.onsubmit = async e => { e.preventDefault(); await host.post('/auth/answer', { provider: waiting.p, answer: $('authInput').value }); $('authInput').value = ''; renderAccounts(); }; }
 }
 function applyTheme(v) {
   localStorage.setItem('aegis:theme', v);

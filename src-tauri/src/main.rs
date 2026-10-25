@@ -27,6 +27,16 @@ fn open_url(app: tauri::AppHandle, url: String) {
     }
 }
 
+// The webview's clipboard API needs focus and permissions; pbcopy always works on macOS.
+#[tauri::command]
+fn copy_text(text: String) -> Result<(), String> {
+    use std::io::Write;
+    let mut child = Command::new("/usr/bin/pbcopy").stdin(Stdio::piped()).spawn().map_err(|e| e.to_string())?;
+    child.stdin.take().unwrap().write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    child.wait().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 fn data_dir() -> PathBuf {
     std::env::var_os("AEGIS_DATA").map(PathBuf::from)
         .unwrap_or_else(|| dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Aegis"))
@@ -130,7 +140,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![agent_info, open_url])
+        .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text])
         .setup(|app| {
             if let Err(e) = start_agent(app.handle()) { eprintln!("aegis: {e}"); }
             Ok(())

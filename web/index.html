@@ -51,9 +51,22 @@
   <section class="sheet-sec">
     <h3>Accounts</h3>
     <p class="muted">Agents use your own ChatGPT or Claude subscription. Tokens stay on this Mac.</p>
-    <div class="account" data-provider="openai"><div><strong>ChatGPT</strong><span class="muted acct-state"></span></div><button class="pill"></button></div>
-    <div class="account" data-provider="anthropic"><div><strong>Claude</strong><span class="muted acct-state"></span></div><button class="pill"></button></div>
-    <form class="auth-answer" id="authAnswer" hidden><label id="authPrompt"></label><div class="row"><input id="authInput" autocomplete="off" spellcheck="false"><button class="pill" type="submit">Continue</button></div></form>
+    <div class="account" data-provider="openai">
+      <div class="acct-row"><div class="acct-name"><strong>ChatGPT</strong><span class="acct-state"></span></div><button class="pill acct-btn"></button></div>
+      <div class="acct-flow" hidden>
+        <p class="acct-help"></p>
+        <div class="row"><button type="button" class="text-btn acct-open">Open sign-in page again</button><button type="button" class="text-btn acct-copy">Copy link</button></div>
+        <form class="row acct-paste"><input autocomplete="off" spellcheck="false"><button class="pill" type="submit">Continue</button></form>
+      </div>
+    </div>
+    <div class="account" data-provider="anthropic">
+      <div class="acct-row"><div class="acct-name"><strong>Claude</strong><span class="acct-state"></span></div><button class="pill acct-btn"></button></div>
+      <div class="acct-flow" hidden>
+        <p class="acct-help"></p>
+        <div class="row"><button type="button" class="text-btn acct-open">Open sign-in page again</button><button type="button" class="text-btn acct-copy">Copy link</button></div>
+        <form class="row acct-paste"><input autocomplete="off" spellcheck="false"><button class="pill" type="submit">Continue</button></form>
+      </div>
+    </div>
   </section>
   <section class="sheet-sec">
     <h3>Appearance</h3>
