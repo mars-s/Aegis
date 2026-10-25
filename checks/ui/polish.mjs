@@ -1,4 +1,5 @@
 import { checkChrome } from './chrome.mjs';
+import { checkRefineSettings } from './refine-settings.mjs';
 import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.js';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
@@ -47,6 +48,7 @@ try {
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
   await checkChrome(browser, page.url());
+  await checkRefineSettings(browser, page.url());
   // Round 3 discovery: welcome cannot spend the invitation or any of its delay.
   const firstUse = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
   const freshUrl = `http://127.0.0.1:${webPort}/?port=${port}&token=${token}`;

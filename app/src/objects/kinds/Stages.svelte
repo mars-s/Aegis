@@ -11,7 +11,7 @@
       <div class="rail"><span class="dot">{i + 1}</span></div>
       <strong>{step.title}</strong><span class="status">{names[step.status]}</span>
       {#if step.detail}<p>{step.detail}</p>{/if}
-      {#if data.editable}<Actions label={`Set status for ${step.title}`} items={() => statuses.map(status => ({ title: `${step.title}: ${names[status]}`, checked: status === step.status, run: () => onset(['steps', i, 'status'], status) }))} />{/if}
+      {#if data.editable}<Actions label={`Set status for ${step.title}`} heading={step.title} items={() => statuses.map(status => ({ title: names[status], ariaLabel: `${step.title}: ${names[status]}`, checked: status === step.status, run: () => onset(['steps', i, 'status'], status) }))} />{/if}
     </li>
   {/each}
 </ol>

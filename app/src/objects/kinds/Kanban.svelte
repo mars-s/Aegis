@@ -22,7 +22,7 @@
         <article class="ticket" class:dragging={dragging === item.id}>
           <button class="handle" type="button" draggable="true" aria-label={`Drag ${item.title}`} ondragstart={e => { dragging = item.id; e.dataTransfer?.setData('text/aegis-kanban', item.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }} ondragend={() => dragging = null}>{item.title}</button>
           {#if item.detail}<p>{item.detail}</p>{/if}
-          <Actions label={`Move ${item.title}`} items={() => data.columns.map(target => ({ title: `Move ${item.title} to ${target.title}`, checked: target.id === item.column, run: () => move(item.id, target.id) }))} />
+          <Actions label={`Move ${item.title}`} heading={item.title} items={() => data.columns.map(target => ({ title: target.title, ariaLabel: `Move ${item.title} to ${target.title}`, checked: target.id === item.column, run: () => move(item.id, target.id) }))} />
         </article>
       {:else}<p class="empty">No cards</p>{/each}
     </section>

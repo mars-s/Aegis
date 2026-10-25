@@ -5,7 +5,7 @@
 Each slide has a stable `id`, a `layout`, `title`, `sub` and `body`. The layouts are:
 
 - `title`: large title and subtitle above thin ridge lines.
-- `chart`: title and subtitle above `chart: { values: number[], target?: number, label?: string }`. The label describes the chart for assistive technology. Zero is a valid target.
+- `chart`: title and subtitle above `chart: { values: number[], target?: number, label?: string, unit?: string }`. The label describes the chart for assistive technology. Zero is a valid target. The axis shows the optional unit without rescaling values. Tick steps use 1, 2, 2.5 or 5 times a power of ten, with whole-number ticks for integer data.
 - `three`: title and subtitle beside three overlapping circles. The first three lines of `body` label the circles.
 - `text`: title, subtitle and plain body text.
 - `image`: editable title and body beside `images: [{src: 'asset:…', alt}]`. `imageOnly: true` fits the pictures to the full slide for Keynote previews. Images are contained without cropping. Imported decks keep `props.import: {format, name, original}` and expose the original asset in the window and editor.

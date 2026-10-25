@@ -10,6 +10,10 @@
 .layer-row .row-state svg { width: 10px; height: 10px; }
 .side .layer-row .layer-fold { flex: 0 0 16px; width: 16px; min-width: 16px; height: 44px; padding: 0; background: none; border: 0; box-shadow: none; color: var(--muted); }
 .layer-row input { flex: 1; width: 0; min-width: 0; }
+/* PM4.5: the Windows filter is part of the open section, never canvas chrome. */
+.layer-filter { box-sizing: border-box; flex: none; width: calc(100% - 16px); min-height: 32px; margin: 4px 8px 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--inset); color: var(--text); font: 12px var(--font); }
+.layer-filter:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+@media (pointer: coarse) { .layer-filter { min-height: 44px; } }
 .side .tree-row .twisty { position: absolute; left: 0; width: 20px; height: 44px; margin: 0; }
 .side .tree-row:has(.twisty) > svg { visibility: hidden; }
 .side .tree-row .meta { position: absolute; right: 4px; pointer-events: none; }

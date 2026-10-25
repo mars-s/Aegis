@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 // Match the host's import, so a missing registration import fails this check.
 import '../../app/src/lib/board/types/index.js';
 import { applyBatch, emptyBoard, describe, cardTypeGuide } from '../../app/src/lib/board/commands.js';
-import { lineChart, slideHTML } from '../../app/src/features/deck/slides.js';
+import { chartTicks, lineChart, slideHTML } from '../../app/src/features/deck/slides.js';
 
 test('the host accepts deck creates and updates, and describes slides for agents', () => {
   const original = emptyBoard('decks', 'Decks');
@@ -35,4 +35,26 @@ test('slide HTML escapes text and charts handle zero targets, constant and singl
     assert.equal((chart.match(/class="pt"/g) ?? []).length, values.length);
   }
   assert.match(lineChart({ values: [] }), /Add chart values/);
+});
+
+test('slide axes use nice steps, whole numbers for integer data and preserve units', () => {
+  for (const values of [[2, 4, 3, 2, 3], [0], [2, 2, 2], [-3, 0, 4], [1001, 1004]]) {
+    const { lo, hi, ticks } = chartTicks(values);
+    assert.ok(lo <= Math.min(...values) && hi >= Math.max(...values));
+    assert.ok(ticks.length >= 2 && ticks.length <= 7);
+    assert.ok(ticks.every(Number.isInteger));
+  }
+  for (const [values, step] of [[[1.1, 1.9], .2], [[0, 9.1], 2.5], [[6.6, 7.1], .2], [[0, .02], .005], [[-500, 500], 250]]) {
+    const { ticks } = chartTicks(values);
+    assert.ok(Math.abs(ticks[1] - ticks[0] - step) < 1e-10, `${values}: ${ticks}`);
+  }
+  const target = chartTicks([2, 4, 3], 10);
+  assert.ok(target.hi >= 10);
+  const small = chartTicks([.0001, .0001]);
+  assert.ok(small.lo > 0 && small.hi < .001, 'constant fractional values keep an axis close to their scale');
+  const html = lineChart({ values: [2, 4, 3, 2, 3], unit: 'hours' });
+  assert.deepEqual([...html.matchAll(/class="axis y-tick"[^>]*>([^<]+)/g)].map(m => m[1]), ['2', '3', '4']);
+  assert.match(html, /class="axis axis-unit"[^>]*>hours</);
+  assert.match(lineChart({ values: [20, 40], unit: '%' }), />%</);
+  assert.doesNotMatch(lineChart({ values: [20, 40], unit: '<script>' }), /<script>/);
 });

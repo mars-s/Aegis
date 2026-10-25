@@ -196,6 +196,9 @@ try {
   await moveTrigger.focus();
   await page.keyboard.press('ArrowDown');
   const move = page.getByRole('menuitemradio', { name: 'Move Write the brief to Done', exact: true });
+  assert.equal(await page.locator('.aegis-action-menu:not([hidden]) .aegis-menu-heading').textContent(), 'Write the brief');
+  assert.deepEqual(await page.locator('.aegis-action-menu:not([hidden]) [role=menuitemradio]').allTextContents(), samples.kanban.columns.map(c => c.title), 'destinations have short visible labels and retain their full accessible names');
+  await page.screenshot({ path: out(`r5-kanban-menu-${stamp}.png`) });
   await move.focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'done');
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Move Write the brief' && document.activeElement.closest('.lane')?.getAttribute('aria-label') === 'Done');
@@ -297,6 +300,9 @@ try {
   assert.equal(await stageTrigger.evaluate(el => el === document.activeElement), true, 'menu Escape restores the status trigger');
   await stageTrigger.click();
   await page.waitForTimeout(180);
+  assert.equal(await page.locator('.aegis-action-menu:not([hidden]) .aegis-menu-heading').textContent(), 'Brief');
+  assert.deepEqual(await page.locator('.aegis-action-menu:not([hidden]) [role=menuitemradio]').allTextContents(), ['Pending', 'In progress', 'Done', 'Blocked'], 'one stage heading replaces repeated stage names');
+  await page.screenshot({ path: out(`r5-stages-menu-${stamp}.png`) });
   await page.screenshot({ path: out(`r4-stages-menu-${stamp}.png`) });
   await page.getByRole('menuitemradio', { name: 'Brief: Blocked', exact: true }).click();
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'stages').data.steps[0].status === 'blocked');

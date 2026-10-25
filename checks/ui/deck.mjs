@@ -30,7 +30,7 @@ const saved = () => page.waitForFunction(() => document.querySelector('.deck-pan
 const selected = index => page.waitForFunction(i => document.querySelector(`.deck-film-item[data-i="${i}"]`)?.getAttribute('aria-selected') === 'true', index);
 const slides = [
   { id: 's1', layout: 'title', title: 'A calmer, sharper me', sub: 'What twelve weeks of sleep data says about my best days', body: '' },
-  { id: 's2', layout: 'chart', title: 'Hours slept per night, by week', sub: 'Dashed line: my 7 hour target', body: '', chart: { values: [6.8, 6.9, 7, 6.6, 7.1], target: 7, label: 'Fictional weekly sleep averages' } },
+  { id: 's2', layout: 'chart', title: 'Focus hours per day', sub: 'Dashed line: my 3 hour target', body: '', chart: { values: [2, 4, 3, 2, 3], target: 3, unit: 'hours', label: 'Fictional daily focus hours' } },
   { id: 's3', layout: 'three', title: 'What helps', sub: 'My best focus days had all three', body: 'In bed by 11\nNo late coffee\nSame wake time' },
   { id: 's4', layout: 'text', title: 'The next four weeks', sub: 'Small changes to try', body: 'In bed by 11 pm on weeknights.\nNo caffeine after 2 pm.\nSame wake time on weekends.' },
 ];
@@ -65,13 +65,16 @@ try {
   await page.getByRole('tab', { name: 'Go to slide 2', exact: true }).click(); await selected(1);
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .line').evaluate(el => getComputedStyle(el).strokeWidth), '1.4px');
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .target').count(), 1);
+  assert.deepEqual(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .y-tick').allTextContents(), ['2', '3', '4'], 'integer hour values use whole-hour ticks');
+  assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .axis-unit').textContent(), 'hours', 'the axis preserves the supplied unit');
+  console.log('PASS chart uses nice whole-hour ticks, preserves units and includes every point and target');
   const chartTitle = page.getByRole('textbox', { name: 'Slide 2 title', exact: true });
-  await chartTitle.fill('A steadier sleep routine');
-  await page.getByRole('textbox', { name: 'Slide 2 subtitle', exact: true }).fill('Fictional data, with a 7 hour target');
+  await chartTitle.fill('A steadier focus routine');
+  await page.getByRole('textbox', { name: 'Slide 2 subtitle', exact: true }).fill('Fictional data, with a 3 hour target');
   await saved();
   let stored = (await board()).cards.find(c => c.id === 'decktest');
-  assert.equal(stored.props.slides[1].title, 'A steadier sleep routine');
-  assert.equal(stored.props.slides[1].sub, 'Fictional data, with a 7 hour target');
+  assert.equal(stored.props.slides[1].title, 'A steadier focus routine');
+  assert.equal(stored.props.slides[1].sub, 'Fictional data, with a 3 hour target');
   assert.equal(stored.props.current, 1);
   await page.screenshot({ path: out('deck-editor.png') });
   console.log('PASS Enter opens instantly, stage scrolling and thumbnails agree, plaintext title and subtitle save to the host');
@@ -179,7 +182,7 @@ try {
   assert.equal(await panel.evaluate(el => getComputedStyle(el).transitionDuration), '0.16s');
   await page.keyboard.press('Escape'); await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  stored = (await board()).cards.find(c => c.id === 'decktest'); assert.equal(stored.props.slides[1].title, 'A steadier sleep routine');
+  stored = (await board()).cards.find(c => c.id === 'decktest'); assert.equal(stored.props.slides[1].title, 'A steadier focus routine');
   console.log('PASS double-click, Open deck menu, bubbling open event, both reduced-motion settings and reload persistence');
 
   await page.keyboard.press('b');

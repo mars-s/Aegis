@@ -31,8 +31,10 @@
 .panel-slot.on { border-color: var(--text); background: var(--press); }
 body.panel-arranging, body.panel-arranging * { cursor: grabbing !important; user-select: none; }
 .pbox.panel-lifted { box-shadow: inset 0 1px 0 var(--edge-top); outline: 1px solid var(--focus); }
-.panel-layout-options { display: flex; flex-wrap: wrap; gap: 14px; margin: 12px 0; }
-.panel-layout-options label { display: flex; align-items: center; gap: 6px; }
+.panel-layout-options { display: flex; flex-direction: column; gap: 2px; margin: 12px 0; }
+.panel-layout-options label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.panel-tools-choices { padding-left: 24px; margin-left: 7px; border-left: 1px solid var(--line); }
+@media (pointer: coarse) { .panel-layout-options label { min-height: 44px; } }
 .side { overflow-y: auto; scrollbar-width: thin; }
 .tree-row [contenteditable="plaintext-only"] { outline: 1px solid var(--focus); background: var(--card); }
 .library-home:modal ~ .ctx-menu { z-index: 100; }

@@ -7,19 +7,33 @@ export function mountIslandMenu({ island, current, shortTitle, agents, newAgent,
     menu.hidden = true; button.setAttribute('aria-expanded', 'false');
     if (focus) button.focus({ preventScroll: true });
   }
-  function item(label, run, { value, checked, submenu = false } = {}) {
+  function item(label, run, { value, checked, submenu = false, description, parent = menu } = {}) {
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', checked === undefined ? 'menuitem' : 'menuitemradio');
     if (checked !== undefined) b.setAttribute('aria-checked', String(checked));
     if (submenu) b.setAttribute('aria-haspopup', 'menu');
+    if (description) b.setAttribute('aria-description', description);
     const title = document.createElement('span'); title.textContent = label; b.append(title);
     if (value) { const v = document.createElement('span'); v.className = 'orb-menu-value'; v.textContent = value; b.append(v); }
     if (checked) b.insertAdjacentHTML('beforeend', '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7"/></svg>');
-    b.onclick = run; menu.append(b); return b;
+    b.onclick = run; parent.append(b); return b;
   }
   function choices(label, options, value, set) {
     menu.replaceChildren(); menu.setAttribute('aria-label', label);
     item('Back to agent options', () => { render(); menu.querySelector('button')?.focus(); });
-    for (const o of options) item(o.textContent, () => { set(o.value); close(true); }, { checked: o.value === value });
+    const groups = new Map();
+    for (const o of options) {
+      let parent = menu;
+      if (o.dataset.group) {
+        if (!groups.has(o.dataset.group)) {
+          const group = document.createElement('div'); group.setAttribute('role', 'group'); group.setAttribute('aria-label', `${o.dataset.group}, ${o.dataset.groupDescription}`);
+          const heading = document.createElement('div'); heading.className = 'aegis-model-group'; heading.setAttribute('aria-hidden', 'true');
+          for (const text of [o.dataset.group, o.dataset.groupDescription]) { const span = document.createElement('span'); span.textContent = text; heading.append(span); }
+          group.append(heading); groups.set(o.dataset.group, group); menu.append(group);
+        }
+        parent = groups.get(o.dataset.group);
+      }
+      item(o.textContent, () => { set(o.value); close(true); }, { checked: o.value === value, description: o.getAttribute('aria-description'), parent });
+    }
     menu.querySelector('[aria-checked="true"]')?.focus();
   }
   function render() {

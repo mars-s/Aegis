@@ -55,6 +55,13 @@ try {
   assert.ok(doc.props.doc.content[0].content[0].marks.some(m => m.type === 'bold'));
   console.log('PASS create, title, rich formatting, plain text mirror and host-confirmed save');
   await less();
+  assert.equal(await page.locator('.docs-footer [data-copy-cards]').count(), 0, 'the current document alone is not an applicable board selection');
+  assert.equal(await page.locator('.docs-footer [data-back]').isVisible(), true);
+  assert.match(await page.locator('.docs-footer [data-count]').textContent(), /\d+ words?/);
+  await page.getByLabel('Document options', { exact: true }).click();
+  assert.equal(await page.locator('.docs-more-tools [data-copy-cards]').isVisible(), true, 'the action stays available in document options');
+  await page.getByLabel('Document options', { exact: true }).click();
+  await page.screenshot({ path: out(`r5-document-footer-writing-${Date.now()}.png`) });
   await page.locator('.docs-prose p').first().click({ clickCount: 3 }); await page.locator('.docs-prose').press('ControlOrMeta+a');
   await page.getByRole('toolbar', { name: 'Selection formatting', exact: true }).waitFor({ state: 'visible' });
   await page.screenshot({ path: out('docs-selection.png') });
@@ -98,6 +105,13 @@ try {
   // Place text cards through commands, then use actual pointer drags into the page and closed pill.
   await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'note', text: '**Copied note content**', x: 410, y: 450, newId: 'docsnote' }, { op: 'create', type: 'todo', text: 'Release tasks', items: [{ text: 'Review copy', done: true }, { text: 'Ship release', done: false }], x: 410, y: 620, newId: 'docstodo' }]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
   await page.locator('.card[data-id=docsnote]').waitFor();
+  await page.locator('.card[data-id=docsnote]').click({ position: { x: 12, y: 12 } });
+  await page.locator('.docs-footer [data-copy-cards]').waitFor();
+  await page.screenshot({ path: out(`r5-document-footer-selection-${Date.now()}.png`) });
+  await page.evaluate(id => aegis.canvas.select([id]), docId);
+  await page.locator('.docs-more-tools [data-copy-cards]').waitFor({ state: 'attached' });
+  assert.equal(await page.locator('.docs-footer [data-copy-cards]').count(), 0, 'selecting only the destination moves the action out of the footer');
+  console.log('PASS document footer keeps Back and word count; Copy appears only for applicable board selection and otherwise lives in options');
   const noteBox = await page.locator('.card[data-id=docsnote]').boundingBox();
   const paperBox = await page.locator('.docs-paper').boundingBox();
   await page.mouse.move(noteBox.x + 30, noteBox.y + 20); await page.mouse.down();
@@ -190,6 +204,10 @@ try {
   assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' });
   console.log('PASS paper preference persists after reload and exports use light paper');
   await less();
+  await page.evaluate(() => aegis.canvas.select(['docsnote']));
+  const copySelected = page.locator('.docs-footer [data-copy-cards]'); await copySelected.waitFor();
+  await copySelected.click(); await saved();
+  assert.equal(((await board()).cards.find(c => c.id === docId).props.body.match(/Copied note content/g) || []).length, 3, 'the relocated action still copies the selected card through the real pointer');
   await page.getByRole('button', { name: 'Close document', exact: true }).click();
   const legacy = { type: 'doc', content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Maths notebook' }] }, { type: 'paragraph', content: [{ type: 'text', text: 'Keep the working.' }] }] };
   await page.evaluate(doc => { aegis.apply([{ op: 'create', type: 'doc', newId: 'mathsdoc', text: 'Maths notebook', x: 100, y: 100, props: { doc, body: 'Maths notebook\nKeep the working.' } }]); aegis.canvas.frameIds(['mathsdoc'], 1); }, legacy);

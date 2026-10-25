@@ -76,18 +76,31 @@ export function createDropdown({ label, options = [], value, onChange = () => {}
   const popup = createPopup({ trigger, menu, portal: true, role: 'listbox', onToggle(on) { if (on) { menu.style.minWidth = `${trigger.offsetWidth}px`; popup.position(); } } });
   function sync() {
     const choice = choices.find(o => o.value === selected); caption.textContent = choice?.label || label;
-    for (const el of menu.children) el.setAttribute('aria-selected', String(el.dataset.value === selected));
+    for (const el of menu.querySelectorAll('[role=option]')) el.setAttribute('aria-selected', String(el.dataset.value === selected));
   }
   function setOptions(values) {
     choices = values.map(o => Array.isArray(o) ? { value: String(o[0]), label: o[1] } : { ...o, value: String(o.value) });
     if (selected === undefined) selected = choices[0]?.value ?? '';
     menu.replaceChildren();
+    // PM4.7: grouped model pickers share the regular dropdown's keyboard handling.
+    const groups = new Map();
     for (const o of choices) {
+      let parent = menu;
+      if (o.group) {
+        if (!groups.has(o.group)) {
+          const group = document.createElement('div'); group.setAttribute('role', 'group'); group.setAttribute('aria-label', `${o.group}, ${o.groupDescription || ''}`);
+          const heading = document.createElement('div'); heading.className = 'aegis-model-group'; heading.setAttribute('aria-hidden', 'true');
+          for (const text of [o.group, o.groupDescription]) { const span = document.createElement('span'); span.textContent = text || ''; heading.append(span); }
+          group.append(heading); groups.set(o.group, group); menu.append(group);
+        }
+        parent = groups.get(o.group);
+      }
       const item = document.createElement('button'); item.type = 'button'; item.setAttribute('role', 'option'); item.tabIndex = -1; item.disabled = !!o.disabled; item.dataset.value = o.value; item.dataset.label = o.label;
+      if (o.description) item.setAttribute('aria-description', o.description);
       const text = document.createElement('span'); text.textContent = o.label; item.append(text);
       item.insertAdjacentHTML('beforeend', '<svg class="aegis-option-check" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8 3 3 6-6"/></svg>');
       item.onclick = () => { selected = o.value; sync(); popup.close(true); onChange(selected); trigger.dispatchEvent(new Event('change', { bubbles: true })); };
-      menu.append(item);
+      parent.append(item);
     }
     sync();
   }
@@ -96,7 +109,7 @@ export function createDropdown({ label, options = [], value, onChange = () => {}
   trigger.dropdownKey = e => {
     if (e.ctrlKey || e.metaKey || e.altKey && e.key !== 'ArrowDown' || e.key === 'Tab') return;
     if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key) || e.key.length === 1) {
-      e.preventDefault(); popup.open(e); const current = menu.querySelector('[aria-selected="true"]') || menu.firstElementChild; current?.focus();
+      e.preventDefault(); popup.open(e); const current = menu.querySelector('[aria-selected="true"]') || menu.querySelector('[role=option]'); current?.focus();
       if (e.key.length === 1 && e.key !== ' ') popup.key(e);
     }
   };
@@ -109,7 +122,7 @@ export function replaceSelect(source) {
   const dropdown = createDropdown({ label: source.getAttribute('aria-label') || source.closest('label')?.textContent.trim() || source.title || 'Choose an option', value: source.value, onChange(value) { source.value = value; source.dispatchEvent(new Event('change', { bubbles: true })); } });
   for (const attr of source.attributes) if (!['class', 'aria-label', 'role'].includes(attr.name)) dropdown.setAttribute(attr.name, attr.value);
   dropdown.className += source.className ? ` ${source.className}` : '';
-  const refresh = () => { dropdown.setOptions([...source.options].map(o => ({ value: o.value, label: o.label, disabled: o.disabled }))); dropdown.value = source.value; dropdown.disabled = source.disabled; };
+  const refresh = () => { dropdown.setOptions([...source.options].map(o => ({ value: o.value, label: o.label, disabled: o.disabled, group: o.dataset.group, groupDescription: o.dataset.groupDescription, description: o.getAttribute('aria-description') }))); dropdown.value = source.value; dropdown.disabled = source.disabled; };
   const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
   Object.defineProperty(source, 'value', { get() { return descriptor.get.call(this); }, set(value) { descriptor.set.call(this, value); dropdown.value = descriptor.get.call(this); } });
   const observer = new MutationObserver(refresh); observer.observe(source, { childList: true, subtree: true, attributes: true, characterData: true });

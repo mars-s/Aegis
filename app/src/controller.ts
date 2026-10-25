@@ -326,7 +326,11 @@ async function loadModels() {
   for (const m of list) {
     const o = document.createElement('option'); o.value = `${m.provider}|${m.modelId}`;
     const ready = m.provider === 'fake' || auth[m.provider]?.connected;
-    o.textContent = m.name + (ready ? '' : ' · sign in'); sel.appendChild(o);
+    // PM4.7: provider availability is group copy, with status retained per choice.
+    o.textContent = m.name;
+    o.dataset.group = ({ openai: 'OpenAI', anthropic: 'Anthropic', fake: 'Review' })[m.provider] || m.provider;
+    o.dataset.groupDescription = ready ? (m.provider === 'fake' ? 'Available' : 'Signed in') : 'Sign in required';
+    o.setAttribute('aria-description', o.dataset.groupDescription); sel.appendChild(o);
   }
   const firstReady = list.find(m => m.provider === 'fake' || auth[m.provider]?.connected);
   sel.value = saved && [...sel.options].some(o => o.value === saved) ? saved : firstReady ? `${firstReady.provider}|${firstReady.modelId}` : sel.options[0]?.value;

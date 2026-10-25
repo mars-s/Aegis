@@ -3,9 +3,9 @@ import './rows.css';
 
 // Action menus and radio choices share the value picker's theme and input handling.
 // R4 polish: declare the live item factory used by generated-window menus.
-/** @typedef {{ title: string, run: () => unknown, checked?: boolean, section?: string, shortcut?: string, disabled?: boolean, destructive?: boolean }} MenuItem */
-/** @param {{ trigger?: HTMLElement, menu?: HTMLElement, items?: MenuItem[] | (() => MenuItem[]), label?: string, portal?: boolean, onToggle?: (open: boolean) => void, bindTrigger?: boolean }} [options] */
-export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
+/** @typedef {{ title: string, run: () => unknown, ariaLabel?: string, checked?: boolean, section?: string, shortcut?: string, disabled?: boolean, destructive?: boolean }} MenuItem */
+/** @param {{ trigger?: HTMLElement, menu?: HTMLElement, items?: MenuItem[] | (() => MenuItem[]), label?: string, heading?: string, portal?: boolean, onToggle?: (open: boolean) => void, bindTrigger?: boolean }} [options] */
+export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, heading, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
   menu.classList.add('aegis-action-menu');
   if (label) menu.setAttribute('aria-label', label);
   let pressed = null;
@@ -21,6 +21,10 @@ export function createMenu({ trigger, menu = document.createElement('div'), item
   } });
   function setItems(next) {
     menu.replaceChildren();
+    // PM4.6: one context heading keeps individual action labels short.
+    if (heading) {
+      const title = document.createElement('div'); title.className = 'aegis-menu-heading'; title.textContent = heading; menu.append(title);
+    }
     let section;
     for (const item of next) {
       if (section !== undefined && item.section !== section) {
@@ -31,6 +35,7 @@ export function createMenu({ trigger, menu = document.createElement('div'), item
       button.setAttribute('role', item.checked === undefined ? 'menuitem' : 'menuitemradio');
       if (item.checked !== undefined) button.setAttribute('aria-checked', String(item.checked));
       button.textContent = item.title; button.dataset.label = item.title; button.disabled = !!item.disabled;
+      if (item.ariaLabel) button.setAttribute('aria-label', item.ariaLabel);
       // Round 3 navigation: menu shortcuts use the same copy as the reference and tour.
       if (item.shortcut) { const key = document.createElement('kbd'); key.className = 'aegis-menu-shortcut'; key.setAttribute('aria-hidden', 'true'); key.textContent = item.shortcut; button.append(key); }
       if (item.destructive || item.title === 'Delete') button.classList.add('aegis-menu-destructive');

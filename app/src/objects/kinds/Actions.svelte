@@ -1,9 +1,9 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { createMenu } from '../../lib/ui/menu.js';
-  let { label, items }: { label: string; items: () => { title: string; checked?: boolean; run: () => void }[] } = $props();
+  let { label, heading, items }: { label: string; heading: string; items: () => { title: string; ariaLabel?: string; checked?: boolean; run: () => void }[] } = $props();
   function menu(trigger: HTMLButtonElement) {
-    const popup = createMenu({ trigger, label, items: () => items().map(item => ({ ...item, run: async () => {
+    const popup = createMenu({ trigger, label, heading, items: () => items().map(item => ({ ...item, run: async () => {
       const region = trigger.closest('.genui');
       item.run();
       // Canvas data reaches its Svelte view during the next scheduled paint.

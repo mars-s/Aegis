@@ -30,11 +30,22 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
   let selection = new Set(), lastSig = '', frame = 0;
   const folded = new Set();
   let lastBoard;
+  // PM4.5: keep search inside the Windows disclosure, above its scrolling rows.
+  const filter = document.createElement('input'); filter.type = 'search'; filter.className = 'layer-filter'; filter.placeholder = 'Filter windows'; filter.setAttribute('aria-label', 'Filter windows'); filter.hidden = true;
+  list.before(filter);
+  filter.addEventListener('input', () => { lastSig = ''; render(); });
+  filter.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && filter.value) { event.preventDefault(); event.stopPropagation(); filter.value = ''; lastSig = ''; render(); }
+  });
 
   function render() {
     frame = 0; const board = getBoard(); if (!board) return;
-    if (lastBoard !== board.id) { folded.clear(); lastBoard = board.id; }
-    const cards = board.cards.slice().reverse().slice(0, LIMIT);
+    if (lastBoard !== board.id) { folded.clear(); filter.value = ''; lastBoard = board.id; }
+    filter.hidden = board.cards.length <= 8;
+    if (filter.hidden) filter.value = '';
+    const query = filter.value.trim().toLocaleLowerCase();
+    const matches = query ? board.cards.filter(c => String(labelOf(c)).toLocaleLowerCase().includes(query)) : board.cards;
+    const cards = matches.slice().reverse().slice(0, LIMIT);
     const parents = layerParents(board);
     const byParent = new Map();
     for (const c of cards) { const parent = parents.get(c.id); if (!byParent.has(parent)) byParent.set(parent, []); byParent.get(parent).push(c); }
@@ -91,7 +102,7 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       row.onmouseenter = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.add('layer-hover');
       row.onmouseleave = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.remove('layer-hover');
       frag.appendChild(row);
-      if (!folded.has(c.id)) children.forEach(child => append(child, depth + 1));
+      if (query || !folded.has(c.id)) children.forEach(child => append(child, depth + 1));
     }
     for (const c of cards.filter(c => !parentOf(c) || !cards.some(p => p.id === parentOf(c)))) {
       if (c.group) {
@@ -100,10 +111,11 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
         const header = document.createElement('div'); header.className = 'layer-group'; header.textContent = `${folded.has(c.group) ? '▸' : '▾'} ${c.props?.groupName || 'Group'} (${members.length})`;
         header.onclick = () => { folded.has(c.group) ? folded.delete(c.group) : folded.add(c.group); schedule(); };
         header.ondblclick = () => { const input = document.createElement('input'); input.value = c.props?.groupName || 'Group'; input.setAttribute('aria-label', 'Group name'); header.replaceChildren(input); input.focus(); input.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') input.blur(); }; input.onblur = () => onUpdate?.(members.map(m => ({ op: 'update', id: m.id, set: { props: { groupName: input.value.trim() || 'Group' } } }))); };
-        frag.append(header); if (!folded.has(c.group)) members.forEach(member => append(member, 1));
+        frag.append(header); if (query || !folded.has(c.group)) members.forEach(member => append(member, 1));
       } else append(c);
     }
-    if (board.cards.length > LIMIT) { const more = document.createElement('p'); more.className = 'muted small pad'; more.textContent = `${board.cards.length - LIMIT} more not shown`; frag.appendChild(more); }
+    if (matches.length > LIMIT) { const more = document.createElement('p'); more.className = 'muted small pad'; more.textContent = `${matches.length - LIMIT} more not shown`; frag.appendChild(more); }
+    if (query && !cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'No matching windows'; p.setAttribute('role', 'status'); frag.appendChild(p); }
     if (!board.cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'Nothing on this board yet.'; frag.appendChild(p); }
     list.appendChild(frag);
     if (focused) [...list.querySelectorAll('.layer-row')].find(row => row.dataset.id === focused)?.querySelector('.row-more')?.focus({ preventScroll: true });

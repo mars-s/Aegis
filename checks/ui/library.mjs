@@ -53,11 +53,26 @@ try {
   assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, JSON.stringify(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => ({ id: el.dataset.panel, height: el.offsetHeight, flex: getComputedStyle(el).flex, body: el.querySelector('.pbody').offsetHeight })))));
   assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
   assert.equal(await keys.locator('.pbody').isVisible(), false, 'Shortcuts starts collapsed');
+  assert.equal(await windows.getByRole('searchbox', { name: 'Filter windows' }).isVisible(), false, 'small Windows lists need no filter');
   const navFolders = [];
   for (let i = 0; i < 12; i++) navFolders.push((await api('/library', { op: 'create', kind: 'folder', name: `Navigation folder ${i + 1}` })).created);
   await row(navFolders.at(-1)).waitFor();
   await page.evaluate(() => new Promise(resolve => aegisCtx.apply(Array.from({ length: 25 }, (_, i) => ({ op: 'create', type: 'note', newId: `navwindow${i}`, text: `Window ${i + 1}`, x: (i % 5) * 280, y: Math.floor(i / 5) * 180 })), resolve)));
   await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 25);
+  const filter = windows.getByRole('searchbox', { name: 'Filter windows', exact: true });
+  await filter.click(); await page.keyboard.type('wInDoW 25');
+  await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 1);
+  assert.equal(await windows.locator('.layer-row .name').textContent(), 'Window 25', 'the Windows filter matches names live without case sensitivity');
+  await page.screenshot({ path: out(`r5-windows-filter-${Date.now()}.png`) });
+  await filter.press('Escape');
+  await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 25);
+  assert.equal(await filter.inputValue(), ''); assert.equal(await page.locator('#side').isVisible(), true, 'Escape clears search before closing the side bar');
+  await filter.fill('No such window'); await windows.getByRole('status').waitFor();
+  assert.equal(await windows.locator('.layer-row').count(), 0);
+  await filter.press('Escape');
+  await windows.locator('.fold').click(); assert.equal(await filter.isVisible(), false, 'a folded Windows section hides its filter');
+  await windows.locator('.fold').click(); await filter.waitFor();
+  check('Windows filter appears for long lists, matches names live, shows an empty result, clears with Escape and follows its disclosure');
   for (const width of [1440, 1586]) {
     await page.setViewportSize({ width, height: 992 });
     await page.waitForFunction(() => Math.abs(document.getElementById('side').getBoundingClientRect().left - 8) < .5);

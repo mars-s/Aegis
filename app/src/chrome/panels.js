@@ -86,6 +86,8 @@ export function createPanels({ side, onChange }) {
   section.innerHTML = '<h3>Side bar panels</h3><div class="panel-layout-options"></div><button type="button" class="text-btn" data-reset-panels>Reset layout</button>';
   settings?.append(section);
   const options = section.querySelector('.panel-layout-options');
+  // PM4.9: the parent and its choices have the same hierarchy as the side bar.
+  const toolChoices = document.createElement('div'); toolChoices.className = 'panel-tools-choices'; toolChoices.setAttribute('role', 'group'); toolChoices.setAttribute('aria-label', 'Tools panels'); options.append(toolChoices);
   section.querySelector('[data-reset-panels]').onclick = () => {
     state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = { keys: true }; state.heights = {}; state.width = 300; state.rightWidth = 320; state.open = { left: true, right: false }; state.hidden = false;
     for (const id of all.keys()) state.folded[id] = !['layers', 'library', 'unsorted'].includes(id);
@@ -111,7 +113,9 @@ export function createPanels({ side, onChange }) {
       if (!state.folded[id]) body.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.23,1,.32,1)' });
     };
     const label = document.createElement('label'), input = document.createElement('input'); input.type = 'checkbox'; input.checked = !state.off[id]; input.dataset.panelVisibility = id;
-    label.append(input, document.createTextNode(head.querySelector('span')?.childNodes[0]?.textContent?.trim() || id)); options.append(label);
+    label.append(input, document.createTextNode(head.querySelector('span')?.childNodes[0]?.textContent?.trim() || id));
+    if (occasional.has(id)) toolChoices.append(label);
+    else { options.insertBefore(label, options.querySelector('.panel-tools-parent') || toolChoices); if (id === 'tools') label.classList.add('panel-tools-parent'); }
     input.onchange = () => { state.off[id] = !input.checked; apply(); save(); };
     box.querySelector('.resize-handle')?.addEventListener('pointerdown', e => {
       e.preventDefault(); const h0 = body.getBoundingClientRect().height, y0 = e.clientY, handle = e.currentTarget;

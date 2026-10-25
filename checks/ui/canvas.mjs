@@ -189,12 +189,24 @@ try {
     verify('far zoom names are absent from an idle board', !await orientation.isVisible());
     await page.mouse.move(4, 450); await orientation.waitFor({ state: 'visible' });
     verify('pointer edge approach reveals only the largest 30 visible window names', await orientation.locator('span').evaluateAll(nodes => nodes.length > 0 && nodes.length <= 30 && nodes.every(el => /^orientation\d+$/.test(el.dataset.cardId) && Number(el.dataset.cardId.slice(11)) >= 10)));
-    verify('orientation labels keep at least 11 px screen type and pass pointer input through', await orientation.locator('span').evaluateAll(nodes => nodes.every(el => parseFloat(getComputedStyle(el).fontSize) >= 11 && getComputedStyle(el).pointerEvents === 'none')));
+    verify('orientation labels keep at least 11 px screen type with small pointer targets, and the overlay passes input through', await orientation.locator('span').evaluateAll(nodes => nodes.every(el => parseFloat(getComputedStyle(el).fontSize) >= 11 && getComputedStyle(el).pointerEvents === 'auto')) && await orientation.evaluate(el => getComputedStyle(el).pointerEvents === 'none'));
     await page.screenshot({ path: out(`r4-orientation-edge-${Date.now()}.png`) });
+    const label = orientation.locator('span').first(), labelId = await label.getAttribute('data-card-id');
+    await label.hover();
+    const aid = orientation.locator('.orientation-aid'); await aid.waitFor({ state: 'visible' });
+    verify('real label hover outlines its matching window with a blue hairline and leader', await aid.evaluate((el, id) => {
+      const c = aegis.canvas.board.cards.find(c => c.id === id), v = aegis.canvas.view, r = el.querySelector('rect'), l = el.querySelector('line');
+      return el.dataset.cardId === id && Math.abs(Number(r.getAttribute('x')) - (c.x * v.z + v.x)) < .1 && Math.abs(Number(r.getAttribute('y')) - (c.y * v.z + v.y)) < .1 && Math.abs(Number(r.getAttribute('width')) - c.w * v.z) < .1 && Math.abs(Number(r.getAttribute('height')) - c.h * v.z) < .1 && getComputedStyle(r).stroke === 'rgb(63, 141, 253)' && getComputedStyle(r).strokeWidth === '1px' && getComputedStyle(el).pointerEvents === 'none' && Math.hypot(Number(l.getAttribute('x2')) - Number(l.getAttribute('x1')), Number(l.getAttribute('y2')) - Number(l.getAttribute('y1'))) > 0;
+    }, labelId));
+    await page.screenshot({ path: out(`r5-orientation-hover-${Date.now()}.png`) });
     await page.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
     verify('orientation clears when the pointer leaves the edge', !await orientation.isVisible());
     await page.keyboard.press('Tab'); await page.locator('#stage').focus(); await orientation.waitFor({ state: 'visible' });
     verify('keyboard canvas focus reveals far zoom names', await orientation.locator('span').count() > 0 && await orientation.locator('span').count() <= 30);
+    await orientation.locator('span').first().focus(); await page.keyboard.press('Tab');
+    await aid.waitFor({ state: 'visible' });
+    verify('Tab focuses a far zoom name and highlights the same window', await orientation.evaluate(el => el.contains(document.activeElement) && document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId));
+    await page.screenshot({ path: out(`r5-orientation-focus-${Date.now()}.png`) });
     await page.locator('#boardName').focus(); await orientation.waitFor({ state: 'hidden' });
     await page.evaluate(() => aegis.canvas.setView({ x: -1400, y: -1400, z: .2 })); await settle(); await page.mouse.move(4, 450);
     verify('orientation stays hidden at working zoom', !await orientation.isVisible());

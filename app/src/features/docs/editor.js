@@ -46,6 +46,15 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   const menu = document.createElement('details'); menu.className = 'docs-more';
   menu.innerHTML = '<summary aria-label="Document options" aria-haspopup="true">…</summary><div class="docs-more-tools"><div class="docs-page-options"></div><button type="button" data-pdf>Export PDF</button><button type="button" data-word>Export Word</button><details class="docs-appearance"><summary>Text appearance and inserts</summary><div class="docs-appearance-tools"></div></details></div>';
   panel.querySelector('.side-editor-tools').prepend(menu);
+  // PM4.10: keep the board action beside writing only when it can copy something.
+  const copyCards = panel.querySelector('[data-copy-cards]');
+  function syncCopyAction() {
+    const ids = ctx.selection();
+    const applicable = ctx.canvas.board.id === boardId && ctx.canvas.board.cards.some(c => c.id !== card.id && ids.includes(c.id) && COPY_TYPES.has(c.type));
+    const parent = applicable ? panel.querySelector('.docs-footer') : menu.querySelector('.docs-more-tools');
+    if (copyCards.parentElement !== parent) parent.append(copyCards);
+  }
+  syncCopyAction();
   menu.querySelector('summary').addEventListener('click', event => { menu.classList.toggle('instant', event.detail === 0); });
   menu.addEventListener('toggle', () => menu.querySelector('summary').setAttribute('aria-expanded', String(menu.open)));
   menu.addEventListener('keydown', event => {
@@ -291,6 +300,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     for (const [el, mark] of toggles) el.setAttribute('aria-pressed', String(editor.isActive(mark)));
     undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); tableTools.hidden = !editor.isActive('table');
     const words = editor.storage.characterCount.words(); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
+    syncCopyAction();
   }
   title.oninput = schedule;
   title.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); editor.commands.focus('start'); editor.view.focus(); } };
@@ -307,7 +317,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     catch (error) { ctx.toast(`Could not export: ${error.message}`); } finally { el.disabled = false; }
   }
   $('[data-pdf]').onclick = () => exportDoc(false); $('[data-word]').onclick = () => exportDoc(true);
-  $('[data-copy-cards]').onclick = () => copyIntoDocument(ctx.canvas.board.cards.filter(c => ctx.selection().includes(c.id)), ctx);
+  copyCards.onclick = () => { copyIntoDocument(ctx.canvas.board.cards.filter(c => ctx.selection().includes(c.id)), ctx); menu.open = false; };
   function keys(event) {
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopImmediatePropagation();
@@ -321,6 +331,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   document.addEventListener('keydown', keys, true); document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', save);
   const watch = setInterval(() => {
     if (ctx.canvas.board.id !== boardId) { close(); return; }
+    syncCopyAction();
     const latest = ctx.canvas.board.cards.find(c => c.id === card.id);
     if (ctx.canvas.board.rev < minimumRev) return;
     if (!latest) { dirty = false; close(); return; }
