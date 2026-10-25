@@ -7,4 +7,4 @@ import './draw.js';
 
 import './library.js';
 
-import '../../../features/editing/types.js';
+import './editing.js';
