@@ -333,7 +333,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, c));
       if (l.arrow === 'both') parts.push(arrow(p, c));
       parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:stroke"/>`);
-      if (l.label) parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12}" text-anchor="middle">${esc(l.label)}</text>`);
+      if (l.label && view.z >= 0.12) { const size = 12 * Math.min(1, view.z); parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
     }
     links.innerHTML = parts.join('');
   }
