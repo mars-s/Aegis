@@ -64,6 +64,8 @@ try {
   }
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+  // Keep interception enabled before any input. Enabling it per wait can race keyboard.press.
+  page.on('filechooser', () => {});
   await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   page.on('pageerror', error => errors.push(error.stack));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -191,6 +193,17 @@ try {
   await mediaPicker.setFiles(join(repo, 'checks/fixtures/quicklook.key'));
   await page.waitForFunction(() => aegis.canvas.board.cards.filter(c => c.props?.import?.name === 'quicklook.key').length === 2);
   console.log('PASS More tools Files > Import, keyboard activation of Import images and the media picker accept presentations and use the same importer, including QuickLook fallback');
+
+  // I also opens the picker from a focused deck immediately after its import.
+  const justImported = (await cards()).filter(card => card.props?.import?.name === 'quicklook.key').at(-1);
+  await page.locator(`.card[data-id="${justImported.id}"]`).focus();
+  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [justImported.id]);
+  const selectedPick = page.waitForEvent('filechooser'); await page.keyboard.press('i');
+  const selectedPicker = await selectedPick;
+  assert.match(await selectedPicker.element().getAttribute('accept'), /\.pdf.*\.pptx.*\.key/);
+  await selectedPicker.setFiles([]);
+  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [justImported.id]);
+  console.log('PASS I opens the import picker from a focused, selected deck just after import and preserves selection');
 
   await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); });
   await page.mouse.move(700, 450);
