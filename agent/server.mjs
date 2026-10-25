@@ -16,6 +16,7 @@ import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { applyBatch, describe, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
+import '../app/src/lib/board/types/index.js';
 import { applyLibraryOp, emptyLibrary, tidyLibrary } from './library.mjs';
 import { createUiUpdater } from './ui-update.mjs';
 
