@@ -1,3 +1,4 @@
+@import 'katex/dist/katex.min.css';
 .card.doc.doc-pill { display:flex; align-items:center; gap:12px; padding:12px 16px; border-radius:28px; min-height:48px; }
 .docs-card-icon { width:24px; height:28px; display:grid; place-items:center; color:var(--muted); flex-shrink:0; }
 .docs-card-icon svg { width:22px; height:24px; }
@@ -42,26 +43,38 @@
 .docs-panel input, .docs-panel select { border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; background: var(--inset); }
 .docs-panel .side-editor-tools button { height: 44px; min-width: 44px; }
 .docs-spacer { flex: 1; }
-.docs-toolbar { position: relative; z-index: 2; flex: none; display: flex; align-items: center; gap: 2px; padding: 6px 14px; }
-.docs-primary-tools { display: flex; align-items: center; gap: 2px; }
-.docs-primary-tools button, .docs-more > summary { height: 32px; color: var(--muted); font-size: 13px; }
-.docs-primary-tools [aria-label=Bold] { order: 1; font-weight: 600; }
-.docs-more { position: static; }
-.docs-more > summary { list-style: none; }
-.docs-more > summary::-webkit-details-marker { display: none; }
-.docs-more-tools { position: absolute; top: calc(100% + 2px); left: 14px; width: min(420px, calc(100% - 28px)); max-height: calc(100vh - 180px); overflow: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--raised); box-shadow: var(--shadow-lift); scrollbar-width: thin; }
-.docs-more-tools button, .docs-more-tools summary, .docs-more-tools input, .docs-more-tools select { min-height: 32px; }
-.docs-more-tools input[aria-label="Font family"] { width: 140px; }
-.docs-more-tools input[aria-label="Font size"] { width: 60px; appearance: textfield; }
-.docs-more-tools input::-webkit-inner-spin-button { appearance: none; }
+/* One title-bar menu keeps the page itself clear for writing. */
+.docs-panel .side-editor-title { display: flex; align-items: center; gap: 4px; }
+.docs-panel .side-editor-kind { flex: none; }
+.docs-more { position: relative; }
+.docs-more > summary { display: grid; place-items: center; width: 44px; height: 44px; list-style: none; color: var(--muted); font-size: 20px; }
+.docs-more summary::-webkit-details-marker { display: none; }
+.docs-more-tools { position: absolute; z-index: 55; top: calc(100% + 4px); right: 0; width: min(340px, calc(100vw - 40px)); max-height: calc(100dvh - 120px); overflow: auto; padding: 6px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--raised); box-shadow: var(--shadow-lift); scrollbar-width: thin; transform-origin: top right; }
+.docs-more[open]:not(.instant) > .docs-more-tools { animation: docs-menu-in 140ms var(--ease-out); }
+.docs-more-tools > button { display: block; width: 100%; text-align: left; min-height: 36px; }
+.docs-page-options { display: flex; gap: 6px; padding-bottom: 6px; }
+.docs-appearance { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 6px; }
+.docs-appearance > summary { min-height: 36px; list-style: none; }
+.docs-appearance-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 3px; }
+.docs-appearance-tools input[aria-label="Font family"] { width: 140px; }
+.docs-appearance-tools input[aria-label="Font size"] { width: 60px; appearance: textfield; }
+.docs-appearance-tools input::-webkit-inner-spin-button { appearance: none; }
 .docs-table-tools { display: flex; flex-wrap: wrap; gap: 3px; width: 100%; border-top: 1px solid var(--line); padding-top: 6px; }
+.docs-choice { position: relative; min-width: 0; }
+.docs-choice > button { display: flex; justify-content: space-between; gap: 8px; min-height: 36px; width: 100%; text-align: left; }
+.docs-choice-options { position: relative; z-index: 1; width: max-content; max-width: 100%; max-height: 240px; overflow: auto; padding: 4px; background: var(--raised); border: 1px solid var(--line-strong); border-radius: 12px; transform-origin: top left; }
+.docs-choice-options:not([hidden]):not(.instant) { animation: docs-menu-in 140ms var(--ease-out); }
+.docs-choice-options button { display: block; min-height: 36px; width: 100%; text-align: left; padding-right: 26px; position: relative; }
+.docs-choice-options [aria-checked=true]::after { content: '✓'; position: absolute; right: 8px; }
+.docs-panel :is(button, summary):focus-visible { outline: 1.5px solid var(--text); outline-offset: -2px; }
+@keyframes docs-menu-in { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: none; } }
 .docs-scroll { overflow: auto; flex: 1; min-height: 0; padding: 0 16px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .docs-paper { --paper: var(--card); --ink: var(--text); background: var(--paper); color: var(--ink); min-height: 100%; max-width: 720px; margin: auto; padding: 28px 40px 160px; }
 .docs-panel[data-page=light] .docs-paper { --paper: #fff; --ink: #25252b; }
 .docs-panel[data-page=dark] .docs-paper { --paper: #24252b; --ink: #e6e6ec; }
-.docs-title { width: 100%; border: 0 !important; border-radius: 0 !important; background: transparent !important; color: inherit; font-size: 40px !important; line-height: 1.12 !important; font-weight: 650 !important; letter-spacing: -.028em; margin: 0 0 22px; padding: 0 !important; outline: none; }
+.docs-panel input.docs-title { flex: 1; width: 100%; min-width: 40px; border: 0; border-radius: 4px; background: transparent; color: var(--text); font-size: 14.5px; line-height: 1.4; font-weight: 500; padding: 5px 0; outline: none; }
 .docs-title::placeholder { color: var(--muted); }
-.docs-title:focus, .docs-title:focus-visible { outline: none; }
+.docs-title:focus-visible { box-shadow: inset 0 -1px 0 var(--line-strong); }
 .docs-prose { outline: none; font: 400 19.5px/30px var(--font); letter-spacing: -.003em; min-height: 340px; overflow-wrap: anywhere; caret-color: var(--data); }
 .docs-prose:focus-visible { outline: none; }
 .docs-prose p { margin: 0 0 20px; }
@@ -90,7 +103,7 @@
 .docs-prose .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: 0; width: 4px; background: var(--data); pointer-events: none; }
 .docs-prose.resize-cursor { cursor: col-resize; }
 .docs-prose p.is-editor-empty:first-child:before { color: var(--faint); content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
-.docs-bubble { display: flex; align-items: center; gap: 3px; padding: 5px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-lift); z-index: 50; width: max-content; max-width: calc(100vw - 32px); }
+.docs-bubble { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 5px; background: var(--raised); color: var(--text); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-lift); z-index: 50; width: max-content; max-width: min(calc(100% - 16px), calc(100vw - 32px)); }
 .docs-footer { flex: none; padding: 4px 12px; display: flex; align-items: center; gap: 12px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
 .docs-footer button { min-height: 36px; }
 .docs-download > div { display: grid; gap: 8px; padding-top: 8px; }
@@ -110,8 +123,21 @@
 @media (max-width: 760px) {
   .docs-scroll { padding: 0 6px; }
   .docs-paper { padding: 20px 22px 120px; }
-  .docs-title { font-size: 30px !important; }
   .docs-prose { font-size: 17px; line-height: 27px; }
-  .docs-more-tools { position: fixed; top: 100px; left: 20px; right: 20px; width: auto; }
+  .docs-more-tools { position: fixed; top: 56px; left: 12px; right: 12px; width: auto; }
+  .docs-panel .side-editor-kind, .docs-panel [data-expand] { display: none; }
   .docs-footer { gap: 6px; flex-wrap: wrap; }
 }
+
+.docs-math { cursor: text; border-radius: 4px; white-space: normal; }
+.docs-math:not(.docs-math-block) { display: inline-block; vertical-align: baseline; max-width: 100%; }
+.docs-math:focus-visible { outline: 1px solid currentColor; outline-offset: 3px; }
+.docs-math-block { display: block; margin: 24px 0; overflow-x: auto; }
+.docs-math .katex { font-size: 1.12em; }
+.docs-math .katex-display { margin: 0; }
+.docs-panel .docs-math-source { display: inline-block; width: min(100%, 32ch); min-width: 10ch; font: 15px/1.6 Menlo, monospace; color: var(--ink); background: var(--paper); border: 1px solid currentColor; padding: 6px 8px; vertical-align: middle; }
+.docs-panel textarea.docs-math-source { display: block; width: 100%; min-height: 90px; resize: vertical; }
+.doc-page :is(blockquote, pre) { margin: 20px 0; padding: 12px 16px; background: var(--inset); border-radius: 6px; }
+.doc-page pre { white-space: pre-wrap; font: 15px/1.6 Menlo, monospace; }
+body.motion-off :is(.docs-more-tools, .docs-choice-options) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) { .docs-more-tools, .docs-choice-options { animation: none !important; } }

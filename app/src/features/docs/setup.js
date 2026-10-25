@@ -1,19 +1,33 @@
 import { registerRenderer, registerCardDropTarget } from '../../canvas/engine.js';
 import { registerTool, registerCardMenu, registerCommand } from '../registry';
 import { openDocument, copyIntoDocument, currentDocument, resolveDocumentDrop, installDocumentClipboard } from './editor.js';
-import { generateHTML } from '@tiptap/core';
+import { generateHTML, generateJSON } from '@tiptap/core';
 import { extensions } from './extensions.js';
-import { markdownHTML } from './content.js';
+import { markdownHTML, migrateTitle, documentUpdate } from './content.js';
 export { registerDocRewriter } from './editor.js';
 const icon = '<path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3M6 7h4M6 9.5h4M6 12h2"/>';
 // A document on the canvas is a window: a 36px strip, then the document itself as a quiet read-only preview.
 // Older 56px pills keep the pill look until someone resizes them into a window.
 const PILL_HEIGHT = 80;
 let previewExtensions;
+const pendingMigrations = new Set();
 function docPreview(card) {
-  const doc = card.props?.doc;
-  if (doc?.type === 'doc') { try { return generateHTML(doc, previewExtensions ??= extensions()); } catch { /* fall back to the Markdown body */ } }
-  return markdownHTML(card.props?.body || '');
+  try {
+    const ext = previewExtensions ??= extensions();
+    const original = card.props?.doc ?? generateJSON(markdownHTML(card.props?.body || ''), ext);
+    const doc = card.props?.docTitleMigrated ? original : migrateTitle(original, card.text);
+    if (doc !== original && !pendingMigrations.has(card.id)) {
+      const ctx = globalThis.aegisCtx, boardId = ctx?.canvas.board.id;
+      if (ctx) {
+        pendingMigrations.add(card.id);
+        queueMicrotask(() => {
+          pendingMigrations.delete(card.id);
+          if (ctx.canvas.board.id === boardId && ctx.canvas.board.cards.find(c => c.id === card.id) === card) ctx.apply([documentUpdate(card.id, doc)]);
+        });
+      }
+    }
+    return generateHTML(doc, ext);
+  } catch { return markdownHTML(card.props?.body || ''); }
 }
 registerRenderer('doc', {
   render(el, card) {

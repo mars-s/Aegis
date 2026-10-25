@@ -20,6 +20,7 @@ const ALIGN = { center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justif
 function runs(nodes = [], extra = {}) {
   const out = [];
   for (const n of nodes) {
+    if (n.type === 'inlineMath') { out.push(new TextRun({ text: `$${n.attrs?.latex ?? ''}$`, font: 'Menlo' })); continue; }
     if (n.type === 'hardBreak') { out.push(new TextRun({ break: 1 })); continue; }
     if (n.type !== 'text') continue;
     const o = { text: n.text, ...extra }; let href = null;
@@ -60,6 +61,7 @@ export async function toDocx(json, { title = '', paper = 'letter' } = {}) {
   async function block(n, ctx = {}) {
     const a = n.attrs || {}, align = ALIGN[a.textAlign];
     switch (n.type) {
+      case 'blockMath': return [new Paragraph({ spacing: { before: 120, after: 160 }, children: [new TextRun({ text: `$$${a.latex ?? ''}$$`, font: 'Menlo' })] })];
       case 'paragraph': {
         const style = a.kind === 'lead' ? 'Lead' : a.kind === 'caption' ? 'Caption' : ctx.quote ? 'Quote' : undefined;
         return [new Paragraph({ style, alignment: align, spacing: spacingOf(a), numbering: ctx.numbering, children: runs(n.content, ctx.run) })];

@@ -105,7 +105,10 @@ try {
   assert.equal(await page.locator('body.editor-wide.docs-full').count(), 1);
   assert.deepEqual(await stageBounds(), stage);
   await page.screenshot({ path: out('editors-document-wide.png') });
-  await page.getByLabel('More document controls', { exact: true }).click();
+  await page.getByLabel('Document options', { exact: true }).click();
+  await page.locator('.docs-appearance > summary').click();
+  assert.equal(await page.locator('.docs-panel .docs-toolbar').count(), 0, 'Writing has no formatting toolbar');
+  assert.equal(await page.locator('.side-editor-head .docs-title').count(), 1, 'The title is editable in the window strip');
   const toolbarFocus = await page.evaluate(async () => {
     const { currentDocument } = await import('/src/features/docs/editor.js');
     const editor = currentDocument().editor, text = editor.getText();
@@ -122,7 +125,7 @@ try {
   await saved();
   assert.equal(await page.locator('.docs-prose').innerText(), toolbarFocus.text);
   assert.equal(toolbarFocus.after, toolbarFocus.text);
-  await page.getByLabel('More document controls', { exact: true }).click();
+  await page.getByLabel('Document options', { exact: true }).click();
   console.log('PASS toolbar fields keep focus during rapid changes and preserve document text');
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('.side-editor').count(), 0); assert.equal(await page.locator('body.editor-open, body.editor-wide, body.docs-open, body.docs-full').count(), 0);

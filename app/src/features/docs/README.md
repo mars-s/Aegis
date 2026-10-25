@@ -11,13 +11,32 @@ create a document. Double-click a pill, press Enter with one doc selected, or
 choose Open document from its context menu to reopen it. The title's Enter key
 moves into the editor. Back, Close and Escape flush pending edits.
 
-The toolbar includes block styles, font names from the board plus system font
-suggestions, size, marks, colours, alignment, lists, tasks, links, embedded images,
-resizable tables, dividers and clear formatting. More includes line spacing,
-superscript and subscript. Formatting controls reflect the cursor's selection.
-The main row holds Title, Heading, Text, List and Bold. More holds the other
-controls, page appearance and downloads. Inter Variable is bundled by the app;
-other font names use fonts installed on the computer.
+The title is an inline input in the editor's window strip. The canvas strip shows
+the same title. There is no title field in the page and no formatting toolbar.
+Write Markdown directly: `#`, `##`, `###`, `-`, `1.`, `- [ ]`, `>`, `**bold**`,
+`*italic*`, inline code, fenced code blocks, `---` and links. TipTap input rules
+format as you type. Pasted Markdown becomes rich content, including maths.
+Rich HTML, board cards and image clipboard content retain their existing paths.
+
+Use `$inline LaTeX$` and `$$block LaTeX$$` for maths. KaTeX 0.19.1 (MIT)
+renders `inlineMath` and `blockMath` nodes with a `latex` attribute. Click or
+keyboard-focus a formula and press Enter to edit its source. Escape or blur
+commits the source and renders it again. The plain text mirror keeps the LaTeX
+and delimiters for agents. Canvas previews render the same nodes. PDF print
+embeds KaTeX fonts so the native print window works offline. Word exports maths
+as a Menlo run containing the LaTeX source and delimiters.
+
+One quiet Document options menu (`…`) in the title bar holds PDF, Word, page
+colour and paper size. Text appearance and inserts retains the less common
+formatting controls, tables, images and Undo. The selection bubble retains
+formatting and Rewrite. Choices are themed and support arrows, Home, End,
+type-ahead, Enter and Escape. `menu.js` is temporary until the shared
+`lib/ui/dropdown.js` from the canvas worker is available.
+
+Legacy documents remove a leading H1 only when its text equals the title.
+Opening an old document or rendering its canvas window saves this migration
+through the normal board update. `props.docTitleMigrated` records it, so later
+intentional headings are preserved. Other document props remain intact.
 
 Documents share the floating shell in `side.js` with sheets and slides. It covers
 the right half of the window without resizing the canvas. Full width covers the
@@ -102,3 +121,9 @@ verify that it receives the title, paper size and body, and skips the iframe. Th
 checks dispatch, not the physical macOS print sheet. The existing preparation
 toast asks the person to choose Save as PDF in the print dialogue and does not
 claim that a PDF was saved.
+
+The browser check also verifies all Markdown input rules, Markdown paste, a
+single title in the strip, inline and block KaTeX in the editor and canvas,
+source editing with Escape and blur, maths exports, self-contained print fonts,
+keyboard menu navigation, reload persistence and both title migration paths.
+It captures maths at 1440, 1586 and 390 pixel widths under unique filenames.

@@ -2,9 +2,10 @@
 import { Editor, generateJSON } from '@tiptap/core';
 import BubbleMenu from '@tiptap/extension-bubble-menu';
 import { extensions } from './extensions.js';
-import { cardContent, COPY_TYPES, documentUpdate, markdownHTML } from './content.js';
+import { cardContent, COPY_TYPES, documentUpdate, markdownHTML, migrateTitle } from './content.js';
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
+import { chooser as select } from './menu.js';
 
 let active = null;
 let rewrite = null;
@@ -15,10 +16,9 @@ const button = (label, text, action) => {
   const el = document.createElement('button'); el.type = 'button'; el.title = label; el.setAttribute('aria-label', label);
   el.textContent = text; el.onpointerdown = e => e.preventDefault(); el.onclick = action; return el;
 };
-const select = (label, items, change) => {
-  const el = document.createElement('select'); el.setAttribute('aria-label', label); el.title = label;
-  for (const [value, name] of items) el.add(new Option(name, value));
-  el.onchange = () => change(el.value); return el;
+const loadContent = card => {
+  const doc = card.props?.doc ?? generateJSON(markdownHTML(card.props?.body ?? ''), extensions());
+  return card.props?.docTitleMigrated ? doc : migrateTitle(doc, card.text);
 };
 const inRect = (el, x, y) => {
   const r = el.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -40,10 +40,25 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   const panel = side.el; panel.classList.add('docs-panel');
   panel.querySelector('[data-expand]').setAttribute('aria-label', 'Full page');
   panel.querySelector('[data-close]').setAttribute('aria-label', 'Close document');
-  side.body.innerHTML = `<div class="docs-toolbar" role="toolbar" aria-label="Document formatting"><span class="docs-primary-tools"></span><details class="docs-more"><summary aria-label="More document controls">More</summary><div class="docs-more-tools"><select aria-label="Page colour"><option value="auto">Auto page</option><option value="light">Light page</option><option value="dark">Dark page</option></select><details class="docs-download"><summary>Download</summary><div><label>Paper <select aria-label="Paper size"><option value="a4">A4</option><option value="letter">Letter</option></select></label><button type="button" data-pdf>Download PDF</button><button type="button" data-word>Download Word</button></div></details></div></details></div><div class="docs-scroll"><article class="docs-paper"><input class="docs-title" aria-label="Document title" placeholder="Untitled document"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
+  side.body.innerHTML = `<div class="docs-scroll"><article class="docs-paper"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
+  const title = document.createElement('input'); title.className = 'docs-title'; title.setAttribute('aria-label', 'Document title'); title.placeholder = 'Untitled document'; title.value = card.text;
+  panel.querySelector('.side-editor-name').replaceWith(title);
+  const menu = document.createElement('details'); menu.className = 'docs-more';
+  menu.innerHTML = '<summary aria-label="Document options" aria-haspopup="true">…</summary><div class="docs-more-tools"><div class="docs-page-options"></div><button type="button" data-pdf>Export PDF</button><button type="button" data-word>Export Word</button><details class="docs-appearance"><summary>Text appearance and inserts</summary><div class="docs-appearance-tools"></div></details></div>';
+  panel.querySelector('.side-editor-tools').prepend(menu);
+  menu.querySelector('summary').addEventListener('click', event => { menu.classList.toggle('instant', event.detail === 0); });
+  menu.addEventListener('toggle', () => menu.querySelector('summary').setAttribute('aria-expanded', String(menu.open)));
+  menu.addEventListener('keydown', event => {
+    if (event.target.closest('.docs-choice, input') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); menu.classList.add('instant'); menu.open = true;
+    const controls = [...menu.querySelectorAll('button, summary, input')].filter(el => !el.disabled && el.getClientRects().length);
+    const current = controls.indexOf(document.activeElement), step = event.key === 'ArrowUp' ? -1 : 1;
+    controls[event.key === 'Home' ? 1 : event.key === 'End' ? controls.length - 1 : (current + step + controls.length) % controls.length]?.focus();
+  });
+  const dismissMenu = event => { if (!menu.contains(event.target)) menu.open = false; };
+  document.addEventListener('pointerdown', dismissMenu);
   const bubble = document.createElement('div'); bubble.className = 'docs-bubble'; bubble.setAttribute('role', 'toolbar'); bubble.setAttribute('aria-label', 'Selection formatting');
   const $ = selector => panel.querySelector(selector);
-  const title = $('.docs-title'); title.value = card.text;
   let timer, version = 0, dirty = false, saving = false, closed = false, lastDoc, pendingSave = Promise.resolve();
   let minimumRev = ctx.canvas.board.rev;
   let editor;
@@ -83,8 +98,10 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   }
   const close = options => side.close(options);
   panel.addEventListener('side-editor-close', () => {
+    panel.querySelector('.docs-math-source')?.blur();
     save(); closed = true; clearInterval(watch); clearTimeout(timer);
     document.removeEventListener('keydown', keys, true); document.removeEventListener('visibilitychange', visibility);
+    document.removeEventListener('pointerdown', dismissMenu);
     window.removeEventListener('pagehide', save);
     editor.destroy(); bubble.remove();
     if (active?.id === card.id) active = null;
@@ -124,8 +141,8 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     } catch (error) { ctx.toast(`Could not add image: ${error.message}`); }
   }
   editor = new Editor({
-    element: $('.docs-body'), extensions: [...extensions(), BubbleMenu.configure({ element: bubble, appendTo: () => panel, options: { placement: 'top', offset: 8 }, shouldShow: ({ state }) => !state.selection.empty && !editor.isActive('image') })],
-    content: card.props?.doc ?? markdownHTML(card.props?.body ?? ''),
+    element: $('.docs-body'), extensions: [...extensions(), BubbleMenu.configure({ element: bubble, appendTo: () => panel, options: { placement: 'top', offset: 8 }, shouldShow: ({ state }) => !state.selection.empty && !!state.doc.textBetween(state.selection.from, state.selection.to).trim() && !editor.isActive('image') })],
+    content: loadContent(card),
     editorProps: {
       attributes: { class: 'docs-prose', spellcheck: 'true', 'aria-label': 'Document content' },
       handleKeyDown: (_view, event) => {
@@ -141,8 +158,11 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
         const clip = event.clipboardData?.getData('text/x-aegis');
         if (clip && pasteClip(clip)) { event.preventDefault(); return true; }
         const files = [...(event.clipboardData?.files ?? [])].filter(f => f.type.startsWith('image/'));
-        if (!files.length) return false;
-        event.preventDefault(); files.forEach(f => image(f)); return true;
+        if (files.length) { event.preventDefault(); files.forEach(f => image(f)); return true; }
+        const text = event.clipboardData?.getData('text/plain');
+        const markdown = /(^|\n)(#{1,3} |[-*>] |\d+\. |```|\$\$|---)|\*\*.+\*\*|\[.+\]\(.+\)|\$[^$\n]+\$/m.test(text ?? '');
+        if (!text || (event.clipboardData?.getData('text/html') && !markdown) || editor.isActive('codeBlock')) return false;
+        event.preventDefault(); editor.chain().focus().insertContent(markdownHTML(text)).run(); return true;
       },
       handleDrop: (view, event) => {
         const files = [...(event.dataTransfer?.files ?? [])].filter(f => f.type.startsWith('image/'));
@@ -154,7 +174,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     onUpdate: () => { schedule(); paint(); }, onSelectionUpdate: () => paint(),
   });
   lastDoc = JSON.stringify(editor.getJSON());
-  const primary = $('.docs-primary-tools'), tool = $('.docs-more-tools');
+  const tool = $('.docs-appearance-tools');
   const toggles = [];
   const action = (label, text, fn, mark, parent = tool) => {
     const el = button(label, text, () => { editor.view.focus(); fn(); paint(); }); parent.append(el); if (mark) toggles.push([el, mark]); return el;
@@ -169,7 +189,6 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     else chain = chain.setParagraph().updateAttributes('paragraph', { kind: ['lead', 'caption'].includes(value) ? value : null });
     chain.run();
   }); tool.append(blocks);
-  for (const [label, value] of [['Title', 'title'], ['Heading', 'heading'], ['Text', 'body']]) action(label, label, () => { blocks.value = value; blocks.onchange(); }, null, primary);
   const fonts = document.createElement('input'); fonts.setAttribute('aria-label', 'Font family'); fonts.title = 'Font family'; fonts.setAttribute('list', 'docs-fonts');
   const fontList = document.createElement('datalist'); fontList.id = 'docs-fonts';
   const used = new Set(['Inter Variable', 'Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
@@ -190,7 +209,6 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     action('Link', 'Link', showLink, 'link', parent);
   }
   inline(tool); inline(bubble);
-  primary.append(tool.querySelector('[aria-label=Bold]'));
   const palette = ['#25252b', '#6b6370', '#e8590c', '#1f9d63', '#1f7ae0', '#6b4fe0', '#c0392b'];
   for (const c of ctx.canvas.board.cards) { const colour = c.props?.hex ?? c.color; if (/^#[0-9a-f]{6}$/i.test(colour)) palette.push(colour); }
   function colourPicker(label, highlight) {
@@ -207,7 +225,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   }
   colourPicker('Text colour', false); colourPicker('Highlight', true);
   const align = select('Text alignment', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['justify', 'Justified']], value => editor.chain().setTextAlign(value).run()); tool.append(align);
-  action('Bullet list', 'List', () => editor.chain().focus().toggleBulletList().run(), 'bulletList', primary);
+  action('Bullet list', 'List', () => editor.chain().focus().toggleBulletList().run(), 'bulletList');
   action('Numbered list', '1. List', () => editor.chain().focus().toggleOrderedList().run(), 'orderedList');
   action('Task list', 'Tasks', () => editor.chain().focus().toggleTaskList().run(), 'taskList');
   const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
@@ -274,16 +292,18 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); tableTools.hidden = !editor.isActive('table');
     const words = editor.storage.characterCount.words(); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
   }
-  title.oninput = () => { $('.side-editor-name').textContent = title.value || 'Untitled document'; schedule(); };
+  title.oninput = schedule;
   title.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); editor.commands.focus('start'); editor.view.focus(); } };
   $('[data-back]').onclick = event => close({ keyboard: event.detail === 0 });
-  const pageColour = $('[aria-label="Page colour"]'); pageColour.value = localStorage.getItem('aegis:doc-page') || 'auto';
+  const pageColour = select('Page colour', [['auto', 'Auto page'], ['light', 'Light page'], ['dark', 'Dark page']], () => colourPage());
+  $('.docs-page-options').append(pageColour); pageColour.value = localStorage.getItem('aegis:doc-page') || 'auto';
   const colourPage = () => { panel.dataset.page = pageColour.value; localStorage.setItem('aegis:doc-page', pageColour.value); }; pageColour.onchange = colourPage; colourPage();
-  const paper = $('[aria-label="Paper size"]'); paper.value = localStorage.getItem('aegis:doc-paper') || 'a4'; paper.onchange = () => localStorage.setItem('aegis:doc-paper', paper.value);
+  const paper = select('Paper size', [['a4', 'A4'], ['letter', 'Letter']], () => localStorage.setItem('aegis:doc-paper', paper.value));
+  $('.docs-page-options').append(paper); paper.value = localStorage.getItem('aegis:doc-paper') || 'a4';
   async function exportDoc(word) {
     save(); const el = word ? $('[data-word]') : $('[data-pdf]'); el.disabled = true;
     ctx.toast(word ? 'Preparing Word document…' : 'Preparing print preview. Choose Save as PDF in the print dialogue.');
-    try { await (word ? downloadWord(editor, title.value, paper.value) : printPDF(editor, title.value, paper.value)); $('.docs-download').open = false; }
+    try { await (word ? downloadWord(editor, title.value, paper.value) : printPDF(editor, title.value, paper.value)); menu.open = false; }
     catch (error) { ctx.toast(`Could not export: ${error.message}`); } finally { el.disabled = false; }
   }
   $('[data-pdf]').onclick = () => exportDoc(false); $('[data-word]').onclick = () => exportDoc(true);
@@ -291,8 +311,11 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   function keys(event) {
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopImmediatePropagation();
+    if (event.target.closest?.('.docs-math-source')) { event.target.blur(); editor.commands.focus(); return; }
+    const choice = event.target.closest?.('.docs-choice');
+    if (choice?.querySelector('[aria-expanded=true]')) { choice.close(); choice.querySelector('button').focus(); return; }
     const popup = panel.querySelector('.docs-link-form');
-    if (popup) { popup.remove(); editor.commands.focus(); } else close({ keyboard: true });
+    if (popup) { popup.remove(); editor.commands.focus(); } else if (menu.open) { menu.open = false; menu.querySelector('summary').focus(); } else close({ keyboard: true });
   }
   const visibility = () => { if (document.hidden) save(); };
   document.addEventListener('keydown', keys, true); document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', save);
@@ -302,12 +325,15 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     if (ctx.canvas.board.rev < minimumRev) return;
     if (!latest) { dirty = false; close(); return; }
     if (!dirty && !saving && (JSON.stringify(latest.props?.doc) !== lastDoc || title.value !== latest.text)) {
-      editor.commands.setContent(latest.props?.doc ?? markdownHTML(latest.props?.body ?? ''), { emitUpdate: false });
+      const content = loadContent(latest);
+      editor.commands.setContent(content, { emitUpdate: false });
       lastDoc = JSON.stringify(latest.props?.doc); title.value = latest.text;
-      $('.side-editor-name').textContent = latest.text || 'Untitled document'; paint();
+      if (content !== latest.props?.doc && !latest.props?.docTitleMigrated) schedule();
+      paint();
     }
   }, 500);
   active = { id: card.id, boardId, editor, panel, close, save, ctx };
+  if (!card.props?.docTitleMigrated) schedule();
   paint(); title.focus({ preventScroll: true }); centreCardInLeft(card, ctx, keyboard);
 }
 
@@ -322,8 +348,8 @@ export function copyIntoDocument(cards, ctx, target = active?.id, point) {
     ctx.toast(`Copied ${supported.length} card${supported.length === 1 ? '' : 's'} into the document. Use Undo to restore.`);
   } else {
     const card = ctx.canvas.board.cards.find(c => c.id === target); if (!card) return;
-    const before = { doc: card.props?.doc ?? null, body: card.props?.body ?? null };
-    const ed = new Editor({ extensions: extensions(), content: card.props?.doc ?? markdownHTML(card.props?.body ?? '') });
+    const before = { doc: card.props?.doc ?? null, body: card.props?.body ?? null, docTitleMigrated: card.props?.docTitleMigrated ?? null };
+    const ed = new Editor({ extensions: extensions(), content: loadContent(card) });
     ed.commands.insertContentAt(ed.state.doc.content.size, content);
     const after = ed.getJSON(), boardId = ctx.canvas.board.id;
     ctx.apply([documentUpdate(target, after)]); ed.destroy();

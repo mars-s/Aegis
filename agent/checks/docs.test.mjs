@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '../../app/src/lib/board/types/docs.js';
 import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
-import { cardContent, documentUpdate, plainText, markdownHTML } from '../../app/src/features/docs/content.js';
+import { cardContent, documentUpdate, plainText, markdownHTML, migrateTitle } from '../../app/src/features/docs/content.js';
+import { mathsHTML } from '../../app/src/features/docs/maths.js';
 import { toDocx } from '../../app/src/features/docs/docx.js';
 import JSZip from '../../app/node_modules/jszip/lib/index.js';
 
@@ -70,6 +71,41 @@ test('agents can read the plain text when rich content exceeds the board descrip
   const props = describe(updated.board).cards[0].props;
   assert.equal(props.body, body.trim());
   assert.equal(props.doc, undefined, 'the rich payload stays out of the agent overview');
+});
+
+test('the title migration removes only a matching leading H1 and saves through normal updates', () => {
+  const heading = { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Project ' }, { type: 'text', text: 'notes', marks: [{ type: 'bold' }] }] };
+  const doc = { type: 'doc', content: [heading, paragraph('Keep these words'), heading] };
+  const migrated = migrateTitle(doc, 'Project notes');
+  assert.deepEqual(migrated.content, doc.content.slice(1));
+  assert.equal(doc.content.length, 3, 'migration does not mutate its source');
+  assert.equal(migrateTitle(doc, 'Other title'), doc);
+  assert.equal(migrateTitle({ type: 'doc', content: [paragraph('Project notes')] }, 'Project notes').content.length, 1);
+  assert.deepEqual(migrateTitle({ type: 'doc', content: [heading] }, 'Project notes').content, [{ type: 'paragraph' }]);
+  const created = applyBatch(emptyBoard('migration'), { commands: [{ op: 'create', type: 'doc', text: 'Project notes', ref: 'doc', props: { doc, custom: 'keep' } }] });
+  const stored = applyBatch(created.board, { commands: [documentUpdate(created.created.doc, migrated)] }).board.cards[0];
+  assert.equal(stored.props.docTitleMigrated, true);
+  assert.equal(stored.props.custom, 'keep');
+  assert.deepEqual(stored.props.doc, migrated);
+});
+
+test('Markdown keeps fenced code literal, renders links safely and preserves maths source', () => {
+  const html = markdownHTML('## Findings\n- Item\n1. First\n- [ ] Task\n> Quote\n**bold** *italic* `code` [Source](https://example.com)\n```js\nconst x = "<tag> **literal** $x$";\n```\n---\nInline $a^2+b^2=c^2$\n$$\n\\sum_{i=1}^{n} i\n$$');
+  for (const fragment of ['<h2>Findings</h2>', '<ul>', '<ol>', 'data-type="taskList"', '<blockquote>', '<strong>bold</strong>', '<em>italic</em>', '<code>code</code>', 'href="https://example.com"', 'class="language-js"', '&lt;tag&gt; **literal** $x$', '<hr>', 'data-type="inlineMath"', 'data-type="blockMath"']) assert.ok(html.includes(fragment), fragment);
+  assert.doesNotMatch(markdownHTML('[bad](javascript:alert)\n`$literal$`\n\\$escaped\\$'), /href=|data-type="inlineMath"/);
+  const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Use ' }, { type: 'inlineMath', attrs: { latex: 'x^2' } }] }, { type: 'blockMath', attrs: { latex: '\\frac{1}{2}' } }] };
+  assert.equal(documentUpdate('maths', doc).set.props.body, 'Use $x^2$\n$$\\frac{1}{2}$$');
+  assert.match(mathsHTML('x^2'), /class="katex"/);
+  assert.match(mathsHTML('\\frac{1}{2}', true), /katex-display/);
+  assert.match(mathsHTML('\\notACommand'), /notACommand/, 'Invalid LaTeX remains visible and editable');
+  assert.doesNotMatch(mathsHTML('\\href{javascript:alert(1)}{x}'), /href="javascript:/);
+});
+
+test('Word exports both maths nodes as monospace LaTeX without dropping surrounding words', async () => {
+  const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Before ' }, { type: 'inlineMath', attrs: { latex: 'x^2' } }, { type: 'text', text: ' after' }] }, { type: 'blockMath', attrs: { latex: '\\frac{1}{2}' } }] };
+  const zip = await JSZip.loadAsync(await toDocx(doc, { title: 'Maths' }));
+  const xml = await zip.file('word/document.xml').async('string');
+  for (const text of ['Before ', '$x^2$', ' after', '$$\\frac{1}{2}$$', 'Menlo']) assert.ok(xml.includes(text), text);
 });
 
 test('Word export contains real headings, marks, links, tables and selected paper size', async () => {

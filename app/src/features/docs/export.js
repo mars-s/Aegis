@@ -17,6 +17,7 @@ export async function downloadWord(editor, title, paper) {
 
 // The desktop app uses its native print sheet; browsers print the same HTML in an iframe.
 export async function printPDF(editor, title, paper) {
+  const { printMathsCSS } = await import('./print-maths.js');
   const first = plainText(editor.getJSON().content?.[0] ?? {}).trim();
   const heading = first.toLowerCase() === title.trim().toLowerCase() ? '' : `<h1>${escapeHTML(title)}</h1>`;
   const html = `<!doctype html><html><head><title>${escapeHTML(title)}</title><style>
@@ -30,6 +31,8 @@ export async function printPDF(editor, title, paper) {
     [data-kind=lead] { font-size:14pt; } [data-kind=caption] { font-size:10pt; color:#666; }
     ul[data-type=taskList] { list-style:none; padding-left:0; }
     li[data-type=taskItem] { display:flex; gap:8px; } li[data-type=taskItem] p { margin:0; }
+    .docs-math-block { margin: 1em 0; } .katex-display { overflow-wrap: normal; }
+    ${printMathsCSS}
   </style></head><body>${heading}${editor.getHTML()}</body></html>`;
   if (await printHtml(html)) return;
   const frame = document.createElement('iframe');
