@@ -20,6 +20,7 @@ import { installNativeDownloads } from './lib/native-files';
 
 export async function start() {
 const $ = id => document.getElementById(id);
+installNativeDownloads(message => toast(message));
 const host = await connectHost(waiting => { $('status').textContent = waiting ? 'Starting Aegis…' : ''; });
 if (!host) { document.body.innerHTML = '<p style="font:14px system-ui;padding:60px 40px">The Aegis agent host did not start. Quit Aegis and open it again.</p>'; return; }
 const canvas = createCanvas({
@@ -417,7 +418,6 @@ listen();
 const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
 const onboarding = createOnboarding({ mobile });
 const settings = mountSettings({ canvas, replayTour: () => onboarding.welcome() });
-installNativeDownloads(toast);
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.

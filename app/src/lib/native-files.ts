@@ -11,13 +11,27 @@ export async function saveFile(blob: Blob, name: string): Promise<string> {
 
 // Features download with a temporary <a download href="blob:...">, often never added to the page,
 // so its click event reaches no listener. In the app, a download link's click() saves the bytes to
-// Downloads instead, and says where the file went. Real clicks on such links are caught too.
+// Downloads instead, and says where the file went. WKWebView can't fetch() a blob: URL, so the Blob
+// itself is remembered when its URL is made, and data: URLs are decoded here.
+const blobs = new Map<string, Blob>();
+async function linkBytes(link: HTMLAnchorElement): Promise<Blob> {
+  const known = blobs.get(link.href); if (known) return known;
+  if (link.href.startsWith('data:')) {
+    const [head, data] = link.href.split(',', 2), type = head.slice(5).split(';')[0];
+    const text = head.endsWith(';base64') ? atob(data) : decodeURIComponent(data);
+    return new Blob([Uint8Array.from(text, c => c.charCodeAt(0))], { type });
+  }
+  throw new Error('the file is no longer available');
+}
 export function installNativeDownloads(say: (message: string) => void) {
   if (!tauri) return;
+  const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
+  URL.createObjectURL = (object: Blob | MediaSource) => { const url = create(object); if (object instanceof Blob) blobs.set(url, object); return url; };
+  // Keep the Blob a little after revoke: a download's click() and its revoke run back to back.
+  URL.revokeObjectURL = (url: string) => { revoke(url); setTimeout(() => blobs.delete(url), 60000); };
   const save = async (link: HTMLAnchorElement) => {
     try {
-      const blob = await (await fetch(link.href)).blob();
-      const path = await saveFile(blob, link.download || 'Download');
+      const path = await saveFile(await linkBytes(link), link.download || 'Download');
       say(`Saved to ${path.replace(/^\/Users\/[^/]+/, '~')}`);
     } catch (error) { say(`Could not save: ${(error as Error).message ?? error}`); }
   };
