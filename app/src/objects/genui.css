@@ -63,3 +63,13 @@ body.motion-off .genui button { transition: none; transform: none !important; }
 }
 @media (prefers-reduced-motion: reduce) { .side-editor.object-editor.is-open { transition-duration: 160ms; } }
 body.motion-off .object-editor.is-open { transition-duration: 160ms; }
+
+/* PM5: quiet text revision in Open, with one field shown on activation. */
+.genui .text-edit-actions { display: flex; justify-content: end; margin: -12px 0 20px; }
+.genui .text-edit-toggle { border: 0; background: transparent; color: var(--muted); min-height: 44px; padding: 0 10px; }
+.genui .inline-value .value-trigger { white-space: pre-wrap; overflow-wrap: anywhere; }
+.genui .inline-value.multiline { display: grid; max-width: 100%; }
+.genui .inline-value.multiline .value-trigger { grid-area: 1 / 1; }
+.genui .inline-value textarea { grid-area: 1 / 1; position: relative; margin: -3px -4px; width: calc(100% + 8px); min-height: 0; padding: 2px 3px; font: inherit; letter-spacing: inherit; line-height: inherit; text-align: inherit; border-radius: 2px; outline: none; border: 1px solid var(--text); resize: none; }
+.object-editor .side-editor-body { position: relative; }
+.object-editor .expanded.gallery > .content { container-type: normal; }

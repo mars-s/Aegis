@@ -53,7 +53,7 @@ try {
   assert.equal(unknown.status, 404, 'unknown sandbox IDs return 404 without a bearer token');
   const anonymousPost = await fetch(`http://127.0.0.1:${port}/sandbox`, { method: 'POST', body: '{}' });
   assert.equal(anonymousPost.status, 401, 'registering source requires the bearer token');
-  page.on('pageerror', e => errors.push(e.message));
+  page.on('pageerror', e => { errors.push(e.message); console.error('genui page error:', e.stack); });
   page.on('console', message => { if (message.type() === 'error') logs.push(message.text()); });
   await page.addInitScript(() => {
     if (window.top !== window) return;
@@ -317,6 +317,141 @@ try {
     await page.waitForFunction(() => document.querySelector('.side-editor.is-open').getBoundingClientRect().right <= innerWidth);
     return { editor, open };
   };
+  // PM5 8: use actual activation and key events in the fitted gallery inspector.
+  const galleryEditor = await openEditor('gallery');
+  const artwork = galleryEditor.editor.getByRole('button', { name: `Inspect ${samples.gallery.images[0].alt}`, exact: true });
+  await artwork.click();
+  const inspection = galleryEditor.editor.getByRole('dialog', { name: 'Image inspection' });
+  await inspection.waitFor();
+  assert.equal(await inspection.evaluate(el => getComputedStyle(el).animationDuration), '0.2s');
+  assert.equal(await inspection.locator('img').evaluate(el => getComputedStyle(el).objectFit), 'contain');
+  assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[0].caption);
+  assert.equal(await inspection.getByRole('button', { name: 'Close image inspection' }).evaluate(el => el === document.activeElement), true);
+  await page.waitForTimeout(220);
+  const fitted = await inspection.boundingBox(), pane = await galleryEditor.editor.locator('.side-editor-body').boundingBox();
+  assert.ok(Math.abs(fitted.x - pane.x) < 1 && Math.abs(fitted.y - pane.y) < 1 && Math.abs(fitted.width - pane.width) < 1 && Math.abs(fitted.height - pane.height) < 1, 'inspection fills only the editor pane');
+  await page.screenshot({ path: out(`r6-gallery-inspection-1440-${stamp}.png`) });
+  await page.keyboard.press('ArrowRight');
+  assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[1].caption);
+  await page.keyboard.press('ArrowLeft');
+  assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[0].caption);
+  await page.keyboard.press('Tab');
+  assert.equal(await inspection.getByRole('button', { name: 'Previous image' }).evaluate(el => el === document.activeElement), true);
+  await page.keyboard.press('Escape');
+  assert.equal(await inspection.count(), 0);
+  assert.equal(await artwork.evaluate(el => el === document.activeElement), true, 'Escape returns to the image without closing Open');
+  await page.keyboard.press('Enter');
+  await inspection.waitFor();
+  assert.equal(await inspection.evaluate(el => getComputedStyle(el).animationName), 'none', 'keyboard activation is instant');
+  await inspection.getByRole('button', { name: 'Next image' }).click();
+  assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[1].caption);
+  await inspection.getByRole('button', { name: 'Close image inspection' }).click();
+  await inspection.waitFor({ state: 'detached' });
+  assert.equal(await artwork.evaluate(el => el === document.activeElement), true, 'pointer close restores focus');
+  for (const mode of ['os', 'app']) {
+    if (mode === 'os') await page.emulateMedia({ reducedMotion: 'reduce' });
+    else await page.evaluate(() => document.body.classList.add('motion-off'));
+    await artwork.click(); await inspection.waitFor();
+    assert.equal(await inspection.evaluate(el => getComputedStyle(el).animationName), 'none', `${mode} motion preference suppresses scale and fade`);
+    await inspection.getByRole('button', { name: 'Close image inspection' }).click();
+    await inspection.waitFor({ state: 'detached' });
+    if (mode === 'os') await page.emulateMedia({ reducedMotion: 'no-preference' });
+    else await page.evaluate(() => document.body.classList.remove('motion-off'));
+  }
+  for (const width of [1586, 390]) {
+    await page.setViewportSize({ width, height: 992 });
+    await artwork.click(); await page.waitForTimeout(220);
+    const imageBox = await inspection.locator('img').boundingBox(), overlayBox = await inspection.boundingBox();
+    assert.ok(imageBox.x >= overlayBox.x && imageBox.x + imageBox.width <= overlayBox.x + overlayBox.width + 1 && imageBox.y + imageBox.height <= overlayBox.y + overlayBox.height, `image fits at ${width}px`);
+    await page.screenshot({ path: out(`r6-gallery-inspection-${width}-${stamp}.png`) });
+    await page.keyboard.press('Escape');
+  }
+  await page.keyboard.press('Escape');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  console.log('pass genui: gallery click/Enter inspection fills editor pane, fitted image/caption, arrows, focus return, 200ms pointer motion and both reduced-motion settings');
+
+  // PM5 9: every read-only generated text route keeps its resting presentation.
+  const revisions = [
+    ['callout', 'Callout text', ['text'], 'Keep the original evidence beside the revised answer.', true],
+    ['compare', 'Verdict', ['verdict'], 'Use the report for the evidence and the board for questions.', true],
+    ['timeline', 'Event 1 title', ['events', 0, 'title'], 'Agree on one useful question', false],
+    ['stages', 'Stage 1 detail', ['steps', 0, 'detail'], 'One clear question, agreed together', true],
+    ['stats', 'Stat 2 value', ['tiles', 1, 'value'], '26', false],
+    ['progress', 'Goal 1 label', ['goals', 0, 'label'], 'Read the evidence first', false],
+    ['table', 'Table note', ['note'], 'Demo data, reviewed together.', true],
+    ['kanban', 'Card detail: Write the brief', ['cards', 0, 'detail'], 'One question, checked against the evidence.', true],
+    ['gallery', 'Image 1 caption', ['images', 0, 'caption'], 'An original chart, ready to inspect.', true],
+    ['form', 'Form description', ['description'], 'Capture the next useful step.', true],
+  ];
+  for (const [kind, label, path, next, multiline] of revisions) {
+    const view = await openEditor(kind);
+    const toggle = view.editor.getByRole('button', { name: 'Edit text', exact: true });
+    assert.equal(await view.editor.getByRole('button', { name: label, exact: true }).count(), 0, `${kind}: resting text is plain`);
+    await toggle.click();
+    const trigger = view.editor.getByRole('button', { name: label, exact: true });
+    assert.equal(await trigger.evaluate(el => getComputedStyle(el).borderWidth), '0px');
+    await trigger.click();
+    const field = view.editor.getByRole('textbox', { name: label, exact: true });
+    const original = await field.inputValue();
+    await field.fill('Cancelled wording'); await page.keyboard.press('Escape');
+    assert.equal(await view.editor.isVisible(), true);
+    assert.equal(await trigger.textContent(), original);
+    assert.deepEqual(errors, [], `${kind}: cancelling text must not cause a render or focus error`);
+    assert.equal(await trigger.evaluate(el => el === document.activeElement), true);
+    await page.keyboard.press('Enter');
+    await field.fill(next);
+    if (multiline) { await page.keyboard.press('Shift+Enter'); await page.keyboard.type('A second line.'); }
+    if (['callout', 'compare', 'timeline', 'stages'].includes(kind)) await page.screenshot({ path: out(`r6-edit-text-${kind}-active-${stamp}.png`) });
+    await page.keyboard.press('Enter');
+    const committed = multiline ? next + '\nA second line.' : next;
+    await page.waitForFunction(async ({ kind, path, value }) => {
+      const board = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
+      return path.reduce((data, key) => data[key], board.cards.find(c => c.kind === kind).data) === value;
+    }, { kind, path, value: committed });
+    await page.keyboard.press('Enter');
+    await field.fill(next);
+    await view.editor.getByRole('button', { name: 'Done editing', exact: true }).click();
+    await page.waitForFunction(async ({ kind, path, value }) => {
+      const board = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
+      return path.reduce((data, key) => data[key], board.cards.find(c => c.kind === kind).data) === value;
+    }, { kind, path, value: next });
+    assert.equal(await view.editor.getByRole('button', { name: label, exact: true }).count(), 0, 'Done editing restores plain text after blur commit');
+    if (['callout', 'compare', 'timeline', 'stages'].includes(kind)) await page.screenshot({ path: out(`r6-edit-text-${kind}-${stamp}.png`) });
+    // Restore this fixture so the existing reload and value assertions stay intact.
+    await view.editor.getByRole('button', { name: 'Edit text', exact: true }).click();
+    await trigger.click(); await field.fill(original); await page.keyboard.press('Enter');
+    await view.editor.getByRole('button', { name: 'Done editing', exact: true }).click();
+    await page.keyboard.press('Escape');
+  }
+  console.log('pass genui: 10 generated text kinds use quiet Edit text, pointer/Enter activation, Escape cancellation, Enter/blur object_set persistence and plain resting text');
+
+  // PM5 10: commit reassurance sits beside the field until the first change saves.
+  const formGuidance = await openEditor('form');
+  const projectField = formGuidance.editor.getByLabel('Project name (required)', { exact: true });
+  await projectField.click();
+  const activeHint = formGuidance.editor.locator('[data-field-index="0"] .commit-hint');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.object-editor [data-field-index="0"] .commit-hint')).opacity === '1');
+  assert.equal(await activeHint.textContent(), 'Saves when you leave the field');
+  assert.ok((await projectField.getAttribute('aria-describedby')).includes(await activeHint.getAttribute('id')), 'the active control describes its commit boundary');
+  await page.keyboard.press('Tab');
+  assert.equal(await formGuidance.editor.locator('[data-field-index="1"] .commit-hint').getAttribute('aria-hidden'), 'false', 'guidance follows keyboard focus before the first commit');
+  await projectField.click(); await page.keyboard.press('End'); await page.keyboard.type(' with guidance');
+  await page.waitForTimeout(220);
+  await page.screenshot({ path: out(`r6-form-active-hint-${stamp}.png`) });
+  for (const width of [1586, 390]) {
+    await page.setViewportSize({ width, height: 992 });
+    await page.screenshot({ path: out(`r6-form-active-hint-${width}-${stamp}.png`) });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.keyboard.press('Tab');
+  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.kind === 'form').data.fields[0].value.endsWith(' with guidance'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.object-editor .commit-hint')].every(el => getComputedStyle(el).opacity === '0'));
+  await projectField.click();
+  assert.equal(await activeHint.getAttribute('aria-hidden'), 'true', 'guidance stays quiet after the first commit');
+  await projectField.fill('A useful result'); await page.keyboard.press('Tab');
+  await page.keyboard.press('Escape');
+  console.log('pass genui: active form hint follows pointer and Tab focus, describes the field and fades after the first host-saved commit');
+
   const statEditor = await openEditor('stats', true);
   await statEditor.editor.getByRole('button', { name: 'Tasks completed', exact: true }).press('Enter');
   await statEditor.editor.getByRole('textbox', { name: 'Tasks completed', exact: true }).fill('Cancelled expanded draft');

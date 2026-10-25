@@ -1,10 +1,11 @@
 <script lang="ts">
+  import Text from './Text.svelte';
   let { data }: { data: { tone: string; text: string; attribution?: string } } = $props();
   const names: Record<string, string> = { quote: 'Quote', note: 'Note', warning: 'Warning', tip: 'Tip' };
 </script>
 <aside class="callout" aria-label={names[data.tone]}>
-  {#if data.tone === 'quote'}<blockquote>{data.text}</blockquote>{:else}<strong>{names[data.tone]}</strong><p>{data.text}</p>{/if}
-  {#if data.attribution}<p class="attribution">{data.attribution}</p>{/if}
+  {#if data.tone === 'quote'}<blockquote><Text value={data.text} label="Callout text" path={['text']} multiline /></blockquote>{:else}<strong>{names[data.tone]}</strong><p><Text value={data.text} label="Callout text" path={['text']} multiline /></p>{/if}
+  {#if data.attribution}<p class="attribution"><Text value={data.attribution} label="Attribution" path={['attribution']} maxlength={120} /></p>{/if}
 </aside>
 <style>
   .callout { max-width: 65ch; overflow-wrap: anywhere; }

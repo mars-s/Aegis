@@ -1,5 +1,8 @@
 <script lang="ts">
+  import Text from './Text.svelte';
+  import { getContext } from 'svelte';
   import Actions from './Actions.svelte';
+  const textEditing = getContext<{ readonly enabled: boolean }>('aegis:edit-generated-text');
   type Column = { id: string; title: string };
   type Item = { id: string; title: string; detail?: string; column: string };
   let { data, onset }: { data: { columns: Column[]; cards: Item[] }; onset: (path: (string | number)[], value: unknown) => void } = $props();
@@ -15,13 +18,14 @@
   }
 </script>
 <div class="kanban">
-  {#each data.columns as column}
+  {#each data.columns as column, c}
     <section class="lane" aria-label={column.title} ondragover={e => { if (dragging) e.preventDefault(); }} ondrop={e => drop(e, column.id)}>
-      <h4>{column.title}<span>{data.cards.filter(c => c.column === column.id).length}</span></h4>
+      <h4><Text value={column.title} label={`Lane ${c + 1} title`} path={['columns', c, 'title']} maxlength={60} /><span>{data.cards.filter(c => c.column === column.id).length}</span></h4>
       {#each data.cards.filter(c => c.column === column.id) as item (item.id)}
         <article class="ticket" class:dragging={dragging === item.id}>
-          <button class="handle" type="button" draggable="true" aria-label={`Drag ${item.title}`} ondragstart={e => { dragging = item.id; e.dataTransfer?.setData('text/aegis-kanban', item.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }} ondragend={() => dragging = null}>{item.title}</button>
-          {#if item.detail}<p>{item.detail}</p>{/if}
+          {#if !textEditing?.enabled}<button class="handle" type="button" draggable="true" aria-label={`Drag ${item.title}`} ondragstart={e => { dragging = item.id; e.dataTransfer?.setData('text/aegis-kanban', item.id); if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'; }} ondragend={() => dragging = null}>{item.title}</button>{:else}
+          <p><Text value={item.title} label={`Card title: ${item.title}`} path={['cards', data.cards.indexOf(item), 'title']} maxlength={100} /></p>{/if}
+          {#if item.detail}<p><Text value={item.detail} label={`Card detail: ${item.title}`} path={['cards', data.cards.indexOf(item), 'detail']} multiline maxlength={280} /></p>{/if}
           <Actions label={`Move ${item.title}`} heading={item.title} items={() => data.columns.map(target => ({ title: target.title, ariaLabel: `Move ${item.title} to ${target.title}`, checked: target.id === item.column, run: () => move(item.id, target.id) }))} />
         </article>
       {:else}<p class="empty">No cards</p>{/each}

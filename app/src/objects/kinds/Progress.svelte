@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Text from './Text.svelte';
   import Value from './Value.svelte';
   type Goal = { label: string; current: number; target: number; unit?: string; editable?: boolean };
   let { data, onset }: { data: { goals: Goal[] }; onset: (path: (string | number)[], value: unknown) => void } = $props();
@@ -6,7 +7,7 @@
 <ul class="goals">
   {#each data.goals as goal, i}
     <li>
-      <div class="heading"><strong>{goal.label}</strong><span class="amount">{#if goal.editable}<Value value={goal.current} display={goal.current.toLocaleString('en-AU')} label={`Current: ${goal.label}`} numeric onchange={value => onset(['goals', i, 'current'], value)} />{:else}{goal.current.toLocaleString('en-AU')}{/if}<span class="meta"> / {goal.target.toLocaleString('en-AU')} {goal.unit ?? ''}</span></span></div>
+      <div class="heading"><strong><Text value={goal.label} label={`Goal ${i + 1} label`} path={['goals', i, 'label']} maxlength={80} /></strong><span class="amount">{#if goal.editable}<Value value={goal.current} display={goal.current.toLocaleString('en-AU')} label={`Current: ${goal.label}`} numeric onchange={value => onset(['goals', i, 'current'], value)} />{:else}{goal.current.toLocaleString('en-AU')}{/if}<span class="meta"> / {goal.target.toLocaleString('en-AU')} {goal.unit ?? ''}</span></span></div>
       <span class="track" role="meter" aria-label={goal.label} aria-valuemin="0" aria-valuemax={Math.max(goal.target, goal.current)} aria-valuenow={goal.current} aria-valuetext={`${goal.current} of ${goal.target} ${goal.unit ?? ''}`}><span style:width={`${Math.min(100, goal.current / goal.target * 100)}%`}></span></span>
     </li>
   {/each}

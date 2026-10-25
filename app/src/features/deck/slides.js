@@ -33,7 +33,8 @@ export function chartTicks(values, target = null) {
 }
 
 export function lineChart(chart = {}) {
-  const values = Array.isArray(chart.values) ? chart.values.filter(Number.isFinite) : [];
+  const points = Array.isArray(chart.values) ? chart.values.flatMap((value, index) => Number.isFinite(value) ? [{ value, label: Array.isArray(chart.labels) ? chart.labels[index] ?? String(index + 1) : String(index + 1) }] : []) : [];
+  const values = points.map(point => point.value);
   const target = Number.isFinite(chart.target) ? chart.target : null;
   if (!values.length) return '<p class="deck-chart-empty">Add chart values to this slide</p>';
   const { lo, hi, ticks } = chartTicks(values, target);
@@ -49,7 +50,7 @@ export function lineChart(chart = {}) {
     html += `<line class="grid" x1="${left}" x2="${w - right}" y1="${y}" y2="${y}"/><text class="axis y-tick" x="${left - 8}" y="${y + 3.5}" text-anchor="end">${label(v)}</text>`;
   }
   const every = Math.max(1, Math.ceil(values.length / 12));
-  values.forEach((_, i) => { if (i % every === 0 || i === values.length - 1) html += `<text class="axis" x="${X(i)}" y="${h - 6}" text-anchor="middle">${i + 1}</text>`; });
+  values.forEach((_, i) => { if (i % every === 0 || i === values.length - 1) html += `<text class="axis x-tick" x="${X(i)}" y="${h - 6}" text-anchor="middle">${escapeHTML(points[i].label)}</text>`; });
   if (target !== null) html += `<line class="target" x1="${left}" x2="${w - right}" y1="${Y(target)}" y2="${Y(target)}"/><text class="axis" x="${w - right + 6}" y="${Y(target) + 3.5}">${label(target)}</text>`;
   html += `<polyline class="line" points="${values.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}"/>`;
   values.forEach((v, i) => { html += `<circle class="pt" cx="${X(i)}" cy="${Y(v)}" r="2.4"/>`; });

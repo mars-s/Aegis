@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Text from './Text.svelte';
   import { tick } from 'svelte';
   import Trend from './Trend.svelte';
   type Column = { label: string; kind: string; max?: number; editable?: boolean };
@@ -80,7 +81,7 @@
 <div class="table-viewport" class:overflow>
 <div class="table-scroll" use:scrollCue onscroll={event => overflow = event.currentTarget.scrollWidth - event.currentTarget.clientWidth - event.currentTarget.scrollLeft > 1}>
   <table bind:this={grid} use:controls class="data-grid" role="grid" aria-label="Data table">
-    <thead><tr>{#each data.columns as column}<th role="columnheader" class:numeric={column.kind !== 'text'} scope="col">{column.label}</th>{/each}</tr></thead>
+    <thead><tr>{#each data.columns as column, c}<th role="columnheader" class:numeric={column.kind !== 'text'} scope="col"><Text value={column.label} label={`Column ${c + 1} label`} path={['columns', c, 'label']} maxlength={60} /></th>{/each}</tr></thead>
     <tbody>{#each data.rows as row, r}<tr>{#each data.columns as column, c}
       {@const value = row.cells[c] ?? null}
       {@const active = editing?.r === r && editing.c === c}
@@ -94,7 +95,7 @@
   </table>
 </div>
 </div>
-{#if data.note}<p class="footnote">{data.note}</p>{/if}
+{#if data.note}<p class="footnote"><Text value={data.note} label="Table note" path={['note']} multiline maxlength={200} /></p>{/if}
 <style>
   .table-scroll { overflow-x: auto; }
   .table-viewport { position: relative; }

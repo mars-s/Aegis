@@ -1,15 +1,16 @@
 <script lang="ts">
+  import Text from './Text.svelte';
   type Event = { date: string; title: string; detail?: string; done?: boolean };
   let { data, onset }: { data: { events: Event[]; direction?: string; checkable?: boolean }; onset: (path: (string | number)[], value: unknown) => void } = $props();
 </script>
 <ol class="timeline" class:horizontal={data.direction === 'horizontal'}>
   {#each data.events as event, i}
     <li class:done={event.done}>
-      <div class="date"><time datetime={event.date}>{event.date}</time></div>
+      <div class="date"><time datetime={event.date}><Text value={event.date} label={`Event ${i + 1} date`} path={['events', i, 'date']} maxlength={10} /></time></div>
       <div class="station">
         {#if data.checkable}<label class="tick"><input type="checkbox" checked={!!event.done} aria-label={`Done: ${event.title}`} onchange={e => onset(['events', i, 'done'], e.currentTarget.checked)} /></label>{:else}<i></i>{/if}
       </div>
-      <div class="event"><strong>{event.title}</strong>{#if event.detail}<p>{event.detail}</p>{/if}</div>
+      <div class="event"><strong><Text value={event.title} label={`Event ${i + 1} title`} path={['events', i, 'title']} maxlength={100} /></strong>{#if event.detail}<p><Text value={event.detail} label={`Event ${i + 1} detail`} path={['events', i, 'detail']} multiline maxlength={400} /></p>{/if}</div>
     </li>
   {/each}
 </ol>

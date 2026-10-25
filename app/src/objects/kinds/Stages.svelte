@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Text from './Text.svelte';
   import Actions from './Actions.svelte';
   type Status = 'pending' | 'active' | 'done' | 'blocked';
   let { data, onset }: { data: { steps: { title: string; detail?: string; status: Status }[]; editable?: boolean }; onset: (path: (string | number)[], value: unknown) => void } = $props();
@@ -9,8 +10,8 @@
   {#each data.steps as step, i}
     <li class={step.status}>
       <div class="rail"><span class="dot">{i + 1}</span></div>
-      <strong>{step.title}</strong><span class="status">{names[step.status]}</span>
-      {#if step.detail}<p>{step.detail}</p>{/if}
+      <strong><Text value={step.title} label={`Stage ${i + 1} title`} path={['steps', i, 'title']} maxlength={80} /></strong><span class="status">{names[step.status]}</span>
+      {#if step.detail}<p><Text value={step.detail} label={`Stage ${i + 1} detail`} path={['steps', i, 'detail']} multiline maxlength={240} /></p>{/if}
       {#if data.editable}<Actions label={`Set status for ${step.title}`} heading={step.title} items={() => statuses.map(status => ({ title: names[status], ariaLabel: `${step.title}: ${names[status]}`, checked: status === step.status, run: () => onset(['steps', i, 'status'], status) }))} />{/if}
     </li>
   {/each}

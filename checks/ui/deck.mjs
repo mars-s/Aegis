@@ -1,6 +1,7 @@
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { assertSlideFits } from './deck-fit.mjs';
+import { demoBatch } from '../demo-batch.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
@@ -28,9 +29,10 @@ page.on('console', message => { if (message.type() === 'error') errors.push(mess
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 const saved = () => page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 });
 const selected = index => page.waitForFunction(i => document.querySelector(`.deck-film-item[data-i="${i}"]`)?.getAttribute('aria-selected') === 'true', index);
+const weekdayLabels = demoBatch.find(command => command.ref === 'deck').props.slides.find(slide => slide.layout === 'chart').chart.labels;
 const slides = [
   { id: 's1', layout: 'title', title: 'A calmer, sharper me', sub: 'What twelve weeks of sleep data says about my best days', body: '' },
-  { id: 's2', layout: 'chart', title: 'Focus hours per day', sub: 'Dashed line: my 3 hour target', body: '', chart: { values: [2, 4, 3, 2, 3], target: 3, unit: 'hours', label: 'Fictional daily focus hours' } },
+  { id: 's2', layout: 'chart', title: 'Focus hours per day', sub: 'Dashed line: my 3 hour target', body: '', chart: { values: [2, 4, 3, 2, 3], labels: weekdayLabels, target: 3, unit: 'hours', label: 'Fictional daily focus hours' } },
   { id: 's3', layout: 'three', title: 'What helps', sub: 'My best focus days had all three', body: 'In bed by 11\nNo late coffee\nSame wake time' },
   { id: 's4', layout: 'text', title: 'The next four weeks', sub: 'Small changes to try', body: 'In bed by 11 pm on weeknights.\nNo caffeine after 2 pm.\nSame wake time on weekends.' },
 ];
@@ -67,6 +69,19 @@ try {
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .target').count(), 1);
   assert.deepEqual(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .y-tick').allTextContents(), ['2', '3', '4'], 'integer hour values use whole-hour ticks');
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .axis-unit').textContent(), 'hours', 'the axis preserves the supplied unit');
+  assert.deepEqual(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .x-tick').allTextContents(), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], 'pointer thumbnail selection renders category labels beside the original values');
+  await page.getByRole('tab', { name: 'Go to slide 1', exact: true }).click(); await selected(0);
+  await page.keyboard.press('ArrowRight'); await selected(1);
+  assert.deepEqual(await panel.locator('.deck-film-item[data-i="1"] .deck-chart .x-tick').allTextContents(), ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], 'keyboard thumbnail navigation uses the same labelled chart in the filmstrip');
+  assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .pt').count(), 5);
+  await page.screenshot({ path: out(`r6-deck-weekday-labels-${stamp}.png`) });
+  const labelFallbacks = await page.evaluate(async () => {
+    const { lineChart } = await import('/src/features/deck/slides.js');
+    const read = chart => [...new DOMParser().parseFromString(lineChart(chart), 'text/html').querySelectorAll('.x-tick')].map(el => el.textContent);
+    return [read({ values: [1, 2, 3] }), read({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] }), read({ values: [1, 2], labels: ['Mon'] })];
+  });
+  assert.deepEqual(labelFallbacks, [['1', '2', '3'], ['Mon', '<Fri>'], ['Mon', '2']], 'numeric fallback, invalid-value alignment and escaped category text stay intact');
+  console.log('PASS slide charts: Mon to Fri labels survive pointer and keyboard slide navigation, with all five original points');
   console.log('PASS chart uses nice whole-hour ticks, preserves units and includes every point and target');
   const chartTitle = page.getByRole('textbox', { name: 'Slide 2 title', exact: true });
   await chartTitle.fill('A steadier focus routine');
@@ -183,6 +198,7 @@ try {
   await page.keyboard.press('Escape'); await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   stored = (await board()).cards.find(c => c.id === 'decktest'); assert.equal(stored.props.slides[1].title, 'A steadier focus routine');
+  assert.deepEqual(stored.props.slides[1].chart.labels, ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'], 'category labels survive save and reload');
   console.log('PASS double-click, Open deck menu, bubbling open event, both reduced-motion settings and reload persistence');
 
   await page.keyboard.press('b');

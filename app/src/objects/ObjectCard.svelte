@@ -1,5 +1,6 @@
 <!-- The shared window strip and content for every object on the canvas. -->
 <script lang="ts">
+  import { setContext } from 'svelte';
   import Reply from './kinds/Reply.svelte';
   import Plot from './kinds/Plot.svelte';
   import Sheet from './kinds/Sheet.svelte';
@@ -27,6 +28,8 @@
   let { card, onset, onlink, post, assetUrl = (url: string) => url, onheight = () => {}, expanded = false, onescape = () => {} }: { card: Card; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onlink: (url: string) => void; assetUrl?: (url: string) => string; onheight?: (height: number) => void; expanded?: boolean; onescape?: () => void } = $props();
   const NAMES: Record<string, string> = OBJECT_NAMES;
   const generative = $derived(['stats', 'timeline', 'kanban', 'table', 'progress', 'compare', 'gallery', 'stages', 'callout', 'form', 'html'].includes(card.kind));
+  let editingText = $state(false);
+  setContext('aegis:edit-generated-text', { get enabled() { return expanded && editingText; }, onset: (path: (string | number)[], value: unknown) => onset(path, value) });
   const time = (t?: number) => (t ? new Date(t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '');
   function open(event: MouseEvent) {
     // The selection toolbar forwards a click, so keep its actual focus modality.
@@ -58,6 +61,7 @@
     </header>
   {/if}
   <div class="content" class:genui={generative} use:keepControlsLocal>
+    {#if expanded && generative && card.kind !== 'html'}<div class="text-edit-actions"><button type="button" class="text-edit-toggle" aria-pressed={editingText} onclick={() => editingText = !editingText}>{editingText ? 'Done editing' : 'Edit text'}</button></div>{/if}
     {#if card.kind === 'reply'}<Reply data={card.data} />
     {:else if card.kind === 'plot'}<Plot data={card.data} title={card.text || 'Chart'} />
     {:else if card.kind === 'sheet'}<Sheet data={card.data} {onlink} />
@@ -71,7 +75,7 @@
     {:else if card.kind === 'table'}<Table data={card.data} {onset} />
     {:else if card.kind === 'progress'}<Progress data={card.data} {onset} />
     {:else if card.kind === 'compare'}<Compare data={card.data} />
-    {:else if card.kind === 'gallery'}<Gallery data={card.data} {assetUrl} />
+    {:else if card.kind === 'gallery'}<Gallery data={card.data} {assetUrl} {expanded} />
     {:else if card.kind === 'stages'}<Stages data={card.data} {onset} />
     {:else if card.kind === 'callout'}<Callout data={card.data} />
     {:else if card.kind === 'form'}<Form data={card.data} {onset} />

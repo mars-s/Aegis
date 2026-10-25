@@ -87,10 +87,11 @@ registerCommand({ id: 'object-open', title: 'Open selected window', keys: 'enter
 // The expanded content is a working view, so its keys must not trigger canvas tools or deletion.
 window.addEventListener('keydown', event => {
   if (!active || !(event.target instanceof Element) || !active.el.contains(event.target)) return;
+  if (event.target.closest('.gallery-inspection')) return;
   // Table cells own their navigation and first Escape while editing.
   if (event.target.closest('[role="gridcell"]') && (event.key !== 'Escape' || event.target.closest('input'))) return;
   // R4 polish: inline values own their draft keys; icon menus own their activation keys.
-  if (event.target.closest('.inline-value, .kind-more') && (event.key !== 'Escape' || event.target.closest('.inline-value input'))) return;
+  if (event.target.closest('.inline-value, .kind-more') && (event.key !== 'Escape' || event.target.closest('.inline-value :is(input, textarea)'))) return;
   if (event.key === 'Escape') {
     event.preventDefault(); event.stopImmediatePropagation(); active.close({ keyboard: true });
   } else if (!event.target.closest('input, textarea, select, [contenteditable]')) {
