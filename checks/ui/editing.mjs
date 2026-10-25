@@ -169,7 +169,7 @@ try {
 
   await select([]); await page.locator('#stage').focus(); await page.keyboard.press('p'); await pause(); assert.equal(await page.getByLabel('Drawing controls',{exact:true}).isVisible(),true); assert.equal(await page.locator('#tools').isVisible(),true); await page.getByRole('button',{name:'Done',exact:true}).click(); await pause(); assert.equal(await page.locator('#tools').isVisible(),true);
   // The selection toolbar stays compact, follows the camera and preserves its controls on phone.
-  if (await page.locator('#side').evaluate(el => el.classList.contains('open'))) await page.getByLabel('Hide library and layers', { exact: true }).click();
+  if (await page.locator('#side').evaluate(el => el.classList.contains('open'))) await page.getByLabel('Hide windows and library', { exact: true }).click();
   await page.evaluate(() => { aegis.apply([
     { op: 'restore', cards: [], links: [], tray: [] },
     { op: 'create', newId: 'toolnote', type: 'note', text: 'A quieter place to think.\nKeep the useful things close.', x: 0, y: 0, w: 300, h: 160 },

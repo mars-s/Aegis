@@ -42,6 +42,54 @@ try {
   const original = await board();
   await page.locator('#boardName').click();
   await page.locator('#side').waitFor({ state: 'visible' });
+  // Round 3 hierarchy: active windows get the available space, reference stays folded.
+  const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]'), keys = page.locator('#side > [data-panel="keys"]');
+  assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
+  assert.match(await windows.locator('.phead').textContent(), /^Windows/);
+  assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, JSON.stringify(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => ({ id: el.dataset.panel, height: el.offsetHeight, flex: getComputedStyle(el).flex, body: el.querySelector('.pbody').offsetHeight })))));
+  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
+  assert.equal(await keys.locator('.pbody').isVisible(), false, 'Shortcuts starts collapsed');
+  const navFolders = [];
+  for (let i = 0; i < 12; i++) navFolders.push((await api('/library', { op: 'create', kind: 'folder', name: `Navigation folder ${i + 1}` })).created);
+  await row(navFolders.at(-1)).waitFor();
+  await page.evaluate(() => new Promise(resolve => aegisCtx.apply(Array.from({ length: 25 }, (_, i) => ({ op: 'create', type: 'note', newId: `navwindow${i}`, text: `Window ${i + 1}`, x: (i % 5) * 280, y: Math.floor(i / 5) * 180 })), resolve)));
+  await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 25);
+  for (const width of [1440, 1586]) {
+    await page.setViewportSize({ width, height: 992 });
+    await page.waitForFunction(() => Math.abs(document.getElementById('side').getBoundingClientRect().left - 8) < .5);
+    assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, 'Windows stays larger than Library on a busy board');
+    await page.screenshot({ path: out(`r3-nav-${Date.now()}-windows-first-${width}.png`) });
+  }
+  const scrollWindows = windows.locator('.pbody'), scrollLibrary = library.locator('.tree');
+  await scrollWindows.hover(); await page.mouse.wheel(0, 440);
+  await page.waitForFunction(() => document.querySelector('[data-panel="layers"] .pbody').scrollTop > 0);
+  const windowScroll = await scrollWindows.evaluate(el => el.scrollTop);
+  await scrollLibrary.hover(); await page.mouse.wheel(0, 300);
+  await page.waitForFunction(() => document.querySelector('[data-panel="library"] .tree').scrollTop > 0);
+  assert.equal(await scrollWindows.evaluate(el => el.scrollTop), windowScroll, 'Library scrolling does not move Windows');
+  assert.equal(await page.locator('#side').evaluate(el => el.scrollTop), 0, 'the outer sidebar does not scroll');
+  await keys.locator('.fold').press('Enter');
+  await keys.locator('.pbody').hover(); await page.mouse.wheel(0, 320);
+  await page.waitForFunction(() => document.querySelector('[data-panel="keys"] .pbody').scrollTop > 0);
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'true', 'an explicit expansion survives reload');
+  await keys.locator('.fold').press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false', 'an explicit collapse survives reload');
+  // Upgrade an older layout without a saved reference preference.
+  await page.evaluate(() => { const state = JSON.parse(localStorage.getItem('aegis:panels')); state.columns.left = ['library', 'layers', 'keys']; state.folded = {}; localStorage.setItem('aegis:panels', JSON.stringify(state)); });
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
+  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator('#mobileHub').getByRole('button', { name: 'Windows', exact: true }).click();
+  assert.equal(await page.locator('#mobileTitle').textContent(), 'Windows');
+  await page.screenshot({ path: out(`r3-nav-${Date.now()}-windows-phone-390.png`) });
+  await page.getByRole('button', { name: 'Close sheet', exact: true }).click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => new Promise(resolve => aegisCtx.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }], resolve)));
+  for (const id of navFolders) await api('/library', { op: 'delete', id, recursive: true });
+  await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 0);
+  check('Windows leads and is taller than compact Library at 1440/1586; each section scrolls independently; Shortcuts starts collapsed and remembers changes; old layouts migrate; phone says Windows');
   await page.locator('[data-add="project"]').click();
   await page.waitForFunction(() => document.querySelector('.tree-row.project'));
   let lib = await read(), project = lib.nodes.find(n => n.kind === 'project').id;

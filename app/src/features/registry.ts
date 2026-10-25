@@ -28,7 +28,7 @@ export type Tool = {
 };
 export type Panel = { id: string; title: string; mount(el: HTMLElement, ctx: Ctx): void | (() => void); side?: 'left' | 'right'; order?: number };
 export type Command = { id: string; title: string; keys?: string; run(ctx: Ctx): void; when?(ctx: Ctx): boolean };
-export type MenuItem = { id: string; title: string; run(ctx: Ctx, cardIds: string[]): void; when?(ctx: Ctx, cardIds: string[]): boolean; section?: string };
+export type MenuItem = { id: string; title: string; run(ctx: Ctx, cardIds: string[]): void; when?(ctx: Ctx, cardIds: string[]): boolean; section?: string; shortcut?: string };
 
 export const tools: Tool[] = [];
 export const panels: Panel[] = [];

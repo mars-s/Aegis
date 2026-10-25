@@ -5,7 +5,7 @@ export function mountMobile({ pickTool, tools, showAgents }) {
   const mq = matchMedia('(max-width: 700px)'), homes = new Map();
   const hub = document.createElement('nav'); hub.id = 'mobileHub'; hub.setAttribute('aria-label', 'Board hub');
   for (const name of ['Boards', 'Layers', 'Add', 'Unsorted', 'Agents']) {
-    const b = document.createElement('button'); b.textContent = name; b.dataset.sheet = name.toLowerCase(); b.setAttribute('aria-expanded', 'false'); b.onclick = () => open(name.toLowerCase()); hub.append(b);
+    const b = document.createElement('button'); b.textContent = name === 'Layers' ? 'Windows' : name; b.dataset.sheet = name.toLowerCase(); b.setAttribute('aria-expanded', 'false'); b.onclick = () => open(name.toLowerCase()); hub.append(b);
   }
   const veil = document.createElement('div'); veil.className = 'mobile-veil'; veil.hidden = true;
   const sheet = document.createElement('section'); sheet.className = 'mobile-sheet'; sheet.hidden = true; sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-labelledby', 'mobileTitle');
@@ -30,7 +30,7 @@ export function mountMobile({ pickTool, tools, showAgents }) {
     if (!mq.matches) return;
     if (current === id) { close(); return; }
     close(); previousFocus = document.activeElement; current = id;
-    sheet.querySelector('h2').textContent = { boards: 'Boards', layers: 'Layers', add: 'Add', unsorted: 'Unsorted', agents: 'Agents' }[id];
+    sheet.querySelector('h2').textContent = { boards: 'Boards', layers: 'Windows', add: 'Add', unsorted: 'Unsorted', agents: 'Agents' }[id];
     if (id === 'add') {
       for (const [name, group] of [['Basics', null], ['Wireframe', 'wireframe'], ['Colours', 'colours']]) {
         const section = document.createElement('section'), h = document.createElement('h3'); h.textContent = name; section.append(h);

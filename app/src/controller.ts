@@ -472,7 +472,8 @@ addEventListener('keydown', e => {
 // ---------- feature context: what features may use ----------
 addEventListener('keydown', e => {
   if (e.defaultPrevented || document.querySelector('dialog[open]') || e.target.closest?.('textarea, input, [contenteditable], select')) return;
-  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && ['BracketLeft', 'BracketRight'].includes(e.code) && !canvas.selection().length) {
+  // Round 3 navigation: plain brackets always toggle panels, including with a selection.
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && ['BracketLeft', 'BracketRight'].includes(e.code)) {
     e.preventDefault(); e.stopImmediatePropagation(); panels.toggle(e.code === 'BracketLeft' ? 'left' : 'right', true);
   }
 }, true);
@@ -488,8 +489,8 @@ function showContext(x, y, at, ids) {
   const list = ids.length ? registry.cardMenu : registry.boardMenu;
   const items = list.filter(m => !m.when || m.when(ctx, ids));
   const builtIn = ids.length ? [
-    { id: 'front', title: 'Bring to front', section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'front' }]) },
-    { id: 'back', title: 'Send to back', section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'back' }]) },
+    { id: 'front', title: 'Bring to front', shortcut: shortcutText('stackToFront'), section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'front' }]) },
+    { id: 'back', title: 'Send to back', shortcut: shortcutText('stackToBack'), section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'back' }]) },
     { id: 'delete', title: 'Delete', section: 'zz', run: () => apply([{ op: 'delete', ids }]) },
   ] : [
     { id: 'note', title: 'New note here', section: 'Add', run: () => place('note', at) },

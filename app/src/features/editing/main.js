@@ -83,14 +83,14 @@ export function mountEditing(ctx) {
   addEventListener('keydown', e => {
     const mod = e.metaKey || e.ctrlKey, key = e.key.toLowerCase();
     if (mod && e.shiftKey && !e.altKey && key === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); e.stopImmediatePropagation(); navigation.capture(); return; }
-    if (typing(e) || gesture || canvas.busy()) return;
+    if (e.defaultPrevented || document.querySelector('dialog[open]') || typing(e) || gesture || canvas.busy()) return;
     let handled = true;
     if (mod && key === 'z') { if (!history.travel(e.shiftKey ? 1 : -1)) toast(e.shiftKey ? 'Nothing left to redo' : 'Nothing left to undo'); }
     else if (mod && key === 'g' && !e.altKey) group(e.shiftKey);
     else if (mod && key === 'd') duplicate();
     else if (mod && (key === 'c' || key === 'x')) { const ids = canvas.selection(); setTimeout(() => { if (!copyEventSeen && ids.length) copy(null, key === 'x'); copyEventSeen = false; }, 50); handled = false; }
     else if (mod && key === 'v') { pendingPaste = setTimeout(() => paste(), 160); handled = false; }
-    else if (mod && ['BracketRight', 'BracketLeft'].includes(e.code)) stack(e.code === 'BracketRight' ? e.shiftKey ? 'front' : 'forward' : e.shiftKey ? 'back' : 'backward');
+    else if (mod && e.altKey && ['BracketRight', 'BracketLeft'].includes(e.code)) stack(e.code === 'BracketRight' ? e.shiftKey ? 'front' : 'forward' : e.shiftKey ? 'back' : 'backward');
     else if (mod && ['b', 'i', 'u'].includes(key)) format({ b: 'bold', i: 'italic', u: 'under' }[key]);
     else if (key === 'f' && !e.shiftKey && !mod) toggleFocus();
     else if (key === 'escape' && focus) { focus = null; canvas.setFocus(null); }
@@ -220,7 +220,7 @@ export function mountEditing(ctx) {
           if (media) { button('Replace', () => replaceMedia(cards[0]), { inline: true, text: true }); button('Download', () => downloadMedia(cards[0]), { inline: true }); }
           for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Card').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
           button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: shortcutText('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: shortcutText('remove') });
-          for (const [label, direction] of [['Bring to front', 'front'], ['Bring forward', 'forward'], ['Send backward', 'backward'], ['Send to back', 'back']]) button(label, () => stack(direction), { group: 'Arrange' });
+          for (const [label, direction, key] of [['Bring to front', 'front', 'stackToFront'], ['Bring forward', 'forward', 'stackForward'], ['Send backward', 'backward', 'stackBack'], ['Send to back', 'back', 'stackToBack']]) button(label, () => stack(direction), { group: 'Arrange', shortcut: shortcutText(key) });
           button('Lock', () => apply(editableCards().map(c => ({ op: 'update', id: c.id, set: { props: { locked: true } } }))), { group: 'Arrange' });
         } else button('Unlock', () => apply(cards.map(c => ({ op: 'update', id: c.id, set: { props: { locked: false } } }))), { inline: true, text: true });
         button('PNG', () => exportBoard(ctx, true), { group: 'Export', shortcut: 'Image' }); button('PDF', () => exportBoard(ctx, true, 'pdf'), { group: 'Export', shortcut: 'Document' });
@@ -270,7 +270,7 @@ export function mountEditing(ctx) {
   stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPopup.close(); tiltSelection = ids; } });
   mountLayerDeletion(ctx, history);
   const layerMenu = createMenu();
-  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', section: 'Arrange', run: () => stack('back') }]); });
+  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', shortcut: shortcutText('stackToFront'), section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', shortcut: shortcutText('stackToBack'), section: 'Arrange', run: () => stack('back') }]); });
 
   let trayEl, traySig = '';
   trayMount = el => { trayEl = el; el.classList.add('unsorted-list'); renderTray(); };
@@ -300,7 +300,7 @@ export function mountEditing(ctx) {
     const r = trayEl.closest('.pbox').getBoundingClientRect(); if (x < r.left || x > r.right || y < r.top || y > r.bottom || !r.height) return;
     return () => { const clip = makeClip(canvas.board, cards.map(c => c.id)), first = clip.cards[0]; if (!first) return; const item = { ...first, id: uid(), bundle: { cards: clip.cards, links: clip.links } }; apply([{ op: 'board_set', set: { tray: [...(canvas.board.tray ?? []), item] } }, { op: 'delete', ids: clip.cards.map(c => c.id) }], () => canvas.select([])); };
   });
-  for (const [id, title, run] of [['duplicate', 'Duplicate', duplicate], ['copy', 'Copy', () => copy()], ['cut', 'Cut', () => copy(null, true)], ['group', 'Group', () => group()], ['ungroup', 'Ungroup', () => group(true)], ['forward', 'Bring forward', () => stack('forward')], ['backward', 'Send backward', () => stack('backward')], ['export', 'Export selection as PNG', () => exportBoard(ctx, true)], ['export-pdf', 'Export selection as PDF', () => exportBoard(ctx, true, 'pdf')]]) registerCardMenu({ id: `editing-${id}`, title, section: 'Editing', run });
+  for (const [id, title, run] of [['duplicate', 'Duplicate', duplicate], ['copy', 'Copy', () => copy()], ['cut', 'Cut', () => copy(null, true)], ['group', 'Group', () => group()], ['ungroup', 'Ungroup', () => group(true)], ['forward', 'Bring forward', () => stack('forward')], ['backward', 'Send backward', () => stack('backward')], ['export', 'Export selection as PNG', () => exportBoard(ctx, true)], ['export-pdf', 'Export selection as PDF', () => exportBoard(ctx, true, 'pdf')]]) registerCardMenu({ id: `editing-${id}`, title, ...(id === 'forward' || id === 'backward' ? { shortcut: shortcutText(id === 'forward' ? 'stackForward' : 'stackBack') } : {}), section: 'Editing', run });
   registerCardMenu({ id: 'editing-reset-tilt', title: 'Reset tilts', section: 'Editing', when: () => editableCards().some(c => c.rot && !['frame', 'section', 'coll', 'ink'].includes(c.type)), run: () => { const cards = editableCards().filter(c => !['frame', 'section', 'coll', 'ink'].includes(c.type)); apply(cards.map(c => ({ op: 'update', id: c.id, set: { rot: 0 } }))); } });
   registerBoardMenu({ id: 'editing-export-board', title: 'Export board as PNG', section: 'Export', run: () => exportBoard(ctx, false) });
   registerBoardMenu({ id: 'editing-export-board-pdf', title: 'Export board as PDF', section: 'Export', run: () => exportBoard(ctx, false, 'pdf') });

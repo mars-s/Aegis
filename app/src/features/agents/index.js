@@ -4,6 +4,8 @@ import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
 import { cardRect, freeAgentRect, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
 import { displayRotation } from '../settings/preferences.js';
+// Round 3 navigation: first-use timing belongs to onboarding.
+import { createOrbHint } from '../onboarding/orb-hint.js';
 
 const STAR = '<span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span>';
 const shortTitle = a => (a.title || a.brief?.split('\n')[0] || 'Board assistant').replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 42);
@@ -32,30 +34,8 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const head = composer.querySelector('.island-head'), history = composer.querySelector('.island-turns');
   const overlay = document.createElement('div'); overlay.className = 'agent-windows'; stage.append(overlay);
   const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, doneTimer = 0, restoringFocus = false, hoverSuppressed = false;
-  // Round 2 discovery: one invitation per install, only before any agent has run.
-  const hint = document.createElement('span'); hint.className = 'agent-first-hint'; hint.textContent = 'Ask Aegis  ⌘K'; hint.hidden = true; island.append(hint);
-  let hintTimer = 0, hintEnd = 0, hintChecked = false;
-  function dismissHint() {
-    clearTimeout(hintTimer); clearTimeout(hintEnd); hint.classList.remove('visible');
-    localStorage.setItem('aegis:orb-hint-seen', '1');
-    setTimeout(() => { hint.hidden = true; }, 180);
-  }
-  function discover(agents) {
-    if (hintChecked) return;
-    hintChecked = true;
-    if (agents.length) { dismissHint(); return; }
-    if (localStorage.getItem('aegis:orb-hint-seen')) return;
-    // Check all boards so an existing user never receives a first-run invitation.
-    host.get('/agents').then(prior => {
-      if (prior.length || localStorage.getItem('aegis:orb-hint-seen')) return;
-      hintTimer = setTimeout(() => {
-        if (localStorage.getItem('aegis:orb-hint-seen')) return;
-        localStorage.setItem('aegis:orb-hint-seen', '1'); hint.hidden = false;
-        requestAnimationFrame(() => hint.classList.add('visible'));
-        hintEnd = setTimeout(dismissHint, 8000);
-      }, 1200);
-    }).catch(() => {});
-  }
+  // Round 3 navigation: keep this hookup separate from history and placement.
+  const { discover, dismiss: dismissHint } = createOrbHint({ island, host });
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);

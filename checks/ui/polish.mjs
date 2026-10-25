@@ -47,16 +47,31 @@ try {
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
   await checkChrome(browser, page.url());
-  // Round 2 discovery: expiry and keyboard dismissal also work with motion disabled.
+  // Round 3 discovery: welcome cannot spend the invitation or any of its delay.
   const firstUse = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
-  await firstUse.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   const freshUrl = `http://127.0.0.1:${webPort}/?port=${port}&token=${token}`;
   await firstUse.goto(freshUrl); await firstUse.waitForFunction(() => window.aegis?.canvas?.board);
   const invitation = firstUse.locator('.agent-first-hint');
+  await firstUse.getByRole('dialog', { name: 'Welcome to Aegis', exact: true }).waitFor();
+  await firstUse.waitForTimeout(9500);
+  assert.equal(await invitation.isVisible(), false, 'welcome keeps the invitation hidden beyond its old expiry');
+  assert.equal(await firstUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null, 'welcome cannot mark the invitation seen');
+  await firstUse.screenshot({ path: out(`r3-nav-${capture}-welcome-1440.png`) });
+  await firstUse.getByRole('button', { name: 'Skip', exact: true }).click();
+  await firstUse.waitForTimeout(800);
+  assert.equal(await invitation.isVisible(), false, 'the 1.2 second delay starts after Skip');
   await firstUse.locator('.agent-first-hint.visible').waitFor();
+  assert.equal(await firstUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null, 'showing the invitation is not enough to mark it seen');
   assert.equal(await invitation.evaluate(el => getComputedStyle(el).transitionDuration), '0s');
-  await firstUse.screenshot({ path: out(`r2-hint-${capture}-reduced-1440.png`) });
+  await firstUse.screenshot({ path: out(`r3-nav-${capture}-hint-after-skip-1440.png`) });
+  await firstUse.keyboard.press('Meta+Shift+k');
+  await firstUse.getByRole('dialog', { name: 'Quick capture', exact: true }).waitFor();
+  assert.equal(await invitation.isVisible(), false, 'a later modal interrupts the visible invitation');
+  await firstUse.waitForTimeout(8500);
+  assert.equal(await firstUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null, 'time spent in a modal is not an opportunity to read the invitation');
+  await firstUse.keyboard.press('Escape'); await firstUse.locator('.agent-first-hint.visible').waitFor();
   await firstUse.waitForFunction(() => document.querySelector('.agent-first-hint').hidden, null, { timeout: 10000 });
+  assert.equal(await firstUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), '1');
   await firstUse.reload(); await firstUse.waitForTimeout(1600);
   assert.equal(await invitation.isVisible(), false, 'expired invitation never appears again');
   await firstUse.close();
@@ -73,7 +88,21 @@ try {
   await keyboardUse.reload(); await keyboardUse.waitForTimeout(1600);
   assert.equal(await keyboardUse.locator('.agent-first-hint').isVisible(), false);
   await keyboardUse.close();
-  console.log('PASS first-use invitation expires after eight seconds, respects reduced motion, dismisses with Cmd+K on phone and never returns after reload');
+  const tourUse = await browser.newPage({ viewport: { width: 1586, height: 992 } });
+  await tourUse.goto(freshUrl); await tourUse.waitForFunction(() => window.aegis?.canvas?.board);
+  await tourUse.getByRole('button', { name: 'Start tour', exact: true }).click();
+  for (let step = 1; step < 6; step++) await tourUse.keyboard.press('ArrowRight');
+  await tourUse.waitForTimeout(1400);
+  assert.equal(await tourUse.locator('.agent-first-hint').isVisible(), false);
+  assert.equal(await tourUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null, 'the tour demonstrating Ask is not use or dismissal');
+  await tourUse.getByRole('button', { name: 'Skip', exact: true }).click();
+  await tourUse.locator('.agent-first-hint.visible').waitFor();
+  await tourUse.waitForTimeout(180);
+  await tourUse.screenshot({ path: out(`r3-nav-${capture}-hint-after-tour-1586.png`) });
+  await tourUse.keyboard.press('Meta+k');
+  assert.equal(await tourUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), '1');
+  await tourUse.close();
+  console.log('PASS welcome and later modals cannot spend the hint; Skip starts its 1.2s delay; eight visible seconds or Cmd+K marks it seen; reduced motion and phone work; reload remembers');
   const prompt = page.locator('#prompt'), captureDialog = page.getByRole('dialog', { name: 'Quick capture', exact: true });
   const renderedShortcuts = await page.locator('[data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, format: el.dataset.shortcutFormat || 'display', text: el.textContent })));
   for (const item of renderedShortcuts) assert.equal(item.text, shortcutText(item.id, item.format), item.id);
@@ -127,6 +156,38 @@ try {
   board = await saved(); assert.ok(board.cards.some(c => c.text === 'Keyboard idea'));
   console.log('PASS More tools and orb options dispatch add-as-notes, save typed notes, clear the draft and start zero agents; Cmd+Return still works');
 
+  // Round 3 shortcuts: panels do not change meaning when a window is selected.
+  const order = () => page.evaluate(() => aegis.canvas.board.cards.map(c => c.id));
+  for (const mod of ['Meta', 'Control']) {
+    for (const selected of [false, true]) {
+      await page.evaluate(selected => { aegis.canvas.select(selected ? [aegis.canvas.board.cards[1].id] : []); document.getElementById('stage').focus(); }, selected);
+      const before = await order();
+      for (const [key, side] of [[']', 'Right'], ['[', '']]) {
+        if (await page.locator(`#side${side}`).evaluate(el => el.classList.contains('open'))) await page.keyboard.press(`${mod}+${key}`);
+        await page.keyboard.press(`${mod}+${key}`);
+        assert.equal(await page.locator(`#side${side}`).evaluate(el => el.classList.contains('open')), true, `${mod}+${key}, selected=${selected}`);
+        assert.deepEqual(await order(), before, 'panel shortcut never restacks');
+        assert.equal(await page.evaluate(() => aegis.canvas.selection().length), Number(selected));
+        await page.keyboard.press(`${mod}+${key}`);
+      }
+    }
+    const before = await order(), id = before[1];
+    await page.evaluate(id => { aegis.canvas.select([id]); document.getElementById('stage').focus(); }, id);
+    await page.keyboard.press(`${mod}+Alt+]`); await saved();
+    const forward = [...before]; [forward[1], forward[2]] = [forward[2], forward[1]];
+    assert.deepEqual(await order(), forward, 'Option/Alt+right bracket moves one step forward');
+    await page.keyboard.press(`${mod}+Alt+[`); await saved(); assert.deepEqual(await order(), before);
+    await page.keyboard.press(`${mod}+Alt+Shift+]`); await saved(); assert.equal((await order()).at(-1), id);
+    await page.keyboard.press(`${mod}+Alt+Shift+[`); await saved(); assert.equal((await order())[0], id);
+    assert.equal(await page.locator('#sideRight').evaluate(el => el.classList.contains('open')), false, 'restacking leaves agent activity closed');
+  }
+  await page.evaluate(() => document.getElementById('stage').dispatchEvent(new CustomEvent('layercontext', { detail: { x: 700, y: 300, ids: aegis.canvas.selection() } })));
+  for (const [label, key] of [['Bring forward', 'stackForward'], ['Send backward', 'stackBack'], ['Bring to front', 'stackToFront'], ['Send to back', 'stackToBack']]) {
+    assert.equal(await page.getByRole('menuitem', { name: label, exact: true }).locator('kbd').textContent(), shortcutText(key));
+  }
+  await shot('r3-nav-restack-menu-1586'); await page.keyboard.press('Escape');
+  console.log('PASS Cmd/Ctrl+brackets always open the same panels with or without selection; Option/Alt+brackets restack one step, Shift sends front/back; menus show shared keys');
+
   const selectedIds = board.cards.slice(0, 2).map(c => c.id);
   await page.evaluate(ids => aegis.canvas.select(ids), selectedIds);
   await page.keyboard.press('Meta+k'); const brief = 'Tidy just these ideas\nKeep all my words'; await prompt.fill(brief); await prompt.press('Enter');
@@ -174,7 +235,7 @@ try {
     for (const item of shortcuts) { assert.equal(item.text, shortcutText(item.id, item.format)); tourIds.add(item.id); }
     if (step < 7) await page.getByRole('button', { name: 'Next', exact: true }).click();
   }
-  assert.deepEqual([...tourIds].sort(), ['ask', 'quickCapture']);
+  assert.deepEqual([...tourIds].sort(), ['ask', 'leftSidebar', 'quickCapture', 'rightSidebar', 'stackBack', 'stackForward']);
   console.log('PASS every tour shortcut and all rendered hints/list shortcuts equal the shared shortcut map');
   await page.getByRole('button', { name: 'Skip', exact: true }).click();
   // Round 2 history: a real request spans two board batches and all four change types.

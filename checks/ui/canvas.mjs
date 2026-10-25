@@ -118,7 +118,7 @@ try {
     await rowMore.click(); await page.screenshot({ path: out(`r2-layer-state-menu-1440-${Date.now()}.png`) }); await page.keyboard.press('Escape');
     await action('Show'); await action('Unlock');
     verify('row menu Show and Unlock save the opposite state', await page.evaluate(() => { const c = aegis.canvas.board.cards.find(c => c.id === 'canvasnote'); return !c.props.hidden && !c.props.locked; }));
-    await action('Rename'); const name = layer.getByRole('textbox', { name: 'Layer name', exact: true }); await name.fill('Renamed research note'); await name.press('Enter'); await settle();
+    await action('Rename'); const name = layer.getByRole('textbox', { name: 'Window name', exact: true }); await name.fill('Renamed research note'); await name.press('Enter'); await settle();
     verify('row menu Rename saves its name', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.layerName === 'Renamed research note'));
     await page.screenshot({ path: out(`r2-layer-menu-rows-${Date.now()}.png`) });
     page.once('dialog', d => d.dismiss()); await action('Delete'); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));

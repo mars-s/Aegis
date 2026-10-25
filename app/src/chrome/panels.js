@@ -5,7 +5,7 @@ const read = () => { try { return JSON.parse(localStorage.getItem(KEY) || '{}');
 export function createPanels({ side, onChange }) {
   const saved = read();
   const state = { hidden: saved.hidden ?? true, open: saved.open ?? { left: saved.hidden === false, right: false }, width: saved.width ?? 300, rightWidth: saved.rightWidth ?? 320,
-    columns: saved.columns ?? { left: saved.order ?? [], right: [] }, off: saved.off ?? {}, folded: saved.folded ?? {}, heights: saved.heights ?? {} };
+    columns: saved.columns ?? { left: saved.order ?? [], right: [] }, off: saved.off ?? {}, folded: { keys: true, ...saved.folded }, heights: saved.heights ?? {} };
   const right = document.createElement('aside'); right.className = 'side side-right'; right.id = 'sideRight'; right.setAttribute('aria-label', 'Right side bar'); right.innerHTML = '<div class="side-resize" title="Drag to resize"></div>'; side.after(right);
   const agents = document.getElementById('agentsPanel'); agents.hidden = false; right.prepend(agents);
   const timers = {}, arrows = { left: document.getElementById('revealLeft'), right: document.getElementById('revealRight') };
@@ -28,8 +28,9 @@ export function createPanels({ side, onChange }) {
   const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
   const persistOrder = () => { state.columns = { left: boxes(side).map(b => b.dataset.panel), right: boxes(right).map(b => b.dataset.panel) }; save(); };
   function apply() {
-    // The library is the fixed anchor, including when restoring an older saved layout.
-    state.columns.left = ['library', ...state.columns.left.filter(id => id !== 'library')];
+    // Round 3 navigation: Windows leads its board, with a compact Library beneath it.
+    const windows = state.columns.left.includes('layers') ? ['layers'] : [];
+    state.columns.left = [...windows, 'library', ...state.columns.left.filter(id => id !== 'library' && id !== 'layers')];
     state.columns.right = state.columns.right.filter(id => id !== 'library');
     for (const [key, col] of [['left', side], ['right', right]]) for (const id of state.columns[key] ?? []) {
       const box = all.get(id); if (box) col.insertBefore(box, col.querySelector('.side-resize'));
@@ -78,15 +79,29 @@ export function createPanels({ side, onChange }) {
   settings?.append(section);
   const options = section.querySelector('.panel-layout-options');
   section.querySelector('[data-reset-panels]').onclick = () => {
-    state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = {}; state.heights = {}; state.width = 300; state.rightWidth = 320; state.open = { left: true, right: false }; state.hidden = false;
+    state.columns = { left: [...defaults], right: [] }; state.off = {}; state.folded = { keys: true }; state.heights = {}; state.width = 300; state.rightWidth = 320; state.open = { left: true, right: false }; state.hidden = false;
+    for (const id of all.keys()) state.folded[id] = !['layers', 'library', 'unsorted'].includes(id);
     options.querySelectorAll('input').forEach(input => { input.checked = true; }); apply(); save();
   };
   function register(box) {
     const id = box.dataset.panel; if (all.has(id)) return;
     all.set(id, box); defaults.push(id);
+    // Secondary tool sections stay reachable without taking space from Windows on first use.
+    if (state.folded[id] === undefined) state.folded[id] = !['layers', 'library', 'unsorted'].includes(id);
     if (![...state.columns.left, ...state.columns.right].includes(id)) state.columns.left.push(id);
     const head = box.querySelector('.phead'), body = box.querySelector('.pbody'), fold = box.querySelector('.fold');
-    if (fold) fold.onclick = () => { state.folded[id] = !box.classList.contains('folded'); apply(); save(); };
+    if (fold) fold.onclick = event => {
+      const col = box.parentElement, before = new Map(boxes(col).map(b => [b, b.getBoundingClientRect()]));
+      state.folded[id] = !box.classList.contains('folded'); apply(); save();
+      if (!event.detail || document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // Round 3 navigation: sections settle with transforms; their scrollers keep their position.
+      for (const [section, rect] of before) {
+        section.getAnimations().forEach(animation => animation.cancel());
+        const y = rect.top - section.getBoundingClientRect().top;
+        if (y) section.animate([{ transform: `translateY(${y}px)` }, { transform: 'none' }], { duration: 200, easing: 'cubic-bezier(.32,.72,0,1)' });
+      }
+      if (!state.folded[id]) body.animate([{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 180, easing: 'cubic-bezier(.23,1,.32,1)' });
+    };
     const label = document.createElement('label'), input = document.createElement('input'); input.type = 'checkbox'; input.checked = !state.off[id]; input.dataset.panelVisibility = id;
     label.append(input, document.createTextNode(head.querySelector('span')?.childNodes[0]?.textContent?.trim() || id)); options.append(label);
     input.onchange = () => { state.off[id] = !input.checked; apply(); save(); };

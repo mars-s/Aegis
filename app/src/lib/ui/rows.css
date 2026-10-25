@@ -14,14 +14,28 @@
 .side .tree-row:has(.twisty) > svg { visibility: hidden; }
 .side .tree-row .meta { position: absolute; right: 4px; pointer-events: none; }
 .side .tree-row:has(.row-more:hover) .meta, .side .tree-row:focus-within .meta, .side .tree-row:hover .meta { visibility: hidden; }
-.pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: auto; max-height: clamp(240px, 42vh, 480px); }
+/* Round 3 navigation: independent scrollers, with room reserved for this board's windows. */
+.side { overflow-y: hidden; }
+.side > .pbox { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 38px; }
+.side > .pbox > .phead { flex: none; }
+.side > .pbox > .pbody { min-height: 0; overscroll-behavior: contain; scroll-behavior: smooth; }
+.side > .pbox[data-panel=layers]:not(.folded) { flex: 1 1 0; min-height: 140px; }
+.side > .pbox[data-panel=layers]:not(.folded):has(> .pbody[style*="height"]) { flex: 0 1 auto; }
+.side > .pbox[data-panel=layers]:not(.folded) > .pbody { flex: 1 1 auto; height: auto; max-height: none; }
+.side > .pbox[data-panel=library] { flex: 0 1 auto; }
+.side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 144px; max-height: 24vh; }
+.side > .pbox[data-panel=keys] > .pbody { max-height: 24vh; }
+.side .pbox.folded { flex: none; }
+.side .tree { overscroll-behavior: contain; scroll-behavior: smooth; }
 @media (hover: none), (pointer: coarse) { :is(.tree-row, .layer-row) .row-more { opacity: 1; } .tree-row .meta { display: none; } }
 body.phone :is(.tree-row, .layer-row) .row-more { opacity: 1; }
 body.phone .tree-row .meta { display: none; }
 
-.side:not(:has(> .pbox:not([data-panel=library]):not(.folded):not([hidden]))) .pbox[data-panel=library] .pbody:not([style*="height"]) { max-height: calc(100dvh - 170px); }
+@media (prefers-reduced-motion: reduce) { .side .pbody, .side .tree { scroll-behavior: auto; } }
+body.motion-off .side .pbody, body.motion-off .side .tree { scroll-behavior: auto; }
 @media (hover: none), (pointer: coarse) { .side .layer-row .layer-fold { flex-basis: 44px; width: 44px; min-width: 44px; } }
 
 .side .keys > div { flex-wrap: wrap; column-gap: 8px; row-gap: 4px; padding: 6px 0; }
 .side .keys span { flex: 1 1 90px; max-width: 100%; }
 .side .keys kbd:only-of-type { margin-left: auto; max-width: 100%; white-space: normal; text-align: right; }
+.aegis-menu-shortcut { margin-left: auto; padding-left: 20px; color: var(--muted); font-size: 12px; }

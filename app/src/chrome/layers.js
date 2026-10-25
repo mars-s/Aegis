@@ -3,7 +3,7 @@ import { createMenu } from './menu.js';
 import { rowMenuButton } from '../lib/ui/menu.js';
 import { collectionLayout } from '../features/editing/model.js';
 import { layerParents, layerDescendants } from '../features/editing/layer-model.js';
-// Layers panel: every card, top-most first. Click to jump, drag to restack.
+// Windows panel: every card, top-most first. Click to jump, drag to restack.
 const ICON = {
   note: '<path d="M4 2.5h6l2.5 2.5v8.5H4z"/><path d="M10 2.5V5h2.5"/>',
   title: '<path d="M3.5 4V3h9v1M8 3v10M6 13h4"/>',
@@ -68,7 +68,7 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       ]) if (c.props?.[flag]) state.insertAdjacentHTML('beforeend', `<svg viewBox="0 0 16 16" role="img" aria-label="${title}"><title>${title}</title>${path}</svg>`);
       row.append(state);
       const rename = () => {
-        const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Layer name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
+        const name = row.querySelector('.name'), input = document.createElement('input'); input.value = labelOf(c); input.setAttribute('aria-label', 'Window name'); name.replaceWith(input); input.focus(); input.select(); let cancelled = false;
         input.onkeydown = ev => { ev.stopPropagation(); if (ev.key === 'Enter' || ev.key === 'Escape') { ev.preventDefault(); cancelled = ev.key === 'Escape'; input.blur(); } };
         input.onblur = () => { if (!cancelled && input.value.trim()) onUpdate?.([{ op: 'update', id: c.id, set: { props: { layerName: input.value.trim() }, ...(c.type === 'coll' ? { text: input.value.trim() } : {}) } }]); lastSig = ''; schedule(); };
       };

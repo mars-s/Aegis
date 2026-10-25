@@ -8,7 +8,7 @@ export function createOnboarding({ mobile, panels, openComposer, closeComposer }
     ['Tools', 'Pick a tool, then tap or click the board to add something.', '#tools', 'add'],
     ['Quick capture', 'Press {quickCapture} to save an idea without leaving your work.', '#quickCapture', 'add'],
     ['Unsorted', 'Captured ideas wait here. Choose one to put it on the board.', '[data-panel="unsorted"]', 'unsorted'],
-    ['Library', 'Keep boards in folders and projects. Choose a board to open it.', '[data-panel="library"]', 'boards'],
+    ['Windows and library', 'Press {leftSidebar} for this board’s windows and the board switcher. Press {rightSidebar} for agent activity. Use {stackForward} or {stackBack} to move a selected window forward or backward.', '[data-panel="library"]', 'boards'],
     ['Wireframe panel', 'Build screens with components, icons and templates.', '[data-panel="wireframe"]', 'wireframe'],
     ['Agent composer', 'Press {ask} to Ask. Describe what you need, or choose Add as notes in Agent options to put your words on the board.', '#composer', 'agents'],
     ['Settings', 'Set up your board, toolbar, panels and accounts here. You can replay this tour from About.', '#settingsBtn', null],

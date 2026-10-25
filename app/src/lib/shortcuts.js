@@ -1,14 +1,16 @@
-// Display text for the existing bindings. Input handlers keep their current behaviour.
+// Shared shortcut copy for handlers, menus, reference and onboarding.
 const entries = {
   ask: ['Ask', '⌘K', 'Ctrl+K'],
   askSlash: ['Ask', '/'],
   quickCapture: ['Quick capture', '⇧⌘K', 'Shift+Ctrl+K'],
   addNotes: ['Add as notes in Ask', '⌘Return', 'Ctrl+Return'],
   justBoard: ['Just the board', '⌘\\', 'Ctrl+\\'],
-  leftSidebar: ['Library and layers', '⌘[', 'Ctrl+['],
+  leftSidebar: ['Windows and library', '⌘[', 'Ctrl+['],
   rightSidebar: ['Agent activity', '⌘]', 'Ctrl+]'],
-  stackBack: ['Send selection backward', '⌘[', 'Ctrl+['],
-  stackForward: ['Bring selection forward', '⌘]', 'Ctrl+]'],
+  stackBack: ['Send selection backward', '⌥⌘[', 'Ctrl+Alt+['],
+  stackForward: ['Bring selection forward', '⌥⌘]', 'Ctrl+Alt+]'],
+  stackToBack: ['Send selection to back', '⇧⌥⌘[', 'Shift+Ctrl+Alt+['],
+  stackToFront: ['Bring selection to front', '⇧⌥⌘]', 'Shift+Ctrl+Alt+]'],
   sidebar: ['Side bar', '\\'],
   focus: ['Focus selection', 'F'],
   follow: ['Follow agents', 'Shift+F'],
@@ -38,10 +40,10 @@ const entries = {
   media: ['Image or video', 'M'],
 };
 export const SHORTCUTS = Object.freeze(Object.fromEntries(Object.entries(entries).map(([id, [label, mac, pc = mac]]) => {
-  const macText = mac.replace('⇧', 'Shift+').replace('⌘', 'Cmd+');
+  const macText = mac.replace('⇧', 'Shift+').replace('⌥', 'Option+').replace('⌘', 'Cmd+');
   return [id, Object.freeze({ label, mac, pc, macText, display: mac === pc ? mac : `${mac} / ${pc}`, text: macText === pc ? macText : `${macText} / ${pc}` })];
 })));
-export const SHORTCUT_LIST = Object.freeze(['ask', 'askSlash', 'quickCapture', 'addNotes', 'justBoard', 'leftSidebar', 'rightSidebar', 'stackBack', 'stackForward', 'sidebar', 'newNote', 'pan', 'zoom', 'fit', 'focus', 'follow', 'agents', 'remove', 'undo', 'redo']);
+export const SHORTCUT_LIST = Object.freeze(['ask', 'askSlash', 'quickCapture', 'addNotes', 'justBoard', 'leftSidebar', 'rightSidebar', 'stackBack', 'stackForward', 'stackToBack', 'stackToFront', 'sidebar', 'newNote', 'pan', 'zoom', 'fit', 'focus', 'follow', 'agents', 'remove', 'undo', 'redo']);
 export const shortcutText = (id, format = 'display') => SHORTCUTS[id][format];
 export const shortcutTitle = (id, label = SHORTCUTS[id].label) => `${label} (${shortcutText(id, 'text')})`;
 export const TOOL_SHORTCUTS = Object.freeze(['select', 'note', 'title', 'todo', 'readme', 'link', 'media']);

@@ -5,7 +5,11 @@ import './rows.css';
 export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
   menu.classList.add('aegis-action-menu');
   if (label) menu.setAttribute('aria-label', label);
+  let pressed = null;
+  menu.addEventListener('pointerdown', event => { pressed = event.target.closest('button[role^="menuitem"]'); });
+  menu.addEventListener('pointercancel', () => { pressed = null; });
   const popup = createPopup({ trigger, menu, portal, duration: 160, bindTrigger, onToggle(on) {
+    pressed = null;
     if (on) {
       if (typeof items === 'function') setItems(items());
       (menu.querySelector('[aria-checked="true"]') || menu.querySelector('button:not(:disabled)'))?.focus({ preventScroll: true });
@@ -24,8 +28,14 @@ export function createMenu({ trigger, menu = document.createElement('div'), item
       button.setAttribute('role', item.checked === undefined ? 'menuitem' : 'menuitemradio');
       if (item.checked !== undefined) button.setAttribute('aria-checked', String(item.checked));
       button.textContent = item.title; button.dataset.label = item.title; button.disabled = !!item.disabled;
+      // Round 3 navigation: menu shortcuts use the same copy as the reference and tour.
+      if (item.shortcut) { const key = document.createElement('kbd'); key.className = 'aegis-menu-shortcut'; key.setAttribute('aria-hidden', 'true'); key.textContent = item.shortcut; button.append(key); }
       if (item.destructive || item.title === 'Delete') button.classList.add('aegis-menu-destructive');
-      button.onclick = () => { popup.close(true); item.run(); };
+      button.onclick = event => {
+        // A long press can open a wide menu beneath the finger. Its release is not a choice.
+        if (event.detail && pressed !== button) return;
+        pressed = null; popup.close(true); item.run();
+      };
       menu.append(button);
     }
   }
