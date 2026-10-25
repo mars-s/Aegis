@@ -259,7 +259,11 @@ addEventListener('paste', async e => {
 
 // ---------- composer ----------
 const promptEl = $('prompt');
-const agentUi = mountAgents({ canvas, host, toast, showAll: () => showAgents(true) });
+// Round 2 agents: make a request Undo a distinct, reversible board history step.
+const agentUi = mountAgents({ canvas, host, toast, showAll: () => showAgents(true),
+  beforeUndo: async () => { await saves.settled; if (saves.pending) throw new Error('Save your changes before undoing this request.'); editing.history.flush(); },
+  afterUndo: async () => { await boardEvents; editing.history.flush(); },
+});
 const openComposer = agentUi.open, closeComposer = agentUi.close;
 let forceNewAgent = false;
 let composerViaKey = false;
@@ -331,9 +335,8 @@ async function loadModels() {
 
 // ---------- agents ----------
 const agentState = new Map();
-// Agent colours: the data blue first, then quiet companions. Never violet (plan.md section 4).
-const COLOURS = ['#3f8dfd', '#3dbf9a', '#e5a93b', '#5ec8e5', '#e07a9a', '#c9c97a'];
-const colourOf = id => COLOURS[Number(String(id).replace(/\D/g, '')) % COLOURS.length || 0];
+// Round 2 agents: identity comes from names and line styles, always in data blue.
+const lineStyleOf = id => ['solid', 'dashed', 'dotted'][[...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0) % 3];
 function showAgents(on, instant = false) { $('agentsPanel').hidden = false; panels.setOpen('right', on, instant); $('agentsBtn').setAttribute('aria-pressed', String(on)); }
 $('agentsBtn').onclick = e => showAgents(!panels.isOpen('right'), e.detail === 0);
 $('closeAgents').onclick = () => showAgents(false);
@@ -349,17 +352,7 @@ function renderAgents() {
   $('status').textContent = running ? `${running} agent${running > 1 ? 's' : ''} working` : '';
   $('runStrip').hidden = true;
   agentUi.update(mine);
-  list.replaceChildren();
-  if (!mine.length) { list.textContent = 'Ask from the orb to start an agent.'; return; }
-  for (const a of mine) {
-    const row = document.createElement('div'); row.className = 'agent-summary'; row.dataset.id = a.id;
-    const info = document.createElement('div'), title = document.createElement('span'), status = document.createElement('small');
-    title.textContent = a.title || a.brief?.split('\n')[0]?.slice(0, 45) || 'Agent'; status.textContent = a.error || a.status;
-    info.append(title, status);
-    const show = document.createElement('button'); show.className = 'text-btn'; show.textContent = 'Show'; show.onclick = () => agentUi.show(a.id);
-    const stop = document.createElement('button'); stop.className = 'text-btn'; stop.textContent = 'Stop'; stop.hidden = !a.running; stop.onclick = () => agentUi.stop(a.id);
-    row.append(info, show, stop); list.append(row);
-  }
+  agentUi.renderList(list, mine);
 }
 
 // ---------- live events ----------
@@ -389,7 +382,9 @@ async function agentBoardEvent(ev) {
     if (focus?.ids?.length) followTo(focus.ids);
   } else await reloadBoard(focus);
   clearTimeout(libraryRefreshTimer); libraryRefreshTimer = setTimeout(() => library.refresh(), 200);
-  if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, colourOf(ev.author.conversationId), 4000, `Agent: ${who?.brief?.split('\n')[0]?.slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId)); }
+  // Round 2 agents: undo clears stale lines; all other changes use the one blue.
+  if (ev.author.undoRequest) { canvas.clearAgentLine(); editing.history.flush(); }
+  else if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); agentUi.near(ev.author.conversationId, ev.touched); canvas.ring(ev.touched, 'var(--data)', 4000, `${who ? agentUi.nameOf(who) : 'Agent'}: ${who?.title || who?.brief?.split('\n')[0]?.replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId), lineStyleOf(ev.author.conversationId)); }
 }
 // end item 10
 function listen() {

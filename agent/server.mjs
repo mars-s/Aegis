@@ -8,6 +8,8 @@ import { checkObject } from '../app/src/lib/board/objects.js';
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
 // item 9: publish durable conversation replies to the island and agent windows.
 import { conversationFromView, displayBrief } from './status.mjs';
+// Round 2 history: passive transcript entries do not enter model context.
+import { historyFromView, requestUndoCommands } from './status.mjs';
 // item 9 end
 import { linkPreview } from '../app/src/features/media/link-preview.mjs';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
@@ -74,12 +76,13 @@ async function listBoards() {
   }
   return out;
 }
-async function commit(boardId, batch, author) {
+async function commit(boardId, batch, author, expectedRev) {
   // item 10: optional timing records contain sizes and durations, never board contents.
   const started = performance.now();
   return withBoard(boardId, async () => {
     const board = await loadBoard(boardId);
     if (!board) return { ok: false, errors: [{ index: -1, reason: `no board ${boardId}`, hint: 'list boards first' }] };
+    if (expectedRev !== undefined && board.rev !== expectedRev) throw new Error('The board just changed. Try Undo again.');
     const loaded = performance.now();
     const result = applyBatch(board, batch);
     const applied = performance.now();
@@ -97,6 +100,27 @@ async function commit(boardId, batch, author) {
       ...(board.cards.map(c => c.id).join(',') !== result.board.cards.map(c => c.id).join(',') ? { order: result.board.cards.map(c => c.id) } : {}),
       fields: Object.fromEntries(['tray', 'palette', 'bg'].filter(k => JSON.stringify(board[k]) !== JSON.stringify(result.board[k])).map(k => [k, result.board[k] ?? null])),
     };
+    // Round 2 history: keep the inverse of this broadcast diff beside the durable request.
+    if (author.kind === 'agent' && !author.undoRequest) {
+      const conversation = await harness.conversation(Number.isNaN(Number(author.conversationId)) ? author.conversationId : Number(author.conversationId), context);
+      const request = historyEntriesOf(author.conversationId, watching.get(author.conversationId)?.value).findLast(e => e.kind === 'aegis.request');
+      if (conversation && request) {
+        const changed = new Set([...patch.cards.map(c => c.id), ...patch.removed]);
+        const data = {
+          before: { cards: board.cards.filter(c => changed.has(c.id)), removed: patch.cards.filter(c => !before.has(c.id)).map(c => c.id),
+            ...(patch.links ? { links: board.links } : {}), ...(patch.order ? { order: board.cards.map(c => c.id) } : {}),
+            fields: Object.fromEntries(Object.keys(patch.fields).map(k => [k, board[k] ?? null])) }, after: patch,
+        };
+        const targets = [[conversation, request.data.requestId]], meta = run.get(author.conversationId);
+        // A delegated change also belongs to the person's original request.
+        if (meta?.parentRequestId) {
+          const parent = await harness.conversation(Number(meta.parent), context);
+          if (parent) targets.push([parent, meta.parentRequestId]);
+        }
+        for (const [target, requestId] of targets) await target.submit({ type: 'write', requestId: `history:batch:${boardId}:${result.board.rev}`,
+          entry: { kind: 'aegis.change', data: { requestId, ...data } } }, context);
+      }
+    }
     broadcast({ type: 'board', boardId, baseRev: board.rev, rev: result.board.rev, patch, author, touched: result.touched, focus: result.board.focus ?? null, sentAt: Date.now() });
     timing({ kind: 'batch', boardId, commands: batch.commands.length, loadMs: loaded - started, applyMs: applied - loaded, saveMs: saved - applied, totalMs: performance.now() - started });
     return { ok: true, rev: result.board.rev, created: result.created };
@@ -622,6 +646,30 @@ harness.resume();
 // ---------- agent runs ----------
 const watching = new Map();
 const statuses = new Map();
+// Round 2 history: compaction trims the live view, so retain the full passive ledger.
+const requestEntries = new Map();
+function historyEntriesOf(id, value = {}) {
+  if (!requestEntries.has(id)) requestEntries.set(id, new Map());
+  const ledger = requestEntries.get(id);
+  for (const entry of value.entries ?? []) if (entry.kind.startsWith('aegis.')) ledger.set(entry.id, entry);
+  return [...ledger.values()].sort((a, b) => a.id - b.id);
+}
+// Round 2 history: reacquire pending receipts after a restart, using idempotent completion writes.
+const endingRequests = new Set();
+function trackRequestEnds(conversation, value) {
+  for (const entry of value.entries ?? []) {
+    if (entry.kind !== 'aegis.request' || endingRequests.has(entry.data.requestId)) continue;
+    const { requestId } = entry.data; endingRequests.add(requestId);
+    if (value.entries.some(e => e.kind === 'aegis.request.end' && e.data.requestId === requestId)) continue;
+    (async () => {
+      const record = await conversation.commit(tx => tx.submissionByRequest(conversation.id, requestId), context);
+      if (!record) return;
+      const submission = await harness.submission(record.id, context);
+      await submission.wait(context);
+      await conversation.submit({ type: 'write', requestId: `history:end:${requestId}`, entry: { kind: 'aegis.request.end', data: { requestId, finished: Date.now() } } }, context);
+    })().catch(error => { endingRequests.delete(requestId); console.error('Could not save request history:', error.message); });
+  }
+}
 function activityOf(id, value) { return activityFromView(run.get(id), value); }
 async function statusFor(id, activity) {
   const meta = run.get(id);
@@ -641,16 +689,23 @@ async function watchRun(conversation) {
   const key = String(conversation.id); if (watching.has(key)) return;
   const view = await conversation.viewState(context);
   watching.set(key, view);
+  let cursor;
+  do {
+    const page = await conversation.entries({ order: 'ascending' }, 256, cursor, context);
+    historyEntriesOf(key, { entries: page.items }); cursor = page.next;
+  } while (cursor);
   let last = '';
   const tracker = createStatusTracker({ summarise: activity => statusFor(key, activity), publish: status => {
     statuses.set(key, status); broadcast({ type: 'agent', ...summarise(key, view.value) });
   } });
   view.subscribe(value => {
+    trackRequestEnds(conversation, { entries: historyEntriesOf(key, value) });
     if (value.docs?.['pi.live']?.run) tracker.update(activityOf(key, value));
     else tracker.stop();
     const s = summarise(key, value); const sig = JSON.stringify(s);
     if (sig !== last) { last = sig; broadcast({ type: 'agent', ...s }); }
   });
+  trackRequestEnds(conversation, { entries: historyEntriesOf(key, view.value) });
 }
 function summarise(id, value) {
   const live = value.docs?.['pi.live']; const meta = run.get(id) ?? {};
@@ -665,7 +720,7 @@ function summarise(id, value) {
   return { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
     step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
     // item 9
-    ...conversation, error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
+    ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null };
     // item 9 end
 }
 async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, parent, title }) {
@@ -681,10 +736,13 @@ async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, par
   timing({ kind: 'policy', model: selection.modelId, thinkingLevel: level });
   const conversation = await harness.createConversation({ ownership: { kind: 'ownerless' }, agent: { model: { provider: selection.provider, modelId: selection.modelId }, ...thinking } }, context);
   const id = String(conversation.id);
-  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, statusModel, created: Date.now(), ...(parent ? { parent, title } : {}) });
+  run.set(id, { boardId, brief: brief.slice(0, 2000), model: selection, statusModel, created: Date.now(), ...(parent ? { parent, title,
+    parentRequestId: historyEntriesOf(parent, watching.get(parent)?.value).findLast(e => e.kind === 'aegis.request')?.data.requestId } : {}) });
   await atomicJson(runsPath, Object.fromEntries(run));
   await watchRun(conversation);
-  await conversation.submit({ type: 'input', content: boardInput(brief, board, selectedIds), requestId: randomUUID() }, context);
+  const requestId = randomUUID();
+  await conversation.submit({ type: 'input', content: boardInput(brief, board, selectedIds), requestId,
+    entry: { kind: 'aegis.request', data: { requestId, brief, started: Date.now() } } }, context);
   // end item 10
   return { id };
 }
@@ -697,7 +755,9 @@ async function message(id, content, selectedIds) {
   // item 10: follow-ups also receive the latest revision, so they need no speculative board_read.
   const board = await loadBoard(meta.boardId);
   await conversation.configure({ thinkingLevel: layoutThinking(content, models.getModel(meta.model.provider, meta.model.modelId)) }, context);
-  await conversation.submit({ type: 'input', content: board ? boardInput(content, board, selectedIds) : content, requestId: randomUUID() }, context);
+  const requestId = randomUUID();
+  await conversation.submit({ type: 'input', content: board ? boardInput(content, board, selectedIds) : content, requestId,
+    entry: { kind: 'aegis.request', data: { requestId, brief: content, started: Date.now() } } }, context);
   // end item 10
 }
 async function stop(id) {
@@ -719,6 +779,23 @@ async function agents(boardId) {
     try { out.push(summarise(id, view.value)); } finally { view.dispose(); }
   }
   return out;
+}
+
+// Round 2 history: one host commit, also observed by the UI's normal undo history.
+async function undoRequest(id, requestId) {
+  const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context), meta = run.get(id);
+  if (!conversation || !meta) throw new Error('No such agent');
+  const value = watching.get(id)?.value;
+  const entries = historyEntriesOf(id, value);
+  const entry = historyFromView({ entries }).find(e => e.id === requestId);
+  if (!entry?.canUndo) throw new Error('This request has no changes to undo');
+  if (value.docs?.['pi.live']?.run) throw new Error('Wait for this agent to finish before undoing its changes');
+  const board = await loadBoard(meta.boardId);
+  const commands = requestUndoCommands(board, entries, requestId);
+  const result = await commit(meta.boardId, { commands }, { kind: 'agent', conversationId: id, undoRequest: requestId }, board.rev);
+  if (!result.ok) throw new Error(result.errors[0].reason);
+  await conversation.submit({ type: 'write', requestId: `history:undo:${requestId}`, entry: { kind: 'aegis.request.undo', data: { requestId, at: Date.now() } } }, context);
+  return result;
 }
 
 // ---------- HTTP ----------
@@ -799,6 +876,8 @@ const server = http.createServer(async (req, res) => {
       for (let i = 0; i < n; i++) out.push(await spawnAgent({ boardId, brief: String(brief ?? '').trim() || 'Sort this board.', selectedIds, model, statusModel }));
       return send(res, 200, out);
     }
+    const undo = p.match(/^\/agents\/([a-zA-Z0-9-]+)\/history\/([a-zA-Z0-9-]+)\/undo$/);
+    if (undo && m === 'POST') return send(res, 200, await undoRequest(undo[1], undo[2]));
     const am = p.match(/^\/agents\/([a-zA-Z0-9-]+)\/(message|stop)$/);
     // fix1: follow-ups carry the same separate selection context as new requests.
     if (am && m === 'POST') {

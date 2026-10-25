@@ -41,6 +41,15 @@ try {
   const idle = await orb.boundingBox(); assert.equal(idle.width, 44); assert.equal(idle.height, 44);
   assert.equal(await orb.innerText(), ''); assert.equal(await page.locator('#agentsPanel').isVisible(), false);
   await shot('idle');
+  await page.locator('.agent-first-hint.visible').waitFor();
+  assert.equal((await orb.boundingBox()).width, 44, 'first-use invitation keeps the star compact');
+  assert.equal(await page.locator('.agent-first-hint').textContent(), 'Ask Aegis  ⌘K');
+  await shot('first-use-hint');
+  await orb.hover(); await page.waitForFunction(() => document.querySelector('.agent-first-hint').hidden);
+  await page.mouse.move(1100, 100);
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await page.waitForTimeout(1500); assert.equal(await page.locator('.agent-first-hint').isVisible(), false, 'the invitation never returns');
+  console.log('PASS first-use hint appears beside the 44px star, dismisses on hover and stays dismissed after reload');
   const morphPerformance = await page.evaluate(async () => {
     const island = document.getElementById('agentIsland'), shell = island.querySelector('.island-morph');
     const orb = document.getElementById('askPill'), prompt = document.getElementById('prompt'), stage = document.getElementById('stage');
@@ -130,10 +139,31 @@ try {
   // Let the first request complete before continuing the same durable conversation.
   await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running), null, { timeout: 20000 });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'), null, { timeout: 20000 });
-  const lineOrigin = await page.evaluate(id => { const win = JSON.parse(localStorage.getItem(`aegis:agent-window:${id}`)), dot = document.querySelector('.agent-line .origin'); return { x: +dot.getAttribute('cx'), y: +dot.getAttribute('cy'), expectedX: win.x + 170, expectedY: win.y + 36 }; }, first);
+  const lineOrigin = await page.evaluate(id => { const win = JSON.parse(localStorage.getItem(`aegis:agent-window:${id}`)), dot = document.querySelector('.agent-line .origin'); return { x: +dot.getAttribute('cx'), y: +dot.getAttribute('cy'), expectedX: win.x + 170, expectedY: win.y + 44 }; }, first);
   assert.equal(lineOrigin.x, lineOrigin.expectedX); assert.equal(lineOrigin.y, lineOrigin.expectedY);
   await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'done');
   await shot('done');
+  await page.waitForFunction(id => document.querySelector(`.agent-window[data-agent-id="${id}"] .agent-history-undo:not(:disabled)`), first);
+  const firstWindow = page.locator(`.agent-window[data-agent-id="${first}"]`);
+  assert.equal(await firstWindow.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false');
+  assert.ok((await firstWindow.boundingBox()).height <= 45, 'spatial windows start as one line');
+  assert.match(await firstWindow.locator('.agent-history').textContent(), /Created: Made by an agent/);
+  const clearRects = await page.evaluate(() => [...document.querySelectorAll('.agent-window:not([hidden])')].every(w => {
+    const a = w.getBoundingClientRect(); return [...document.querySelectorAll('.card')].every(c => { const b = c.getBoundingClientRect(); return a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom; });
+  }));
+  assert.ok(clearRects, 'agent window clears every card');
+  await page.keyboard.press('a');
+  const timeline = page.locator(`#agentList [data-id="${first}"] .agent-history`);
+  assert.match(await timeline.textContent(), /Created: Made by an agent/);
+  const beforeUndo = await page.evaluate(() => aegis.canvas.board.rev);
+  await timeline.getByRole('button', { name: /^Undo request:/ }).click();
+  await page.waitForFunction(() => !aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'));
+  assert.equal(await page.evaluate(() => aegis.canvas.board.rev), beforeUndo + 1, 'request Undo is one board commit');
+  assert.ok(await page.evaluate(() => aegis.canvas.board.cards.some(c => c.text === 'Note without a model')), 'unrelated user note survives');
+  await page.locator('#closeAgents').click(); await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
+  await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'));
+  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  console.log('PASS changed titles and times appear in both timelines, per-request Undo restores the board in one commit, and Cmd+Z reverses that Undo');
   await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'idle');
   await page.keyboard.press('Meta+k');
   await page.waitForFunction(() => document.querySelector('#composer .island-turn.assistant'));
@@ -146,6 +176,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.agent-window').length === 2);
   assert.equal(requests.filter(r => r.path === '/agents').length, 2);
   const second = (await agents()).find(a => a.id !== first).id;
+  await page.locator(`.agent-window[data-agent-id="${second}"] .agent-window-toggle`).click();
   await page.locator(`.agent-window[data-agent-id="${second}"] .agent-stop`).click();
   await page.waitForFunction(async id => !(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id).running, second);
   assert.ok(requests.some(r => r.path === `/agents/${second}/stop`));
@@ -205,6 +236,7 @@ try {
   await page.locator('#closeSettings').click();
   // The full durable transcript appears in both places and survives a page reload.
   await page.waitForFunction(async id => { const a = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id); return !a.running && a.turns.length >= 4; }, first);
+  await page.keyboard.press('a'); await page.locator(`#agentList [data-id="${first}"]`).getByRole('button', { name: 'Show', exact: true }).click(); await page.locator('#closeAgents').click();
   const longFollow = page.locator(`.agent-window[data-agent-id="${first}"]`).getByLabel('Follow up with agent');
   await longFollow.fill('Explain these ideas in more detail. '.repeat(160)); await longFollow.press('Enter');
   await page.waitForFunction(async id => { const a = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id); return !a.running && a.turns.length >= 6; }, first);

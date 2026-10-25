@@ -1,6 +1,9 @@
 import './style.css';
 import { createIslandMorph } from './morph.js';
 import { mountIslandMenu } from './menu.js';
+import { renderHistory } from './history.js';
+import { cardRect, freeAgentRect, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
+import { displayRotation } from '../settings/preferences.js';
 
 const STAR = '<span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span>';
 const shortTitle = a => (a.title || a.brief?.split('\n')[0] || 'Board assistant').replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 42);
@@ -23,13 +26,38 @@ function renderTurns(el, agent) {
   if (follow) el.scrollTop = el.scrollHeight;
 }
 
-export function mountAgents({ canvas, host, toast, showAll }) {
+export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUndo }) {
   const $ = id => document.getElementById(id);
   const island = $('agentIsland'), orb = $('askPill'), composer = $('composer'), prompt = $('prompt'), stage = $('stage');
   const head = composer.querySelector('.island-head'), history = composer.querySelector('.island-turns');
   const overlay = document.createElement('div'); overlay.className = 'agent-windows'; stage.append(overlay);
   const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, doneTimer = 0, restoringFocus = false, hoverSuppressed = false;
+  // Round 2 discovery: one invitation per install, only before any agent has run.
+  const hint = document.createElement('span'); hint.className = 'agent-first-hint'; hint.textContent = 'Ask Aegis  ⌘K'; hint.hidden = true; island.append(hint);
+  let hintTimer = 0, hintEnd = 0, hintChecked = false;
+  function dismissHint() {
+    clearTimeout(hintTimer); clearTimeout(hintEnd); hint.classList.remove('visible');
+    localStorage.setItem('aegis:orb-hint-seen', '1');
+    setTimeout(() => { hint.hidden = true; }, 180);
+  }
+  function discover(agents) {
+    if (hintChecked) return;
+    hintChecked = true;
+    if (agents.length) { dismissHint(); return; }
+    if (localStorage.getItem('aegis:orb-hint-seen')) return;
+    // Check all boards so an existing user never receives a first-run invitation.
+    host.get('/agents').then(prior => {
+      if (prior.length || localStorage.getItem('aegis:orb-hint-seen')) return;
+      hintTimer = setTimeout(() => {
+        if (localStorage.getItem('aegis:orb-hint-seen')) return;
+        localStorage.setItem('aegis:orb-hint-seen', '1'); hint.hidden = false;
+        requestAnimationFrame(() => hint.classList.add('visible'));
+        hintEnd = setTimeout(dismissHint, 8000);
+      }, 1200);
+    }).catch(() => {});
+  }
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
+  const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
   const menu = mountIslandMenu({ island, current, shortTitle, agents: () => all,
     newAgent: () => { newAgent = true; closeMenu(); renderOrb(); open(true); }, show: id => show(id), showAll });
@@ -52,6 +80,7 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     if (next === 'done') doneTimer = setTimeout(() => { if (island.dataset.state === 'done') state('idle'); }, 3600);
   }
   function open(instant = false, focus = true) {
+    dismissHint();
     // The phone's Agents sheet temporarily borrows the composer. Keep its menu with it.
     const inSheet = !island.contains(composer);
     island.hidden = inSheet;
@@ -69,6 +98,7 @@ export function mountAgents({ canvas, host, toast, showAll }) {
   }
   orb.onclick = e => open(e.detail === 0);
   island.addEventListener('pointerenter', e => {
+    dismissHint();
     clearTimeout(leaveTimer);
     if (!hoverSuppressed && e.pointerType !== 'touch' && matchMedia('(hover: hover) and (pointer: fine)').matches && island.dataset.state === 'idle') state('hover');
   });
@@ -97,7 +127,39 @@ export function mountAgents({ canvas, host, toast, showAll }) {
   composer.querySelector('.island-stop').onclick = () => { const a = current(); if (a) stop(a.id); };
   const visibility = () => document.body.classList.toggle('agents-hidden', document.hidden);
   document.addEventListener('visibilitychange', visibility); visibility();
-  function save(w) { localStorage.setItem(`aegis:agent-window:${w.agent.id}`, JSON.stringify({ x: w.x, y: w.y, closed: w.closed })); }
+  function save(w) { localStorage.setItem(`aegis:agent-window:${w.agent.id}`, JSON.stringify({ x: w.x, y: w.y, closed: w.closed, collapsed: w.collapsed })); }
+  let previousCards = [], cardSpace = [], movingSpace = [], spaceTimer = 0;
+  function place(w, preferred = { x: w.x, y: w.y }, anchorOverride) {
+    if (!canvas.board || w.closed || w.agent.boardId !== canvas.board.id) return;
+    const cards = canvas.board.cards;
+    const affected = cards.filter(c => w.touched?.has(c.id));
+    const c = affected[0], at = canvas.centre();
+    const anchor = anchorOverride ?? (c ? { x: c.x - WINDOW_WIDTH - 24, y: c.y } : { x: at.x - WINDOW_WIDTH / 2, y: at.y - 180 });
+    const height = w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight;
+    const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: WINDOW_WIDTH, h: n.collapsed ? COLLAPSED_HEIGHT : n.el.offsetHeight }));
+    const p = freeAgentRect([...cardSpace, ...movingSpace], neighbours, anchor, height, preferred);
+    if (p.x !== w.x || p.y !== w.y) canvas.clearAgentLine();
+    w.x = p.x; w.y = p.y; w.height = height; save(w);
+  }
+  stage.addEventListener('boardchange', e => {
+    clearTimeout(spaceTimer);
+    cardSpace = e.detail.board.cards.map(c => cardRect(c, displayRotation(c)));
+    if (e.detail.first) movingSpace = [];
+    else {
+      // Reserve the whole path of a moving card while its compositor animation runs.
+      const next = new Map(cardSpace.map(c => [c.id, c]));
+      for (const c of previousCards) {
+        const n = next.get(c.id);
+        if (!n || c.x !== n.x || c.y !== n.y || c.w !== n.w || c.h !== n.h) {
+          const x = Math.min(c.x, n?.x ?? c.x), y = Math.min(c.y, n?.y ?? c.y);
+          movingSpace.push({ x, y, w: Math.max(c.x + c.w, n ? n.x + n.w : c.x + c.w) - x, h: Math.max(c.y + c.h, n ? n.y + n.h : c.y + c.h) - y });
+        }
+      }
+      spaceTimer = setTimeout(() => { movingSpace = []; }, 1000);
+    }
+    previousCards = cardSpace;
+    for (const w of windows.values()) place(w); paint();
+  });
   function paint() {
     for (const w of windows.values()) {
       const p = canvas.worldToScreen(w.x, w.y), z = canvas.view.z;
@@ -107,10 +169,18 @@ export function mountAgents({ canvas, host, toast, showAll }) {
   stage.addEventListener('canvaspaint', paint);
   function makeWindow(a) {
     let saved; try { saved = JSON.parse(localStorage.getItem(`aegis:agent-window:${a.id}`)); } catch { /* use the view centre */ }
-    const at = canvas.centre(), offset = [...windows.values()].filter(w => w.agent.boardId === a.boardId).length * 36;
-    const w = { agent: a, x: saved?.x ?? at.x - 170 + offset, y: saved?.y ?? at.y - 180 + offset, closed: saved?.closed ?? false, moved: !!saved, el: document.createElement('section') };
+    const at = canvas.centre();
+    const w = { agent: a, x: saved?.x ?? at.x - 170, y: saved?.y ?? at.y - 180, closed: saved?.closed ?? false, collapsed: saved?.collapsed ?? true, moved: !!saved, el: document.createElement('section') };
     w.el.className = 'agent-window'; w.el.dataset.agentId = a.id; w.el.setAttribute('aria-label', 'Agent window');
-    w.el.innerHTML = `<header class="agent-window-strip">${STAR}<span class="agent-window-title"></span><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><p class="agent-window-status" role="status"></p><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
+    w.el.innerHTML = `<header class="agent-window-strip"><button type="button" class="agent-window-toggle" aria-expanded="false">${STAR}<span class="agent-window-title"></span><span class="agent-window-status" role="status"></span></button><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><ol class="agent-history" aria-label="Request changes"></ol><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
+    const toggle = w.el.querySelector('.agent-window-toggle'), body = w.el.querySelector('.agent-window-body');
+    body.id = `agent-body-${a.id}`; toggle.setAttribute('aria-controls', body.id);
+    function collapse(value) {
+      w.collapsed = value; body.hidden = value; toggle.setAttribute('aria-expanded', String(!value));
+      w.el.classList.toggle('collapsed', value); place(w); paint(); save(w);
+    }
+    w.expand = () => collapse(false);
+    toggle.onclick = () => { if (w.dragged) { w.dragged = false; return; } collapse(!w.collapsed); };
     w.el.addEventListener('pointerdown', e => { e.stopPropagation(); selectedId = a.id; newAgent = false; renderOrb(); });
     w.el.addEventListener('focusin', () => {
       if (selectedId === a.id && !newAgent) return;
@@ -127,24 +197,48 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     };
     const strip = w.el.querySelector('header'); let drag = null;
     strip.addEventListener('pointerdown', e => {
-      if (e.target.closest('button') || e.button !== 0) return;
-      e.preventDefault(); drag = { x: e.clientX, y: e.clientY, ox: w.x, oy: w.y }; strip.setPointerCapture(e.pointerId); canvas.clearAgentLine();
+      if (e.target.closest('.agent-close') || e.button !== 0) return;
+      w.dragged = false; drag = { x: e.clientX, y: e.clientY, ox: w.x, oy: w.y };
+      (e.target.closest('.agent-window-toggle') ?? strip).setPointerCapture(e.pointerId);
     });
     strip.addEventListener('pointermove', e => {
-      if (!drag) return; w.moved = true; w.x = drag.ox + (e.clientX - drag.x) / canvas.view.z; w.y = drag.oy + (e.clientY - drag.y) / canvas.view.z; paint();
+      if (!drag || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
+      w.dragged = true; w.moved = true; canvas.clearAgentLine();
+      w.x = drag.ox + (e.clientX - drag.x) / canvas.view.z; w.y = drag.oy + (e.clientY - drag.y) / canvas.view.z; paint();
     });
-    const end = () => { if (drag) { drag = null; save(w); } };
+    const end = () => { if (drag) { drag = null; place(w, { x: w.x, y: w.y }, { x: w.x, y: w.y }); paint(); save(w); setTimeout(() => { w.dragged = false; }, 0); } };
     strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
-    overlay.append(w.el); windows.set(a.id, w); return w;
+    overlay.append(w.el); windows.set(a.id, w); collapse(w.collapsed); return w;
   }
   function show(id) {
     const a = all.find(a => a.id === id); if (!a) return;
-    selectedId = id; newAgent = false; const w = windows.get(id) ?? makeWindow(a); w.closed = false; w.moved = true; save(w);
+    selectedId = id; newAgent = false; const w = windows.get(id) ?? makeWindow(a); w.closed = false; w.el.hidden = false; w.expand(); w.moved = true; save(w);
     const z = Math.max(.7, Math.min(1.2, canvas.view.z));
     canvas.setView({ x: stage.clientWidth / 2 - (w.x + 170) * z, y: stage.clientHeight / 2 - (w.y + 120) * z, z });
     w.el.hidden = false; paint(); renderOrb();
   }
   async function stop(id) { try { await host.post(`/agents/${id}/stop`); } catch (e) { toast(e.message); } }
+  async function undo(id, requestId) {
+    try {
+      await beforeUndo?.();
+      await host.post(`/agents/${id}/history/${requestId}/undo`, {});
+      canvas.clearAgentLine(); await afterUndo?.();
+    } catch (e) { toast(e.message); }
+  }
+  function renderList(list, agents) {
+    list.replaceChildren();
+    if (!agents.length) { list.textContent = 'Ask from the orb to start an agent.'; return; }
+    for (const a of agents) {
+      const row = document.createElement('section'); row.className = 'agent-summary'; row.dataset.id = a.id;
+      const head = document.createElement('div'); head.className = 'agent-summary-head';
+      const info = document.createElement('div'), title = document.createElement('span'), status = document.createElement('small');
+      title.textContent = `${nameOf(a)} · ${shortTitle(a)}`; status.textContent = a.error || a.status; info.append(title, status);
+      const showButton = document.createElement('button'); showButton.className = 'text-btn'; showButton.textContent = 'Show'; showButton.onclick = () => show(a.id);
+      const stopButton = document.createElement('button'); stopButton.className = 'text-btn'; stopButton.textContent = 'Stop'; stopButton.hidden = !a.running; stopButton.onclick = () => stop(a.id);
+      const timeline = document.createElement('ol'); timeline.className = 'agent-history'; timeline.setAttribute('aria-label', 'Request changes'); renderHistory(timeline, a, undo);
+      head.append(info, showButton, stopButton); row.append(head, timeline); list.append(row);
+    }
+  }
   function renderOrb(instant = false) {
     morph(() => {
       const a = current(), running = !!a?.running;
@@ -161,16 +255,21 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     }, { instant });
   }
   function update(agents) {
+    discover(agents);
+    if (agents.length) dismissHint();
     const previous = current();
     all = agents;
     for (const w of windows.values()) w.el.hidden = w.closed || !all.some(a => a.id === w.agent.id);
     for (const a of all) {
       const w = windows.get(a.id) ?? makeWindow(a); w.agent = a; w.el.hidden = w.closed;
       w.el.classList.toggle('running', a.running); w.el.classList.toggle('failed', !!a.error);
-      w.el.querySelector('.agent-window-title').textContent = `Agent · ${shortTitle(a)}`;
+      w.el.querySelector('.agent-window-title').textContent = `${nameOf(a)} · ${shortTitle(a)}`;
+      w.el.querySelector('.agent-window-toggle').setAttribute('aria-label', `${nameOf(a)}: ${shortTitle(a)}`);
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
       renderTurns(w.el.querySelector('.agent-window-answer'), a);
+      renderHistory(w.el.querySelector('.agent-history'), a, undo);
       w.el.querySelector('.agent-stop').hidden = !a.running;
+      if (w.height !== w.el.offsetHeight) place(w);
     }
     renderOrb(); paint();
     const a = current();
@@ -180,15 +279,13 @@ export function mountAgents({ canvas, host, toast, showAll }) {
     }
   }
   function near(id, ids) {
-    const w = windows.get(id); if (!w || w.moved) return;
-    const c = canvas.board.cards.find(c => ids.includes(c.id)); if (!c) return;
-    const left = canvas.worldToScreen(c.x - 364, c.y);
-    w.x = left.x >= 16 ? c.x - 364 : c.x + c.w + 24; w.y = c.y; w.moved = true; save(w); paint();
+    const w = windows.get(id); if (!w) return;
+    w.touched = new Set(ids); place(w, w.moved ? { x: w.x, y: w.y } : null); paint();
   }
-  return { open, close, update, current, show, stop, near,
+  return { open, close, update, current, show, stop, near, renderList, nameOf,
     wantsNew: () => newAgent,
     starting() { newAgent = false; },
     sent(id) { selectedId = id; },
-    origin(id) { const w = windows.get(id); return w && !w.closed ? { x: w.x + 170, y: w.y + 36 } : undefined; },
+    origin(id) { const w = windows.get(id); return w && !w.closed ? { x: w.x + 170, y: w.y + COLLAPSED_HEIGHT } : undefined; },
   };
 }

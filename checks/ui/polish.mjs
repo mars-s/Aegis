@@ -34,7 +34,7 @@ const assertChat = async (id, text) => {
   await page.waitForFunction(({ id, text }) => [...document.querySelectorAll(`.agent-window[data-agent-id="${id}"] .island-turn.user p`)].at(-1)?.textContent === text, { id, text });
   const window = page.locator(`.agent-window[data-agent-id="${id}"]`);
   assert.equal(await window.locator('.island-turn.user p').last().textContent(), text);
-  assert.equal(await window.locator('.agent-window-title').textContent(), `Agent · ${text.split('\n')[0].slice(0, 42)}`);
+  assert.equal((await window.locator('.agent-window-title').textContent()).replace(/^Agent \d+/, 'Agent'), `Agent · ${text.split('\n')[0].slice(0, 42)}`);
   await page.keyboard.press('Meta+k');
   await page.waitForFunction(text => [...document.querySelectorAll('#composer .island-turn.user p')].at(-1)?.textContent === text, text);
   assert.equal(await page.locator('#composer .island-turn.user p').last().textContent(), text);
@@ -44,6 +44,33 @@ const assertChat = async (id, text) => {
 try {
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
+  // Round 2 discovery: expiry and keyboard dismissal also work with motion disabled.
+  const firstUse = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
+  await firstUse.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  const freshUrl = `http://127.0.0.1:${webPort}/?port=${port}&token=${token}`;
+  await firstUse.goto(freshUrl); await firstUse.waitForFunction(() => window.aegis?.canvas?.board);
+  const invitation = firstUse.locator('.agent-first-hint');
+  await firstUse.locator('.agent-first-hint.visible').waitFor();
+  assert.equal(await invitation.evaluate(el => getComputedStyle(el).transitionDuration), '0s');
+  await firstUse.screenshot({ path: out(`r2-hint-${capture}-reduced-1440.png`) });
+  await firstUse.waitForFunction(() => document.querySelector('.agent-first-hint').hidden, null, { timeout: 10000 });
+  await firstUse.reload(); await firstUse.waitForTimeout(1600);
+  assert.equal(await invitation.isVisible(), false, 'expired invitation never appears again');
+  await firstUse.close();
+  const keyboardUse = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+  await keyboardUse.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await keyboardUse.goto(freshUrl); await keyboardUse.waitForFunction(() => window.aegis?.canvas?.board);
+  await keyboardUse.locator('.agent-first-hint.visible').waitFor();
+  const star = await keyboardUse.locator('#askPill .orb-mark').boundingBox(), orbRect = await keyboardUse.locator('#askPill').boundingBox();
+  assert.ok(star.y >= orbRect.y && star.y + star.height <= orbRect.y + orbRect.height, 'phone star stays inside the orb beside its hint');
+  await keyboardUse.screenshot({ path: out(`r2-hint-${capture}-phone-390.png`) });
+  await keyboardUse.keyboard.press('Meta+k');
+  await keyboardUse.waitForFunction(() => document.querySelector('.agent-first-hint').hidden);
+  assert.equal(await keyboardUse.locator('#prompt').evaluate(el => document.activeElement === el), true);
+  await keyboardUse.reload(); await keyboardUse.waitForTimeout(1600);
+  assert.equal(await keyboardUse.locator('.agent-first-hint').isVisible(), false);
+  await keyboardUse.close();
+  console.log('PASS first-use invitation expires after eight seconds, respects reduced motion, dismisses with Cmd+K on phone and never returns after reload');
   const prompt = page.locator('#prompt'), captureDialog = page.getByRole('dialog', { name: 'Quick capture', exact: true });
   const hints = await page.locator('.editing-hints').textContent();
   assert.match(hints, /⌘K Ask/); assert.match(hints, /⇧⌘K Quick capture/); assert.doesNotMatch(hints, /⌘K Capture/);
@@ -134,6 +161,32 @@ try {
   await page.keyboard.press('Meta+Shift+k'); assert.equal(await captureDialog.isVisible(), false, 'capture cannot steal the onboarding modal');
   await page.keyboard.press('Control+k'); assert.equal(await prompt.evaluate(el => document.activeElement === el), false, 'Ask cannot steal the onboarding modal');
   await page.getByRole('button', { name: 'Skip', exact: true }).click();
+  // Round 2 history: a real request spans two board batches and all four change types.
+  const original = await saved();
+  const movedId = original.cards[0].id, removedId = original.cards[1].id;
+  const commands = [
+    ['board_apply', { commands: [{ op: 'move', id: movedId, x: 400, y: 100 }, { op: 'create', type: 'note', newId: 'historynew', text: 'Next task', x: 800, y: 400 }] }],
+    ['board_apply', { commands: [{ op: 'update', id: movedId, set: { text: 'Review plan' } }, { op: 'delete', id: removedId }, { op: 'board_set', set: { bg: '#111111' } }] }],
+  ];
+  const [{ id: historyAgent }] = await page.evaluate(commands => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify(commands) }), commands);
+  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, historyAgent);
+  await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Review plan'));
+  await page.locator('#stage').focus(); await page.keyboard.press('a');
+  const requestRow = page.locator(`#agentList [data-id="${historyAgent}"]`);
+  for (const name of ['Review plan', 'Next task', original.cards[1].text.split('\n')[0]]) assert.ok((await requestRow.textContent()).includes(name));
+  for (const word of ['Created', 'Moved', 'Edited', 'Deleted']) assert.ok((await requestRow.textContent()).includes(word));
+  await shot('r2-history-all-changes-1440');
+  await requestRow.getByRole('button', { name: 'Show', exact: true }).click();
+  await page.locator('#closeAgents').click();
+  const historyWindow = page.locator(`.agent-window[data-agent-id="${historyAgent}"]`);
+  assert.equal(await historyWindow.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'true');
+  await page.screenshot({ path: out(`r2-history-${capture}-expanded-1440.png`) });
+  await historyWindow.getByRole('button', { name: /^Undo request:/ }).click();
+  await page.waitForFunction(({ cards, bg }) => JSON.stringify(aegis.canvas.board.cards) === JSON.stringify(cards) && aegis.canvas.board.bg === bg, { cards: original.cards, bg: original.bg });
+  const restored = await saved(); assert.deepEqual(restored.cards, original.cards); assert.deepEqual(restored.links, original.links); assert.equal(restored.bg, original.bg);
+  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  await page.waitForFunction(id => document.querySelector(`.agent-window[data-agent-id="${id}"] .agent-history`)?.textContent.includes('Undone'), historyAgent);
+  console.log('PASS durable timelines name created, moved, edited and deleted windows across batches; window Undo restores cards, links and background; Undone survives reload');
   assert.deepEqual(errors, []);
   console.log('PASS phone Add label, touch Add as notes and onboarding shortcuts match behaviour; open dialogs retain focus; no page errors');
 } catch (error) {

@@ -615,13 +615,15 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     agentSvg.getAnimations({ subtree: true }).forEach(a => a.cancel());
     agentSvg.replaceChildren(); agentSvg.classList.remove('spent');
   }
-  function ring(ids, colour, ms = 4000, label = 'Agent', origin) {
+  function ring(ids, colour, ms = 4000, label = 'Agent', origin, lineStyle = 'solid') {
     clearAgentLine();
     const touched = new Set(ids);
     const cards = (board?.cards || []).filter(c => touched.has(c.id) && !effectiveFlag(board, c, 'hidden')).sort((a, b) => a.x - b.x);
     if (!cards.length) return;
     lineCards = new Map(cards.map(c => [c.id, geometry(c)]));
-    agentSvg.style.setProperty('--agent-colour', colour || 'var(--data)');
+    // Round 2 agents: names and dashes distinguish agents, never extra hues.
+    agentSvg.style.setProperty('--agent-colour', 'var(--data)');
+    agentSvg.dataset.lineStyle = lineStyle;
     const top = Math.min(...cards.map(c => c.y)) - 56, start = cards[0].x + 10;
     const stations = cards.map(c => Math.min(c.x + c.w / 2, c.x + 180));
     const add = (tag, attrs) => {
@@ -637,10 +639,14 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       add('path', { class: 'drop', d: `M${stations[i]} ${top}V${c.y}` });
       add('circle', { class: 'station', cx: stations[i], cy: c.y, r: 4.5 });
     });
-    if (!reduced.matches && !document.body.classList.contains('motion-off')) agentSvg.querySelectorAll('path').forEach((p, i) => {
+    agentSvg.querySelectorAll('path').forEach((p, i) => {
+      p.style.strokeDasharray = lineStyle === 'dashed' ? '6 5' : lineStyle === 'dotted' ? '1 5' : 'none';
+      p.style.strokeLinecap = 'round';
+      if (reduced.matches || document.body.classList.contains('motion-off')) return;
+      if (lineStyle !== 'solid') { p.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' }); return; }
       const length = p.getTotalLength();
       p.style.strokeDasharray = String(length);
-      p.animate([{ strokeDashoffset: length }, { strokeDashoffset: 0 }], { duration: 420, delay: i ? 360 + i * 60 : 0, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' });
+      p.animate([{ strokeDashoffset: length }, { strokeDashoffset: 0 }], { duration: 420, delay: i ? 360 + i * 60 : 0, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'both' }).finished.then(() => { p.style.strokeDasharray = 'none'; }).catch(() => {});
     });
     glow(ids);
     lineTimer = setTimeout(() => agentSvg.classList.add('spent'), ms);

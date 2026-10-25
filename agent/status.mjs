@@ -8,18 +8,95 @@ export const displayBrief = (text = '') => text.replace(/\n\n\(Work on the selec
 export function conversationFromView(value) {
   const turns = [];
   for (const entry of value.entries ?? []) {
-    if (!['pi.user', 'pi.assistant'].includes(entry.kind)) continue;
+    if (!['pi.user', 'aegis.request', 'pi.assistant'].includes(entry.kind)) continue;
     const message = entry.model?.[0];
     const parts = typeof message?.content === 'string' ? [{ type: 'text', text: message.content }] : message?.content?.filter(c => c.type === 'text') ?? [];
     // A person's turn shows only what they typed; the board summary the host appends is context, not chat.
-    const text = entry.kind === 'pi.user' ? displayBrief(parts[0]?.text ?? '') : parts.map(c => c.text).join('');
+    const user = entry.kind !== 'pi.assistant';
+    const text = user ? displayBrief(parts[0]?.text ?? '') : parts.map(c => c.text).join('');
     if (!text.trim()) continue;
     // Intermediate tool commentary belongs to activity. Only final assistant messages are replies.
     if (entry.kind === 'pi.assistant' && message.content?.some?.(c => c.type === 'toolCall')) continue;
-    turns.push({ id: String(entry.id ?? turns.length), role: entry.kind === 'pi.user' ? 'user' : 'assistant', text });
+    turns.push({ id: String(entry.id ?? turns.length), role: user ? 'user' : 'assistant', text });
   }
   const partial = value.docs?.['pi.live']?.generation?.message?.content?.filter(c => c.type === 'text').map(c => c.text).join('') ?? '';
   return { turns, text: turns.findLast(t => t.role === 'assistant')?.text ?? '', partial };
+}
+
+// Round 2 history: display records and inverse patches share the durable request IDs.
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+function sameWindow(actual, expected) {
+  if (same(actual, expected)) return true;
+  // Mounting a long note grows it automatically. A manual resize sets fixedHeight.
+  if (!actual || !expected || !['note', 'todo'].includes(actual.type) || actual.props?.fixedHeight || actual.h < expected.h || actual.props?.autoHeightMin !== (expected.props?.autoHeightMin ?? expected.h)) return false;
+  const normalised = { ...actual, h: expected.h, props: { ...actual.props } };
+  if (expected.props?.autoHeightMin === undefined) delete normalised.props.autoHeightMin;
+  if (!expected.props && !Object.keys(normalised.props).length) delete normalised.props;
+  return same(normalised, expected);
+}
+const titleOf = card => card?.heading || card?.text?.split('\n')[0] || card?.data?.title || card?.kind || card?.type || 'Untitled window';
+export function requestChanges(entries, id) {
+  const cards = new Map(), fields = new Map(); let links, order;
+  for (const entry of entries) {
+    if (entry.kind !== 'aegis.change' || entry.data.requestId !== id) continue;
+    const { before, after } = entry.data;
+    const old = new Map(before.cards.map(c => [c.id, c])), next = new Map(after.cards.map(c => [c.id, c]));
+    for (const key of new Set([...old.keys(), ...next.keys(), ...after.removed])) {
+      const previous = cards.get(key);
+      cards.set(key, { before: previous ? previous.before : old.get(key) ?? null, after: next.get(key) ?? null });
+    }
+    for (const [key, value] of Object.entries(after.fields)) fields.set(key, { before: fields.has(key) ? fields.get(key).before : before.fields[key], after: value });
+    if (after.links) links = { before: links ? links.before : before.links, after: after.links };
+    if (after.order) order = { before: order ? order.before : before.order, after: after.order };
+  }
+  return { cards: new Map([...cards].filter(([, c]) => !same(c.before, c.after))), fields, links, order };
+}
+export function historyFromView(value) {
+  const entries = value.entries ?? [];
+  return entries.filter(e => e.kind === 'aegis.request').map(e => {
+    const { requestId: id, brief, started } = e.data;
+    const end = entries.findLast(e => e.kind === 'aegis.request.end' && e.data.requestId === id)?.data;
+    const undone = entries.some(e => e.kind === 'aegis.request.undo' && e.data.requestId === id);
+    const diff = requestChanges(entries, id);
+    const changes = [...diff.cards].map(([id, { before, after }]) => {
+      const actions = [];
+      if (!before) actions.push('Created');
+      else if (!after) actions.push('Deleted');
+      else {
+        if (before.x !== after.x || before.y !== after.y) actions.push('Moved');
+        const content = c => Object.fromEntries(Object.entries(c).filter(([k]) => !['x', 'y'].includes(k)));
+        if (!same(content(before), content(after))) actions.push('Edited');
+      }
+      return { id, title: titleOf(after ?? before), previousTitle: before && after && titleOf(before) !== titleOf(after) ? titleOf(before) : null, actions };
+    });
+    const counts = ['Created', 'Moved', 'Edited', 'Deleted'].flatMap(action => {
+      const n = changes.filter(c => c.actions.includes(action)).length;
+      return n ? [`${action.toLowerCase()} ${n} window${n === 1 ? '' : 's'}`] : [];
+    });
+    if (diff.links || diff.fields.size || (diff.order && !changes.length)) counts.push('updated the board');
+    const summary = counts.join(', ') || (end ? 'No board changes' : 'Working on your request');
+    return { id, brief: displayBrief(brief), started, finished: end?.finished ?? null, elapsedMs: end ? Math.max(0, end.finished - started) : null,
+      summary: summary[0].toUpperCase() + summary.slice(1), changes, undone, canUndo: !!end && !undone && !!(changes.length || counts.length) };
+  });
+}
+export function requestUndoCommands(board, entries, id) {
+  const diff = requestChanges(entries, id), current = new Map(board.cards.map(c => [c.id, c]));
+  // Refuse to overwrite later work on the same windows. Unrelated windows are retained.
+  for (const [key, change] of diff.cards) if (!sameWindow(current.get(key), change.after)) throw new Error('A changed window was edited again. Use normal Undo to review the later changes first.');
+  const created = new Set([...diff.cards].filter(([, c]) => !c.before && c.after).map(([id]) => id));
+  if (board.links.some(link => (created.has(link.a) || created.has(link.b)) && !diff.links?.after.some(l => same(l, link)))) throw new Error('A new connection uses a created window. Use normal Undo to review the later changes first.');
+  if (diff.links && !same(board.links, diff.links.after)) throw new Error('Connections changed again. Use normal Undo to review the later changes first.');
+  if (diff.order) {
+    const common = new Set(diff.order.after.filter(id => current.has(id)));
+    if (!same(board.cards.filter(c => common.has(c.id)).map(c => c.id), diff.order.after.filter(id => common.has(id)))) throw new Error('Window order changed again. Use normal Undo to review the later changes first.');
+  }
+  for (const [key, value] of diff.fields) if (!same(board[key], value.after)) throw new Error('The board changed again. Use normal Undo to review the later changes first.');
+  for (const [key, change] of diff.cards) { if (change.before) current.set(key, change.before); else current.delete(key); }
+  const order = diff.order?.before ?? board.cards.map(c => c.id);
+  const cards = order.map(key => { const c = current.get(key); current.delete(key); return c; }).filter(Boolean);
+  cards.push(...current.values());
+  return [{ op: 'restore', cards, links: diff.links?.before ?? board.links },
+    { op: 'board_set', set: Object.fromEntries([...diff.fields].map(([key, value]) => [key, value.before])) }];
 }
 
 export function fallbackStatus({ tools = [], partial = '' } = {}) {

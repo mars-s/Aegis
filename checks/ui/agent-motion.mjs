@@ -29,11 +29,17 @@ async function batch(commands) {
     return rev + 1;
   }, commands);
   await page.waitForFunction(rev => aegis.canvas.board.rev >= rev, rev);
+  const collision = await page.evaluate(() => [...document.querySelectorAll('.agent-window:not([hidden])')].flatMap(w => {
+    const a = w.getBoundingClientRect(); return [...document.querySelectorAll('.card:not([aria-hidden])')].filter(c => {
+      const b = c.getBoundingClientRect(); return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+    }).map(c => c.dataset.id);
+  }));
+  assert.deepEqual(collision, [], 'agent windows avoid cards, including cards created later in the run');
   await page.evaluate(() => document.querySelectorAll('.agent-window:not([hidden]) .agent-close').forEach(button => button.click()));
   await page.evaluate(() => new Promise(requestAnimationFrame));
 }
 try {
-  await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await page.addInitScript(() => { if (window.top === window) localStorage.setItem('aegis:onboarded', '1'); });
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.evaluate(async () => {
@@ -58,6 +64,19 @@ try {
   await page.evaluate(() => document.getAnimations().filter(a => a.id === 'aegis-agent-card').forEach(a => a.currentTime = 320));
   await shot('agent-frame-320');
   await settle();
+  const strokes = await page.evaluate(() => {
+    const results = [];
+    for (const style of ['solid', 'dashed', 'dotted']) {
+      aegis.canvas.ring(['motion00'], '#e5a93b', 4000, `Agent ${style}`, undefined, style);
+      document.querySelector('.agent-line').getAnimations({ subtree: true }).forEach(a => a.finish());
+      results.push({ style, strokes: [...document.querySelectorAll('.agent-line path, .agent-line .station')].map(el => getComputedStyle(el).stroke), dot: getComputedStyle(document.querySelector('.agent-line .origin')).fill,
+        dash: getComputedStyle(document.querySelector('.agent-line .trunk')).strokeDasharray });
+    }
+    return results;
+  });
+  for (const result of strokes) { assert.ok(result.strokes.length > 0); assert.ok(result.strokes.every(c => c === 'rgb(63, 141, 253)')); assert.equal(result.dot, 'rgb(63, 141, 253)'); }
+  assert.equal(new Set(strokes.map(s => s.dash)).size, 3, 'names and line styles distinguish agents');
+  console.log('PASS all agent strokes and dots compute to rgb(63, 141, 253), with solid, dashed and dotted identities');
 
   await batch([{ op: 'move', id: 'motion00', x: 500, y: 110 }]);
   const live = await page.evaluate(() => {
@@ -105,7 +124,7 @@ try {
     const content = el.querySelector('.content'), child = content.firstElementChild;
     return { kind: el.className, id: el.dataset.id, width: content.clientWidth, scrollWidth: content.scrollWidth, height: content.clientHeight, scrollHeight: content.scrollHeight, childHeight: child.getBoundingClientRect().height / aegis.canvas.view.z };
   }));
-  assert.equal(fit.length, 5);
+  assert.equal(fit.length, demoBatch.filter(c => c.type === 'object').length);
   await writeFile(out(`speed-demo-fit-${stamp}.json`), JSON.stringify(fit, null, 2));
   for (const item of fit) {
     assert.ok(item.scrollHeight <= item.height + 1, `${item.kind}: vertical clipping ${JSON.stringify(item)}`);
