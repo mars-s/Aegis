@@ -4,7 +4,12 @@ const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom, cards show as outlines
 const MIN_Z = 0.05, MAX_Z = 4;
 
-export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, resolveUrl = u => u, renderObject, dropObject }) {
+// Card renderers from feature modules: type -> { render(el, card, api), drop?(el), interactive?: css selector }.
+// render fills `el` (already a positioned .card) and wires its own events; api lets it change the board.
+const RENDERERS = new Map();
+export function registerRenderer(type, renderer) { RENDERERS.set(type, renderer); }
+
+export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
   const mounted = new Map();      // id -> { el, sig }
@@ -35,7 +40,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     drawLinks();
     dirtyAll = false;
   }
-  function removeEl(el) { if (el.classList.contains('object')) dropObject?.(el.querySelector('.object-host')); el.remove(); }
+  function removeEl(el) {
+    if (el.classList.contains('object')) dropObject?.(el.querySelector('.object-host'));
+    RENDERERS.get(el.dataset.type)?.drop?.(el);
+    el.remove();
+  }
   function unmountAll() {
     for (const [id, m] of mounted) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
@@ -85,7 +94,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       else if (m.sig !== sig && !(m.el.contains(document.activeElement) && document.activeElement.isContentEditable)) {
         // Content changed: redraw the card. Moves and resizes only re-place it, so a playing video keeps playing.
         const refocus = m.el.contains(document.activeElement) && document.activeElement.matches('.add-item');
-        const el = renderCard(c); if (m.el.classList.contains('object')) dropObject?.(m.el.querySelector('.object-host')); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
+        const el = renderCard(c); if (m.el.classList.contains('object')) dropObject?.(m.el.querySelector('.object-host')); RENDERERS.get(m.el.dataset.type)?.drop?.(m.el); m.el.replaceWith(el); m.el = el; m.geo = ''; m.z = -1;
         if (refocus) el.querySelector('.add-item')?.focus();
       }
       m.sig = sig;
@@ -98,14 +107,31 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
-  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null]);
+  const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot]);
   const geometry = c => `${c.x},${c.y},${c.w},${c.h}`;
-  function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
+  function place(el, c) { el.style.transform = `translate(${c.x}px, ${c.y}px)${c.rot ? ` rotate(${c.rot}deg)` : ''}`; el.style.width = c.w + 'px'; el.style.height = c.type === 'title' ? 'auto' : c.h + 'px'; }
+  // What a renderer may do to the board.
+  const cardApi = {
+    apply: (cmds, done) => onBatch.apply(cmds, done),
+    setProps: (id, props) => onBatch.apply([{ op: 'update', id, set: { props } }]),
+    resolveUrl: u => resolveUrl(u),
+    openUrl: u => onOpenUrl?.(u),
+    open: (card) => onOpenCard?.(card),
+    get board() { return board; },
+    get view() { return view; },
+  };
 
   function renderCard(c) {
     const el = document.createElement('div');
-    el.className = `card ${c.type}`; el.dataset.id = c.id; el.dataset.color = c.color || 'plain';
+    el.className = `card ${c.type}`; el.dataset.id = c.id; el.dataset.type = c.type;
+    if (/^#/.test(c.color ?? '')) { el.dataset.color = 'custom'; el.style.setProperty('--card-fill', c.color); } else el.dataset.color = c.color || 'plain';
     place(el, c);
+    const custom = RENDERERS.get(c.type);
+    if (custom) {
+      try { custom.render(el, c, cardApi); } catch (err) { el.textContent = `Could not draw this ${c.type}: ${err.message}`; }
+      if (!el.querySelector('.resize') && custom.resizable !== false) el.insertAdjacentHTML('beforeend', '<div class="resize"></div>');
+      return el;
+    }
     const ghost = '<div class="ghost"><i style="width:70%"></i><i style="width:90%"></i><i style="width:50%"></i></div>';
     if (c.type === 'object') {
       // A typed object: Svelte draws it into the host element; the canvas still owns drag, resize and select.
@@ -201,11 +227,15 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
 
   // ---------- input ----------
   let drag = null;
+  let ptr = null; // a pointer-driven tool's gesture in progress
   stage.addEventListener('pointerdown', e => {
+    const pt = tool && e.button === 0 && !spaceHeld ? pointerTool?.(tool) : null;
+    if (pt && !e.target.closest('.resize')) { ptr = pt; stage.setPointerCapture(e.pointerId); pt.down(e, screenToWorld(e.clientX, e.clientY)); e.preventDefault(); return; }
     if (e.button !== 0 && e.button !== 1) return;
     const cardEl = e.target.closest('.card');
     // Inside an object, controls (buttons, inputs, sort headers) and text selection work as normal.
     if (cardEl?.classList.contains('object') && !e.target.closest('.drag-strip, .resize') && e.target.closest('button, input, select, a, summary, details, th, .sheet, pre')) return;
+    if (cardEl && RENDERERS.get(cardEl.dataset.type)?.interactive && e.target.closest(RENDERERS.get(cardEl.dataset.type).interactive) && !e.target.closest('.resize')) return;
     if (e.target.isContentEditable && document.activeElement === e.target) return;
     if (e.target.closest('input, a, video')) return;
     stage.focus({ preventScroll: true });
@@ -229,6 +259,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     stage.setPointerCapture(e.pointerId); schedule();
   });
   stage.addEventListener('pointermove', e => {
+    if (ptr) { ptr.move(e, screenToWorld(e.clientX, e.clientY)); return; }
     if (!drag) return;
     const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
     if (drag.kind === 'pan') { setView({ x: drag.vx + dx, y: drag.vy + dy, z: view.z }); return; }
@@ -249,7 +280,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     }
     drawLinks();
   });
-  stage.addEventListener('pointerup', () => {
+  stage.addEventListener('pointerup', e => {
+    if (ptr) { const p = ptr; ptr = null; p.up(e, screenToWorld(e.clientX, e.clientY)); return; }
     if (!drag) return;
     const d = drag; drag = null; stage.classList.remove('panning'); marquee.hidden = true;
     if (d.kind === 'move' || d.kind === 'resize') {
@@ -262,8 +294,16 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     }
     onSelect?.([...selected]); schedule();
   });
+  stage.addEventListener('contextmenu', e => {
+    if (!onContext || e.target.closest('input, textarea, [contenteditable="plaintext-only"]:focus')) return;
+    e.preventDefault();
+    const hit = e.target.closest('.card');
+    if (hit && !selected.has(hit.dataset.id)) { selected.clear(); selected.add(hit.dataset.id); onSelect?.([...selected]); schedule(); }
+    onContext({ x: e.clientX, y: e.clientY, at: screenToWorld(e.clientX, e.clientY), ids: hit ? [...selected] : [] });
+  });
   stage.addEventListener('dblclick', e => {
-    if (e.target.closest('.card')) return;
+    const hit = e.target.closest('.card');
+    if (hit) { const c = board.cards.find(x => x.id === hit.dataset.id); if (c && RENDERERS.get(c.type)?.open) { RENDERERS.get(c.type).open(c, cardApi); } return; }
     const p = screenToWorld(e.clientX, e.clientY);
     onBatch.apply([{ op: 'create', type: 'note', text: '', x: Math.round(p.x - 120), y: Math.round(p.y - 30), ref: 'n' }], created => {
       requestAnimationFrame(() => mounted.get(created.n)?.el.querySelector('.body')?.focus());
@@ -335,6 +375,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
     get tool() { return tool; },
+    screenToWorld, worldToScreen: (x, y) => ({ x: x * view.z + view.x, y: y * view.z + view.y }),
+    setView, glideTo, redraw: () => schedule(true), mountedEl: id => mounted.get(id)?.el ?? null,
     busy: () => !!drag,
     select(ids) { selected.clear(); for (const id of ids) selected.add(id); onSelect?.([...selected]); schedule(); },
     // Put the caret in a card's first editable field (or its link box).

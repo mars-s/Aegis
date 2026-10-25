@@ -2,7 +2,23 @@
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
 import { checkObject, OBJECT_SIZE } from './objects.js';
 
+// Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
+// so the host, the canvas and the checks all accept them. Type-specific data lives in card.props.
 export const CARD_TYPES = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent', 'object'];
+const EXTRA = new Map(); // type -> { size: [w, h] }
+export function registerCardType(type, { size = [240, 160] } = {}) {
+  if (!/^[a-z][a-z0-9-]{1,23}$/.test(type)) throw new Error(`bad card type name ${type}`);
+  if (!CARD_TYPES.includes(type)) CARD_TYPES.push(type);
+  EXTRA.set(type, { size });
+}
+const MAX_PROPS = 1_000_000; // bytes of JSON in card.props
+function cleanProps(v, at) {
+  if (v === undefined) return undefined;
+  if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error(`${at}: props must be an object`);
+  const json = JSON.stringify(v);
+  if (json.length > MAX_PROPS) throw new Error(`${at}: props is ${json.length} bytes; the limit is ${MAX_PROPS}. Store big files as assets`);
+  return JSON.parse(json);
+}
 const COLORS = ['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple'];
 const DEFAULT_SIZE = {
   note: [220, 96], title: [360, 56], todo: [260, 160], link: [260, 76],
@@ -45,12 +61,12 @@ function cleanCard(type, o, board, anchor) {
   if (!CARD_TYPES.includes(type)) throw new Error(`unknown card type "${type}". Use one of: ${CARD_TYPES.join(', ')}`);
   // An object card holds typed data of one kind (a chart, a sheet...), checked against its shape.
   const object = type === 'object' ? { kind: o.kind, data: checkObject(o.kind, o.data) } : null;
-  const [dw, dh] = object ? OBJECT_SIZE[object.kind] : DEFAULT_SIZE[type];
+  const [dw, dh] = object ? OBJECT_SIZE[object.kind] : DEFAULT_SIZE[type] ?? EXTRA.get(type)?.size ?? [240, 160];
   const w = clamp(num(o.w, dw), 40, 4000), h = clamp(num(o.h, dh), 24, 4000);
   const pos = (typeof o.x === 'number' && typeof o.y === 'number') ? { x: o.x, y: o.y } : findSpace(board, w, h, anchor);
   // A caller may choose the id (the canvas does, so its optimistic copy matches the saved board).
   const id = ID_RE.test(o.newId ?? '') && !board.cards.some(c => c.id === o.newId) ? o.newId : newId(board);
-  const card = { id, type, x: pos.x, y: pos.y, w, h, text: str(o.text), color: COLORS.includes(o.color) ? o.color : 'plain' };
+  const card = { id, type, x: pos.x, y: pos.y, w, h, text: str(o.text), color: COLORS.includes(o.color) || /^#[0-9a-f]{6}$/i.test(o.color ?? '') ? o.color : 'plain' };
   if (type === 'todo') card.items = Array.isArray(o.items) ? o.items.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : [];
   if (type === 'link' || type === 'web' || type === 'image' || type === 'video') card.url = str(o.url, 4000);
   // Notes can carry a short heading and a badge (e.g. "read me first") above the body.
@@ -59,10 +75,13 @@ function cleanCard(type, o, board, anchor) {
   if (type === 'agent') card.agent = str(o.agent, 100);
   if (object) { card.kind = object.kind; card.data = object.data; card.ver = 1; }
   if (o.group) card.group = str(o.group, 100);
+  if (typeof o.rot === 'number' && Number.isFinite(o.rot)) card.rot = clamp(o.rot, -180, 180);
+  if (typeof o.parent === 'string' && o.parent) card.parent = str(o.parent, 40);
+  const props = cleanProps(o.props, 'props'); if (props) card.props = props;
   return card;
 }
 
-const EDITABLE = ['text', 'heading', 'badge', 'color', 'x', 'y', 'w', 'h', 'items', 'url', 'group', 'done'];
+const EDITABLE = ['text', 'heading', 'badge', 'color', 'x', 'y', 'w', 'h', 'items', 'url', 'group', 'done', 'rot', 'parent', 'props'];
 const LIMIT = { url: 4000, heading: 200, badge: 40 };
 
 // Apply one batch atomically. Returns { ok, board, created, errors }. The input board is never mutated.
@@ -92,7 +111,11 @@ export function applyBatch(input, batch) {
             const v = cmd.set[k];
             if (['x', 'y'].includes(k)) c[k] = num(v, c[k]);
             else if (['w', 'h'].includes(k)) c[k] = clamp(num(v, c[k]), 24, 4000);
-            else if (k === 'color') { if (COLORS.includes(v)) c.color = v; }
+            else if (k === 'color') { if (COLORS.includes(v) || /^#[0-9a-f]{6}$/i.test(v)) c.color = v; }
+            else if (k === 'rot') c.rot = clamp(num(v, c.rot ?? 0), -180, 180);
+            else if (k === 'parent') { if (v) c.parent = str(v, 40); else delete c.parent; }
+            // props merge: set.props = { a: 1 } changes only a; a null value removes that key.
+            else if (k === 'props') { const next = { ...(c.props ?? {}) }; for (const [pk, pv] of Object.entries(v ?? {})) { if (pv === null) delete next[pk]; else next[pk] = pv; } c.props = cleanProps(next, 'props'); }
             else if (k === 'items') c.items = Array.isArray(v) ? v.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : c.items;
             else if ((k === 'heading' || k === 'badge') && !str(v)) delete c[k];
             else c[k] = typeof v === 'boolean' ? v : str(v, LIMIT[k] ?? 20000);
@@ -179,7 +202,7 @@ export function layout(cards, shape, { x, y, cols }) {
 export function describe(board, limit = 400) {
   return {
     id: board.id, name: board.name, rev: board.rev,
-    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}), ...(c.type === 'object' ? { kind: c.kind, data: c.data, ver: c.ver } : {}) })),
+    cards: board.cards.slice(0, limit).map(c => ({ id: c.id, type: c.type, x: Math.round(c.x), y: Math.round(c.y), w: c.w, h: c.h, text: c.text.slice(0, 600), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}), color: c.color, ...(c.items ? { items: c.items } : {}), ...(c.url ? { url: c.url } : {}), ...(c.group ? { group: c.group } : {}), ...(c.type === 'object' ? { kind: c.kind, data: c.data, ver: c.ver } : {}), ...(c.rot ? { rot: c.rot } : {}), ...(c.parent ? { parent: c.parent } : {}), ...(c.props ? { props: JSON.stringify(c.props).length > 4000 ? { summary: 'large; ask for this card' } : c.props } : {}) })),
     links: board.links.map(l => ({ a: l.a, b: l.b, label: l.label })),
     truncated: board.cards.length > limit,
   };

@@ -4,6 +4,9 @@ import { createCanvas } from './canvas/engine.js';
 import { applyBatch } from './lib/board/commands.js';
 import { connect as connectHost } from './lib/host';
 import { mountObjects } from './objects/mount';
+import * as registry from './features/registry';
+import './features/index';
+import { createMenu } from './chrome/menu.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
@@ -18,6 +21,8 @@ const canvas = createCanvas({
   onSelect: ids => layers?.select(ids),
   onOpenUrl: url => host.openUrl(url).catch(e => toast(`Could not open the link: ${e?.message ?? e}`)),
   onPlace: (tool, at) => place(tool, at),
+  pointerTool: id => { const t = registry.tools.find(x => x.id === id); return t?.pointer ? { down: (e, at) => t.pointer.down(e, at, ctx), move: (e, at) => t.pointer.move(e, at, ctx), up: (e, at) => t.pointer.up(e, at, ctx) } : null; },
+  onContext: ({ x, y, at, ids }) => showContext(x, y, at, ids),
   resolveUrl: url => host.assetUrl(url),
   renderObject: (el, card) => objects.render(el, card),
   dropObject: el => objects.drop(el),
@@ -56,6 +61,17 @@ function apply(commands, done) {
 document.addEventListener('board-renamed', e => { $('boardName').textContent = e.detail; canvas.board.name = e.detail; });
 
 // ---------- side bar, layers, library ----------
+// A feature panel joins the side bar as another foldable box.
+const mountedPanels = new Set();
+function mountPanel(p) {
+  if (mountedPanels.has(p.id)) return; mountedPanels.add(p.id);
+  const box = document.createElement('section'); box.className = 'pbox'; box.dataset.panel = p.id;
+  box.innerHTML = `<div class="phead"><span></span><button class="fold" aria-label="Fold"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div><div class="pbody"></div><div class="resize-handle" title="Drag to resize"></div>`;
+  box.querySelector('.phead span').textContent = p.title;
+  $('side').insertBefore(box, $('side').querySelector('.side-resize'));
+  box.querySelector('.fold').onclick = () => box.classList.toggle('folded');
+  p.mount(box.querySelector('.pbody'), ctx);
+}
 const panels = createPanels({ side: $('side'), onChange: st => $('sideBtn').setAttribute('aria-pressed', String(!st.hidden)) });
 $('sideBtn').onclick = () => panels.toggle();
 const library = createLibrary({ el: document.querySelector('[data-panel="library"]'), host, current: () => canvas.board?.id, openBoard, toast });
@@ -91,6 +107,8 @@ const TOOL_KEYS = { v: 'select', n: 'note', h: 'title', c: 'todo', r: 'readme', 
 const TOOL_NAMES = { note: 'Note', title: 'Heading', todo: 'Checklist', readme: 'Read me', link: 'Link' };
 function pickTool(t) {
   if (t === 'media') { $('mediaFile').click(); t = 'select'; }
+  const feature = registry.tools.find(x => x.id === t);
+  if (feature?.activate) { feature.activate(ctx); return; }
   canvas.setTool(t === 'select' ? null : t);
 }
 $('stage').addEventListener('tool', e => {
@@ -99,11 +117,26 @@ $('stage').addEventListener('tool', e => {
   document.body.classList.toggle('placing', !!e.detail);
 });
 $('tools').addEventListener('click', e => { const b = e.target.closest('[data-tool]'); if (b) pickTool(b.dataset.tool); });
+// Feature tools join the tool bar, grouped, before the fold button.
+function drawFeatureTools() {
+  $('tools').querySelectorAll('[data-feature]').forEach(b => b.remove());
+  const fold = $('tools').querySelector('.tools-sep');
+  let group = null;
+  for (const t of registry.tools) {
+    if (t.group !== group) { group = t.group; const sep = document.createElement('span'); sep.className = 'tools-sep'; sep.dataset.feature = '1'; fold.before(sep); }
+    const b = document.createElement('button'); b.dataset.tool = t.id; b.dataset.feature = '1';
+    b.title = t.key ? `${t.title} (${t.key.toUpperCase()})` : t.title; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = `<svg viewBox="0 0 16 16">${t.icon}</svg>`; fold.before(b);
+  }
+}
+registry.onRegistryChange(drawFeatureTools);
 const foldTools = on => { $('tools').classList.toggle('folded', on); $('toolsFold').setAttribute('aria-expanded', String(!on)); $('toolsFold').title = on ? 'Show tools' : 'Fold tools'; localStorage.setItem('aegis:tools', on ? 'folded' : ''); };
 $('toolsFold').onclick = () => foldTools(!$('tools').classList.contains('folded'));
 foldTools(localStorage.getItem('aegis:tools') === 'folded');
 // Place the armed tool where you clicked, then put the caret in it.
 function place(tool, at) {
+  const feature = registry.tools.find(t => t.id === tool);
+  if (feature?.place) { if (feature.place(at, ctx) === true) canvas.setTool(tool); return; }
   const x = Math.round(at.x), y = Math.round(at.y);
   const spec = {
     note: { type: 'note', x: x - 110, y: y - 30 },
@@ -319,12 +352,41 @@ addEventListener('keydown', e => {
   if (e.key === 'f') setFollow(!follow);
   if (e.key === '\\') panels.toggle();
   if (TOOL_KEYS[e.key]) pickTool(TOOL_KEYS[e.key]);
+  else { const t = registry.tools.find(x => x.key === e.key); if (t) pickTool(t.id); }
   if (e.key === '/') { e.preventDefault(); promptEl.focus(); }
 });
+
+// ---------- feature context: what features may use ----------
+const ctx = { apply: (c, done) => apply(c, done), canvas, host, toast: m => toast(m), selection: () => canvas.selection() };
+window.aegisCtx = ctx;
+// Right-click: feature menu items for the cards under the pointer, or the board's own items on empty canvas.
+const menu = createMenu();
+function showContext(x, y, at, ids) {
+  const list = ids.length ? registry.cardMenu : registry.boardMenu;
+  const items = list.filter(m => !m.when || m.when(ctx, ids));
+  const builtIn = ids.length ? [
+    { id: 'front', title: 'Bring to front', section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'front' }]) },
+    { id: 'back', title: 'Send to back', section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'back' }]) },
+    { id: 'delete', title: 'Delete', section: 'zz', run: () => apply([{ op: 'delete', ids }]) },
+  ] : [
+    { id: 'note', title: 'New note here', section: 'Add', run: () => place('note', at) },
+    { id: 'fit', title: 'Zoom to fit', section: 'View', run: () => canvas.fit() },
+  ];
+  menu.show(x, y, [...items, ...builtIn].map(m => ({ ...m, run: () => m.run(ctx, ids, at) })));
+}
+addEventListener('keydown', e => {
+  if (e.target.closest?.('textarea, input, [contenteditable], select')) return;
+  const combo = `${e.metaKey || e.ctrlKey ? 'mod+' : ''}${e.shiftKey ? 'shift+' : ''}${e.altKey ? 'alt+' : ''}${e.key.toLowerCase()}`;
+  const c = registry.commands.find(x => x.keys === combo && (!x.when || x.when(ctx)));
+  if (c) { e.preventDefault(); e.stopImmediatePropagation(); c.run(ctx); }
+}, true);
 
 // ---------- start ----------
 applyTheme(localStorage.getItem('aegis:theme') || 'system');
 setFollow(follow);
+drawFeatureTools();
+for (const p of registry.panels) mountPanel(p);
+registry.onRegistryChange(() => { for (const p of registry.panels) mountPanel(p); });
 const benchCount = Number(new URLSearchParams(location.search).get('bench'));
 if (benchCount) { (await import('./canvas/bench.js')).bench(canvas, benchCount); return; }
 let boards = await host.get('/boards');
