@@ -1,1 +1,44 @@
 /* Side editor: documents, sheets and slides open in the right half of the window (Mochiboard style). */
+.side-editor {
+  position: fixed; top: 8px; right: 8px; bottom: 8px; z-index: 80;
+  width: calc(50% - 12px); display: flex; flex-direction: column;
+  border-radius: 10px; background: var(--card); color: var(--text);
+  border: 1px solid var(--line); box-shadow: inset 0 1px 0 var(--edge-top);
+  font: 13px/1.45 var(--font);
+  transform: translateX(calc(100% + 16px));
+  transition: transform 200ms var(--ease-drawer);
+}
+.side-editor.is-open { transform: none; transition-duration: 260ms; }
+.side-editor.is-wide { width: calc(100% - 16px); }
+.side-editor.instant { transition: none !important; }
+.side-editor-head { flex: none; display: flex; align-items: center; gap: 12px; height: 46px; padding: 0 2px 0 18px; background: var(--strip); border-radius: 9px 9px 0 0; box-shadow: inset 0 1px 0 var(--edge-top); }
+.side-editor-title { flex: 1; min-width: 0; margin: 0; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.side-editor-kind { color: var(--ink-2); }
+.side-editor-saved { color: var(--faint); font-size: 12px; }
+.side-editor-tools { display: flex; align-items: center; gap: 2px; }
+.side-editor button, .side-editor input, .side-editor select, .side-editor summary { font: inherit; color: inherit; }
+.side-editor button, .side-editor summary { cursor: pointer; }
+.side-editor button { transition: transform 120ms var(--ease-out); }
+.side-editor button:active { transform: scale(.97); }
+.side-editor-tools button { height: 44px; min-width: 44px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); white-space: nowrap; }
+.side-editor-tools button:hover, .side-editor-tools button:focus-visible, .side-editor-tools button[aria-pressed=true] { background: var(--hover); color: var(--text); }
+.side-editor-tools svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.side-editor-tools [data-close] { display: grid; place-items: center; padding: 0; }
+.side-editor-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; border-radius: 0 0 9px 9px; }
+.side-editor :is(input, textarea, [contenteditable]) { caret-color: var(--data); }
+.side-editor :is(input, textarea)::placeholder { color: var(--faint); }
+.side-editor :is([contenteditable], input) { user-select: text; -webkit-user-select: text; }
+body.motion-off .side-editor { transform: none; opacity: 0; transition: opacity 160ms linear; }
+body.motion-off .side-editor.is-open { opacity: 1; }
+body.motion-off .side-editor button { transition: none; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .side-editor { transform: none; opacity: 0; transition: opacity 160ms linear; }
+  .side-editor.is-open { opacity: 1; transition-duration: 160ms; }
+  .side-editor button { transition: none; transform: none !important; }
+  .side-editor [contenteditable] { caret-animation: manual; }
+}
+@media (max-width: 760px) {
+  .side-editor, .side-editor.is-wide { width: calc(100% - 16px); }
+  .side-editor-head { gap: 4px; padding-left: 12px; }
+  .side-editor-saved { max-width: 80px; }
+}

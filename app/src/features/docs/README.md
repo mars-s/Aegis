@@ -15,8 +15,23 @@ The toolbar includes block styles, font names from the board plus system font
 suggestions, size, marks, colours, alignment, lists, tasks, links, embedded images,
 resizable tables, dividers and clear formatting. More includes line spacing,
 superscript and subscript. Formatting controls reflect the cursor's selection.
-Controls wrap onto extra rows in narrow panels. Font names use fonts installed
-on the computer. No font files or remote font downloads are bundled here.
+The main row holds Title, Heading, Text, List and Bold. More holds the other
+controls, page appearance and downloads. Inter Variable is bundled by the app;
+other font names use fonts installed on the computer.
+
+Documents share the floating shell in `side.js` with sheets and slides. It covers
+the right half of the window without resizing the canvas. Full width covers the
+window with an 8px margin. Pointer opens glide the card to the left half;
+keyboard opens are instant and leave the camera alone. `docs-open` and
+`docs-full` remain aliases for `editor-open` and `editor-wide`.
+
+`openSide({ title, kind, keyboard })` returns `{ el, body, close, setSaved }`.
+Append editor content to `body`, call `setSaved('Saving…')` or `setSaved('Saved')`,
+and listen for `side-editor-close` on `el` to save and dispose resources. Opening
+another shell fires that event on the previous one before replacing it.
+`close({ keyboard: true })` closes instantly. The shell provides Escape, Full
+width, the close button and body classes. It never traps focus. Optional
+`centreCardInLeft(card, ctx, keyboard)` handles the pointer camera glide.
 
 Page appearance is a local preference in `aegis:doc-page`. Paper size is stored in
 `aegis:doc-paper`. Neither changes the board document. PDF opens the native macOS print sheet through `printHtml` in the desktop app.
@@ -68,8 +83,10 @@ restores source card positions and skips the normal move batch. Calling the
 resolver with no cards clears its highlight. Existing drag handlers still run
 for ordinary moves.
 
-The browser smoke test is `/tmp/aegis-check/docs-smoke.mjs`. It starts a fake-model
-host with temporary data and Vite on port 5181. `AEGIS_DOCS_ISOLATED=1` intercepts
+The browser check is `checks/ui/docs.mjs`. It starts a fake-model
+host with temporary data and Vite on port 5181 plus `AEGIS_PORT_OFFSET`.
+`checks/ui/editors.mjs` uses base port 5191 and checks the shared shell and sheet
+editor. Screenshots go to `AEGIS_CHECK_OUT`. `AEGIS_DOCS_ISOLATED=1` intercepts
 only the feature entry module to load docs while other feature agents are still
 writing imports. Normal runs load all features. The print test intercepts the
 iframe's `print()` call and checks the actual print HTML, since headless Chromium

@@ -23,6 +23,8 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, co
 page.on('response', async r => { if (r.status() >= 500) console.error('HTTP', r.url(), (await r.text()).slice(0, 3000)); });
 const errors = []; page.on('pageerror', e => errors.push(e.stack));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
+const more = async () => { if (!await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('More document controls', { exact: true }).click(); };
+const less = async () => { if (await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('More document controls', { exact: true }).click(); };
 const saved = async () => { await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
@@ -38,6 +40,7 @@ try {
   await page.keyboard.type('A clear plan for the next release.');
   await page.keyboard.press('ControlOrMeta+a');
   await page.getByRole('toolbar', { name: 'Document formatting', exact: true }).getByRole('button', { name: 'Bold', exact: true }).click();
+  await more();
   await page.getByLabel('Block style', { exact: true }).selectOption('lead');
   await page.getByLabel('Font family', { exact: true }).fill('Georgia');
   await page.getByLabel('Font family', { exact: true }).press('Tab');
@@ -50,24 +53,29 @@ try {
   assert.equal(doc.props.doc.content[0].attrs.kind, 'lead');
   assert.ok(doc.props.doc.content[0].content[0].marks.some(m => m.type === 'bold'));
   console.log('PASS create, title, rich formatting, plain text mirror and host-confirmed save');
+  await less();
   await page.locator('.docs-prose p').first().click({ clickCount: 3 }); await page.locator('.docs-prose').press('ControlOrMeta+a');
   await page.getByRole('toolbar', { name: 'Selection formatting', exact: true }).waitFor({ state: 'visible' });
   await page.screenshot({ path: out('docs-selection.png') });
   // The real host rewrite (fake model appends "(rewritten)") through the adapter the app registers itself.
   await page.getByRole('toolbar', { name: 'Selection formatting', exact: true }).getByLabel('Rewrite selection').selectOption('Shorter');
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
+  await more();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
   console.log('PASS host rewrite endpoint through the app adapter');
+  await less();
   await page.locator('.docs-prose p').first().click({ clickCount: 3 }); await page.locator('.docs-prose').press('ControlOrMeta+a');
   // Rewrite adapter test. A real agent adapter can supply this callback without changing the editor.
   await page.evaluate(async () => { const { registerDocRewriter } = await import('/src/features/docs/editor.js'); registerDocRewriter(async ({ text, how, cardId }) => { if (!text || how !== 'Shorter' || !cardId) throw Error('Missing rewrite context'); return 'A clear release plan.'; }); });
   await page.getByRole('toolbar', { name: 'Selection formatting', exact: true }).getByLabel('Rewrite selection').selectOption('Shorter');
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear release plan.'));
+  await more();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear plan for'));
   await saved();
   console.log('PASS selection bubble, rewrite hook and Undo');
+  await more();
   const docBeforeAppearance = (await board()).cards.find(c => c.id === docId);
   const paperAppearance = () => page.locator('.docs-paper').evaluate(el => ({ background: getComputedStyle(el).backgroundColor, colour: getComputedStyle(el).color }));
   const autoAppearance = await paperAppearance();
@@ -84,6 +92,7 @@ try {
   await page.getByLabel('Page colour', { exact: true }).selectOption('light');
   assert.deepEqual((await board()).cards.find(c => c.id === docId), docBeforeAppearance);
   console.log('PASS automatic, light and dark paper change appearance without changing the document');
+  await less();
   // Place text cards through commands, then use actual pointer drags into the page and closed pill.
   await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'note', text: '**Copied note content**', x: 410, y: 450, newId: 'docsnote' }, { op: 'create', type: 'todo', text: 'Release tasks', items: [{ text: 'Review copy', done: true }, { text: 'Ship release', done: false }], x: 410, y: 620, newId: 'docstodo' }]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
   await page.locator('.card[data-id=docsnote]').waitFor();
@@ -114,10 +123,20 @@ try {
   await page.locator('.card[data-id=docstodo]').click({ position: { x: 10, y: 10 } });
   const payload = await page.evaluate(() => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData('text/x-aegis'); });
   assert.ok(payload.includes('docstodo'));
-  await page.locator('.docs-prose').click(); await page.keyboard.press('ControlOrMeta+End');
+  await page.locator('.docs-prose').click();
+  // On macOS Command+End scrolls without moving the caret. Paste must start at
+  // the document end so it does not split the copied link title or description.
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
+  const caret = await page.evaluate(async () => {
+    const { currentDocument } = await import('/src/features/docs/editor.js');
+    const editor = currentDocument().editor;
+    return { head: editor.state.selection.head, end: editor.state.doc.content.size - 1 };
+  });
+  assert.equal(caret.head, caret.end, 'Clipboard paste starts at the document end');
   await page.evaluate(data => { const transfer = new DataTransfer(); transfer.setData('text/x-aegis', data); document.querySelector('.docs-prose').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })); }, payload);
   await saved(); b = await board(); assert.ok(JSON.stringify(b.cards.find(c => c.id === docId).props.doc).includes('taskList'));
   assert.equal(await page.locator('.docs-prose input[type=checkbox]:checked').count(), 1);
+  await more();
   await page.getByRole('button', { name: 'Insert table', exact: true }).click();
   await page.locator('.docs-prose table').waitFor();
   await page.getByRole('button', { name: 'Add row', exact: true }).click(); assert.equal(await page.locator('.docs-prose tr').count(), 4);
@@ -142,6 +161,7 @@ try {
   assert.ok(printHTML.includes('background:white')); assert.ok(printHTML.includes('color:#25252b'));
   assert.ok(printHTML.includes('Research preview title')); assert.ok(printHTML.includes('Summary copied from the link preview'));
   console.log('PASS DOCX Blob download and print iframe with selected paper and document content');
+  await less();
   await page.screenshot({ path: out('docs-editor.png') });
   await page.getByRole('button', { name: 'Close document', exact: true }).click();
   await page.evaluate(id => aegis.canvas.frameIds([id, 'docsnote'], 1), docId); await page.waitForTimeout(500);
@@ -154,7 +174,7 @@ try {
   const again = await page.locator('.card[data-id=docsnote]').boundingBox(); const destination = await pill.boundingBox();
   await page.mouse.move(again.x + 50, again.y + 20); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
-  await pill.dblclick(); await page.locator('.docs-panel').waitFor(); assert.equal(await page.getByLabel('Page colour', { exact: true }).inputValue(), 'dark'); assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' }); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
+  await pill.dblclick(); await page.locator('.docs-panel').waitFor(); await more(); assert.equal(await page.getByLabel('Page colour', { exact: true }).inputValue(), 'dark'); assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' }); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
   await page.keyboard.press('Escape'); assert.equal(await page.locator('.docs-panel').count(), 0);
   await page.screenshot({ path: out('docs-board.png') });
   
@@ -163,6 +183,7 @@ try {
   console.log('PASS closed-pill drop, double-click reopen, Escape close and persistence after reload');
   await page.evaluate(id => aegis.canvas.frameIds([id], 1), docId);
   await page.locator(`.card[data-id="${docId}"]`).dblclick();
+  await more();
   assert.equal(await page.getByLabel('Page colour', { exact: true }).inputValue(), 'dark');
   assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' });
   console.log('PASS paper preference persists after reload and exports use light paper');

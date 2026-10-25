@@ -24,6 +24,6 @@ registerTool({
 });
 registerCardMenu({ id: 'doc-open', title: 'Open document', section: 'Document', when: (ctx, ids) => ids.length === 1 && ctx.canvas.board.cards.some(c => c.id === ids[0] && c.type === 'doc'), run: (ctx, ids) => openDocument(ctx.canvas.board.cards.find(c => c.id === ids[0]), ctx) });
 registerCardMenu({ id: 'doc-copy', title: 'Copy into open document', section: 'Document', when: () => !!currentDocument(), run: (ctx, ids) => copyIntoDocument(ctx.canvas.board.cards.filter(c => ids.includes(c.id)), ctx) });
-registerCommand({ id: 'doc-open', title: 'Open selected document', keys: 'enter', when: ctx => ctx.selection().length === 1 && ctx.canvas.board.cards.some(c => c.id === ctx.selection()[0] && c.type === 'doc'), run: ctx => openDocument(ctx.canvas.board.cards.find(c => c.id === ctx.selection()[0]), ctx) });
+registerCommand({ id: 'doc-open', title: 'Open selected document', keys: 'enter', when: ctx => !document.activeElement?.closest('.side-editor') && ctx.selection().length === 1 && ctx.canvas.board.cards.some(c => c.id === ctx.selection()[0] && c.type === 'doc'), run: ctx => openDocument(ctx.canvas.board.cards.find(c => c.id === ctx.selection()[0]), ctx, { keyboard: true }) });
 registerCardDropTarget(resolveDocumentDrop);
 installDocumentClipboard();

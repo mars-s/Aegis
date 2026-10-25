@@ -4,6 +4,7 @@ import BubbleMenu from '@tiptap/extension-bubble-menu';
 import { extensions } from './extensions.js';
 import { cardContent, COPY_TYPES, documentUpdate, markdownHTML } from './content.js';
 import { downloadWord, printPDF } from './export.js';
+import { openSide, centreCardInLeft } from './side.js';
 
 let active = null;
 let rewrite = null;
@@ -32,22 +33,21 @@ const contentForCard = card => {
   return cardContent(card);
 };
 
-export function openDocument(card, ctx) {
+export function openDocument(card, ctx, { keyboard = false } = {}) {
   if (active?.id === card.id && active.boardId === ctx.canvas.board.id) { active.editor.commands.focus(); return; }
-  active?.close();
   const boardId = ctx.canvas.board.id;
-  const panel = document.createElement('aside'); panel.className = 'docs-panel'; panel.setAttribute('aria-label', 'Document editor');
-  panel.innerHTML = `<header class="docs-header"><button type="button" data-back>← Back to board</button><span class="docs-crumb"></span><span class="docs-spacer"></span><select aria-label="Page colour"><option value="auto">Auto page</option><option value="light">Light page</option><option value="dark">Dark page</option></select><details class="docs-download"><summary>Download</summary><div><label>Paper <select aria-label="Paper size"><option value="a4">A4</option><option value="letter">Letter</option></select></label><button type="button" data-pdf>Download PDF</button><button type="button" data-word>Download Word</button></div></details><button type="button" data-expand aria-label="Full page" aria-pressed="false">⤢</button><button type="button" data-close aria-label="Close document">×</button></header><div class="docs-toolbar" role="toolbar" aria-label="Document formatting"></div><div class="docs-scroll"><article class="docs-paper"><input class="docs-title" aria-label="Document title" placeholder="Untitled document"><div class="docs-body"></div></article></div><footer class="docs-footer"><span data-count></span><span data-saved role="status">Saved</span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
+  const side = openSide({ title: card.text || 'Untitled document', kind: 'Document', keyboard });
+  const panel = side.el; panel.classList.add('docs-panel');
+  panel.querySelector('[data-expand]').setAttribute('aria-label', 'Full page');
+  panel.querySelector('[data-close]').setAttribute('aria-label', 'Close document');
+  side.body.innerHTML = `<div class="docs-toolbar" role="toolbar" aria-label="Document formatting"><span class="docs-primary-tools"></span><details class="docs-more"><summary aria-label="More document controls">More</summary><div class="docs-more-tools"><select aria-label="Page colour"><option value="auto">Auto page</option><option value="light">Light page</option><option value="dark">Dark page</option></select><details class="docs-download"><summary>Download</summary><div><label>Paper <select aria-label="Paper size"><option value="a4">A4</option><option value="letter">Letter</option></select></label><button type="button" data-pdf>Download PDF</button><button type="button" data-word>Download Word</button></div></details></div></details></div><div class="docs-scroll"><article class="docs-paper"><input class="docs-title" aria-label="Document title" placeholder="Untitled document"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
   const bubble = document.createElement('div'); bubble.className = 'docs-bubble'; bubble.setAttribute('role', 'toolbar'); bubble.setAttribute('aria-label', 'Selection formatting');
-  document.body.append(panel); panel.append(bubble); document.body.classList.add('docs-open');
   const $ = selector => panel.querySelector(selector);
-  $('.docs-crumb').textContent = `${ctx.canvas.board.name} > ${card.text || 'Untitled document'}`;
   const title = $('.docs-title'); title.value = card.text;
-  const saved = $('[data-saved]');
   let timer, version = 0, dirty = false, saving = false, closed = false, lastDoc, pendingSave = Promise.resolve();
   let minimumRev = ctx.canvas.board.rev;
   let editor;
-  const setStatus = text => { saved.textContent = text; };
+  const setStatus = side.setSaved;
   const schedule = () => {
     dirty = true; version++; setStatus('Saving…'); clearTimeout(timer); timer = setTimeout(save, 350);
   };
@@ -81,13 +81,14 @@ export function openDocument(card, ctx) {
     });
     return pendingSave;
   }
-  function close() {
-    if (closed) return; save(); closed = true; clearInterval(watch); clearTimeout(timer);
+  const close = options => side.close(options);
+  panel.addEventListener('side-editor-close', () => {
+    save(); closed = true; clearInterval(watch); clearTimeout(timer);
     document.removeEventListener('keydown', keys, true); document.removeEventListener('visibilitychange', visibility);
     window.removeEventListener('pagehide', save);
-    editor.destroy(); panel.remove(); bubble.remove(); document.body.classList.remove('docs-open', 'docs-full');
+    editor.destroy(); bubble.remove();
     if (active?.id === card.id) active = null;
-  }
+  }, { once: true });
   function pasteCards(data) {
     try {
       const payload = JSON.parse(data);
@@ -153,31 +154,34 @@ export function openDocument(card, ctx) {
     onUpdate: () => { schedule(); paint(); }, onSelectionUpdate: () => paint(),
   });
   lastDoc = JSON.stringify(editor.getJSON());
-  const tool = $('.docs-toolbar');
+  const primary = $('.docs-primary-tools'), tool = $('.docs-more-tools');
   const toggles = [];
   const action = (label, text, fn, mark, parent = tool) => {
-    const el = button(label, text, () => { fn(); paint(); }); parent.append(el); if (mark) toggles.push([el, mark]); return el;
+    const el = button(label, text, () => { editor.view.focus(); fn(); paint(); }); parent.append(el); if (mark) toggles.push([el, mark]); return el;
   };
-  const undo = action('Undo', '↶', () => editor.chain().focus().undo().run());
-  const redo = action('Redo', '↷', () => editor.chain().focus().redo().run());
+  const undo = action('Undo', 'Undo', () => editor.chain().focus().undo().run());
+  const redo = action('Redo', 'Redo', () => editor.chain().focus().redo().run());
   const blocks = select('Block style', [['body', 'Body'], ['title', 'Title'], ['heading', 'Heading'], ['sub', 'Subheading'], ['lead', 'Lead'], ['caption', 'Caption'], ['quote', 'Quote'], ['code', 'Code']], value => {
-    let chain = editor.chain().focus().clearNodes();
+    let chain = editor.chain().clearNodes();
     if (['title', 'heading', 'sub'].includes(value)) chain = chain.setHeading({ level: ['title', 'heading', 'sub'].indexOf(value) + 1 });
     else if (value === 'quote') chain = chain.setBlockquote();
     else if (value === 'code') chain = chain.setCodeBlock();
     else chain = chain.setParagraph().updateAttributes('paragraph', { kind: ['lead', 'caption'].includes(value) ? value : null });
     chain.run();
   }); tool.append(blocks);
+  for (const [label, value] of [['Title', 'title'], ['Heading', 'heading'], ['Text', 'body']]) action(label, label, () => { blocks.value = value; blocks.onchange(); }, null, primary);
   const fonts = document.createElement('input'); fonts.setAttribute('aria-label', 'Font family'); fonts.title = 'Font family'; fonts.setAttribute('list', 'docs-fonts');
   const fontList = document.createElement('datalist'); fontList.id = 'docs-fonts';
-  const used = new Set(['Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
+  const used = new Set(['Inter Variable', 'Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
   function collect(node) { for (const mark of node?.marks ?? []) if (mark.attrs?.fontFamily) used.add(mark.attrs.fontFamily); for (const child of node?.content ?? []) collect(child); }
   for (const c of ctx.canvas.board.cards) { collect(c.props?.doc); if (c.props?.font) used.add(c.props.font); }
   for (const name of used) fontList.append(new Option(name, name));
-  fonts.onchange = () => { if (fonts.value.trim()) editor.chain().focus().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts, fontList);
+  // Keep form controls focused. TipTap's focus() queues a frame that can steal
+  // focus from the next field and insert its typed value into the document.
+  fonts.onchange = () => { if (fonts.value.trim()) editor.chain().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts, fontList);
   const sizes = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
   const size = document.createElement('input'); size.type = 'number'; size.min = '6'; size.max = '200'; size.setAttribute('aria-label', 'Font size');
-  const setSize = value => { const n = Math.max(6, Math.min(200, Number(value) || 16)); editor.chain().focus().setFontSize(`${n}px`).run(); size.value = String(n); };
+  const setSize = value => { const n = Math.max(6, Math.min(200, Number(value) || 16)); editor.chain().setFontSize(`${n}px`).run(); size.value = String(n); };
   action('Decrease font size', '−', () => setSize([...sizes].reverse().find(n => n < Number(size.value)) ?? Number(size.value) - 1));
   size.onchange = () => setSize(size.value); tool.append(size);
   action('Increase font size', '+', () => setSize(sizes.find(n => n > Number(size.value)) ?? Number(size.value) + 1));
@@ -186,6 +190,7 @@ export function openDocument(card, ctx) {
     action('Link', 'Link', showLink, 'link', parent);
   }
   inline(tool); inline(bubble);
+  primary.append(tool.querySelector('[aria-label=Bold]'));
   const palette = ['#25252b', '#6b6370', '#e8590c', '#1f9d63', '#1f7ae0', '#6b4fe0', '#c0392b'];
   for (const c of ctx.canvas.board.cards) { const colour = c.props?.hex ?? c.color; if (/^#[0-9a-f]{6}$/i.test(colour)) palette.push(colour); }
   function colourPicker(label, highlight) {
@@ -201,10 +206,10 @@ export function openDocument(card, ctx) {
     tool.append(menu);
   }
   colourPicker('Text colour', false); colourPicker('Highlight', true);
-  const align = select('Text alignment', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['justify', 'Justified']], value => editor.chain().focus().setTextAlign(value).run()); tool.append(align);
-  action('Bullet list', '• List', () => editor.chain().focus().toggleBulletList().run(), 'bulletList');
+  const align = select('Text alignment', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['justify', 'Justified']], value => editor.chain().setTextAlign(value).run()); tool.append(align);
+  action('Bullet list', 'List', () => editor.chain().focus().toggleBulletList().run(), 'bulletList', primary);
   action('Numbered list', '1. List', () => editor.chain().focus().toggleOrderedList().run(), 'orderedList');
-  action('Task list', '☑ Tasks', () => editor.chain().focus().toggleTaskList().run(), 'taskList');
+  action('Task list', 'Tasks', () => editor.chain().focus().toggleTaskList().run(), 'taskList');
   const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
   file.onchange = () => { if (file.files[0]) image(file.files[0]); file.value = ''; }; panel.append(file);
   action('Insert image', 'Image', () => file.click());
@@ -212,8 +217,8 @@ export function openDocument(card, ctx) {
   action('Divider', 'Divider', () => editor.chain().focus().setHorizontalRule().run());
   action('Clear formatting', 'Clear', () => editor.chain().focus().unsetAllMarks().clearNodes().run());
   const more = select('More formatting', [['', 'More'], ['1', 'Single spacing'], ['1.15', '1.15 spacing'], ['1.5', '1.5 spacing'], ['2', 'Double spacing'], ['superscript', 'Superscript'], ['subscript', 'Subscript']], value => {
-    if (['superscript', 'subscript'].includes(value)) editor.chain().focus().toggleMark(value).run();
-    else if (value) editor.chain().focus().updateAttributes(editor.isActive('heading') ? 'heading' : 'paragraph', { lineHeight: value }).run();
+    if (['superscript', 'subscript'].includes(value)) editor.chain().toggleMark(value).run();
+    else if (value) editor.chain().updateAttributes(editor.isActive('heading') ? 'heading' : 'paragraph', { lineHeight: value }).run();
     more.value = '';
   }); tool.append(more);
   const tableTools = document.createElement('span'); tableTools.className = 'docs-table-tools'; tool.append(tableTools);
@@ -261,18 +266,17 @@ export function openDocument(card, ctx) {
   function paint() {
     if (!editor || editor.isDestroyed || !tableTools) return;
     const attrs = editor.getAttributes('textStyle');
-    if (document.activeElement !== fonts) fonts.value = attrs.fontFamily || 'Arial';
-    if (document.activeElement !== size) size.value = String(parseFloat(attrs.fontSize) || 16);
+    if (document.activeElement !== fonts) fonts.value = attrs.fontFamily || 'Inter Variable';
+    if (document.activeElement !== size) size.value = String(parseFloat(attrs.fontSize) || 19.5);
     blocks.value = editor.isActive('heading') ? ['title', 'heading', 'sub'][editor.getAttributes('heading').level - 1] : editor.isActive('blockquote') ? 'quote' : editor.isActive('codeBlock') ? 'code' : editor.getAttributes('paragraph').kind || 'body';
     align.value = editor.getAttributes('paragraph').textAlign || editor.getAttributes('heading').textAlign || 'left';
     for (const [el, mark] of toggles) el.setAttribute('aria-pressed', String(editor.isActive(mark)));
     undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); tableTools.hidden = !editor.isActive('table');
     const words = editor.storage.characterCount.words(); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
   }
-  title.oninput = () => { $('.docs-crumb').textContent = `${ctx.canvas.board.name} > ${title.value || 'Untitled document'}`; schedule(); };
+  title.oninput = () => { $('.side-editor-name').textContent = title.value || 'Untitled document'; schedule(); };
   title.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); editor.commands.focus('start'); editor.view.focus(); } };
-  $('[data-back]').onclick = close; $('[data-close]').onclick = close;
-  $('[data-expand]').onclick = () => { const full = document.body.classList.toggle('docs-full'); $('[data-expand]').setAttribute('aria-pressed', String(full)); };
+  $('[data-back]').onclick = event => close({ keyboard: event.detail === 0 });
   const pageColour = $('[aria-label="Page colour"]'); pageColour.value = localStorage.getItem('aegis:doc-page') || 'auto';
   const colourPage = () => { panel.dataset.page = pageColour.value; localStorage.setItem('aegis:doc-page', pageColour.value); }; pageColour.onchange = colourPage; colourPage();
   const paper = $('[aria-label="Paper size"]'); paper.value = localStorage.getItem('aegis:doc-paper') || 'a4'; paper.onchange = () => localStorage.setItem('aegis:doc-paper', paper.value);
@@ -288,7 +292,7 @@ export function openDocument(card, ctx) {
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopImmediatePropagation();
     const popup = panel.querySelector('.docs-link-form');
-    if (popup) { popup.remove(); editor.commands.focus(); } else close();
+    if (popup) { popup.remove(); editor.commands.focus(); } else close({ keyboard: true });
   }
   const visibility = () => { if (document.hidden) save(); };
   document.addEventListener('keydown', keys, true); document.addEventListener('visibilitychange', visibility); window.addEventListener('pagehide', save);
@@ -300,11 +304,11 @@ export function openDocument(card, ctx) {
     if (!dirty && !saving && (JSON.stringify(latest.props?.doc) !== lastDoc || title.value !== latest.text)) {
       editor.commands.setContent(latest.props?.doc ?? markdownHTML(latest.props?.body ?? ''), { emitUpdate: false });
       lastDoc = JSON.stringify(latest.props?.doc); title.value = latest.text;
-      $('.docs-crumb').textContent = `${ctx.canvas.board.name} > ${latest.text || 'Untitled document'}`; paint();
+      $('.side-editor-name').textContent = latest.text || 'Untitled document'; paint();
     }
   }, 500);
   active = { id: card.id, boardId, editor, panel, close, save, ctx };
-  paint(); title.focus();
+  paint(); title.focus({ preventScroll: true }); centreCardInLeft(card, ctx, keyboard);
 }
 
 export function copyIntoDocument(cards, ctx, target = active?.id, point) {
