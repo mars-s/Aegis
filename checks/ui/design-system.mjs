@@ -101,6 +101,11 @@ try {
     await page.getByLabel('Details selection', { exact: true }).click();
     const details = page.getByRole('dialog', { name: 'Details selection controls', exact: true }); await shot('selection-details', details);
     await details.getByRole('button', { name: 'Tilt', exact: true }).click(); await shot('tilt', page.getByRole('dialog', { name: 'Tilt controls', exact: true })); await dismiss();
+    for (const name of ['Arrange', 'Export']) {
+      await page.getByLabel(`${name} selection`, { exact: true }).click();
+      await shot('selection-' + name.toLowerCase(), page.getByRole('dialog', { name: `${name} selection controls`, exact: true }));
+    }
+    await dismiss();
     for (const name of ['Align', 'Colour']) {
       await page.getByLabel(name, { exact: true }).click(); await shot('selection-' + name.toLowerCase(), page.locator('.selection-popup-menu:not([hidden])')); await dismiss();
     }

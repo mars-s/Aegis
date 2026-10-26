@@ -59,7 +59,7 @@ try {
   await touch('touchStart',[[1,180,340]]); await touch('touchMove',[[1,200,340]]); await touch('touchMove',[[1,180,340]]); await page.waitForTimeout(560); await touch('touchEnd',[]); assert.equal(await page.getByText('New note here',{exact:true}).isVisible(),false);
   await page.evaluate(id=>aegis.apply([{op:'order',ids:[id],to:'front'}]),note.id); await waitSaved();
   await page.evaluate(c=>{aegis.canvas.setView({x:120-c.x,y:260-c.y,z:1});aegis.canvas.select([]);},note); await page.waitForTimeout(70);
-  await touch('touchStart',[[1,140,340]]); await page.waitForTimeout(570); await touch('touchEnd',[]); await page.getByRole('menuitem',{name:'Bring to front',exact:true}).waitFor(); assert.deepEqual(await page.evaluate(()=>aegis.canvas.selection()),[note.id]); await page.screenshot({path:out('parity-phone-card-menu.png')}); await page.keyboard.press('Escape');
+  await touch('touchStart',[[1,140,340]]); await page.waitForTimeout(570); await touch('touchEnd',[]); await page.getByRole('menuitem',{name:'Arrange',exact:true}).click(); await page.getByRole('menuitem',{name:'Bring to front',exact:true}).waitFor(); assert.deepEqual(await page.evaluate(()=>aegis.canvas.selection()),[note.id]); await page.screenshot({path:out('parity-phone-card-menu.png')}); await page.keyboard.press('Escape');
   log('520ms board/card context-menu path and 8px cancellation, quick capture and Unsorted release');
   // Slow and failed saves, followed by retry and authoritative disk-backed host reads.
   let mode='slow';

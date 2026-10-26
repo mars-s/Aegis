@@ -48,6 +48,7 @@ try {
   await page.keyboard.press('Escape');
   if (!reproduce) {
     await page.getByLabel('More selection controls', { exact: true }).click();
+    await page.getByLabel('Format selection', { exact: true }).click();
     const field = page.getByLabel('Line height', { exact: true }); const initial = Number(await field.inputValue());
     await field.focus(); await field.press('ArrowUp'); await settle();
     verify('arrow keys edit numeric fields inside More', await page.evaluate(expected => Math.abs(aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props?.lh - expected) < .001, initial + .05));
@@ -93,6 +94,7 @@ try {
     await page.evaluate(() => { aegis.canvas.setView({ x: 430, y: 240, z: 1 }); aegis.canvas.select(['canvasnote']); }); await settle();
   }
   await page.getByLabel('More selection controls', { exact: true }).click();
+    await page.getByLabel('Format selection', { exact: true }).click();
   const fonts = page.getByRole('button', { name: 'Fonts…', exact: true }); await fonts.click();
   const searchFonts = page.getByRole('textbox', { name: 'Search fonts', exact: true }); await searchFonts.fill('serif'); await searchFonts.press('ArrowDown');
   verify('font picker arrows reach a matching choice', await page.evaluate(() => document.activeElement.tagName === 'BUTTON' && document.activeElement.textContent.includes('serif')));

@@ -533,8 +533,9 @@ function showContext(x, y, at, ids) {
   const editable = single && canvas.mountedEl(cards[0].id)?.querySelector('[contenteditable]');
   const locked = cards.some(card => card.props?.locked);
   const actions = [];
-  if (open || opener || editable) actions.push({ title: opener || open ? 'Open' : 'Edit', run: () => {
-    if (open) open.run(ctx, ids, at); else if (opener) opener.click(); else editable?.focus();
+  if (open || opener || editable) actions.push({ title: opener || open ? 'Open' : 'Edit', run: event => {
+    const keyboardCommand = event.detail === 0 && open && registry.commands.find(command => command.id === open.id);
+    if (keyboardCommand) keyboardCommand.run(ctx); else if (open) open.run(ctx, ids, at); else if (opener) opener.click(); else editable?.focus();
   } });
   actions.push({ title: 'Copy', shortcut: /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘C' : 'Ctrl+C', run: () => editing.copy() },
     { title: 'Duplicate', shortcut: menuShortcut('duplicate'), disabled: locked, run: () => editing.duplicate() });

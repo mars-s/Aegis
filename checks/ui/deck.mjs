@@ -176,7 +176,7 @@ try {
   assert.equal(await panel.evaluate(el => getComputedStyle(el).transitionDuration), '0.26s');
   await page.keyboard.press('Escape');
   await card.click({ button: 'right' });
-  await page.locator('.ctx-menu').getByRole('menuitem', { name: 'Open deck', exact: true }).focus();
+  await page.locator('.ctx-menu').getByRole('menuitem', { name: 'Open', exact: true }).focus();
   await page.keyboard.press('Enter'); await panel.waitFor();
   assert.equal(await page.locator('.ctx-menu:not([hidden])').count(), 0);
   assert.equal(await panel.evaluate(el => getComputedStyle(el).transitionDuration), '0s');
