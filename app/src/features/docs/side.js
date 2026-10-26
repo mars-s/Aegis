@@ -24,9 +24,9 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   const canvas = ctx.canvas, stage = document.getElementById('stage');
   const boardId = canvas.board.id;
   const bookmark = current?.bookmark.boardId === boardId ? current.bookmark : {
-    boardId, view: { ...canvas.view }, width: stage.clientWidth, height: stage.clientHeight, scroll: captureScroll(stage),
+    boardId, view: { ...canvas.view }, width: stage.clientWidth, height: stage.clientHeight, scroll: captureScroll(stage), selection: [...ctx.selection()],
   };
-  const selection = [...ctx.selection()];
+  const selection = bookmark.selection;
   // Focus returns to the control that opened the editor when it still exists (an Open action or toolbar button).
   const previousFocus = current?.previousFocus ?? document.activeElement;
   const opener = previousFocus?.matches?.('[data-window-action], #selectionBar [aria-label="Open"], .win-open, .deck-open, .canvas-open') ? previousFocus : null;

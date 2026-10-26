@@ -52,17 +52,22 @@ function placeSummaries(points, area, width) {
 export function editorContext(canvas, source, editor) {
   const stage = document.getElementById('stage'), boardId = canvas.board.id;
   const layer = document.createElement('div'); layer.className = 'editor-context'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Editor context');
-  const style = document.createElement('style');
-  stage.append(layer, style);
-  let entries = [], area, frame = 0, destroyed = false;
+  stage.append(layer);
+  const cardIds = new Set(canvas.board.cards.map(c => c.id));
+  let entries = [], area, frame = 0, destroyed = false, dismissed = false;
+  function dismiss() { dismissed = true; layer.hidden = true; }
   function refreshContent() {
+    if (canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) {
+      dismiss(); return;
+    }
     for (const entry of entries) {
       const card = canvas.board.cards.find(c => c.id === entry.card.id);
       if (!card) continue;
       entry.card = card;
       const summary = cardSummary(card);
-      summary.kind += ` · ${entry.relation}`;
-      entry.button.replaceChildren(summaryContent(summary));
+      const content = summaryContent(summary);
+      content.querySelector('.semantic-kind').textContent = `${summary.kind} · ${entry.relation}`;
+      entry.button.replaceChildren(content);
       entry.button.setAttribute('aria-label', `${entry.relation}: ${summary.title}`);
     }
   }
@@ -75,11 +80,11 @@ export function editorContext(canvas, source, editor) {
   }
   function fit() {
     frame = 0;
-    if (destroyed || canvas.board.id !== boardId) return;
+    if (destroyed || dismissed || canvas.board.id !== boardId) return;
     const next = remainingArea(stage, editor);
     if (area && ['x', 'y', 'w', 'h'].every(key => Math.abs(next[key] - area[key]) < .1)) return;
     area = next;
-    if (area.w < 180 || area.h < HEIGHT) { layer.hidden = true; style.textContent = ''; entries = []; return; }
+    if (area.w < 180 || area.h < HEIGHT) { layer.hidden = true; entries = []; return; }
     layer.hidden = false;
     const card = canvas.board.cards.find(c => c.id === source.id);
     if (!card) return;
@@ -105,8 +110,6 @@ export function editorContext(canvas, source, editor) {
     });
     layer.replaceChildren(...entries.map(e => e.button));
     Object.assign(layer.style, { left: `${area.x}px`, top: `${area.y}px`, width: `${area.w}px`, height: `${area.h}px` });
-    const ids = entries.map(e => CSS.escape(e.card.id));
-    style.textContent = ids.flatMap(id => [`#world > .card[data-id="${id}"]`, `.semantic-window[data-card-id="${id}"]`]).join(',') + '{ visibility: hidden; pointer-events: none; }';
     refreshContent(); paint();
     canvas.glideTo(target, reduceMotion() ? 0 : 380);
   }
@@ -115,6 +118,8 @@ export function editorContext(canvas, source, editor) {
   const chrome = new MutationObserver(schedule); chrome.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   const drawerSettled = event => { if (event.target.matches('.tools, .side')) schedule(); };
   document.addEventListener('transitionend', drawerSettled);
+  // Manual board work takes over from the composed references, including drag and drop.
+  stage.addEventListener('pointerdown', dismiss); stage.addEventListener('wheel', dismiss, { passive: true });
   stage.addEventListener('canvaspaint', paint); stage.addEventListener('boardchange', refreshContent);
   fit();
   return {
@@ -122,8 +127,9 @@ export function editorContext(canvas, source, editor) {
     destroy() {
       destroyed = true; cancelAnimationFrame(frame); sizes.disconnect(); chrome.disconnect();
       document.removeEventListener('transitionend', drawerSettled);
+      stage.removeEventListener('pointerdown', dismiss); stage.removeEventListener('wheel', dismiss);
       stage.removeEventListener('canvaspaint', paint); stage.removeEventListener('boardchange', refreshContent);
-      layer.remove(); style.remove();
+      layer.remove();
     },
   };
 }

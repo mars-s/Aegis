@@ -40,8 +40,8 @@ intentional headings are preserved. Other document props remain intact.
 
 Documents share the floating shell in `side.js` with sheets and slides. It covers
 the right half of the window without resizing the canvas. Full width covers the
-window with an 8px margin. Pointer opens glide the card to the left half;
-keyboard opens are instant and leave the camera alone. `docs-open` and
+window with an 8px margin. Pointer and keyboard opens frame the source and nearby
+context in the remaining canvas. `docs-open` and
 `docs-full` remain aliases for `editor-open` and `editor-wide`.
 
 `openSide({ title, kind, card, ctx, keyboard })` returns `{ el, body, close, setSaved }`.
@@ -56,9 +56,12 @@ or nearby windows in the space left by the measured editor and sidebar bounds.
 The overview summaries keep the source compact and the context readable, with
 24 px clearance. Width and viewport changes reframe that space. Camera motion
 can be interrupted and honours both motion preferences.
+Panning, clicking the canvas or adding and removing windows restores the ordinary
+canvas, so board selection and dragging content into the document remain available.
 
 Opening records the camera, selection and scrolled canvas content. Close restores surviving selected cards
-and the camera with a 250 ms ease-out, then focuses the source card. Panning,
+and the camera with a 250 ms ease-out. Focus returns to the invoking Open action
+if it is still shown, otherwise to the source card. Panning,
 Fit and zooming while editing leave the bookmark intact. A new gesture interrupts
 the return. Reduced motion and Motion off restore instantly. Resizing preserves
 the world point at the viewport centre. Replacing an editor on the same board

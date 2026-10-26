@@ -36,7 +36,7 @@
 .editor-context-source { border-color: var(--data); }
 .editor-context-source .semantic-kind { color: var(--ink-2); }
 .editor-context-window:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
-#stage:has(.editor-context:not([hidden])) :is(.board-overview, .overview-back) { visibility: hidden; }
+#stage:has(.editor-context:not([hidden])) :is(#world > .card, #links, .semantic-summaries, .board-overview, .overview-back) { visibility: hidden; }
 body.motion-off .side-editor { transform: none; opacity: 0; transition: opacity 160ms linear; }
 body.motion-off .side-editor.is-open { opacity: 1; }
 body.motion-off .side-editor button { transition: none; transform: none; }

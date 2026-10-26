@@ -90,6 +90,8 @@ try {
         const a = result.windows[i]; assert.ok(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `${name}: summaries do not overlap`);
       }
       assert.ok(result.originals.every(v => ['hidden', 'unmounted'].includes(v)), 'full source duplicates are absent');
+      assert.equal(await page.locator('.semantic-summaries').evaluate(el => getComputedStyle(el).visibility), 'hidden', 'unchosen summaries cannot crowd the reference area');
+      assert.ok(await page.locator('#world > .card').evaluateAll(cards => cards.every(el => getComputedStyle(el).visibility === 'hidden')), 'the compact reference area has no overlapping full windows');
       metrics.push({ engine: engineName, name, ...result }); await shot(name);
     }
     for (const [id, keyboard, z] of [['contextdoc', false, .48], ['contextdoc', true, 1.4], ['contextsheet', false, .5], ['contextdeck', true, .5]]) {
@@ -98,6 +100,28 @@ try {
       await close(before);
     }
     console.log(`PASS ${engineName}: document, sheet and deck context, linked priority, nearest fallback, readable summaries and exact return`);
+
+    // Closing restores the invoking Open control even when the source is summarised.
+    for (const selector of ['.window-actions [data-window-action="contextdoc"]', '#selectionBar [aria-label="Open"]']) {
+      await prepare('contextdoc', 1);
+      await page.evaluate(() => aegis.canvas.select(['contextdoc']));
+      const invoker = page.locator(selector);
+      await invoker.waitFor({ state: 'visible' });
+      await invoker.focus();
+      const before = await snapshot();
+      await page.keyboard.press('Enter');
+      await page.locator('.side-editor.is-open').waitFor(); await page.waitForTimeout(500);
+      await close(before);
+      await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, selector);
+      assert.equal(await page.locator('#stage').evaluate(el => el.classList.contains('editor-source-selected')), false);
+    }
+    console.log(`PASS ${engineName}: focus returns to the window action and selection Open after clearing the editor source`);
+
+    const original = await prepare('contextsheet'); await open('contextsheet');
+    await page.locator('.editor-context-window[data-card-id="contextdoc"]').click();
+    await page.locator('.docs-panel').waitFor(); await page.waitForTimeout(500);
+    await close(original);
+    console.log(`PASS ${engineName}: opening a neighbouring editor preserves the original camera and selection bookmark`);
 
     // A measured custom panel width, open sidebar, viewport resize and full width.
     let before = await prepare('contextdoc'); await open('contextdoc');
@@ -122,6 +146,7 @@ try {
     await page.waitForTimeout(120); const moving = await snapshot(); assert.notDeepEqual(moving.view, before.view);
     await page.mouse.move(600, 700); await page.mouse.wheel(40, 100); await page.waitForTimeout(60);
     const interrupted = await snapshot(); await page.waitForTimeout(430); assert.deepEqual((await snapshot()).view, interrupted.view, 'opening remains interrupted');
+    assert.equal(await page.locator('.editor-context').isVisible(), false, 'manual navigation restores the ordinary canvas windows');
     await close(before);
     for (const mode of ['reduce', 'off']) {
       await page.emulateMedia({ reducedMotion: mode === 'reduce' ? 'reduce' : 'no-preference' });
@@ -156,6 +181,12 @@ try {
     const dataset = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'dataset').id);
     before = await prepare(dataset); await open(dataset); await page.locator('.data-viewer-grid').waitFor(); await composition('dataset'); await close(before);
 
+    before = await prepare('contextdoc'); await open('contextdoc');
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'create', type: 'note', newId: 'addedreference', text: 'An extra source to drag into the document.', x: 300, y: 400 }], resolve)));
+    assert.equal(await page.locator('.editor-context').isVisible(), false, 'new board windows remain available for document drag and drop');
+    await close(before);
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['addedreference'] }], resolve)));
+
     // Font choices exclude loaded maths fonts and fonts already used by cards.
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'update', id: 'nearnote', set: { props: { font: 'KaTeX_AMS' } } }], resolve)));
     before = await prepare('contextdoc'); await open('contextdoc');
@@ -189,16 +220,19 @@ try {
     await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
     metrics.push({ engine: engineName, rewriteContrast: contrast, lightRewriteContrast: lightContrast });
     await page.route('**/rewrite', async route => { await new Promise(resolve => setTimeout(resolve, 700)); await route.fulfill({ json: { text: 'A clearer release plan.' } }); });
-    const runRewrite = async motion => {
+    const runRewrite = async (motion, off = false) => {
       await page.emulateMedia({ reducedMotion: motion });
+      await page.evaluate(off => document.body.classList.toggle('motion-off', off), off);
       await page.locator('.docs-prose').click(); await page.locator('.docs-prose').press('ControlOrMeta+a');
       await choose(rewrite, 'Shorter');
       await page.waitForFunction(() => document.querySelector('.ribbon-ai')?.getAttribute('aria-busy') === 'true');
-      assert.equal(await animations(), motion === 'reduce' ? 0 : 2, `working orb respects ${motion}`);
-      if (motion !== 'reduce') await shot('rewrite-working');
+      assert.equal(await animations(), motion === 'reduce' || off ? 0 : 2, `working orb respects ${off ? 'Motion off' : motion}`);
+      assert.deepEqual(await rewrite.locator('.orb-inline').evaluate(el => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }), [16, 16]);
+      if (motion !== 'reduce' && !off) await shot('rewrite-working');
       await page.waitForFunction(() => document.querySelector('.ribbon-ai')?.getAttribute('aria-busy') === 'false'); assert.equal(await animations(), 0);
     };
-    await runRewrite('no-preference'); await runRewrite('reduce');
+    await runRewrite('no-preference'); await runRewrite('reduce'); await runRewrite('no-preference', true);
+    await page.evaluate(() => document.body.classList.remove('motion-off'));
     await page.unroute('**/rewrite'); await page.emulateMedia({ reducedMotion: 'no-preference' });
     await close(before);
     console.log(`PASS ${engineName}: real CSV editor, filtered writing fonts, font previews, shared 16px orb, working states, reduced motion and ${contrast.toFixed(2)}:1 text contrast`);
