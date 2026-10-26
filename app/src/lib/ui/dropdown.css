@@ -21,7 +21,7 @@
   padding: 6px 10px; margin: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent;
   color: inherit; box-shadow: none; font: var(--text-body)/1.35 var(--font); text-align: left; cursor: pointer;
 }
-.aegis-option-check, .aegis-menu-check { margin-left: auto; visibility: hidden; color: var(--data); }
+.aegis-option-check, .aegis-menu-check { margin-left: auto; visibility: hidden; color: var(--text); }
 [aria-selected=true] > .aegis-option-check, [aria-checked=true] > .aegis-menu-check { visibility: visible; }
 .aegis-menu-radio circle { fill: currentColor; stroke: none; }
 .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action):focus-visible {
@@ -64,7 +64,7 @@ body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button
 .aegis-surface.aegis-dropdown-menu [data-highlighted] { background: var(--hover); outline: 2px solid var(--focus); outline-offset: -2px; }
 .aegis-combobox { min-height: var(--control-height); padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--inset); color: var(--text); font: var(--text-body)/1.4 var(--font); }
 
-.aegis-surface [aria-checked=true] > svg { color: var(--data); }
+.aegis-surface [aria-checked=true] > svg { color: var(--text); }
 
 .aegis-submenu-arrow { margin-left: auto; color: var(--muted); }
 .selection-submenu > summary { display: flex; justify-content: space-between; align-items: center; min-height: var(--menu-row-height); padding: 7px 10px; border-radius: var(--radius-control); cursor: pointer; }

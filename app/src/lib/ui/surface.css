@@ -38,8 +38,8 @@ input.aegis-switch[type=checkbox] {
   transition: background-color var(--motion-fast) var(--ease-out);
 }
 input.aegis-switch::before { content: ''; position: absolute; width: 12px; height: 12px; left: 2px; top: 2px; background: var(--muted); border-radius: 50%; transition: transform var(--motion-fast) var(--ease-out); }
-input.aegis-switch:checked { background: var(--data); border-color: transparent; }
-input.aegis-switch:checked::before { background: #fff; transform: translateX(12px); }
+input.aegis-switch:checked { background: var(--accent); border-color: transparent; }
+input.aegis-switch:checked::before { background: var(--on-accent); transform: translateX(12px); }
 input.aegis-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 input.aegis-switch:disabled { opacity: .45; cursor: default; }
 .aegis-tooltip { position: fixed; z-index: 10030; max-width: 260px; padding: 6px 9px; border: 1px solid var(--ui-edge); border-radius: var(--radius-control); background: var(--ui-surface); box-shadow: var(--ui-shadow); color: var(--text); font: var(--text-label)/1.4 var(--font); pointer-events: none; }

@@ -33,7 +33,7 @@
 .editor-context { position: absolute; z-index: 100005; overflow: hidden; pointer-events: none; }
 .editor-context-window { position: absolute; left: 0; top: 0; height: 112px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: auto; }
 .editor-context-window .semantic-content { transform: none; transition: none; }
-.editor-context-source { border-color: var(--data); }
+.editor-context-source { border-color: var(--line-strong); }
 .editor-context-source .semantic-kind { color: var(--ink-2); }
 .editor-context-window:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
 #stage:has(.editor-context:not([hidden])) :is(#world > .card, #links, .semantic-summaries, .board-overview, .overview-back) { visibility: hidden; }
