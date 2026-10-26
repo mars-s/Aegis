@@ -45,6 +45,7 @@ all.push('first-minute');
 // Readable summaries and shared zoom tiers in Chromium and WebKit.
 all.push('semantic-zoom');
 all.push('overview-model');
+all.push('evidence-fidelity');
 all.push('spatial-interaction');
 // Fresh agent Undo and complete capture-batch retrieval in the production bundle.
 all.push('trust-undo');
