@@ -1,6 +1,9 @@
 /* The shell stays quiet until reached by pointer, keyboard or touch. */
 .bar { position: fixed; inset: 0 0 auto; height: 44px; padding: 0 10px 0 84px; z-index: 20; pointer-events: none; }
 .bar > * { pointer-events: auto; }
+/* macOS overlay traffic lights occupy the first 80px of the title bar. */
+.bar-left { position: absolute; top: 6px; left: 84px; display: flex; align-items: center; }
+.bar-left .icon-btn { width: 32px; height: 32px; border-radius: 6px; }
 .board-name { position: absolute; top: 6px; left: 50%; translate: -50% 0; height: 32px; max-width: 36vw; padding: 0 12px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-name:hover, .board-name:focus-visible { color: var(--text); background: var(--hover); }
 .bar-right { position: absolute; top: 4px; right: 10px; display: flex; align-items: center; gap: 4px; opacity: .14; transition: opacity 150ms var(--ease-out); }
@@ -209,20 +212,22 @@ body.motion-off .side:not(.open) { opacity: 0; }
 body.motion-off .composer, body.motion-off .edge-arrow { transform: none; }
 
 /* PM 6: no ghost controls or invisible hit targets on an idle board. */
-.bar-right, #tools.compact { opacity: 0; pointer-events: none; transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-drawer); }
-.bar-right { transform: translateY(-4px); }
+.bar-left, .bar-right, #tools.compact { opacity: 0; pointer-events: none; transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-drawer); }
+.bar-left, .bar-right { transform: translateY(-4px); }
 #tools.compact { transform: translate(-6px, -50%); }
 body.left-open #tools.compact { transform: translate(calc(var(--side-w) + 2px), -50%); }
-.bar-right.chrome-visible, .bar-right:focus-within, #tools.compact.chrome-visible, #tools.compact:focus-within { opacity: 1; pointer-events: auto; }
-.bar-right.chrome-visible, .bar-right:focus-within { transform: none; }
+.bar-left.chrome-visible, .bar-left:focus-within, .bar-right.chrome-visible, .bar-right:focus-within, #tools.compact.chrome-visible, #tools.compact:focus-within { opacity: 1; pointer-events: auto; }
+.bar-left.chrome-visible, .bar-left:focus-within, .bar-right.chrome-visible, .bar-right:focus-within { transform: none; }
 #tools.compact.chrome-visible, #tools.compact:focus-within { transform: translate(0, -50%); visibility: visible; }
 body.left-open #tools.compact.chrome-visible, body.left-open #tools.compact:focus-within { transform: translate(calc(var(--side-w) + 8px), -50%); }
-.bar-right.chrome-instant, #tools.compact.chrome-instant { transition: none; }
+.bar-left.chrome-instant, .bar-right.chrome-instant, #tools.compact.chrome-instant { transition: none; }
 @media (hover: none), (pointer: coarse), (max-width: 700px) {
-  .bar-right, #tools.compact { opacity: 1; pointer-events: auto; visibility: visible; }
-  .bar-right { transform: none; }
+  .bar-left, .bar-right, #tools.compact { opacity: 1; pointer-events: auto; visibility: visible; }
+  .bar-left, .bar-right { transform: none; }
   #tools.compact { transform: translate(0, -50%); }
 }
+@media (prefers-reduced-motion: reduce) { .bar-left { transition: none; transform: none; } }
+body.motion-off .bar-left { transition: none; transform: none; }
 @media (max-width: 700px) {
   #tools.compact { display: flex !important; --tool-step: 44px; }
   body.left-open #tools.compact { transform: translate(0, -50%); }

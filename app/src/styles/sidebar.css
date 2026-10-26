@@ -1,0 +1,35 @@
+/* Compact desktop controls share a 4px grid. Touch keeps a 44px target. */
+#side { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; --button-height: 32px; --button-padding: 0 8px; border-radius: var(--r-win); box-shadow: none; }
+#side .side-head { height: 40px; min-height: 40px; padding: 0 0 0 8px; gap: 8px; }
+#side .side-head > span { min-width: 0; line-height: 20px; }
+#side .side-head .icon-btn { flex: 0 0 32px; width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 6px; }
+#side .side-head svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linecap: round; }
+#side .pbox { border-radius: var(--r-win); box-shadow: none; }
+#side .phead { height: 40px; padding: 0 4px 0 12px; gap: 8px; line-height: 20px; }
+#side .pbody:not(.tools-panels):not(.keys) { padding: 0 8px 8px; }
+#side :is(.fold, .twisty, .layer-fold, .tree-delete) { --button-height: 28px; --button-padding: 0; flex: 0 0 28px; width: 28px; min-width: 28px; height: 28px; min-height: 28px; padding: 0; border-radius: 6px; display: grid; place-items: center; }
+#side :is(.fold, .twisty, .layer-fold) svg { width: 12px; height: 12px; }
+#side .board-crumbs { gap: 4px; padding: 0 4px; }
+#side .board-crumbs:empty { display: none; }
+#side .board-crumbs button { height: 28px; min-height: 28px; padding: 0 8px; font-size: 12px; border-radius: 6px; }
+#side :is(.tree-row, .layer-row) { height: 36px; min-height: 36px; padding: 0 0 0 calc(4px + min(var(--d, 0), 2) * 4px); gap: 4px; border-radius: 6px; }
+#side :is(.tree-row, .layer-row) > svg { margin: 0 6px; }
+#side :is(.tree-row, .layer-row) .row-more { flex: 0 0 28px; width: 28px; height: 28px; min-width: 28px; min-height: 28px; padding: 6px; border-radius: 6px; }
+#side .tree-row .twisty { left: 4px; margin: 0; }
+#side .tree-row .meta { right: 8px; }
+#side .tree-sep { padding: 12px 4px 4px; }
+#side .layer-filter { margin: 4px 8px 8px; padding: 4px 8px; }
+#side .library-home-button { height: 32px; margin: 0 0 4px; padding: 0 8px; border-radius: 6px; font-weight: 400; }
+#side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 168px; max-height: 28vh; }
+#side .adds { gap: 4px; padding: 8px 0 0; }
+#side .adds button { height: 32px; min-height: 32px; min-width: 0; padding: 0 4px; border-radius: 6px; font-size: 12px; font-weight: 400; }
+#side :is(.side-head .icon-btn, .fold, .twisty, .layer-fold, .tree-delete, .row-more, .adds button, .library-home-button, .board-crumbs button):hover { background: var(--hover); border-color: transparent; }
+#side button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
+#side :is(.tree-row, .layer-row):focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
+#side .phead .fold { margin: 0; }
+@media (hover: none), (pointer: coarse), (max-width: 700px) {
+  #side .side-head, #side .phead { height: 48px; min-height: 48px; }
+  #side :is(.side-head .icon-btn, .fold, .twisty, .layer-fold, .tree-delete, .row-more) { flex-basis: 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  #side :is(.tree-row, .layer-row) { height: 48px; min-height: 48px; }
+  #side :is(.adds button, .library-home-button, .board-crumbs button) { height: 44px; min-height: 44px; }
+}

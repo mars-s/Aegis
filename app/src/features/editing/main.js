@@ -123,7 +123,7 @@ export function mountEditing(ctx) {
   });
 
   const bar = document.createElement('div'); bar.id = 'selectionBar'; bar.className = 'selection-bar'; bar.hidden = true; bar.setAttribute('role', 'toolbar'); bar.setAttribute('aria-label', 'Selection controls'); document.body.append(bar);
-  const outline = document.createElement('div'); outline.className = 'editing-outline'; outline.hidden = true; outline.innerHTML = '<i class="selection-move top"></i><i class="selection-move bottom"></i><i class="selection-move left"></i><i class="selection-move right"></i><button class="rotation-handle" title="Rotate selection" aria-label="Rotate selection">↻</button><output class="rotation-badge" hidden></output><button class="selection-resize" aria-label="Resize selection"></button>'; stage.append(outline);
+  const outline = document.createElement('div'); outline.className = 'editing-outline'; outline.hidden = true; outline.innerHTML = '<i class="selection-move top"></i><i class="selection-move bottom"></i><i class="selection-move left"></i><i class="selection-move right"></i><button class="rotation-handle" title="Rotate selection" aria-label="Rotate selection"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M12.5 6a5 5 0 1 0 .5 4M9 6h4V2"/></svg></button><output class="rotation-badge" hidden></output><button class="selection-resize" aria-label="Resize selection"></button>'; stage.append(outline);
   let barKey = '', cleanups = [], gesture = false, toolbar, pointerHeld = false, shownIds = '', settleTimer;
   const positionBar = selectionPosition(canvas, bar, outline);
   addEventListener('keydown', () => { viaKeyboard = true; bar.classList.remove('selection-enter'); }, true);
@@ -159,6 +159,7 @@ export function mountEditing(ctx) {
   function renderBar(force = false) {
     const cards = selectedCards().filter(c => !effectiveFlag(canvas.board, c, 'hidden'));
     outline.hidden = !cards.length;
+    outline.classList.toggle('single', cards.length === 1);
     document.body.classList.toggle('editing-context', !!cards.length);
     if (!cards.length) { bar.hidden = true; shownIds = ''; clearTimeout(settleTimer); settleTimer = null; toolbar?.close(); return; }
     const locked = cards.some(c => effectiveFlag(canvas.board, c, 'locked')), ids = cards.map(c => c.id).join();

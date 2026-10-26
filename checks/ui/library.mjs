@@ -171,11 +171,11 @@ try {
   const nameWidths = await page.locator('.tree-row').evaluateAll(rows => rows.map(row => ({ ratio: row.querySelector('.name').getBoundingClientRect().width / row.getBoundingClientRect().width, title: row.querySelector('.name').title, text: row.querySelector('.name').textContent, buttons: row.querySelectorAll('.row-more').length })));
   assert.ok(nameWidths.every(row => row.ratio >= .6 && row.title === row.text && row.buttons === 1), JSON.stringify(nameWidths));
   const more = row(project).locator('.row-more'); await more.focus();
-  assert.ok((await more.boundingBox()).width >= 44 && (await more.boundingBox()).height >= 44);
+  assert.equal((await more.boundingBox()).width, 28); assert.equal((await more.boundingBox()).height, 28);
   assert.equal(await more.evaluate(el => getComputedStyle(el).opacity), '1');
   await more.press('ArrowDown'); await uiMenu('Rename').waitFor(); await page.keyboard.press('Escape');
   assert.equal(await more.evaluate(el => document.activeElement === el), true);
-  check('library names use at least 60% of each row; one 44px More button opens from the keyboard and Escape restores focus');
+  check('library names use at least 60% of each row; one 28px More button opens from the keyboard and Escape restores focus');
   await page.screenshot({ path: out(`r2-library-rows-${Date.now()}.png`) });
 
   await page.locator('[data-add="folder"]').click();
@@ -378,7 +378,7 @@ try {
   assert.deepEqual(groupData.props.kids, beforeGroup.cards.filter(c => c.parent === groupId).map(c => c.id));
   assert.equal(beforeGroup.cards.some(c => c.type === 'template-group'), false);
   const groupBox = await page.locator(`.card[data-id="${groupId}"]`).boundingBox();
-  await page.mouse.move(groupBox.x + groupBox.width - 18, groupBox.y + groupBox.height - 12); await page.mouse.down(); await page.mouse.move(groupBox.x + groupBox.width + 42, groupBox.y + groupBox.height + 28, { steps: 12 }); await page.mouse.up();
+  await page.mouse.move(groupBox.x + groupBox.width - 32, groupBox.y + groupBox.height - 12); await page.mouse.down(); await page.mouse.move(groupBox.x + groupBox.width + 42, groupBox.y + groupBox.height + 28, { steps: 12 }); await page.mouse.up();
   await waitForAsync(page, async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).x !== aegis.canvas.board.cards.find(c => c.id === id).x || !aegis.canvas.busy(), groupId);
   await page.waitForTimeout(350);
   const afterGroup = await api(`/boards/${child}`), movedGroup = afterGroup.cards.find(c => c.id === groupId), movedNote = afterGroup.cards.find(c => c.id === noteData.id);

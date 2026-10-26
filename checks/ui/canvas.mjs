@@ -41,7 +41,7 @@ try {
     { op: 'create', newId: 'canvascoll', type: 'coll', text: 'Collection', x: 600, y: 300, w: 260, h: 180 },
   ]);
   await page.evaluate(() => { aegis.canvas.setView({ x: 430, y: 240, z: 1 }); aegis.canvas.select(['canvasnote']); }); await settle();
-  verify('toolbar centre within 1 px and 10 px clear of rotation handle', await page.evaluate(() => { const b = document.querySelector('#selectionBar').getBoundingClientRect(), c = document.querySelector('[data-id="canvasnote"].card').getBoundingClientRect(), r = document.querySelector('.rotation-handle').getBoundingClientRect(); return Math.abs(b.left + b.width / 2 - c.left - c.width / 2) <= 1 && Math.abs(r.top - b.bottom - 10) <= 1; }));
+  verify('toolbar centre within 1 px and 8 px clear of rotation handle', await page.evaluate(() => { const b = document.querySelector('#selectionBar').getBoundingClientRect(), c = document.querySelector('[data-id="canvasnote"].card').getBoundingClientRect(), r = document.querySelector('.rotation-handle').getBoundingClientRect(); return Math.abs(b.left + b.width / 2 - c.left - c.width / 2) <= 1 && Math.abs(r.top - b.bottom - 8) <= 1; }));
   await page.getByLabel('Colour', { exact: true }).click(); await settle();
   verify('colour swatches have equal width and height', await page.locator('.selection-colours button').evaluateAll(nodes => nodes.every(el => { const s = getComputedStyle(el, '::before'); return s.width === s.height && s.flexShrink === '0'; })));
   await page.screenshot({ path: out(`canvas-swatch-circles-${Date.now()}.png`) });
@@ -120,7 +120,7 @@ try {
   await apply([{ op: 'update', id: 'canvasnote', set: { props: { layerName: 'A long research note with enough words to truncate in the sidebar' } } }]);
   const layer = page.locator('.layer-row[data-id="canvasnote"]'), rowMore = layer.locator('.row-more');
   const action = async name => { await rowMore.focus(); await rowMore.press('Enter'); await page.getByRole('menuitem', { name, exact: true }).click(); await settle(); };
-  verify('layers expose a single 44px More button', await rowMore.count() === 1 && (await rowMore.boundingBox()).width >= 44 && (await rowMore.boundingBox()).height >= 44);
+  verify('layers expose a single 28px More button', await rowMore.count() === 1 && (await rowMore.boundingBox()).width === 28 && (await rowMore.boundingBox()).height === 28);
   verify('long layer names have at least 60% of the row, ellipsis and a full title', await layer.evaluate(el => { const name = el.querySelector('.name'); return name.getBoundingClientRect().width / el.getBoundingClientRect().width >= .6 && getComputedStyle(name).textOverflow === 'ellipsis' && name.scrollWidth > name.clientWidth && name.title === name.textContent; }));
   if (!reproduce) {
     await action('Hide'); verify('row menu Hide saves and removes the canvas card', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.hidden && !document.querySelector('#world [data-id="canvasnote"]')));

@@ -2,7 +2,8 @@
 export function mountIdleChrome() {
   const rail = document.getElementById('tools');
   const controls = document.querySelector('.bar-right');
-  const groups = [rail, controls];
+  const leftControls = document.querySelector('.bar-left');
+  const groups = [rail, leftControls, controls];
   const timers = new Map();
   let keyboard = false;
   const near = new Set();
@@ -14,6 +15,7 @@ export function mountIdleChrome() {
   const held = group => touch.matches || near.has(group) || pointerInside.has(group) || active()
     || group.contains(document.activeElement) || group.matches('.armed, .more-open')
     || !!group.querySelector('[aria-expanded="true"], details[open]')
+    || group === leftControls && document.body.classList.contains('left-open')
     || group === controls && (document.body.matches('.left-open, .right-open, .onboarding-open') || !!document.querySelector('#settings[open]') || !document.getElementById('retrySave').hidden || !document.getElementById('showChip').hidden);
   function reveal(group, instant = false) {
     clearTimeout(timers.get(group)); timers.delete(group);
@@ -34,6 +36,7 @@ export function mountIdleChrome() {
     keyboard = false;
     near.clear();
     if (event.clientX <= 48) near.add(rail);
+    if (event.clientY <= 48) near.add(leftControls);
     if (event.clientY <= 48 || innerWidth - event.clientX <= 48) near.add(controls);
     sync();
   }, { passive: true });
@@ -46,7 +49,7 @@ export function mountIdleChrome() {
     listen(group, 'focusin', () => reveal(group, true));
     listen(group, 'focusout', () => queueMicrotask(sync));
   }
-  // Reveal both groups before Tab moves focus, leaving every control in the normal tab order.
+  // Reveal chrome before Tab moves focus, leaving every control in the normal tab order.
   listen(document, 'keydown', event => {
     keyboard = true;
     if (event.key === 'Tab' && !document.querySelector('dialog[open], .mobile-sheet:not([hidden])')) groups.forEach(group => reveal(group, true));
