@@ -83,7 +83,11 @@ export async function checkChrome(browser, url) {
     await page.locator('#selectionBar').getByRole('button', { name: 'Open', exact: true }).click();
     await page.locator('.docs-panel.is-open').waitFor();
     const assertQuiet = async id => {
-      await page.waitForFunction(id => document.querySelector(`.card[data-id="${id}"]`)?.classList.contains('editor-source'), id);
+      // A save replaces the preview before its connector overlay catches up on the next paint.
+      await page.waitForFunction(id => {
+        const source = document.querySelector(`.card[data-id="${id}"]`), title = aegis.canvas.board.cards.find(c => c.id === id)?.text;
+        return source?.classList.contains('editor-source') && source.textContent.includes(title) && [...document.querySelectorAll(`[data-connect-card="${id}"]`)].every(el => getComputedStyle(el).display === 'none');
+      }, id);
       assert.equal(await page.locator(`#world [data-id="${id}"] .resize`).isVisible(), false);
       assert.equal(await page.locator(`[data-connect-card="${id}"]`).evaluateAll(nodes => nodes.some(el => getComputedStyle(el).display !== 'none')), false, 'source connector handles are quiet too');
       for (const selector of ['.editing-outline', '.rotation-handle', '.selection-resize', '#selectionBar']) assert.equal(await page.locator(selector).isVisible(), false, selector);
