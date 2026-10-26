@@ -27,6 +27,7 @@ for (const name of ['chromium', 'webkit']) {
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
     await page.mouse.move(1100, 300); await page.waitForTimeout(350);
+    await page.locator('#toast').waitFor({ state: 'hidden' });
     const layer = page.locator('#askPill .orb-colours');
     const sample = () => layer.evaluate(el => ({ transform: getComputedStyle(el).transform, background: getComputedStyle(el).backgroundImage, duration: parseFloat(getComputedStyle(el).animationDuration), animations: el.getAnimations().filter(a => a.playState === 'running').length }));
     const idle = await sample(); await page.waitForTimeout(380); const later = await sample();
@@ -86,7 +87,7 @@ for (const name of ['chromium', 'webkit']) {
       if (mode === 'os') await page.emulateMedia({ reducedMotion: 'reduce' });
       else { await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => document.body.classList.add('motion-off')); }
       check(await layer.evaluate(el => getComputedStyle(el).animationName === 'none'), `${name}: ${mode} motion preference freezes the orb`);
-      await page.keyboard.press('Meta+Shift+k');
+      await page.locator('#quickCapture').dispatchEvent('click', { detail: 1 });
       check(await dialog.evaluate(el => getComputedStyle(el).animationName === 'none'), `${name}: ${mode} motion preference keeps capture instant`);
       await page.keyboard.press('Escape');
     }
