@@ -41,7 +41,7 @@ try {
   await hub.getByRole('button',{name:'Add',exact:true}).tap(); await page.locator('.mobile-content').getByRole('button',{name:'Wireframe',exact:true}).tap(); await page.locator('.mobile-content [data-wf="box"]').tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'}); assert.equal(await page.evaluate(()=>aegis.canvas.tool),'wireframe'); await page.evaluate(()=>aegis.canvas.setTool(null));
   await hub.getByRole('button',{name:'Add',exact:true}).tap(); await page.getByRole('button',{name:'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)',exact:true}).tap();
   await page.getByLabel('Capture idea',{exact:true}).fill('Phone captured idea'); await page.getByLabel('Capture idea',{exact:true}).press('Enter'); await waitSaved();
-  assert.ok((await waitSaved()).cards.some(c=>c.text==='Phone captured idea')); assert.equal(await page.locator('.capture-confirmation').isVisible(),true);
+  assert.equal(await page.locator('.capture-confirmation').isVisible(),true); await page.getByRole('button',{name:'Put on board',exact:true}).tap(); assert.ok((await waitSaved()).cards.some(c=>c.text==='Phone captured idea'));
   await hub.getByRole('button',{name:'Agents',exact:true}).tap(); assert.equal(await page.locator('.mobile-content #prompt').isVisible(),true); await page.screenshot({path:out('parity-phone-agents.png')}); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
   log('hub, sheet backdrop and close, board/layer/tool picks, grouped Add and Wireframe catalogue, Agents composer');
   const cdp=await context.newCDPSession(page);

@@ -50,7 +50,8 @@ try {
   await key('Mod+Shift+g'); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'noteaa').group, '');
   await select(['noteaa']); await key('f'); await pause(); assert.equal(await page.locator('#world [data-id="notedd"]').evaluate(el => el.classList.contains('focus-dim')), true); await key('Escape'); await pause(); assert.equal(await page.locator('.card.focus-dim').count(),0);
   await key('Mod+\\'); assert.equal(await page.locator('.show-panels').isVisible(), true); await page.getByText('Show panels', { exact: true }).click(); console.log('focus, clean mode');
-  await page.mouse.move(1400, 20); await page.locator('#quickCapture').click(); await page.getByLabel('Capture idea').fill('Captured thought'); await page.getByLabel('Capture idea').press('Enter'); await pause(); assert.ok((await saved()).cards.some(c => c.text === 'Captured thought'));
+  await page.mouse.move(1400, 20); await page.locator('#quickCapture').click(); await page.getByLabel('Capture idea').fill('Captured thought'); await page.getByLabel('Capture idea').press('Enter'); await pause(); assert.equal((await saved()).tray[0].text, 'Captured thought');
+  await page.getByRole('button', { name: 'Put on board', exact: true }).click(); await pause(); assert.ok((await saved()).cards.some(c => c.text === 'Captured thought'));
   await page.evaluate(() => { const card = aegis.canvas.board.cards.find(c => c.text === 'Captured thought'); aegis.apply([{ op: 'board_set', set: { tray: [card] } }, { op: 'delete', ids: [card.id] }]); });
   await pause();
   await page.evaluate(() => document.querySelector('[data-panel="unsorted"]').dispatchEvent(new CustomEvent('panelreveal', { bubbles: true })));
