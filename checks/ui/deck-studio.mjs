@@ -65,7 +65,9 @@ async function paintedText(page, selector, minimum, name) {
   for (const label of painted) {
     assert.ok(label.fontPixels >= minimum, `${name}: rendered font is at least ${minimum}px: ${JSON.stringify(label)}`);
     assert.ok(label.specifiedContrast >= 4.5 && label.peakContrast >= 4.5, `${name}: actual foreground reaches 4.5:1: ${JSON.stringify(label)}`);
-    assert.ok(label.inkHeight >= label.fontPixels * .6 && label.inkWidth >= label.width * .65 && label.ink >= label.fontPixels,
+    // Screenshot bounds and contrast edges quantise to raster pixels in both engines.
+    const rasterPixel = 1 / label.pixelRatio;
+    assert.ok(label.inkHeight + rasterPixel >= label.fontPixels * .6 && label.inkWidth + rasterPixel >= label.width * .65 && label.ink + rasterPixel ** 2 >= label.fontPixels,
       `${name}: glyph pixels cover the expected label rather than a missing or tiny raster: ${JSON.stringify(label)}`);
   }
   evidence.paints.push({ name, path, labels: painted });
@@ -174,7 +176,7 @@ try {
         await page.keyboard.press('ArrowRight');
         for (const [width, height] of [[960, 540], [1586, 992]]) {
           await page.setViewportSize({ width, height });
-          await paintedText(page, '.deck-present .deck-chart .axis', 12, `${engineName}-deck-studio-${theme}-chart-${width}`);
+          await paintedText(page, '.deck-present .deck-chart .axis', width >= 1440 ? 18 : 12, `${engineName}-deck-studio-${theme}-chart-${width}`);
           await page.keyboard.press('ArrowRight');
           await paintedText(page, '.deck-present .deck-three text', 14, `${engineName}-deck-studio-${theme}-circles-${width}`);
           await page.keyboard.press('ArrowLeft');

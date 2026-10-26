@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
-const output = join(repo, '.scratch/evidence-fidelity'); mkdirSync(output, { recursive: true });
+const output = process.env.AEGIS_CHECK_OUT || join(repo, '.scratch/evidence-fidelity'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 writeFileSync(join(output, 'build.log'), build.stdout + build.stderr);
@@ -40,6 +40,7 @@ const fixtures = [
   ] } },
 ].map((card, i) => ({ op: 'create', x: i % 3 * 600, y: Math.floor(i / 3) * 420, w: 520, h: 360, ...card }));
 const results = [];
+const longHeadline = 'Revenue and support cost across the three customer segments that drove our growth this quarter';
 let browser, page;
 const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const apply = commands => page.evaluate(commands => new Promise(resolve => aegis.apply(commands, resolve)), commands);
@@ -52,15 +53,57 @@ const inspectChart = async root => {
   return root.locator('.deck-evidence').evaluate(el => {
     const box = el.getBoundingClientRect();
     const rect = node => { const r = node.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+    const content = el.querySelector('.deck-chart-content');
+    const scale = content.getBoundingClientRect().width / content.clientWidth;
     const labels = [...el.querySelectorAll('svg text, .chart-legend .name, .chart-legend .share, .deck-axis-meaning')].filter(node => node.getClientRects().length).map(node => {
       const css = getComputedStyle(node), matrix = node instanceof SVGElement ? node.getScreenCTM() : null;
-      return { text: node.textContent, font: parseFloat(css.fontSize) * (matrix ? Math.hypot(matrix.a, matrix.b) : 1), ...rect(node) };
+      return { text: node.textContent, role: node.getAttribute('class'), font: parseFloat(css.fontSize) * (matrix ? Math.hypot(matrix.a, matrix.b) : scale), ...rect(node) };
     });
     return { kind: el.dataset.chartKind, lines: el.querySelectorAll('.line').length, slices: el.querySelectorAll('.slice').length,
       legend: [...el.querySelectorAll('.chart-legend .name')].map(node => node.textContent), text: el.textContent,
       labels, box: { x: box.x, y: box.y, w: box.width, h: box.height },
       paths: [...el.querySelectorAll('.line')].map(node => node.getAttribute('d')) };
   });
+};
+const compositionLayout = async (frame, name) => {
+  await frame.locator('.s-art').waitFor({ state: 'attached' }); await settle();
+  const geometry = await frame.evaluate(el => {
+    const rect = node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+    const slide = el.querySelector('.deck-slide'), title = slide.querySelector('.s-title');
+    const tail = new Range(); tail.selectNodeContents(title); tail.setStart(title.firstChild, Math.max(0, title.firstChild.length - 7));
+    return { slide: rect(slide), header: rect(slide.querySelector('.s-copy')), title: rect(title),
+      subtitle: rect(slide.querySelector('.s-sub')), art: rect(slide.querySelector('.s-art')),
+      chart: rect(el.querySelector('.deck-evidence')), lines: title.clientHeight / parseFloat(getComputedStyle(title).lineHeight),
+      tail: rect(tail),
+      wrap: getComputedStyle(title).textWrap, scale: rect(slide).width / slide.clientWidth };
+  });
+  assert.ok(geometry.lines <= 2.01, `${name}: heading exceeds two lines: ${JSON.stringify(geometry)}`);
+  assert.match(geometry.wrap, /balance/, `${name}: balanced title wrapping`);
+  assert.ok(geometry.chart.top >= geometry.header.bottom + 23 * geometry.scale, `${name}: title or subtitle intersects chart: ${JSON.stringify(geometry)}`);
+  assert.ok(Math.abs(geometry.art.top - geometry.chart.top) < 1 && Math.abs(geometry.art.height - geometry.chart.height) < 1, `${name}: chart follows the measured flow`);
+  assert.ok(geometry.chart.height > 0 && geometry.chart.bottom <= geometry.slide.bottom + 1, `${name}: chart fits the remaining slide area`);
+  return geometry;
+};
+const audienceType = result => {
+  const labels = result.labels.filter(label => !/\btotal\b/.test(label.role));
+  assert.ok(labels.length > 2);
+  for (const label of labels) assert.ok(label.font >= 18 && label.font <= 22.1, `Presentation label outside audience scale: ${JSON.stringify(label)}`);
+  assert.ok(Math.max(...labels.map(label => label.font)) - Math.min(...labels.map(label => label.font)) < .1, 'Axes, units, names and shares scale together');
+};
+const legendSpacing = async root => {
+  const geometry = await root.locator('.deck-evidence').evaluate(el => {
+    const rect = node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width }; };
+    const glyph = node => { const range = new Range(); range.selectNodeContents(node); return rect(range); };
+    return { chart: rect(el), ring: rect(el.querySelector('.round svg')), legend: rect(el.querySelector('.chart-legend')),
+      rows: [...el.querySelectorAll('.chart-legend li')].map(row => ({ name: row.querySelector('.name').textContent, share: row.querySelector('.share').textContent,
+        gap: glyph(row.querySelector('.share')).left - glyph(row.querySelector('.name')).right })) };
+  });
+  assert.deepEqual(geometry.rows.map(row => row.share), ['70%', '20%', '10%']);
+  assert.ok(geometry.rows.every(row => row.gap >= 0 && row.gap <= 24), `Names and shares drift apart: ${JSON.stringify(geometry)}`);
+  assert.ok(Math.max(...geometry.rows.map(row => row.gap)) - Math.min(...geometry.rows.map(row => row.gap)) < 1, 'Legend gaps are consistent');
+  assert.ok(geometry.legend.left - geometry.ring.right >= 16 && geometry.legend.left - geometry.ring.right <= geometry.chart.width * .1, 'Legend stays beside the ring');
+  assert.ok(Math.abs((geometry.ring.left + geometry.legend.right) / 2 - (geometry.chart.left + geometry.chart.right) / 2) < 2, 'Ring and legend form a centred group');
+  return geometry;
 };
 const readable = result => {
   for (const label of result.labels) {
@@ -91,13 +134,34 @@ try {
       await page.waitForFunction(() => document.querySelectorAll('.deck-film-item[data-i="0"] .line').length === 2);
       assert.equal(await page.locator('.deck-film-item[data-i="1"] .slice').count(), 3);
       await page.screenshot({ path: join(output, `${prefix}-comparison-editor.png`) });
+      const layouts = [];
+      for (const headline of [longHeadline, `${longHeadline}, with a detailed comparison of revenue, customer needs and the cost of supporting each segment over the coming financial year`]) {
+        await active().getByRole('textbox', { name: 'Slide 1 title', exact: true }).fill(headline);
+        await active().getByRole('textbox', { name: 'Slide 1 subtitle', exact: true }).fill('Fictional figures in Australian dollars. Compare the full revenue and support cost series.');
+        await page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved');
+        await inspectChart(active());
+        const layout = { headline, editor: await compositionLayout(active(), `${prefix} editor`),
+          filmstrip: await compositionLayout(page.locator('.deck-film-item[data-i="0"]'), `${prefix} filmstrip`) };
+        if (headline === longHeadline) assert.ok(layout.editor.tail.top + layout.editor.tail.height / 2 <= layout.editor.title.bottom, `The explanatory headline fits in full: ${JSON.stringify(layout.editor)}`);
+        layouts.push(layout);
+      }
+      await active().getByRole('textbox', { name: 'Slide 1 title', exact: true }).fill(longHeadline);
+      await page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved');
+      await compositionLayout(active(), `${prefix} long headline editor`);
+      await page.screenshot({ path: join(output, `${prefix}-long-headline-editor.png`) });
+      await page.locator('.deck-film-item[data-i="0"]').screenshot({ path: join(output, `${prefix}-long-headline-filmstrip.png`) });
       await page.getByRole('button', { name: 'Present', exact: true }).click();
       const presented = await inspectChart(page.locator('.deck-present'));
       assert.equal(presented.lines, 2); assert.deepEqual(presented.legend, comparisonResult.legend); readable(presented);
+      audienceType(presented);
+      const presentationLayout = await compositionLayout(page.locator('.deck-present'), `${prefix} presentation`);
+      await page.screenshot({ path: join(output, `${prefix}-long-headline-presentation.png`) });
       await page.keyboard.press('ArrowRight');
       const composition = await inspectChart(page.locator('.deck-present'));
       assert.equal(composition.kind, 'donut'); assert.equal(composition.slices, 3); assert.equal(composition.lines, 0);
       assert.deepEqual(composition.legend, ['Startup', 'Team', 'Enterprise']); assert.match(composition.text, /100 customers/); readable(composition);
+      audienceType(composition);
+      const legend = await legendSpacing(page.locator('.deck-present'));
       await page.screenshot({ path: join(output, `${prefix}-doughnut-presentation.png`) });
       await page.keyboard.press('Escape'); await selectSlide(1);
       assert.equal((await inspectChart(active())).slices, 3);
@@ -160,8 +224,8 @@ try {
       assert.ok(topology.labels.every(label => label.font >= 12 && label.x >= 0 && label.right <= topology.width));
       await page.screenshot({ path: join(output, `${prefix}-demo-fit.png`) });
       assert.deepEqual(errors, []);
-      results.push({ engine: engineName, width, height, theme, comparison: comparisonResult, composition, missing, topology, errors });
-      console.log(`PASS ${prefix}: complete series, doughnut, readable labels, latest snapshot after deletion/reload, reference status, source replacement and demo chain at Fit`);
+      results.push({ engine: engineName, width, height, theme, comparison: comparisonResult, presented, layouts, presentationLayout, composition, legend, missing, topology, errors });
+      console.log(`PASS ${prefix}: flowing two-line headlines in editor/filmstrip/presentation, audience chart type, compact truthful legend, complete series, latest snapshot after deletion/reload, reference status, source replacement and demo chain at Fit`);
       await page.close(); page = null;
     }
     await browser.close(); browser = null;
