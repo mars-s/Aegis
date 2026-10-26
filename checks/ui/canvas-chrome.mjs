@@ -116,7 +116,7 @@ try {
       await page.locator('#closeSide').click();
       console.log(`PASS ${engineName}: Windows exposes named tree items, selected state, one roving row, arrow/Home/End navigation and Enter activation`);
       for (const z of [1, .55, .2]) {
-        await page.evaluate(z => { aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 160, y: 220, z }); }, z);
+        await page.evaluate(z => new Promise(resolve => { document.getElementById('stage').addEventListener('canvaspaint', () => resolve(), { once: true }); aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 160, y: 220, z }); }), z);
         await moveTo(card('chromedocument'));
         const action = page.locator('.window-actions [data-window-action="chromedocument"]'); await action.waitFor();
         const box = await action.boundingBox(); assert.ok(box.width >= 32 && box.height >= 32, `${z}: ${JSON.stringify(box)}`);
@@ -165,7 +165,8 @@ try {
       await card('chromewidget').locator('iframe').hover();
       const widgetOpen = page.locator('.window-actions').getByRole('button', { name: 'Open Widget actions', exact: true });
       await widgetOpen.click(); await page.locator('.object-editor.is-open').waitFor(); await page.keyboard.press('Escape');
-      assert.equal(await widgetOpen.evaluate(el => el === document.activeElement), true, 'Escape restores the unscaled widget action');
+      const focusReturn = await page.evaluate(() => ({ id: document.activeElement.dataset.windowAction, active: document.activeElement.outerHTML.slice(0, 240), strip: document.querySelector('.window-actions').outerHTML.slice(0, 500), visibility: getComputedStyle(document.querySelector('.window-actions')).visibility, source: document.querySelector('.card.editor-source')?.dataset.id }));
+      assert.equal(focusReturn.id, 'chromewidget', `Escape restores the unscaled widget action: ${JSON.stringify(focusReturn)}`);
       await page.evaluate(() => { document.activeElement?.blur(); aegis.apply([{ op: 'delete', ids: ['chromewidget'] }]); });
       console.log(`PASS ${engineName}: iframe hover reveals the window action, and Escape restores its focus`);
       // Every registered card type uses the same selection and resize chrome.
