@@ -26,11 +26,12 @@
 .deck-slide .s-sub { margin: 2.4cqw 0 0; font-size: 2.7cqw; line-height: 1.4; color: var(--slide-secondary); outline: none; }
 .deck-slide .s-art { position: absolute; inset: auto 0 0; height: 46%; }
 .deck-slide .s-art svg { display: block; width: 100%; height: 100%; }
-.deck-slide.l-chart .s-copy { top: 6cqw; width: 80cqw; }
-.deck-slide.l-chart .s-title { font-size: 4.6cqw; }
-.deck-slide.l-chart .s-sub { font-size: 2.2cqw; margin-top: 1.2cqw; }
-.deck-slide.l-chart .s-art { inset: 19cqw 6cqw 4cqw; height: auto; }
-.deck-fit > .deck-resolved-chart { position: absolute; left: calc(50% - 422.4px * var(--slide-scale)); top: calc(50% - 87.6px * var(--slide-scale)); width: calc(844.8px * var(--slide-scale)); height: calc(319.2px * var(--slide-scale)); }
+.deck-slide.l-chart { display: flex; flex-direction: column; padding: 57.6px 57.6px 38.4px; gap: 24px; }
+.deck-slide.l-chart .s-copy { position: relative; left: auto; top: auto; width: auto; margin: 0 9.6px; flex: none; }
+.deck-slide.l-chart .s-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-wrap: balance; font-size: 40px; line-height: 1.08; }
+.deck-slide.l-chart .s-sub { font-size: 21.12px; margin-top: 11.52px; }
+.deck-slide.l-chart .s-art { position: relative; inset: auto; height: auto; min-height: 0; flex: 1; }
+.deck-fit > .deck-resolved-chart { position: absolute; }
 .deck-resolved-chart svg { display: block; text-rendering: geometricPrecision; }
 .deck-resolved-chart .chart-legend { font-size: 12px; line-height: 16px; }
 .deck-resolved-chart .chart-legend .name { white-space: normal; overflow: visible; }
