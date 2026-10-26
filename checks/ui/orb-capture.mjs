@@ -97,6 +97,10 @@ for (const name of ['chromium', 'webkit']) {
     check(await page.locator('.island-result-undo').isVisible(), `${name}: completion offers Undo`);
     await page.locator('#askPill').click();
     check(await page.locator('.card.glow').count() > 0, `${name}: clicking the result highlights its work`);
+    await page.waitForTimeout(350);
+    check(await page.locator('.card.glow').evaluateAll(nodes => nodes.every(el => {
+      const r = el.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight - 80;
+    })), `${name}: the settled result frames every affected window`);
     await page.screenshot({ path: out(`orb-result-${name}.png`), animations: 'allow' });
     await page.locator('.island-result-undo').click();
     await page.waitForFunction(() => !aegis.canvas.board.cards.some(c => c.text === 'Sent from capture'));
