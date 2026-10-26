@@ -46,6 +46,7 @@ all.push('first-minute');
 all.push('semantic-zoom');
 all.push('overview-model');
 all.push('spatial-interaction');
+all.push('spatial-memory');
 // Fresh agent Undo and complete capture-batch retrieval in the production bundle.
 all.push('trust-undo');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;

@@ -80,8 +80,8 @@ try {
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision', 'comparison'], 'selection survives detail');
     });
     await check('visible-controls', async () => {
-      await page.mouse.move(1400, 850);
-      await page.evaluate(() => { aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select(['decision']); });
+      await page.evaluate(() => { aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select(['decision']); document.getElementById('stage').focus(); });
+      await settle(); await page.mouse.move(1400, 850);
       await page.waitForTimeout(300);
       const geometry = await page.evaluate(() => {
         const r = el => el.getBoundingClientRect().toJSON();
@@ -113,12 +113,13 @@ try {
         const path = document.querySelector('[data-link-line="evidence"]'), p = path.getPointAtLength(path.getTotalLength() / 2), r = aegis.canvas.representations.get('obstacle');
         path.style.pointerEvents = 'stroke';
         const visible = document.elementFromPoint(p.x, p.y) === path; path.style.pointerEvents = '';
-        return { visible, inside: p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h };
+        const inside = Array.from({ length: 501 }, (_, i) => path.getPointAtLength(path.getTotalLength() * i / 500)).some(p => p.x > r.x - 11.8 && p.x < r.x + r.w + 11.8 && p.y > r.y - 11.8 && p.y < r.y + r.h + 11.8);
+        return { visible, inside };
       });
-      assert.deepEqual(await crossing(), { visible: true, inside: true }, 'the actual crossing stays above an unrelated summary');
+      assert.deepEqual(await crossing(), { visible: true, inside: false }, 'the wire clears the unrelated summary by 12px');
       await shot(`${engineName}-summary-connectors`);
       await open('decision'); await close(); await settle();
-      assert.deepEqual(await crossing(), { visible: true, inside: true }, 'the crossing stays visible after the editor closes');
+      assert.deepEqual(await crossing(), { visible: true, inside: false }, 'the route keeps its clearance after the editor closes');
       await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['obstacle'] }, { op: 'link_update', id: 'evidence', set: { bend: 0 } }], resolve)));
     });
     await check('reference-legend', async () => {

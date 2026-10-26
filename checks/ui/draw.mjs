@@ -123,8 +123,8 @@ try {
   await choose(controls.getByLabel('Arrow heads', { exact: true }), 'both');
   await controls.getByLabel('Connector colour', { exact: true }).click();
   await page.getByRole('dialog', { name: 'Colour editor', exact: true }).getByLabel('Hex', { exact: true }).fill('#cd3971');
-  await page.getByRole('dialog', { name: 'Colour editor', exact: true }).getByLabel('Hex', { exact: true }).press('Tab');
   await page.getByRole('dialog', { name: 'Colour editor', exact: true }).getByRole('button', { name: 'Done', exact: true }).click();
+  await persist(() => aegis.canvas.board.links[0]?.colour === '#cd3971');
   await controls.getByLabel('Connector label', { exact: true }).fill('Next <step>'); await controls.getByLabel('Connector label', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.links[0]?.label === 'Next <step>');
   // The connector layer redraws by replacing its children, so read a knob only once it is attached and stable.

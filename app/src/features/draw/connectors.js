@@ -2,6 +2,9 @@
 import { linkGeometry } from '../../canvas/engine.js';
 import { svg, worldToLocal, localToWorld } from './geometry.js';
 import { effectiveFlag } from '../editing/model.js';
+import { displayedCard, projectCard } from '../overview/spatial.js';
+import { displayRotation } from '../settings/preferences.js';
+import { routeSummaryLink } from '../../canvas/link-routing.js';
 export function connectorEditor(ctx, layer, changed) {
   const stage = document.getElementById('stage');
   let selected = null, drag = null;
@@ -9,9 +12,17 @@ export function connectorEditor(ctx, layer, changed) {
   const current = () => ctx.canvas.board?.links.find(l => l.id === selected);
   const world = e => ctx.canvas.screenToWorld(e.clientX, e.clientY);
   const screen = p => ctx.canvas.worldToScreen(p.x, p.y);
+  const pointer = e => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const displayed = c => displayedCard(c, ctx.canvas.representations.get(c.id) || projectCard(c, ctx.canvas.view), displayRotation(c));
   const stop = e => { e.preventDefault(); e.stopImmediatePropagation(); };
   function hitCard(at, except) {
-    return [...ctx.canvas.board.cards].reverse().find(c => { if (c.id === except || effectiveFlag(ctx.canvas.board, c, 'hidden')) return false; const p = worldToLocal(c, at), ow = c.props?.ow || c.w, oh = c.props?.oh || c.h, r = 16 / ctx.canvas.view.z; return p.x >= -r && p.y >= -r && p.x <= ow + r && p.y <= oh + r; });
+    if (stage.dataset.zoomTier === 'cluster') return;
+    const cards = [...ctx.canvas.board.cards].reverse().filter(c => c.id !== except && !effectiveFlag(ctx.canvas.board, c, 'hidden'));
+    cards.sort((a, b) => Number(!!ctx.canvas.representations.get(b.id)?.summary) - Number(!!ctx.canvas.representations.get(a.id)?.summary));
+    for (const radius of [0, 16]) {
+      const card = cards.find(c => { const d = displayed(c), p = worldToLocal(d, at); return p.x >= -radius && p.y >= -radius && p.x <= d.w + radius && p.y <= d.h + radius; });
+      if (card) return card;
+    }
   }
   function pinAt(c, at) {
     const p = worldToLocal(c, at), u = Math.max(0, Math.min(1, p.x / (c.props?.ow || c.w))), v = Math.max(0, Math.min(1, p.y / (c.props?.oh || c.h)));
@@ -19,6 +30,12 @@ export function connectorEditor(ctx, layer, changed) {
     return side === 0 ? { u: 0, v } : side === 1 ? { u: 1, v } : side === 2 ? { u, v: 0 } : { u, v: 1 };
   }
   function pinWorld(c, pin) { return localToWorld(c, { x: pin.u * (c.props?.ow || c.w), y: pin.v * (c.props?.oh || c.h) }); }
+  const pinScreen = (c, pin) => pinWorld(displayed(c), pin);
+  function targetAt(at, except) {
+    const card = hitCard(at, except); if (!card) return null;
+    const pin = pinAt(displayed(card), at);
+    return { card, pin, point: pinScreen(card, pin) };
+  }
   function knob(point, attrs) { const p = screen(point); layer.append(svg('circle', { cx: p.x, cy: p.y, r: 6, class: 'draw-link-knob', ...attrs })); }
   function wire(link, attrs = {}) {
     const a = ctx.canvas.board.cards.find(c => c.id === link.a), b = ctx.canvas.board.cards.find(c => c.id === link.b); if (!a || !b) return null;
@@ -35,18 +52,24 @@ export function connectorEditor(ctx, layer, changed) {
       const g = wire(link, drag ? { stroke: link.colour || 'var(--focus)', ...(link.dash ? { 'stroke-dasharray': '8 6' } : {}) } : { 'stroke-width': 7, opacity: .18 }); if (g) { knob(g.p0, { 'data-connect-end': 'a' }); knob(g.p2, { 'data-connect-end': 'b' }); knob(g.handle, { 'data-connect-bend': '1', class: 'draw-link-knob draw-link-bend' }); }
     }
     if (drag?.kind === 'create' || drag?.kind === 'end') {
-      const card = hitCard(drag.at, drag.kind === 'create' ? drag.a : drag.link[drag.end === 'a' ? 'b' : 'a']);
+      const target = targetAt(drag.at, drag.kind === 'create' ? drag.a : drag.link[drag.end === 'a' ? 'b' : 'a']);
+      drag.target = target;
       if (drag.kind === 'create') {
         const source = ctx.canvas.board.cards.find(c => c.id === drag.a);
-        drag.pa = pinAt(source, drag.at); drag.from = pinWorld(source, drag.pa);
+        drag.pa = pinAt(displayed(source), drag.at); drag.from = pinScreen(source, drag.pa);
       }
-      const from = screen(drag.from), to = screen(card ? pinWorld(card, pinAt(card, drag.at)) : drag.at);
-      if (card) {
-        const w = card.props?.ow || card.w, h = card.props?.oh || card.h;
-        const points = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => screen(localToWorld(card, { x, y }))).map(p => `${p.x},${p.y}`).join(' ');
+      const from = drag.kind === 'create' ? drag.from : screen(drag.from), to = target?.point || drag.at;
+      if (target) {
+        const card = displayed(target.card), { w, h } = card;
+        const points = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => localToWorld(card, { x, y })).map(p => `${p.x},${p.y}`).join(' ');
         layer.append(svg('polygon', { points, class: 'draw-connect-target', 'data-connect-target': card.id }));
       }
-      layer.append(svg('path', { d: `M${from.x} ${from.y} L${to.x} ${to.y}`, class: 'draw-connect-preview', 'data-connect-preview': '' }));
+      const source = displayed(ctx.canvas.board.cards.find(c => c.id === (drag.kind === 'create' ? drag.a : drag.link[drag.end === 'a' ? 'b' : 'a'])));
+      const summary = source.summary || target && displayed(target.card).summary;
+      const { width, height } = ctx.canvas.viewportSize;
+      const obstacles = [...ctx.canvas.representations.values()].filter(r => r.x + r.w >= 0 && r.y + r.h >= 0 && r.x <= width && r.y <= height);
+      const route = summary && target ? routeSummaryLink(from, to, source, displayed(target.card), obstacles) : null;
+      layer.append(svg('path', { d: route?.d || `M${from.x} ${from.y} L${to.x} ${to.y}`, class: 'draw-connect-preview', ...(summary ? { style: 'stroke-width:1' } : {}), 'data-connect-preview': '' }));
     }
   }
   function cancel() { drag = null; stage.classList.remove('connecting'); hint.hidden = true; }
@@ -54,18 +77,18 @@ export function connectorEditor(ctx, layer, changed) {
   stage.addEventListener('connectstart', e => {
     const card = ctx.canvas.board.cards.find(c => c.id === e.detail.id); if (!card) return;
     ctx.canvas.setTool(null); selected = null;
-    const pa = { u: 1, v: .5 }, from = pinWorld(card, pa);
+    const pa = { u: 1, v: .5 }, from = pinScreen(card, pa);
     drag = { kind: 'create', boardId: ctx.canvas.board.id, a: card.id, pa, from, at: from };
     stage.classList.add('connecting'); hint.hidden = false; stage.focus({ preventScroll: true }); redraw(); changed();
   });
   stage.addEventListener('pointerdown', e => {
     if (e.button !== 0) return;
-    if (drag?.kind === 'create') { stop(e); drag.at = world(e); stage.setPointerCapture(e.pointerId); redraw(); return; }
+    if (drag?.kind === 'create') { stop(e); drag.at = pointer(e); stage.setPointerCapture(e.pointerId); redraw(); return; }
     const target = e.target.closest('[data-link], [data-connect-end], [data-connect-bend]');
     if (!target || ctx.canvas.tool) { if (selected && !e.target.closest('input, button, select, .draw-inspector')) select(null); return; }
     stop(e); stage.focus({ preventScroll: true });
     if (target.dataset.link) { select(target.dataset.link); return; }
-    const at = world(e), link = structuredClone(current()); if (!link) return;
+    const at = pointer(e), link = structuredClone(current()); if (!link) return;
     const a = ctx.canvas.board.cards.find(c => c.id === link.a), b = ctx.canvas.board.cards.find(c => c.id === link.b), g = linkGeometry(link, a, b);
     drag = target.dataset.connectEnd ? { kind: 'end', link, end: target.dataset.connectEnd, at, from: target.dataset.connectEnd === 'a' ? g.p2 : g.p0 } : { kind: 'bend', link, g };
     stage.setPointerCapture(e.pointerId); redraw(); changed();
@@ -73,7 +96,7 @@ export function connectorEditor(ctx, layer, changed) {
   stage.addEventListener('pointermove', e => {
     if (stage.classList.contains('panning')) return;
     if (drag) {
-      stop(e); const at = world(e);
+      stop(e); const at = drag.kind === 'bend' ? world(e) : pointer(e);
       if (drag.kind === 'bend') { const g = drag.g, bend = 2 * ((at.x - g.mid.x) * g.n.x + (at.y - g.mid.y) * g.n.y); drag.link.bend = Math.abs(bend * ctx.canvas.view.z) < 8 ? 0 : Math.round(bend); }
       else drag.at = at;
       redraw(); return;
@@ -81,21 +104,28 @@ export function connectorEditor(ctx, layer, changed) {
   }, true);
   stage.addEventListener('pointerup', e => {
     if (stage.classList.contains('panning')) return;
-    if (!drag) return; stop(e); const d = drag; cancel();
+    if (!drag) return; stop(e);
+    if (drag.kind !== 'bend') { drag.at = pointer(e); redraw(); }
+    if (!drag) return;
+    const d = drag; consumeClick = true; setTimeout(() => { consumeClick = false; }, 0); cancel();
     if (d.kind === 'bend') ctx.apply([{ op: 'link_update', id: d.link.id, set: { bend: d.link.bend } }]);
     else {
-      const at = world(e), except = d.kind === 'create' ? d.a : d.link[d.end === 'a' ? 'b' : 'a'], target = hitCard(at, except);
+      const target = d.target?.card;
       if (target) {
         const a = d.kind === 'create' ? d.a : d.end === 'a' ? target.id : d.link.a, b = d.kind === 'create' ? target.id : d.end === 'b' ? target.id : d.link.b;
         const duplicate = ctx.canvas.board.links.some(l => l.id !== d.link?.id && (l.a === a && l.b === b || l.a === b && l.b === a));
         if (duplicate) ctx.toast('Those cards are already connected.');
         else if (d.kind === 'create') {
           const id = Math.random().toString(36).slice(2, 12).padEnd(8, '0');
-          ctx.apply([{ op: 'connect', a, b, newId: id }, { op: 'link_update', id, set: { pa: d.pa, pb: pinAt(target, at) } }]); selected = id; ctx.canvas.select([]);
-        } else ctx.apply([{ op: 'link_update', id: d.link.id, set: { [d.end]: target.id, [d.end === 'a' ? 'pa' : 'pb']: pinAt(target, at) } }]);
+          ctx.apply([{ op: 'connect', a, b, newId: id }, { op: 'link_update', id, set: { pa: d.pa, pb: d.target.pin } }]); selected = id; ctx.canvas.select([]);
+        } else ctx.apply([{ op: 'link_update', id: d.link.id, set: { [d.end]: target.id, [d.end === 'a' ? 'pa' : 'pb']: d.target.pin } }]);
       }
     }
     redraw(); changed();
+  }, true);
+  let consumeClick = false;
+  stage.addEventListener('click', e => {
+    if (consumeClick || drag) { stop(e); consumeClick = false; }
   }, true);
   stage.addEventListener('pointercancel', () => { cancel(); redraw(); changed(); });
   stage.addEventListener('tool', e => { if (e.detail) { selected = null; cancel(); redraw(); changed(); } });

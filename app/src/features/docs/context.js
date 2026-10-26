@@ -70,7 +70,9 @@ export function editorContext(canvas, source, editor, apply) {
   }
   function referenceOptions() {
     const entries = neighbours(canvas.board, source).filter(entry => referenceCard(entry.card));
-    return [['', 'None'], ...entries.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`]), ...chosen && !entries.some(entry => entry.card.id === chosen) ? [[chosen, 'Unavailable reference']] : []];
+    const options = [['', 'None'], ...entries.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`])];
+    if (chosen && !entries.some(entry => entry.card.id === chosen)) options.push([chosen, 'Unavailable reference']);
+    return options;
   }
   const switchEditor = id => {
     canvas.select([id]); window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: true } }));
@@ -83,6 +85,7 @@ export function editorContext(canvas, source, editor, apply) {
     options: referenceOptions(),
     onChange(id) { chosen = id; reference.setRegion({ row: 1, column: 1 }); remember(); refreshContent(); layout(); },
   });
+  let optionsKey = JSON.stringify(referenceOptions());
   tools.append(picker); evidence.append(tools, empty, preview, open);
   const reference = liveReference(preview, canvas, { region: saved, onRegionChange: remember });
   open.onclick = () => switchEditor(chosen);
@@ -99,7 +102,9 @@ export function editorContext(canvas, source, editor, apply) {
     sourceHeader.querySelector('strong').textContent = summary.title;
     // Documents show the same shared word count as the editor footer.
     sourceHeader.querySelector('.editor-context-count').textContent = summary.wordCount || '';
-    picker.setOptions(referenceOptions()); picker.value = chosen;
+    const options = referenceOptions(), nextOptionsKey = JSON.stringify(options);
+    if (nextOptionsKey !== optionsKey) { optionsKey = nextOptionsKey; picker.setOptions(options); }
+    picker.value = chosen;
     const selected = availableReference();
     empty.textContent = chosen ? 'Reference unavailable. Choose another source or None.' : 'Link a window to pin it here';
     empty.hidden = !!selected; preview.hidden = open.hidden = !selected;

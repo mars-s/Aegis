@@ -1,10 +1,11 @@
 import { cardTier, summarisedCard } from './zoom.js';
 
-export const SUMMARY_GAP = 8;
+export const SUMMARY_GAP = 24;
 export const summarySize = card => ({ w: Math.max(240, Math.min(360, card.w * .5)), h: 128 });
 const overlaps = (a, b) => a.x < b.x + b.w + SUMMARY_GAP && a.x + a.w + SUMMARY_GAP > b.x && a.y < b.y + b.h + SUMMARY_GAP && a.y + a.h + SUMMARY_GAP > b.y;
 const contains = (area, r) => r.x >= area.x && r.y >= area.y && r.x + r.w <= area.x + area.w && r.y + r.h <= area.y + area.h;
 export const projectCard = (card, view) => ({ x: card.x * view.z + view.x, y: card.y * view.z + view.y, w: card.screenSize?.w ?? card.w * view.z, h: card.screenSize?.h ?? card.h * view.z, summary: false });
+export const displayedCard = (card, rect, rotation) => ({ ...card, ...rect, rot: rect.summary ? 0 : rotation, props: {} });
 
 // The renderer, links and Fit consume these same final screen rectangles.
 export function spatialLayout(cards, view, tier, area, obstacles = [], previous = new Map()) {

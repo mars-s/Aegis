@@ -10,7 +10,8 @@ import { displayRotation, preference } from '../features/settings/preferences.js
 import { createOrientation } from './orientation.js';
 import { zoomTier, summarisedCard, cardTier } from '../features/overview/zoom.js';
 
-import { spatialLayout, fitSpatial, projectCard } from '../features/overview/spatial.js';
+import { spatialLayout, fitSpatial, projectCard, displayedCard } from '../features/overview/spatial.js';
+import { routeSummaryLink } from './link-routing.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
@@ -450,19 +451,22 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const parts = [], by = new Map(board.cards.map(c => [c.id, c]));
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const screen = p => ({ x: p.x * view.z + view.x, y: p.y * view.z + view.y });
+    const obstacles = [...representations.values()].filter(r => r.x + r.w >= 0 && r.y + r.h >= 0 && r.x <= viewportSize.width && r.y <= viewportSize.height);
     for (const l of board.links) {
       const a = by.get(l.a), b = by.get(l.b); if (!a || !b || effectiveFlag(board, a, 'hidden') || effectiveFlag(board, b, 'hidden')) continue;
       const ra = representations.get(a.id), rb = representations.get(b.id), summary = ra?.summary || rb?.summary;
       if (stage.dataset.zoomTier === 'cluster') continue;
-      const geometry = summary ? linkGeometry({ ...l, pa: ra.summary ? null : l.pa, pb: rb.summary ? null : l.pb, bend: (l.bend ?? 0) * view.z }, { ...a, ...ra }, { ...b, ...rb }, c => c.summary ? 0 : displayRotation(c)) : linkGeometry(l, a, b);
+      const geometry = summary ? linkGeometry({ ...l, bend: (l.bend ?? 0) * view.z }, displayedCard(a, ra, displayRotation(a)), displayedCard(b, rb, displayRotation(b)), c => c.rot) : linkGeometry(l, a, b);
       const g = summary ? geometry : Object.fromEntries(Object.entries(geometry).map(([key, value]) => [key, screen(value)]));
-      const p = g.p0, q = g.p2, c = g.control, h = g.handle;
-      const d = `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;
-      const colour = /^#[0-9a-f]{6}$/i.test(l.colour ?? '') ? l.colour : 'var(--line-strong)';
+      const p = g.p0, q = g.p2, c = g.control;
+      const route = summary ? routeSummaryLink(p, q, ra, rb, obstacles) : null;
+      const h = route?.label || g.handle;
+      const d = route?.d || `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;
+      const colour = !summary && /^#[0-9a-f]{6}$/i.test(l.colour ?? '') ? l.colour : 'var(--line-strong)';
       parts.push(`<path class="link-line" data-link-line="${esc(l.id)}" d="${d}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"${l.dash ? ' stroke-dasharray="8 6"' : ''}/>`);
       const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"/>`; };
-      if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, c));
-      if (l.arrow === 'both') parts.push(arrow(p, c));
+      if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, route?.endFrom || c));
+      if (l.arrow === 'both') parts.push(arrow(p, route?.startFrom || c));
       parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:${summary ? 'none' : 'stroke'}"/>`);
       if (l.label && view.z >= 0.12) { const size = 12; parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
     }
@@ -788,6 +792,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     representationRect,
     get availableArea() { return frameArea(); },
     activateSummary(id, instant = false, modifiers = {}) {
+      if (stage.classList.contains('connecting')) return;
       const extend = selectCard(id, modifiers, true); onSelect?.([...selected]); schedule();
       if (extend) return;
       frameIds([id], 1, false, instant);
