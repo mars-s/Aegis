@@ -10,8 +10,8 @@ test('document counts stay identical through parsing, migration and save', () =>
   assert.equal(documentWordCount(card), 17);
   const saved = { ...card, props: documentUpdate('doc', doc).set.props };
   assert.equal(wordCount(doc), documentWordCount(saved));
-  assert.equal(cardSummary(card).facts[1], cardSummary(saved).facts[1]);
-  assert.equal(cardSummary(saved).facts[1], '17 words');
+  assert.equal(cardSummary(card).wordCount, cardSummary(saved).wordCount);
+  assert.equal(cardSummary(saved).wordCount, '17 words');
 });
 
 test('marks join within words, block boundaries separate, maths and embedded leaves count zero', () => {
@@ -29,5 +29,5 @@ test('marks join within words, block boundaries separate, maths and embedded lea
 test('document labels share singular and thousands formatting', () => {
   assert.equal(wordCountLabel(1), '1 word');
   assert.equal(wordCountLabel(1001), '1,001 words');
-  assert.equal(cardSummary({ type: 'doc', props: { body: 'word '.repeat(1001) } }).facts[1], '1,001 words');
+  assert.equal(cardSummary({ type: 'doc', props: { body: 'word '.repeat(1001) } }).wordCount, '1,001 words');
 });

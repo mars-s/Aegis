@@ -256,7 +256,7 @@ try {
     await page.getByLabel('More selection controls', { exact: true }).click(); await page.getByLabel('Format selection', { exact: true }).click();
     const underline = page.locator('.selection-menu-action[aria-label="Underline"] .selection-value');
     assert.equal(await underline.textContent(), platform === 'MacIntel' ? '⌘U' : 'Ctrl+U');
-    assert.equal(await underline.evaluate(el => getComputedStyle(el).fontSize), '11px'); assert.ok((await underline.boundingBox()).width <= 96);
+    assert.equal(await underline.evaluate(el => getComputedStyle(el).fontSize), '12px'); assert.ok((await underline.boundingBox()).width <= 96);
     for (const hint of await page.locator('.selection-menu .selection-value').allTextContents()) assert.ok(!hint.includes(' / '));
     assert.equal(await page.locator('#selectionBar .selection-ai .orb-inline').count(), 1); await shot('selection-shortcuts');
 

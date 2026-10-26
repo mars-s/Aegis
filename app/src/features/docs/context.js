@@ -65,6 +65,8 @@ export function editorContext(canvas, source, editor) {
       if (!card) continue;
       entry.card = card;
       const summary = cardSummary(card);
+      // The document being edited shows the same word count as the editor footer.
+      if (entry.relation === 'Editing' && summary.wordCount) summary.facts = [summary.facts[0], summary.wordCount].filter(Boolean);
       const content = summaryContent(summary);
       content.querySelector('.semantic-kind').textContent = `${summary.kind} · ${entry.relation}`;
       entry.button.replaceChildren(content);

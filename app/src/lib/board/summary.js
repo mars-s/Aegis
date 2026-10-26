@@ -1,3 +1,4 @@
+import { documentWordCount, wordCountLabel } from './words.js';
 // Shared by the host's lightweight board list and the Library preview.
 export const plainLine = value => String(value ?? '').split('\n').find(line => line.trim())?.replace(/^\s*#{1,6}\s+/, '').replace(/[*_`]/g, '').trim().slice(0, 160) || '';
 export const cardTitle = card => plainLine(card.props?.layerName || card.heading || card.text || card.props?.name);
@@ -41,7 +42,9 @@ export function cardSummary(card) {
   else if (type === 'diagram') preview = { type, nodes: (data.nodes || []).slice(0, 4), edges: data.edges || [] };
   if (type === 'callout' || type === 'reply') facts = [plainLine(data.headline || data.text).split(/(?<=[.!?])\s/)[0]];
   const disclosure = ['callout', 'reply'].includes(type) ? plainLine(data.attribution) : '';
-  return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
+  // Documents share one word count with the editor footer (lib/board/words.js); it is a secondary detail, not a visible fact.
+  const wordCount = type === 'doc' ? wordCountLabel(documentWordCount(card)) : undefined;
+  return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(wordCount ? { wordCount } : {}), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
 }
 export function boardSubtitle(board) {
   const cards = board?.cards ?? [];
