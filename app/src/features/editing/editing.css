@@ -135,3 +135,12 @@ body.phone .selection-bar .selection-stepper input { min-width: 44px; }
 @media (hover: none), (pointer: coarse) { .selection-colours button { width: 44px; height: 44px; flex-basis: 44px; } }
 
 .selection-colours button[aria-pressed=true] { background: transparent; }
+
+/* Ask AI: the one coloured control in the bar, wearing the orb's star in the agent blue. */
+.selection-bar .selection-ai { color: var(--data); }
+.selection-bar .selection-ai svg { fill: currentColor; stroke: none; transition: transform 160ms var(--ease-out); }
+.selection-bar .selection-ai:hover { background: var(--data-soft); color: var(--data); }
+.selection-bar .selection-ai:hover svg { transform: rotate(45deg) scale(1.08); }
+.selection-bar .selection-ai + .selection-count { padding-left: 4px; }
+body.motion-off .selection-bar .selection-ai svg { transition: none; }
+@media (prefers-reduced-motion: reduce) { .selection-bar .selection-ai svg { transition: none; } }

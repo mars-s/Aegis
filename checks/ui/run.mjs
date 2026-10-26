@@ -14,6 +14,8 @@ all.push('agent-race');
 all.push('prod-composer');
 // Streaming previews of what an agent is writing.
 all.push('agent-drafts');
+// Ask AI about the selected windows.
+all.push('ask-selection');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

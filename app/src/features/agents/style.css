@@ -174,3 +174,12 @@ body.motion-off .agent-first-hint { transition: none; }
 .agent-edge-count { position: relative; font: 500 13px var(--font); }
 .agent-edge-chooser { width: max-content; max-width: min(340px, calc(100vw - 20px)); }
 .agent-edge-chooser.aegis-dropdown-menu button[role=menuitem] { min-height: 44px; overflow-wrap: anywhere; }
+
+/* Pinned context: the windows this request is about, as one quiet chip above the prompt. */
+.island-context { flex: none; display: inline-flex; align-self: flex-start; align-items: center; gap: 2px; max-width: calc(100% - 16px); margin: 0 8px 10px; padding: 0 2px 0 8px; height: 26px; border: 1px solid color-mix(in srgb, var(--data) 40%, transparent); border-radius: 999px; background: var(--data-soft); color: var(--text); font-size: 12px; }
+.island-context[hidden] { display: none; }
+.island-context::before { content: ''; flex: none; width: 10px; height: 10px; margin-right: 4px; background: var(--data); clip-path: path('M5 0C5.4 2.3 6.3 3.4 10 5 6.3 6.6 5.4 7.7 5 10 4.6 7.7 3.7 6.6 0 5 3.7 3.4 4.6 2.3 5 0Z'); }
+.context-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.island-context .context-clear { display: grid; place-items: center; flex: none; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.island-context .context-clear:hover { background: var(--hover); color: var(--text); }
+.island-context svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }

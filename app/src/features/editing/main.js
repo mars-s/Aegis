@@ -174,6 +174,9 @@ export function mountEditing(ctx) {
         const { button, input, select, stepper, popup, choices } = toolbar;
         const single = cards.length === 1, text = textCards(), textInline = single && text.length > 0, media = single && ['image', 'audio', 'video'].includes(cards[0].type);
         if (!single) { const count = document.createElement('span'); count.className = 'selection-count'; count.textContent = `${cards.length} selected`; bar.querySelector('.selection-inline').prepend(count); }
+        // Ask about these windows: opens the composer with the selection pinned as the agent's context.
+        { const ai = button(single ? 'Ask AI about this window' : `Ask AI about ${cards.length} windows`, e => document.dispatchEvent(new CustomEvent('ask-about-selection', { detail: { ids: cards.map(c => c.id), keyboard: e.detail === 0 } })), { inline: true, icon: 'AI' });
+          ai.classList.add('selection-ai'); ai.setAttribute('aria-keyshortcuts', 'Meta+K'); ai.title += ` (${shortcutText('ask')})`; bar.querySelector('.selection-inline').prepend(ai); }
         if (!locked) {
           if (text.length) {
             for (const [label, prop] of [['Bold', 'bold'], ['Italic', 'italic'], ['Underline', 'under'], ['Strike through', 'strike']]) {

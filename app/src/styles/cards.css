@@ -126,3 +126,6 @@ body.motion-off .card.object * { transition: none !important; }
 .card.todo[data-fixed-height=true] > :is(.label, .add-item, .heading) { flex: none; }
 /* A window highlight would paint a solid segment over the dashed top edge. */
 .stage .card:is(.template-group, .coll, .section), .stage .card.frame[data-section=true] { border: 1px dashed var(--line-strong); box-shadow: none; }
+
+/* Windows pinned as an agent's context: a dashed blue outline, distinct from selection. */
+.card.in-context { outline: 1px dashed color-mix(in srgb, var(--data) 75%, transparent); outline-offset: 4px; }

@@ -312,7 +312,7 @@ $('composer').addEventListener('submit', async e => {
   }
   const count = Math.min(8, Math.max(1, Number($('count').value) || 1));
   // fix1: selection is host context, separate from the person's words.
-  const selectedIds = canvas.selection();
+  const selectedIds = agentUi.takeContext();
   $('send').disabled = true;
   const draft = promptEl.value;
   if (!current) agentUi.starting();

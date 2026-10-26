@@ -49,6 +49,34 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
+  // Windows pinned from the selection bar travel with the next request, whatever is selected by then.
+  const contextEl = $('islandContext'); let pinned = [];
+  const titleOf = c => (c.heading || c.text || c.data?.title || c.kind || c.type || 'window').split('\n')[0].trim().slice(0, 40);
+  function pin(ids) {
+    pinned = ids.filter(id => canvas.board?.cards.some(c => c.id === id));
+    const cards = pinned.map(id => canvas.board.cards.find(c => c.id === id));
+    contextEl.hidden = !pinned.length;
+    contextEl.querySelector('.context-label').textContent = pinned.length === 1 ? titleOf(cards[0]) : `${pinned.length} windows · ${cards.slice(0, 2).map(titleOf).join(', ')}${pinned.length > 2 ? '…' : ''}`;
+    contextEl.title = cards.map(titleOf).join('\n');
+    island.classList.toggle('has-context', !!pinned.length);
+    markContext();
+  }
+  // Pinned windows keep a quiet blue outline on the canvas until the request is sent or cleared.
+  function markContext() {
+    for (const el of stage.querySelectorAll('.card.in-context')) if (!pinned.includes(el.dataset.id)) el.classList.remove('in-context');
+    for (const id of pinned) canvas.mountedEl(id)?.classList.add('in-context');
+  }
+  stage.addEventListener('canvaspaint', () => { if (pinned.length) markContext(); });
+  contextEl.querySelector('.context-clear').onclick = () => { pin([]); morph(sizeInput); prompt.focus({ preventScroll: true }); };
+  // Hovering the chip points at its windows on the canvas.
+  contextEl.addEventListener('pointerenter', () => canvas.glow(pinned));
+  document.addEventListener('ask-about-selection', e => {
+    const ids = e.detail?.ids ?? canvas.selection(); if (!ids.length) return;
+    pin(ids); canvas.glow(ids);
+    open(!!e.detail?.keyboard);
+    prompt.placeholder = ids.length === 1 ? 'What should the agent do with this window?' : `What should the agent do with these ${ids.length} windows?`;
+  });
+  stage.addEventListener('boardchange', e => { if (pinned.length && e.detail.board.id !== canvas.board?.id) pin([]); else if (pinned.length && pinned.some(id => !e.detail.board.cards.some(c => c.id === id))) pin(pinned); });
   // Streaming previews sit to the right of the agent's window, or at the view centre when it is closed.
   const drafts = mountAgentDrafts({ canvas, layer: overlay, anchor: id => {
     const w = windows.get(id);
@@ -116,7 +144,11 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   composer.addEventListener('close-composer', () => { if (!prompt.value.trim()) close(true); });
   addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
-      e.preventDefault(); e.stopImmediatePropagation(); open(true);
+      e.preventDefault(); e.stopImmediatePropagation();
+      // With windows selected, Cmd+K asks about them, just as the selection bar's star does.
+      const selected = canvas.selection();
+      if (selected.length && !expanded()) document.dispatchEvent(new CustomEvent('ask-about-selection', { detail: { ids: selected, keyboard: true } }));
+      else open(true);
     } else if (menu.contains(e.target)) {
       // Menu keys must reach the menu before the canvas's capture-phase shortcuts.
       menu.keydown(e); e.stopImmediatePropagation();
@@ -287,7 +319,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       head.querySelector('.island-stop').hidden = !running;
       island.classList.toggle('failed', !!a?.error);
       renderTurns(history, a);
-      prompt.placeholder = a ? 'Follow up with this agent…' : 'Ask about your board…';
+      if (!pinned.length) prompt.placeholder = a ? 'Follow up with this agent…' : 'Ask about your board…';
       $('send').setAttribute('aria-label', a ? 'Send follow-up' : 'Start agent');
       if (expanded()) { island.dataset.state = a ? 'conversation' : 'typing'; sizeInput(); }
     }, { instant });
@@ -323,6 +355,8 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     w.touched = new Set(ids); place(w, w.moved ? { x: w.x, y: w.y } : null); paint();
   }
   return { open, close, update, current, show, stop, near, renderList, nameOf,
+    // The selection a request works on: pinned windows win over whatever happens to be selected now.
+    takeContext() { const ids = pinned.length ? pinned : canvas.selection(); if (pinned.length) pin([]); return ids; },
     wantsNew: () => newAgent,
     starting() { newAgent = false; },
     sent(id) { selectedId = id; },

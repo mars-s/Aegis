@@ -98,6 +98,7 @@
     <button type="button" class="island-icon island-collapse" aria-label="Collapse conversation"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></button>
   </header>
   <div class="island-turns" role="log" aria-label="Agent conversation" tabindex="0" hidden></div>
+  <div class="island-context" id="islandContext" hidden><span class="context-label"></span><button type="button" class="context-clear" aria-label="Stop using these windows as context"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg></button></div>
   <textarea id="prompt" rows="1" placeholder="Brain dump, or ask an agent to sort the board…" aria-label="Message"></textarea>
   <div class="composer-row">
     <button type="button" class="island-icon" id="orbMenuButton" aria-label="Agent options" aria-haspopup="menu" aria-controls="orbMenu" aria-expanded="false"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10"/><circle cx="6" cy="4" r="1.5"/><circle cx="10" cy="8" r="1.5"/><circle cx="6" cy="12" r="1.5"/></svg></button>

@@ -13,6 +13,7 @@ const paths = {
   Open: '<path d="M9 2.5h4.5V7M13.5 2.5l-7 7M6 2.5H3a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-3"/>',
   Replace: '<path d="M3 6a5 5 0 0 1 9-2l1.5 2M13.5 2v4H9.5M13 10a5 5 0 0 1-9 2l-1.5-2M2.5 14v-4h4"/>',
   Download: '<path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 10.5v3h11v-3"/>',
+  AI: '<path class="selection-ai-star" d="M8 1.5c.6 3.4 1.9 4.9 5.5 6.5-3.6 1.6-4.9 3.1-5.5 6.5-.6-3.4-1.9-4.9-5.5-6.5 3.6-1.6 4.9-3.1 5.5-6.5z"/>',
   More: '<circle cx="3" cy="8" r=".75"/><circle cx="8" cy="8" r=".75"/><circle cx="13" cy="8" r=".75"/>',
 };
 export const selectionIcon = name => `<svg viewBox="0 0 16 16" aria-hidden="true">${paths[name] || paths.More}</svg>`;
