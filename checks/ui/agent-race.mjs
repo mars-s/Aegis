@@ -90,7 +90,7 @@ try {
     assert.match(state.history, /No board changes/);
     assert.equal(await page.locator('#runStrip').isVisible(), false);
     await page.keyboard.press('Meta+k');
-    assert.equal(await page.locator('#composer .island-turn.assistant p').last().textContent(), completed.text, 'opening the conversation shows the assistant turn without reload');
+    assert.equal(await page.locator('#composer .island-turn.assistant .turn-text').last().textContent(), completed.text, 'opening the conversation shows the assistant turn without reload');
     if (!legacy) {
       assert.ok(completed.revision > stale.revision, 'completion has a newer host revision');
       // Exercise old and duplicate events through the same EventSource handler as real events.
@@ -98,7 +98,7 @@ try {
         window.__agentRace.deliver({ type: 'agent', ...stale });
         window.__agentRace.deliver({ type: 'agent', ...stale, revision: completed.revision });
       }, { stale, completed });
-      assert.equal(await page.locator('#composer .island-turn.assistant p').last().textContent(), completed.text);
+      assert.equal(await page.locator('#composer .island-turn.assistant .turn-text').last().textContent(), completed.text);
       assert.equal(await page.locator('#askPill').evaluate(el => el.classList.contains('working')), false);
     }
     for (const width of [1440, 1586, 390]) {

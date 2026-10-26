@@ -45,8 +45,19 @@
 .island-turn { padding: 8px 0 12px; }
 .turn-author { display: block; margin-bottom: 5px; color: var(--faint); font-size: 11px; }
 .island-turn.assistant .turn-author { color: var(--data); }
-.island-turn p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
-.island-turn.user p { color: var(--muted); }
+.turn-text { overflow-wrap: anywhere; color: var(--ink-2); font-size: 14px; line-height: 1.6; }
+.island-turn.user .turn-text { white-space: pre-wrap; color: var(--muted); }
+.turn-text :is(p, ul, ol) { margin: 0; }
+.turn-text > * + * { margin-top: 8px; }
+.turn-text :is(ul, ol) { padding-left: 18px; }
+.turn-text li + li { margin-top: 2px; }
+.turn-text strong, .turn-text .chat-heading { color: var(--text); font-weight: 600; }
+.turn-text code { padding: 1px 4px; border-radius: 4px; background: var(--hover); font: 12.5px var(--mono); }
+/* While a reply streams, a thin caret marks where the text is growing. */
+.island-turn.streaming .turn-text > :last-child::after { content: ''; display: inline-block; width: 1.5px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--data); animation: turn-caret 1s steps(1) infinite; }
+@keyframes turn-caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .island-turn.streaming .turn-text > :last-child::after { animation: none; } }
+body.motion-off .island-turn.streaming .turn-text > :last-child::after { animation: none; }
 .agent-island.failed .orb-activity, .agent-island.failed .orb-status { color: var(--danger); }
 .orb-menu.aegis-dropdown-menu { position: fixed; width: min(340px, calc(100vw - 24px)); max-height: min(55vh, 480px); overflow: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--raised); transform-origin: 22px 100%; scrollbar-width: thin; overscroll-behavior: contain; }
 .orb-menu button { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); text-align: left; font: 13px var(--font); }

@@ -4,6 +4,8 @@ import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
 import { mountAgentIdentity } from './identity.js';
 import { mountAgentEdges } from './edges.js';
+import { mountAgentDrafts } from './drafts.js';
+import { renderChatText } from './chat-text.js';
 import { cardRect, freeAgentRect, intersects, WINDOW_WIDTH, COLLAPSED_HEIGHT } from './placement.js';
 import { displayRotation } from '../settings/preferences.js';
 // Round 3 navigation: first-use timing belongs to onboarding.
@@ -24,7 +26,10 @@ function renderTurns(el, agent) {
   const nodes = turns.map(turn => {
     const row = document.createElement('div'); row.className = `island-turn ${turn.role}`;
     const label = document.createElement('span'); label.className = 'turn-author'; label.textContent = turn.role === 'user' ? 'You' : 'Agent';
-    const text = document.createElement('p'); text.textContent = turn.text; row.append(label, text); return row;
+    const text = document.createElement('div'); text.className = 'turn-text';
+    if (turn.role === 'user') text.textContent = turn.text; else renderChatText(text, turn.text);
+    if (turn.id === 'streaming') row.classList.add('streaming');
+    row.append(label, text); return row;
   });
   el.replaceChildren(...nodes);
   if (follow) el.scrollTop = el.scrollHeight;
@@ -44,6 +49,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
+  // Streaming previews sit to the right of the agent's window, or at the view centre when it is closed.
+  const drafts = mountAgentDrafts({ canvas, layer: overlay, anchor: id => {
+    const w = windows.get(id);
+    if (w && !w.closed && w.agent.boardId === canvas.board?.id) return { x: w.x + WINDOW_WIDTH + 24, y: w.y };
+    const at = canvas.centre(); return { x: at.x - 160, y: at.y - 160 };
+  } });
   const paintEdges = mountAgentEdges({ edges, recover, label: a => `${nameOf(a)}: ${shortTitle(a)}` });
   function recover(w, event) {
     const z = canvas.view.z, view = { x: stage.clientWidth / 2 - (w.x + WINDOW_WIDTH / 2) * z, y: stage.clientHeight / 2 - (w.y + (w.height ?? COLLAPSED_HEIGHT) / 2) * z, z };
@@ -158,6 +169,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     for (const w of windows.values()) place(w); paint();
   });
   function paint() {
+    drafts.paint();
     if (!windows.size) return;
     const width = stage.clientWidth, height = stage.clientHeight, offscreen = [];
     for (const w of windows.values()) {
@@ -285,7 +297,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     if (agents.length) dismissHint();
     const previous = current();
     all = agents;
-    for (const w of windows.values()) w.el.hidden = w.closed || !all.some(a => a.id === w.agent.id);
+    for (const w of windows.values()) { w.el.hidden = w.closed || !all.some(a => a.id === w.agent.id); if (!all.some(a => a.id === w.agent.id)) drafts.clear(w.agent.id); }
     for (const a of all) {
       const w = windows.get(a.id) ?? makeWindow(a); w.agent = a; w.el.hidden = w.closed;
       w.el.classList.toggle('running', a.running); w.el.classList.toggle('failed', !!a.error);
@@ -294,6 +306,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       w.el.querySelector('.agent-window-toggle').setAttribute('aria-label', `${nameOf(a)}: ${shortTitle(a)}`);
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
       renderTurns(w.el.querySelector('.agent-window-answer'), a);
+      drafts.sync(a);
       renderHistory(w.el.querySelector('.agent-history'), a, undo);
       w.el.querySelector('.agent-stop').hidden = !a.running;
       if (w.height !== w.el.offsetHeight) place(w);

@@ -34,13 +34,13 @@ const saved = async () => {
 const agents = () => page.evaluate(() => aegis.host.get(`/agents?board=${aegis.canvas.board.id}`));
 const shot = name => page.screenshot({ path: out(`fix1-${capture}-${name}.png`) });
 const assertChat = async (id, text) => {
-  await page.waitForFunction(({ id, text }) => [...document.querySelectorAll(`.agent-window[data-agent-id="${id}"] .island-turn.user p`)].at(-1)?.textContent === text, { id, text });
+  await page.waitForFunction(({ id, text }) => [...document.querySelectorAll(`.agent-window[data-agent-id="${id}"] .island-turn.user .turn-text`)].at(-1)?.textContent === text, { id, text });
   const window = page.locator(`.agent-window[data-agent-id="${id}"]`);
-  assert.equal(await window.locator('.island-turn.user p').last().textContent(), text);
+  assert.equal(await window.locator('.island-turn.user .turn-text').last().textContent(), text);
   assert.equal((await window.locator('.agent-window-title').textContent()).replace(/^Agent \d+/, 'Agent'), `Agent · ${text.split('\n')[0].slice(0, 42)}`);
   await page.keyboard.press('Meta+k');
-  await page.waitForFunction(text => [...document.querySelectorAll('#composer .island-turn.user p')].at(-1)?.textContent === text, text);
-  assert.equal(await page.locator('#composer .island-turn.user p').last().textContent(), text);
+  await page.waitForFunction(text => [...document.querySelectorAll('#composer .island-turn.user .turn-text')].at(-1)?.textContent === text, text);
+  assert.equal(await page.locator('#composer .island-turn.user .turn-text').last().textContent(), text);
   assert.doesNotMatch(await page.locator('#composer .island-turns').textContent(), /Work on the selected cards|Current board summary/);
 };
 

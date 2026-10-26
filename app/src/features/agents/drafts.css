@@ -1,0 +1,21 @@
+/* Draft windows: dashed, flat, in the agent blue, so they never read as saved work. */
+.agent-draft { position: absolute; left: 0; top: 0; transform-origin: 0 0; display: flex; flex-direction: column; overflow: hidden; border: 1px dashed color-mix(in srgb, var(--data) 55%, transparent); border-radius: var(--r-win); background: color-mix(in srgb, var(--card) 70%, transparent); pointer-events: none; opacity: 1; transition: opacity 200ms var(--ease-out), filter 200ms var(--ease-out); }
+@starting-style { .agent-draft { opacity: 0; } }
+.agent-draft.leaving { opacity: 0; filter: blur(2px); }
+.draft-strip { display: flex; align-items: baseline; min-width: 0; height: 22px; padding: 0 8px; font-size: 9px; line-height: 22px; color: var(--ink-2); background: var(--strip); white-space: nowrap; }
+.draft-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+.draft-kind { flex: none; color: var(--muted); }
+.draft-body { position: relative; flex: 1; min-height: 0; padding: 10px; }
+.draft-lines { display: grid; gap: 6px; }
+.draft-lines i, .draft-grid i, .draft-row i { display: block; height: 5px; border-radius: 3px; background: var(--hover); }
+.draft-lines i:nth-child(2) { width: 82%; } .draft-lines i:nth-child(3) { width: 58%; }
+.draft-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.draft-row { display: flex; gap: 8px; } .draft-row i { flex: 1; height: 18px; border-radius: 4px; }
+.draft-plot { width: 100%; height: 70%; fill: none; stroke: var(--data); stroke-width: 1; vector-effect: non-scaling-stroke; opacity: .7; }
+/* The window being written now carries a slow sweep; finished drafts sit still and wait for the batch. */
+.agent-draft.writing .draft-body::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--data) 14%, transparent) 50%, transparent 70%); background-size: 220% 100%; animation: draft-sweep 1.4s linear infinite; }
+@keyframes draft-sweep { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+body.motion-off .agent-draft, body.motion-off .agent-draft .draft-body::after { transition: none; animation: none; }
+@media (prefers-reduced-motion: reduce) { .agent-draft { transition: opacity 120ms linear; } .agent-draft .draft-body::after { animation: none; } }
+/* A board an agent is filling is not empty. */
+body:has(.agent-draft:not(.leaving)) #empty { display: none; }

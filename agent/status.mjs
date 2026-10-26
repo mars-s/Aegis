@@ -165,16 +165,21 @@ export function requestUndoCommands(board, entries, id) {
     { op: 'board_set', set: Object.fromEntries([...diff.fields].map(([key, value]) => [key, value.before])) }];
 }
 
-export function fallbackStatus({ tools = [], partial = '' } = {}) {
+export function fallbackStatus({ tools = [], partial = '', drafts = [] } = {}) {
   const names = tools.map(t => typeof t === 'string' ? t : t.name).join(' ');
+  // While a batch streams, name what is being written: "Writing 3 windows, now Plan the week".
+  if (!tools.length && drafts.length) {
+    const now = drafts.at(-1), title = now.title ? `, now ${now.title}` : '';
+    return drafts.length === 1 ? `Writing ${now.title || 'a new window'}`.slice(0, 60) : `Writing ${drafts.length} windows${title}`.slice(0, 60);
+  }
   if (/read|search|list|load/.test(names)) return 'Reading the board and its content';
   if (/move|layout|sort|group/.test(names)) return 'Organising the board into clear groups';
   if (/create|apply|update|set|insert/.test(names)) return 'Updating the content on the board';
   if (/part/.test(names)) return 'Coordinating work across the board';
   return partial ? 'Writing a response to your request' : 'Considering your request and the board';
 }
-export function activityText({ brief = '', tools = [], partial = '' }) {
-  return `Request: ${brief.slice(0, 350)}\nTools: ${JSON.stringify(tools).slice(0, 650)}\nRecent text: ${partial.slice(-450)}`.slice(0, 1500);
+export function activityText({ brief = '', tools = [], partial = '', drafts = [] }) {
+  return `Request: ${brief.slice(0, 350)}\nTools: ${JSON.stringify(tools).slice(0, 650)}\nWindows being written: ${drafts.map(d => `${d.kind ?? d.type} "${d.title}"`).join(', ').slice(0, 300)}\nRecent text: ${partial.slice(-450)}`.slice(0, 1500);
 }
 export function activityFromView(meta, value) {
   const live = value.docs?.['pi.live'];
@@ -183,7 +188,7 @@ export function activityFromView(meta, value) {
   const tools = [...(live?.tools ?? []), ...(live?.nestedTools ?? [])].map(t => ({ name: t.name, state: t.status,
     arguments: JSON.stringify(t.arguments ?? calls.find(c => c.id === t.callId)?.arguments ?? {}).slice(0, 240) }));
   const partial = live?.generation?.message?.content?.filter(c => c.type === 'text').map(c => c.text).join('') ?? '';
-  return { brief: meta?.brief ?? '', tools, partial };
+  return { brief: meta?.brief ?? '', tools, partial, drafts: draftsFromView(value) };
 }
 export async function summariseStatus(activity, { fake = false, complete } = {}) {
   if (fake) return FAKE_STATUS;
@@ -220,4 +225,28 @@ export function createStatusTracker({ summarise, publish, interval = 4000, debou
     },
     stop() { generation++; signature = ''; pending = null; if (timer !== null) cancel(timer); timer = null; },
   };
+}
+
+// Streaming previews: the windows a board_apply call is still writing. Arguments arrive as repaired partial JSON,
+// so only fields that already exist are reported. Nothing here is saved; the committed batch replaces it.
+const DRAFT_LIMIT = 40;
+export function draftsFromView(value) {
+  const content = value?.docs?.['pi.live']?.generation?.message?.content;
+  if (!Array.isArray(content)) return [];
+  const drafts = [];
+  content.forEach((block, call) => {
+    if (block?.type !== 'toolCall' || block.name !== 'board_apply') return;
+    const commands = Array.isArray(block.arguments?.commands) ? block.arguments.commands : [];
+    commands.forEach((cmd, index) => {
+      if (!cmd || typeof cmd !== 'object' || cmd.op !== 'create' || drafts.length >= DRAFT_LIMIT) return;
+      const type = typeof cmd.type === 'string' ? cmd.type : 'note';
+      const kind = typeof cmd.kind === 'string' ? cmd.kind : typeof cmd.props?.kind === 'string' ? cmd.props.kind : undefined;
+      const title = String(cmd.heading || cmd.text || cmd.data?.title || cmd.data?.headline || '').split('\n')[0].slice(0, 80);
+      const draft = { id: `${call}:${index}`, type, title, done: index < commands.length - 1 || block.partialJson === undefined };
+      if (kind) draft.kind = kind;
+      for (const k of ['x', 'y', 'w', 'h']) if (Number.isFinite(cmd[k])) draft[k] = Math.round(cmd[k]);
+      drafts.push(draft);
+    });
+  });
+  return drafts;
 }

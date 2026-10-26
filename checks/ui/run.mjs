@@ -10,6 +10,10 @@ all.push('pan');
 all.push('agent-edges');
 // PM6 finding 1: completion must survive an older in-flight agent read.
 all.push('agent-race');
+// Production bundle geometry in Chromium and WebKit.
+all.push('prod-composer');
+// Streaming previews of what an agent is writing.
+all.push('agent-drafts');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

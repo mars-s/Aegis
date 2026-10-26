@@ -9,7 +9,7 @@ import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus 
 // PM6 finding 1: version the canonical agent view for both events and GET responses.
 import { createAgentRevisions } from './status.mjs';
 // item 9: publish durable conversation replies to the island and agent windows.
-import { conversationFromView, displayBrief } from './status.mjs';
+import { conversationFromView, displayBrief, draftsFromView } from './status.mjs';
 // Round 2 history: passive transcript entries do not enter model context.
 import { historyFromView, requestUndoCommands } from './status.mjs';
 // item 9 end
@@ -130,7 +130,7 @@ async function commit(boardId, batch, author, expectedRev) {
     // Round 3 Undo: person edits also refresh the request's availability in both timelines.
     for (const id of watching.keys()) if (run.get(id)?.boardId === boardId) broadcast({ type: 'agent', ...summarise(id) });
     timing({ kind: 'batch', boardId, commands: batch.commands.length, loadMs: loaded - started, applyMs: applied - loaded, saveMs: saved - applied, totalMs: performance.now() - started });
-    return { ok: true, rev: result.board.rev, created: result.created };
+    return { ok: true, rev: result.board.rev, created: result.created, ...(result.notes ? { notes: result.notes } : {}) };
   });
 }
 // item 10: checks opt in; the normal host pays no serialisation or logging cost.
@@ -290,7 +290,8 @@ if (process.env.AEGIS_FAKE_MODEL) {
   // Checks only: a scripted local model, so tests never reach a provider.
   // It reads the board, then sends the batch written after "FAKE " in the brief, then says done.
   const { fauxProvider, fauxAssistantMessage, fauxToolCall } = await import('@earendil-works/pi-ai/providers/faux');
-  fake = fauxProvider({ provider: 'fake', models: [{ id: 'fake', name: 'Fake (checks only)' }] });
+  // AEGIS_FAKE_TPS streams scripted replies at a set token rate, so streaming previews can be checked.
+  fake = fauxProvider({ provider: 'fake', models: [{ id: 'fake', name: 'Fake (checks only)' }], ...(Number(process.env.AEGIS_FAKE_TPS) > 0 ? { tokensPerSecond: Number(process.env.AEGIS_FAKE_TPS), tokenSize: { min: 3, max: 6 } } : {}) });
   const step = async (ctx) => {
     fake.appendResponses([step]);
     // item 10: profile only sizes, so the harness proves context arrives on the first turn.
@@ -310,6 +311,9 @@ if (process.env.AEGIS_FAKE_MODEL) {
       const calls = Array.isArray(turns[turn][0]) ? turns[turn] : [turns[turn]];
       return fauxAssistantMessage(calls.map(([name, args]) => fauxToolCall(name, args)), { stopReason: 'toolUse' });
     }
+    // FAKEREPLY text: answer in conversation with exactly this text, for reply rendering checks.
+    const said = /^FAKEREPLY ([\s\S]+)$/.exec(briefText)?.[1];
+    if (said) return fauxAssistantMessage(said);
     const batch = /^FAKE ([\s\S]+)$/.exec(briefText)?.[1];
     if (!batch) return fauxAssistantMessage('Fake model: start the brief with FAKE and a JSON command list.');
     if (results === 0) return fauxAssistantMessage(fauxToolCall('board_read', {}), { stopReason: 'toolUse' });
@@ -317,6 +321,25 @@ if (process.env.AEGIS_FAKE_MODEL) {
     return fauxAssistantMessage('Done: sorted the board.');
   };
   fake.setResponses([step]);
+  // Real providers grow toolCall.arguments with each delta; the scripted model only sets them at the end.
+  const { parseStreamingJson } = await import('@earendil-works/pi-ai');
+  const streamFake = fake.provider.streamSimple.bind(fake.provider);
+  fake.provider.streamSimple = (...args) => {
+    const source = streamFake(...args), json = new Map();
+    const iterate = source[Symbol.asyncIterator].bind(source);
+    source[Symbol.asyncIterator] = async function* () {
+      for await (const event of { [Symbol.asyncIterator]: iterate }) {
+        if (event.type === 'toolcall_start') json.set(event.contentIndex, '');
+        if (event.type === 'toolcall_delta') {
+          const text = json.get(event.contentIndex) + event.delta; json.set(event.contentIndex, text);
+          const block = event.partial.content[event.contentIndex] = { ...event.partial.content[event.contentIndex] };
+          block.arguments = parseStreamingJson(text); block.partialJson = text;
+        }
+        yield event;
+      }
+    };
+    return source;
+  };
   models.setProvider(fake.provider);
 }
 
@@ -467,7 +490,7 @@ const editBoard = boardTool({
     const id = boardOf(api); if (!id) return text('This conversation has no board.');
     const result = await commit(id, { commands: args.commands }, { kind: 'agent', conversationId: String(api.conversationId ?? '') });
     if (!result.ok) throw new Error(`Nothing changed. ${result.errors.map(e => `#${e.index}: ${e.reason}`).join('; ')}. ${result.errors[0]?.hint ?? ''}`);
-    return text({ ok: true, rev: result.rev, created: result.created });
+    return text({ ok: true, rev: result.rev, created: result.created, ...(result.notes?.length ? { notes: result.notes } : {}) });
   },
 });
 // end item 10
@@ -738,8 +761,9 @@ function summarise(id) {
   const partial = live?.generation?.message?.content?.filter?.(c => c.type === 'text').map(c => c.text).join('') ?? '';
   const failed = entries.findLast(e => e.kind === 'pi.error' || e.kind === 'pi.unanswered');
   // fix1: clean legacy briefs before every chat, title and activity display.
-  return agentRevisions.snapshot(id, { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? statuses.get(id) ?? fallbackStatus(activityOf(id, value)) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
-    step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (partial ? 'writing' : 'thinking') : 'idle',
+  return agentRevisions.snapshot(id, { id, boardId: meta.boardId, brief: displayBrief(meta.brief), model: meta.model, statusModel: meta.statusModel, created: meta.created, status: live?.run ? (live.generation?.message?.content?.some?.(c => c.type === 'toolCall' && c.name === 'board_apply') ? fallbackStatus(activityOf(id, value)) : statuses.get(id) ?? fallbackStatus(activityOf(id, value))) : meta.stopped ? 'Stopped' : 'Ready for your next request', running: !!live?.run, parent: meta.parent ?? null, title: meta.title ? displayBrief(meta.title) : null, summary: meta.summary ?? null,
+    ...(() => { const drafts = live?.run ? draftsFromView(value) : [];
+      return { drafts, step: tools.length ? `using ${tools.join(', ')}` : live?.run ? (drafts.length ? 'drafting' : partial ? 'writing' : 'thinking') : 'idle' }; })(),
     // item 9
     ...conversation, history: historyFromView({ entries: historyEntriesOf(id, value) }, historyBoards.get(meta.boardId)), error: failed && !meta.stopped ? 'The run stopped. Check the model sign-in.' : null });
     // item 9 end
