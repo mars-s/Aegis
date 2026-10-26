@@ -14,7 +14,7 @@ const FAR = 0.4;             // below this zoom a crowded view may switch to dra
 // view swaps to canvas-drawn shapes, so a 5,000 card board stays smooth while a normal board never goes blank.
 const LIVE_LIMIT = 400;
 const MIN_Z = 0.05, MAX_Z = 4;
-const WINDOWS = new Set(['object', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'slides', 'canvas', 'font']);
+const WINDOWS = new Set(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'slides', 'canvas', 'font']);
 
 // Card renderers from feature modules: type -> { render(el, card, api), drop?(el), interactive?: css selector }.
 // render fills `el` (already a positioned .card) and wires its own events; api lets it change the board.

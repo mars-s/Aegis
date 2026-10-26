@@ -5,7 +5,7 @@ import { installImportMotion, rememberImportWindow, importViaKeyboard } from './
 import { importFiles } from '../media/imports.js';
 import { downloadOriginal } from './assets.js';
 
-export const IMPORT_ACCEPT = 'image/*,video/*,.pdf,.pptx,.key,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.apple.keynote';
+export const IMPORT_ACCEPT = 'image/*,video/*,.csv,.tsv,text/csv,.pdf,.pptx,.key,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.apple.keynote';
 const mime = { pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', key: 'application/vnd.apple.keynote' };
 export { fileFormat } from './types';
 let pending = Promise.resolve();

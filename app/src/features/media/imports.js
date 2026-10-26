@@ -9,18 +9,21 @@ import { pointerImport } from '../imports/motion';
 export async function importFiles(ctx, input, at = ctx.canvas.centre(), boardId = ctx.canvas.board.id) {
   const files = [...input];
   if (files.every(file => file.type.startsWith('image/'))) return importImages(ctx, files, at);
+  // CSV and TSV become dataset windows that agents can query in full.
+  const { isData, importDataset } = await import('../data/index.js');
   // Start before yielding so every item captures the destination board.
   await Promise.all(files.map((file, i) => {
     const position = { x: at.x + i * 600, y: at.y };
+    if (isData(file)) return importDataset(ctx, file, position);
     if (fileFormat(file)) return importDocument(ctx, file, position, boardId);
     if (file.type.startsWith('video/')) return importVideo(ctx, file, position);
     if (file.type.startsWith('image/')) return importImages(ctx, [file], position);
-    ctx.toast(`Could not import ${file.name}. Choose an image, video, PDF, PowerPoint (.pptx) or Keynote (.key) file.`);
+    ctx.toast(`Could not import ${file.name}. Choose an image, video, CSV, PDF, PowerPoint (.pptx) or Keynote (.key) file.`);
   }));
 }
 // end item 14
 export function installMediaImports() {
-  const mediaFiles = files => files.length && [...files].some(f => /^(image|video)\//.test(f.type) || fileFormat(f));
+  const mediaFiles = files => files.length && [...files].some(f => /^(image|video)\//.test(f.type) || fileFormat(f) || /\.(csv|tsv)$/i.test(f.name));
   const editing = target => target.closest?.('textarea, input, select, [contenteditable]');
   addEventListener('change', e => {
     const ctx = mediaContext(), files = e.target.files;

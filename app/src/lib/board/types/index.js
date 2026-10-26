@@ -5,6 +5,7 @@ import './deck.js';
 import './wireframe.js';
 import './media.js';
 import './draw.js';
+import './data.js';
 
 import './library.js';
 

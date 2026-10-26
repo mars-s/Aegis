@@ -28,6 +28,7 @@ import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
 import { applyBatch, cardTypeGuide, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
+import { DATASET_LIMITS, MEASURES, BUCKETS, FILTER_OPS, parseCsv, profileDataset, queryDataset } from '../app/src/lib/board/dataset.js';
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
 import '../app/src/lib/board/types/index.js';
 import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
@@ -168,6 +169,8 @@ const MEDIA = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'i
   // item 14: originals remain downloadable through the existing asset capability.
   pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', key: 'application/vnd.apple.keynote',
   // end item 14
+  // Datasets keep their original text; the host reads them for exact queries.
+  csv: 'text/csv', tsv: 'text/tab-separated-values',
   weba: 'audio/webm', ogg: 'audio/ogg', wav: 'audio/wav', mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac',
   mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm' };
 const EXT_OF = Object.fromEntries(Object.entries(MEDIA).reverse().map(([e, t]) => [t, e]));
@@ -176,11 +179,11 @@ async function saveAsset(req) {
   const type = String(req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
   const ext = EXT_OF[type]; if (!ext) throw Object.assign(new Error(`unsupported file type ${type || '(none)'}`), { status: 415 });
   // item 14: cap original imported documents, independent of the media allowance.
-  const limit = ['pdf', 'pptx', 'key'].includes(ext) ? 64 * 1024 ** 2 : 1024 ** 3;
+  const limit = ['csv', 'tsv'].includes(ext) ? DATASET_LIMITS.bytes : ['pdf', 'pptx', 'key'].includes(ext) ? 64 * 1024 ** 2 : 1024 ** 3;
   // end item 14
   const name = `${randomBytes(16).toString('hex')}.${ext}`, tmp = join(ASSETS, `${name}.tmp`);
   let size = 0;
-  req.on('data', c => { size += c.length; if (size > limit) req.destroy(new Error(`file is over ${limit === 1024 ** 3 ? '1 GB' : '64 MB'}`)); });
+  req.on('data', c => { size += c.length; if (size > limit) req.destroy(new Error(`file is over ${limit === 1024 ** 3 ? '1 GB' : `${Math.round(limit / 1024 ** 2)} MB`}`)); });
   await pipeline(req, createWriteStream(tmp, { mode: 0o600 }));
   if (!size) { await unlink(tmp).catch(() => {}); throw new Error('empty file'); }
   await rename(tmp, join(ASSETS, name));
@@ -442,6 +445,8 @@ function compactBoard(board, { ids, offset = 0, limit = 100, detail = false } = 
       text: c.text.slice(0, /read me first/i.test(c.badge ?? '') ? 2000 : 120),
       ...(c.kind ? { kind: c.kind } : {}), ...(c.heading ? { heading: c.heading } : {}), ...(c.badge ? { badge: c.badge } : {}),
       ...(c.parent ? { parent: c.parent } : {}), ...(c.items ? { items: c.items.length } : {}),
+      // A dataset carries its shape so the agent can plan queries without reading rows.
+      ...(c.type === 'dataset' ? { dataset: { rows: c.props?.rows, columns: (c.props?.profile?.columns ?? []).map(col => `${col.name}:${col.kind}${col.empty ? ` (${col.empty} blank)` : ''}`) } } : {}),
     })), links: board.links.map(({ a, b, label }) => ({ a, b, ...(label ? { label: label.slice(0, 80) } : {}) })),
     truncated: offset + cards.length < chosen.length,
   };
@@ -524,6 +529,46 @@ const createObject = defineTool({
     if (!result.ok) throw new Error(`Nothing was placed. ${result.errors.map(e => e.reason).join('; ')}`);
     const meta = run.get(String(api.conversationId ?? '')); if (meta?.parent) { meta.placed = result.created.o; await atomicJson(runsPath, Object.fromEntries(run)); }
     return text({ ok: true, id: result.created.o });
+  },
+});
+// Datasets: the whole file is parsed once per asset and kept in memory, so every query is exact and fast.
+const datasets = new Map();
+async function datasetOf(boardId, cardId) {
+  const board = await loadBoard(boardId), card = board?.cards.find(c => c.id === cardId);
+  if (!card || card.type !== 'dataset') throw new Error(`no dataset ${cardId}. Dataset windows on this board: ${board?.cards.filter(c => c.type === 'dataset').map(c => `${c.id} (${c.text})`).join(', ') || 'none'}`);
+  const m = /^asset:([a-f0-9]{32}\.(?:csv|tsv))$/.exec(card.props?.src ?? '');
+  if (!m) throw new Error('this dataset has no stored file');
+  if (!datasets.has(m[1])) {
+    datasets.set(m[1], parseCsv(await readFile(join(ASSETS, m[1]), 'utf8')));
+    if (datasets.size > 8) datasets.delete(datasets.keys().next().value);
+  }
+  return { card, data: datasets.get(m[1]) };
+}
+const Filter = Type.Object({ column: Type.String(), op: Type.Union(FILTER_OPS.map(o => Type.Literal(o))), value: Type.Optional(Type.Any()) });
+const dataQuery = boardTool({
+  name: 'data_query',
+  description: [
+    'Runs an exact aggregate over EVERY row of a dataset window (an imported CSV) and returns the result rows. Use it for any figure you report or chart from a dataset; never estimate from the preview.',
+    'profile:true returns each column\'s kind (number, date, text), gaps, range and top values; start with it. Otherwise: groupBy (one to three columns), bucket (day, week, month, quarter or year) to group the first groupBy date column by time,',
+    `measures [{op: ${MEASURES.join('|')}, column, as?}] (count needs no column), filter [{column, op: ${FILTER_OPS.join('|')}, value}], sort {by, dir: asc|desc}, limit up to ${DATASET_LIMITS.resultRows}.`,
+    'Several independent queries in one turn run in parallel. Results say how many rows matched and whether groups were cut off.',
+  ].join(' '),
+  parameters: Type.Object({
+    dataset: Type.String({ description: 'The dataset window id.' }),
+    profile: Type.Optional(Type.Boolean()),
+    groupBy: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String(), { maxItems: 3 })])),
+    bucket: Type.Optional(Type.Union(BUCKETS.map(b => Type.Literal(b)))),
+    measures: Type.Optional(Type.Array(Type.Object({ op: Type.Union(MEASURES.map(m => Type.Literal(m))), column: Type.Optional(Type.String()), as: Type.Optional(Type.String({ maxLength: 40 })) }), { maxItems: 8 })),
+    filter: Type.Optional(Type.Array(Filter, { maxItems: 10 })),
+    sort: Type.Optional(Type.Object({ by: Type.String(), dir: Type.Optional(Type.Union([Type.Literal('asc'), Type.Literal('desc')])) })),
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: DATASET_LIMITS.resultRows })),
+  }),
+  replay: 'safe',
+  execute: async (args, api) => {
+    const id = boardOf(api); if (!id) return text('This conversation has no board.');
+    const { card, data } = await datasetOf(id, args.dataset);
+    if (args.profile) return text({ dataset: card.text, ...profileDataset(data) });
+    return text({ dataset: card.text, ...queryDataset(data, args) });
   },
 });
 const reviseObject = defineTool({
@@ -631,7 +676,7 @@ const finishPart = defineTool({
 
 const BoardExtension = defineExtension({
   name: 'aegis-board',
-  tools: [readBoard, editBoard, createObject, reviseObject, startPart, finishPart, loadSkill],
+  tools: [readBoard, editBoard, createObject, reviseObject, dataQuery, startPart, finishPart, loadSkill],
   sections: [section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
     'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',

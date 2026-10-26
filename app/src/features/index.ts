@@ -2,6 +2,7 @@
 import '../lib/board/types/index.js';
 import './docs/index';
 import './sheet-editor/index.js';
+import './data/index.js';
 import './deck/index';
 import './wireframe';
 import './media/index';
