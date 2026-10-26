@@ -100,7 +100,8 @@ try {
     // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
     await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
     // Narrow screens frame below the detail tier, where the semantic summary is the selectable surface.
-    if (await page.evaluate(() => document.getElementById('stage').dataset.zoomTier === 'detail')) await page.locator(`.card.kind-${kind} .win-strip h3`).click();
+    // Sheets and tables stay summarised below 100%, so use the window's own tier, not the stage's.
+    if (!await page.locator(`.card.kind-${kind}`).first().evaluate(el => el.classList.contains('semantic-hidden'))) await page.locator(`.card.kind-${kind} .win-strip h3`).click();
     else await page.evaluate(kind => aegis.canvas.select([aegis.canvas.board.cards.find(c => c.kind === kind).id]), kind);
     await page.waitForTimeout(500);
     return page.locator(`.card.kind-${kind}`);
@@ -119,7 +120,7 @@ try {
       checkedOpen.add(kind); return;
     }
     // Detail tier opens from the hovered window's action strip; the summary tier (narrow screens) uses the selection toolbar.
-    const detail = await page.evaluate(() => document.getElementById('stage').dataset.zoomTier === 'detail');
+    const detail = !await card.first().evaluate(el => el.classList.contains('semantic-hidden'));
     if (detail) await card.hover();
     const open = detail ? page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true }) : page.locator('.selection-bar').getByRole('button', { name: 'Open', exact: true });
     await open.click();

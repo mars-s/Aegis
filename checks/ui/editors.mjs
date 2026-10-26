@@ -25,7 +25,7 @@ const errors = []; page.on('pageerror', e => errors.push(e.stack));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 const saved = () => page.waitForFunction(() => document.querySelector('.side-editor.is-open [data-saved]')?.textContent === 'Saved');
-const openEvent = id => page.evaluate(id => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id }, bubbles: true })), id);
+const openEvent = id => page.evaluate(id => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: false }, bubbles: true })), id);
 const stageBounds = () => page.locator('#stage').evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
 const batch = [
   { op: 'create', type: 'object', kind: 'sheet', text: 'Sleep log', newId: 'sheet001', x: 280, y: 140, data: {
