@@ -51,8 +51,8 @@ export function selectionToolbar(bar, changed) {
     if (label === 'Delete') el.classList.add('aegis-menu-destructive');
     el.onclick = action; return el;
   }
-  function input(label, value, action, type = 'text', group = 'Card') {
-    const el = document.createElement('input'); el.type = type; el.value = value ?? ''; el.setAttribute('aria-label', label); el.title = label; el.onchange = () => action(el.value);
+  function input(label, value, action, type = 'text', group = 'Card', bounds = {}) {
+    const el = document.createElement('input'); el.type = type; Object.assign(el, bounds); el.value = value ?? ''; el.setAttribute('aria-label', label); el.title = label; el.onchange = () => action(el.value);
     return row(el, label, group);
   }
   function select(label, values, value, action, group = 'Typography') {

@@ -30,6 +30,8 @@ all.push('mcp');
 all.push('design-system');
 // Canvas chrome: link handles, sidebar placement and alignment.
 all.push('canvas-chrome');
+// Data viewer, deletion recovery, typography and sheet units.
+all.push('data-trust');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

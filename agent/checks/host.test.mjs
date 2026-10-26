@@ -34,6 +34,35 @@ test('requests without the token are refused', async () => {
   assert.equal(r.status, 401);
 });
 
+test('agent document titles are normalised in the original commit and fresh history stays undoable', async () => {
+  const { body: board } = await call('POST', '/boards', { name: 'Document history' });
+  const title = 'Launch plan', paragraph = { type: 'paragraph', content: [{ type: 'text', text: 'Keep this content' }] };
+  const commands = [
+    { op: 'create', type: 'doc', text: title, newId: 'richdoc1', props: { doc: { type: 'doc', content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: title }] }, paragraph] } } },
+    { op: 'create', type: 'doc', text: title, newId: 'markdoc1', props: { body: '# Launch plan\n\nKeep this content' } },
+  ];
+  const { body: [agent] } = await call('POST', '/agents', { boardId: board.id, brief: 'FAKE ' + JSON.stringify(commands), model: { provider: 'fake', modelId: 'fake' } });
+  const done = await until(async () => {
+    const { body } = await call('GET', `/agents?board=${board.id}`);
+    return body.find(a => a.id === agent.id && !a.running && a.history[0]?.finished);
+  });
+  const { body: saved } = await call('GET', `/boards/${board.id}`);
+  assert.equal(saved.rev, 1, 'normalisation is part of the agent batch');
+  for (const card of saved.cards) {
+    assert.equal(card.props.docTitleMigrated, true);
+    assert.equal(card.props.body, 'Keep this content');
+  }
+  assert.deepEqual(saved.cards[0].props.doc.content, [paragraph]);
+  assert.equal(done.history[0].canUndo, true);
+  await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'update', id: 'markdoc1', set: { props: { body: 'A real later edit' } } }] });
+  const { body: later } = await call('GET', `/agents?board=${board.id}`);
+  assert.equal(later[0].history[0].canUndo, false, 'real later content still blocks request Undo');
+  await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'update', id: 'markdoc1', set: { props: { body: 'Keep this content' } } }] });
+  const undone = await call('POST', `/agents/${agent.id}/history/${done.history[0].id}/undo`, {});
+  assert.equal(undone.status, 200);
+  assert.equal((await call('GET', `/boards/${board.id}`)).body.cards.length, 0);
+});
+
 test('two agents edit one board at once and neither loses work', async () => {
   const { body: board } = await call('POST', '/boards', { name: 'Parallel' });
   await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'create', type: 'note', text: 'seed' }] });

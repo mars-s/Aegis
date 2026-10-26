@@ -14,9 +14,9 @@ export default defineConfig({
   plugins: [svelte(), pdfResources()],
   define: { __AEGIS_VERSION__: JSON.stringify(nativeVersion()) },
   base: './',
+  cacheDir: process.env.AEGIS_VITE_CACHE || '.vite',
   clearScreen: false,
   // UI checks isolate dependency optimisation when worktrees share node_modules.
-  cacheDir: process.env.AEGIS_VITE_CACHE,
   server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [new URL('.', import.meta.url).pathname, realpathSync(new URL('./node_modules', import.meta.url))] } },
   build: { outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
 });

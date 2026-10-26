@@ -14,7 +14,8 @@
 .card.focus-dim { opacity: .13; }
 .card .card-tag { position: absolute; top: -25px; left: 0; max-width: 100%; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 2px 7px; font: 11px system-ui; white-space: nowrap; overflow: hidden; }
 .card .body { font-size: inherit; }
-.card.title { font-size: 44px; }
+.card.title { --card-text-size: 24px; font-size: var(--card-text-size); }
+.card:is(.note, .todo, .shape, .coll) { --card-text-size: 15px; }
 .card.coll { overflow: visible; background: var(--card-fill, var(--card)); border: 1px solid var(--line); border-radius: 12px; }
 .collection-head { padding: 12px; font-weight: 650; min-height: 40px; }
 .card .todo-item { display: flex; gap: 8px; align-items: baseline; }
@@ -47,7 +48,7 @@ body[data-tool-size=large] .tools [data-tool] { width: 42px; height: 42px; }
 @media (max-height: 650px) { .editing-hints { display: none; } }
 .card.layer-hover { outline: 2px solid var(--focus); }
 .card:has(>.card-tag) { overflow: visible; contain: layout style; }
-.card.title .body { font-size: inherit; font-weight: inherit; }
+.stage .card.title .body { font-size: inherit; font-weight: inherit; }
 .selection-move { pointer-events: auto; position: absolute; cursor: move; }
 .selection-move.top,.selection-move.bottom { height: 8px; left: 8px; right: 8px; }
 .selection-move.left,.selection-move.right { width: 8px; top: 8px; bottom: 8px; }
@@ -64,11 +65,12 @@ body[data-tool-size=large] .tools [data-tool] { width: 42px; height: 42px; }
 .editing-export .media-poster { width: 100%; min-height: 0; flex: 1; object-fit: contain; }
 body.editing-context:not(.placing) .tools { visibility: hidden; pointer-events: none; }
 body:has(.draw-inspector:not([hidden])) .tools { visibility: hidden; pointer-events: none; }
-.card.note { line-height: 1.45; }
-.card.title { line-height: 1; }
-.card.todo { line-height: 1.35; }
-.card.shape { line-height: 1.3; }
-.card.coll { line-height: 1.2; }
+.card.note { --card-line-height: 1.45; line-height: var(--card-line-height); }
+.card.title { --card-line-height: 1; line-height: var(--card-line-height); }
+.card.todo { --card-line-height: 1.35; line-height: var(--card-line-height); }
+.card.shape { --card-line-height: 1.3; line-height: var(--card-line-height); }
+.card.coll { --card-line-height: 1.2; line-height: var(--card-line-height); }
+.canvas-undo { bottom: 170px; gap: 10px; }
 
 .editing-capture button { border-radius: 999px; padding: 8px 12px; color: var(--muted); }
 .editing-capture button:hover { background: var(--hover); }

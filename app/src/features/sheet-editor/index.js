@@ -29,7 +29,7 @@ export function openSheet(card, ctx, { keyboard = false } = {}) {
     <div class="ribbon-group"><button type="button" class="ribbon-btn" data-sort="1" title="Sort ascending" aria-label="Sort ascending">${icon('<path d="M4 3v10M2 11l2 2 2-2M9 4h5M9 8h4M9 12h3"/>')}</button><button type="button" class="ribbon-btn" data-sort="-1" title="Sort descending" aria-label="Sort descending">${icon('<path d="M4 3v10M2 5l2-2 2 2M9 4h3M9 8h4M9 12h5"/>')}</button></div>
     <div class="ribbon-group"><button type="button" class="ribbon-btn" data-add-row title="Add row below" aria-label="Add row">${icon('<rect x="2.5" y="2.5" width="11" height="5" rx="1"/><path d="M8 10v4M6 12h4"/>')}</button><button type="button" class="ribbon-btn" data-add-column title="Add column to the right" aria-label="Add column">${icon('<rect x="2.5" y="2.5" width="5" height="11" rx="1"/><path d="M10 8h4M12 6v4"/>')}</button><button type="button" class="ribbon-btn" data-remove-row title="Remove row" aria-label="Remove row">${icon('<rect x="2.5" y="2.5" width="11" height="5" rx="1"/><path d="M6 12h4"/>')}</button><button type="button" class="ribbon-btn" data-remove-column title="Remove column" aria-label="Remove column">${icon('<rect x="2.5" y="2.5" width="5" height="11" rx="1"/><path d="M10 8h4"/>')}</button></div>
     <div class="ribbon-group"><button type="button" class="ribbon-btn" data-clear title="Clear cells" aria-label="Clear selected cells">${icon('<path d="M3 13h10M5 10l5.5-6.5 2.5 2.5L7.5 12H5z"/>')}</button></div>
-  </div><div class="sheet-bar"><output class="sheet-ref" aria-label="Cell reference">A2</output><span class="sheet-fx" aria-hidden="true">fx</span><input class="sheet-value" aria-label="Selected cell value" maxlength="200" autocomplete="off" spellcheck="false"></div><div class="sheet-scroll" tabindex="0" role="grid" aria-multiselectable="true" aria-label="Sheet cells. Arrow keys move, Shift extends, Return edits."></div><footer class="sheet-status" role="status" aria-live="polite"><span data-stats></span><span class="sheet-hint">Return to edit · Shift arrows to select</span></footer>`;
+  </div><div class="sheet-bar"><output class="sheet-ref" aria-label="Cell reference">A2</output><span class="sheet-fx" aria-hidden="true">Value</span><input class="sheet-value" aria-label="Selected cell value" maxlength="200" autocomplete="off" spellcheck="false"></div><div class="sheet-scroll" tabindex="0" role="grid" aria-multiselectable="true" aria-label="Sheet cells. Arrow keys move, Shift extends, Return edits."></div><footer class="sheet-status" role="status" aria-live="polite"><span data-stats></span><span class="sheet-hint">Return to edit · Shift arrows to select</span></footer>`;
   const grid = side.body.querySelector('.sheet-scroll');
   const reference = side.body.querySelector('.sheet-ref'), value = side.body.querySelector('.sheet-value');
   const cell = p => grid.querySelector(`[data-r="${p.r}"][data-c="${p.c}"]`);
@@ -56,7 +56,8 @@ export function openSheet(card, ctx, { keyboard = false } = {}) {
     grid.querySelectorAll('thead th[data-c]').forEach(th => th.classList.toggle('hl', +th.dataset.c >= c0 && +th.dataset.c <= c1));
     grid.querySelectorAll('tbody th[data-r]').forEach(th => th.classList.toggle('hl', +th.dataset.r >= r0 && +th.dataset.r <= r1));
     const kind = data.columns[selected.c]?.kind ?? 'text';
-    side.body.querySelector('[data-kind-label]').textContent = KIND_LABEL[kind] ?? kind;
+    const unit = data.columns[selected.c]?.unit;
+    side.body.querySelector('[data-kind-label]').textContent = `${KIND_LABEL[kind] ?? kind}${unit ? ` · ${unit}` : ''}`;
     // Sum, average and count of numeric cells in the range.
     const values = [];
     for (let r = Math.max(1, r0); r <= r1; r++) for (let c = c0; c <= c1; c++) { const v = Number(String(data.rows[r - 1]?.cells[c] ?? '').replace(/[,$%\s]/g, '')); if (data.rows[r - 1]?.cells[c]?.trim() && Number.isFinite(v)) values.push(v); }
@@ -83,7 +84,7 @@ export function openSheet(card, ctx, { keyboard = false } = {}) {
     head.append(document.createElement('th'));
     data.columns.forEach((_, c) => { const th = document.createElement('th'); th.scope = 'col'; th.dataset.c = c; th.textContent = letter(c); head.append(th); });
     const tbody = table.createTBody();
-    [data.columns.map(c => c.label), ...data.rows.map(row => row.cells)].forEach((row, r) => {
+    [data.columns.map(c => `${c.label}${c.unit ? ` (${c.unit})` : ''}`), ...data.rows.map(row => row.cells)].forEach((row, r) => {
       const tr = tbody.insertRow(); if (!r) tr.className = 'head';
       const th = document.createElement('th'); th.scope = 'row'; th.dataset.r = r; th.textContent = String(r + 1); tr.append(th);
       row.forEach((text, c) => {

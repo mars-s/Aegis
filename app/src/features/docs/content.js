@@ -76,21 +76,9 @@ export function cardContent(card) {
   }
 }
 
-export function plainText(node) {
-  if (node.type === 'text') return node.text ?? '';
-  if (node.type === 'inlineMath') return `$${node.attrs?.latex ?? ''}$`;
-  if (node.type === 'blockMath') return `$$${node.attrs?.latex ?? ''}$$`;
-  if (node.type === 'hardBreak') return '\n';
-  const join = ['paragraph', 'heading'].includes(node.type) ? '' : '\n';
-  return (node.content ?? []).map(plainText).join(join).replace(/\n{3,}/g, '\n\n');
-}
+export { plainText, migrateTitle } from '../../lib/board/document.js';
+import { plainText, migrateTitle } from '../../lib/board/document.js';
 export function documentUpdate(id, doc) {
   return { op: 'update', id, set: { props: { doc, body: plainText(doc).trim(), docTitleMigrated: true } } };
 }
 
-// Only legacy documents pass through this migration. Later H1s are the writer's choice.
-export function migrateTitle(doc, title) {
-  const first = doc?.content?.[0];
-  if (first?.type !== 'heading' || first.attrs?.level !== 1 || plainText(first).trim() !== String(title ?? '').trim()) return doc;
-  return { ...doc, content: doc.content.length > 1 ? doc.content.slice(1) : [{ type: 'paragraph' }] };
-}

@@ -1,6 +1,8 @@
 import './data.css';
 import { registerRenderer } from '../../canvas/engine.js';
 import { DATASET_LIMITS, parseCsv, profileDataset } from '../../lib/board/dataset.js';
+import { registerCommand, registerCardMenu } from '../registry';
+import { openDataset } from './viewer.js';
 
 // A dataset window: the file stays whole as an asset; the window previews its first rows and column types.
 const isData = file => /\.(csv|tsv)$/i.test(file.name) || ['text/csv', 'text/tab-separated-values', 'application/vnd.ms-excel'].includes(file.type);
@@ -25,9 +27,10 @@ registerRenderer('dataset', {
   render(el, card) {
     const p = card.props ?? {}, columns = p.columns ?? [], profile = p.profile?.columns ?? [];
     el.setAttribute('aria-label', `${card.text}, dataset with ${p.rows ?? 0} rows`);
-    el.innerHTML = `<header class="win-strip doc-strip"><span class="win-name"></span><span class="win-kind">\u00a0· Data</span><span class="data-size"></span></header>
+    el.innerHTML = `<header class="win-strip doc-strip"><span class="win-name"></span><span class="win-kind">\u00a0· Data</span><span class="data-size"></span><button class="win-open" type="button">Open</button></header>
       <div class="data-cols" aria-label="Columns"></div><div class="data-scroll"><table class="data-grid"><thead><tr><th></th></tr></thead><tbody></tbody></table></div>`;
     el.querySelector('.win-name').textContent = card.text || p.name || 'Dataset';
+    el.querySelector('.win-open').onclick = event => { if (globalThis.aegisCtx) openDataset(card, globalThis.aegisCtx, { keyboard: event.detail === 0 }); };
     el.querySelector('.data-size').textContent = `${(p.rows ?? 0).toLocaleString()} rows · ${columns.length} columns`;
     // Column chips: kind and the one figure that matters (range, or distinct values), gaps flagged.
     const chips = el.querySelector('.data-cols');
@@ -49,8 +52,13 @@ registerRenderer('dataset', {
     });
     if ((p.rows ?? 0) > (p.preview?.length ?? 0)) {
       const tr = body.insertRow(), td = tr.insertCell(); td.colSpan = columns.length + 1; td.className = 'data-more';
-      td.textContent = `${((p.rows ?? 0) - p.preview.length).toLocaleString()} more rows. Agents query every row.`;
+      td.textContent = `${((p.rows ?? 0) - (p.preview?.length ?? 0)).toLocaleString()} more rows. Open to explore every row.`;
     }
   },
-  interactive: '.data-scroll',
+  open(card) { if (globalThis.aegisCtx) openDataset(card, globalThis.aegisCtx); },
+  interactive: '.data-scroll, .win-open',
 });
+
+const selectedDataset = ctx => ctx.selection().length === 1 && ctx.canvas.board.cards.find(card => card.id === ctx.selection()[0] && card.type === 'dataset');
+registerCommand({ id: 'data-open', title: 'Open selected dataset', keys: 'enter', when: ctx => !document.activeElement?.closest('.side-editor') && !!selectedDataset(ctx), run: ctx => openDataset(selectedDataset(ctx), ctx, { keyboard: true }) });
+registerCardMenu({ id: 'data-open', title: 'Open data', section: 'Data', when: (ctx, ids) => ids.length === 1 && ctx.canvas.board.cards.some(card => card.id === ids[0] && card.type === 'dataset'), run: (ctx, ids) => openDataset(ctx.canvas.board.cards.find(card => card.id === ids[0]), ctx) });

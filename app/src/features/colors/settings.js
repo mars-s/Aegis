@@ -3,6 +3,7 @@ import { normHex } from './model.js';
 import { node, button } from '../media/dom.js';
 const storageKey = 'aegis:colour-settings';
 const keys = ['bg', 'dot', 'panel', 'accent'];
+const tokens = { bg: '--canvas', dot: '--dot', panel: '--card', accent: '--accent' };
 function readSettings() {
   const clean = { light: {}, dark: {} };
   try {
@@ -23,7 +24,12 @@ export function installColourSettings(ctx) {
   section.append(node('h3', '', 'Board colours'), node('p', 'muted', 'App colours are saved separately for light and dark mode. A board background takes priority.'));
   const data = readSettings(), owned = new Set(), inputs = new Map(), modeText = node('small', 'muted'); section.append(modeText);
   const currentMode = () => root.dataset.theme === 'dark' ? 'dark' : 'light';
-  const defaults = { light: { bg: '#fafafa', dot: '#d7d7d7', panel: '#ffffff', accent: '#0d0d0d' }, dark: { bg: '#111111', dot: '#303030', panel: '#1c1c1e', accent: '#f5f5f7' } };
+  const liveHex = key => {
+    const probe = document.createElement('span'); probe.style.color = `var(${tokens[key]})`; root.append(probe);
+    const colour = getComputedStyle(probe).color; probe.remove();
+    const rgb = colour.match(/[\d.]+/g)?.slice(0, 3);
+    return rgb?.length === 3 ? '#' + rgb.map(v => Math.round(Number(v)).toString(16).padStart(2, '0')).join('') : '#000000';
+  };
   const apply = () => {
     for (const key of owned) root.style.removeProperty(key); owned.clear();
     const values = data[currentMode()], set = (name, value) => { root.style.setProperty(name, value); owned.add(name); };
@@ -40,17 +46,17 @@ export function installColourSettings(ctx) {
     ctx.canvas.redraw();
   };
   const showValue = input => { input.closest('label').querySelector('output').textContent = input.value.toUpperCase(); };
-  const refresh = () => { const mode = currentMode(); modeText.textContent = `Editing ${mode} mode`; for (const [key, input] of inputs) { input.value = data[mode][key] || defaults[mode][key]; showValue(input); } };
+  const refresh = () => { const mode = currentMode(); modeText.textContent = `Editing ${mode} mode`; for (const [key, input] of inputs) { input.value = data[mode][key] || liveHex(key); showValue(input); } };
   for (const [key, title] of [['bg','App board background'],['dot','Grid dots'],['panel','Panels'],['accent','Accent']]) {
     // PM4.8: the full labelled row activates the native colour input.
     const label = node('label', 'settings-colour'), swatch = node('span', 'settings-colour-swatch'), input = node('input');
-    input.type = 'color'; input.value = defaults[currentMode()][key]; input.setAttribute('aria-label', title); inputs.set(key, input);
+    input.type = 'color'; input.setAttribute('aria-label', title); inputs.set(key, input);
     swatch.append(input); label.append(swatch, node('span', 'settings-colour-name', title), node('output')); section.append(label);
     input.oninput = () => { data[currentMode()][key] = input.value; showValue(input); localStorage.setItem(storageKey, JSON.stringify(data)); apply(); };
   }
   button('Reset colours for this mode', () => { data[currentMode()] = {}; localStorage.setItem(storageKey, JSON.stringify(data)); apply(); refresh(); }, section);
   settings.append(section);
   const observer = new MutationObserver(() => { apply(); refresh(); }); observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
-  refresh(); apply();
+  apply(); refresh();
   return () => { observer.disconnect(); section.remove(); for (const key of owned) root.style.removeProperty(key); };
 }
