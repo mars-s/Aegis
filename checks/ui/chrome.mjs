@@ -83,6 +83,11 @@ export async function checkChrome(browser, url) {
     await page.locator('#selectionBar').getByRole('button', { name: 'Open', exact: true }).click();
     await page.locator('.docs-panel.is-open').waitFor();
     const assertQuiet = async id => {
+      await page.waitForFunction(() => {
+        const saved = document.querySelector('.docs-panel.is-open [data-saved]');
+        return !saved || saved.textContent === 'Saved';
+      });
+      await page.evaluate(() => new Promise(requestAnimationFrame));
       // A save replaces the preview before its connector overlay catches up on the next paint.
       await page.waitForFunction(id => {
         const source = document.querySelector(`.card[data-id="${id}"]`), title = aegis.canvas.board.cards.find(c => c.id === id)?.text;
