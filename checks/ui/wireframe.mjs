@@ -73,11 +73,11 @@ try {
   for (const c of navParts.filter(c => c.id !== arrow.id)) assert.equal(independent.cards.find(k => k.id === c.id).x, groupAfter.cards.find(k => k.id === c.id).x);
   log('piece drag selects the group; Command drag moves one part');
   // Search and swap real bundled Material Icons.
-  await panel.locator('[data-wf="icon"]').click(); await panel.getByLabel('Search icons', { exact: true }).fill('settings');
-  await panel.locator('[data-icon="settings"]').click(); await clickAt(330, 125);
+  await panel.locator('[data-wf="icon"]').click(); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('settings');
+  await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="settings"]').click(); await clickAt(330, 125);
   let icon = (await snapshot()).cards.find(c => c.type === 'icon' && c.props.name === 'settings'); assert.ok(icon);
   await select(icon.id); await panel.getByRole('button', { name: 'Change icon', exact: true }).click();
-  await panel.getByLabel('Search icons', { exact: true }).fill('favorite border'); await panel.locator('[data-icon="favorite_border"]').click();
+  await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('favorite border'); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="favorite_border"]').click();
   await page.waitForTimeout(260); assert.equal((await snapshot()).cards.find(c => c.id === icon.id).props.name, 'favorite_border');
   assert.ok(await page.evaluate(() => document.fonts.check('24px "Aegis Material Icons"')));
   await page.screenshot({ path: out('wireframe-screen-light.png') });

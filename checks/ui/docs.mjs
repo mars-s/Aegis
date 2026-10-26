@@ -1,3 +1,4 @@
+import { choose as chooseDropdown } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import assert from 'node:assert/strict';
@@ -15,7 +16,7 @@ const ui = mkdtempSync(join(tmpdir(), 'aegis-docs-ui-'));
 for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
 // Vite must serve the bundled font through the dependency symlink in this snapshot.
-writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, repo + '/app/node_modules'])} },`));
+writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('defineConfig({', `defineConfig({ cacheDir: ${JSON.stringify(join(ui, '.vite'))},`).replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, repo + '/app/node_modules'])} },`));
 const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
@@ -26,7 +27,12 @@ page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
 // Formatting lives on the ribbon; page options and export stay in the Document options menu.
 const more = async () => { if (!await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('Document options', { exact: true }).click(); };
 const less = async () => { if (await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('Document options', { exact: true }).click(); };
-const choose = async (label, value, scope = page.locator('.docs-panel')) => { const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) await more(); await root.locator(':scope > button').click(); await root.getByRole('menuitemradio').filter({ hasText: new RegExp('^' + ({ lead: 'Lead', center: 'Centre', dark: 'Dark page', light: 'Light page', auto: 'Auto page', letter: 'Letter' }[value] || value) + '$') }).click(); };
+const format = async () => { await less(); if (!await page.locator('.docs-format').evaluate(el => el.open)) await page.getByLabel('Format document', { exact: true }).click(); };
+const insert = async () => { if (!await page.locator('.docs-insert').evaluate(el => el.open)) await page.getByLabel('Insert document', { exact: true }).click(); };
+const choose = async (label, value, scope = page.locator('.docs-panel')) => {
+  const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) { if (['Page colour', 'Paper size'].includes(label)) await more(); else await format(); }
+  await chooseDropdown(root.getByRole('combobox', { name: label, exact: true }), value);
+};
 const saved = async () => { await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
@@ -44,7 +50,7 @@ try {
   await page.keyboard.press('ControlOrMeta+b');
   await more();
   await choose('Block style', 'lead');
-  await page.getByLabel('Font family', { exact: true }).fill('Georgia');
+  await format(); await page.getByLabel('Font family', { exact: true }).fill('Georgia');
   await page.getByLabel('Font family', { exact: true }).press('Tab');
   await page.getByLabel('Font size', { exact: true }).fill('20');
   await page.getByLabel('Font size', { exact: true }).press('Tab');
@@ -70,7 +76,7 @@ try {
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
   await more();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await format(); await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
   console.log('PASS host rewrite endpoint through the app adapter');
   await less();
@@ -80,7 +86,7 @@ try {
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear release plan.'));
   await more();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await format(); await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear plan for'));
   await saved();
   console.log('PASS selection bubble, rewrite hook and Undo');
@@ -154,11 +160,11 @@ try {
   await saved(); b = await board(); assert.ok(JSON.stringify(b.cards.find(c => c.id === docId).props.doc).includes('taskList'));
   assert.equal(await page.locator('.docs-prose input[type=checkbox]:checked').count(), 1);
   await more();
-  await page.getByRole('button', { name: 'Insert table', exact: true }).click();
+  await insert(); await page.getByRole('button', { name: 'Insert table', exact: true }).click();
   await page.locator('.docs-prose table').waitFor();
-  await page.getByRole('button', { name: 'Add row', exact: true }).click(); assert.equal(await page.locator('.docs-prose tr').count(), 4);
-  await page.getByRole('button', { name: 'Delete table', exact: true }).click();
-  await page.getByRole('button', { name: 'Insert image', exact: true }).click();
+  await format(); await page.getByRole('button', { name: 'Add row', exact: true }).click(); assert.equal(await page.locator('.docs-prose tr').count(), 4);
+  await format(); await page.getByRole('button', { name: 'Delete table', exact: true }).click();
+  await insert(); await page.getByRole('button', { name: 'Insert image', exact: true }).click();
   const tinyPNG = Buffer.from(await page.evaluate(() => { const canvas = document.createElement('canvas'); canvas.width = canvas.height = 4; canvas.getContext('2d').fillRect(0, 0, 4, 4); return canvas.toDataURL('image/png').split(',')[1]; }), 'base64');
   await page.locator('.docs-panel input[type=file]').setInputFiles({ name: 'tiny.png', mimeType: 'image/png', buffer: tinyPNG });
   await page.locator('.docs-prose img').waitFor();
