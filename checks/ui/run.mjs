@@ -12,6 +12,7 @@ all.push('agent-edges');
 all.push('agent-race');
 // Production bundle geometry in Chromium and WebKit.
 all.push('prod-composer');
+all.push('orb-capture');
 // Streaming previews of what an agent is writing.
 all.push('agent-drafts');
 // Ask AI about the selected windows.

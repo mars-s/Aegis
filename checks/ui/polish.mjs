@@ -126,11 +126,13 @@ try {
     assert.equal(await prompt.inputValue(), 'A draft kept while capturing');
     await page.getByLabel('Capture idea', { exact: true }).fill(`${mod} captured idea`);
     await page.getByLabel('Capture idea', { exact: true }).press('Enter');
-    assert.equal((await saved()).tray[0].text, `${mod} captured idea`);
+    assert.ok((await saved()).cards.some(c => c.text === `${mod} captured idea`));
     assert.equal(await prompt.inputValue(), 'A draft kept while capturing');
     await prompt.fill(''); await prompt.press('Escape');
   }
-  assert.equal((await saved()).tray.length, 2);
+  assert.equal((await saved()).cards.filter(c => /^(Meta|Control) captured idea$/.test(c.text)).length, 2);
+  await page.evaluate(() => aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.filter(c => /^(Meta|Control) captured idea$/.test(c.text)).map(c => c.id) }]));
+  await saved();
   assert.equal(requests.length, 0);
   await page.mouse.move(1400, 20); await page.locator('#quickCapture').click(); assert.equal(await captureDialog.isVisible(), true); await page.keyboard.press('Escape');
   console.log('PASS Cmd/Ctrl+K opens Ask, Shift+Cmd/Ctrl+K captures once, drafts survive, hints/panel/Idea labels match');
