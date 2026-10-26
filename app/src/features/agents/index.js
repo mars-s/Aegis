@@ -1,4 +1,5 @@
 import './style.css';
+import './orb.css';
 import { createIslandMorph } from './morph.js';
 import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
@@ -42,6 +43,17 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   const overlay = document.createElement('div'); overlay.className = 'agent-windows'; stage.append(overlay);
   const edges = document.createElement('div'); edges.className = 'agent-edges'; document.body.append(edges);
   const windows = new Map(); let all = [], selectedId = null, newAgent = false, leaveTimer = 0, doneTimer = 0, restoringFocus = false, hoverSuppressed = false;
+  const orbVisibility = new IntersectionObserver(entries => {
+    for (const entry of entries) entry.target.classList.toggle('orb-offscreen', !entry.isIntersecting);
+  });
+  for (const mark of island.querySelectorAll('.orb-mark')) orbVisibility.observe(mark);
+  function resolveMarks(root) {
+    if (document.hidden || matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('motion-off')) return;
+    for (const mark of root.querySelectorAll('.orb-mark')) {
+      mark.classList.add('resolved');
+      mark.addEventListener('animationend', () => mark.classList.remove('resolved'), { once: true });
+    }
+  }
   // Round 3 navigation: keep this hookup separate from history and placement.
   const { discover, dismiss: dismissHint } = createOrbHint({ island, host });
   // Round 3 agents: camera framing reads cached geometry only when asked to Fit.
@@ -141,6 +153,12 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   orb.addEventListener('focus', () => { if (!restoringFocus) open(true); });
   stage.addEventListener('pointerdown', () => { if (expanded()) close(); }, true);
   composer.addEventListener('open-composer', () => open(true));
+  document.addEventListener('capture-to-agent', e => {
+    open(true);
+    prompt.value = [prompt.value.trim(), e.detail.text].filter(Boolean).join('\n\n');
+    sizeInput();
+    composer.requestSubmit();
+  });
   composer.addEventListener('close-composer', () => { if (!prompt.value.trim()) close(true); });
   addEventListener('keydown', e => {
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k' && !document.querySelector('dialog[open]')) {
@@ -265,6 +283,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const end = () => { if (drag) { drag = null; place(w, { x: w.x, y: w.y }, { x: w.x, y: w.y }); paint(); save(w); setTimeout(() => { w.dragged = false; }, 0); } };
     strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
     overlay.append(w.el); edges.append(w.edge); windows.set(a.id, w); collapse(w.collapsed);
+    orbVisibility.observe(w.el);
     // History disclosure changes geometry without an agent update or a camera paint.
     const size = new ResizeObserver(() => {
       if (!w.el.hidden && w.height !== w.el.offsetHeight) { place(w); paint(); }
@@ -314,8 +333,9 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       const a = current(), running = !!a?.running;
       orb.classList.toggle('working', running);
       $('orbStatus').textContent = running ? a.status || 'Considering your request and the board' : a?.error || (a?.text ? a.text.replace(/\s+/g, ' ').slice(0, 130) : 'Ready for your next request');
-      head.hidden = !a; history.hidden = !a;
-      head.querySelector('.orb-activity').textContent = a?.error || a?.status || '';
+      head.hidden = false; history.hidden = !a;
+      head.querySelector('.orb-activity').textContent = a?.error || a?.status || 'Aegis';
+      island.classList.toggle('working', running);
       head.querySelector('.island-stop').hidden = !running;
       island.classList.toggle('failed', !!a?.error);
       renderTurns(history, a);
@@ -331,12 +351,15 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     all = agents;
     for (const w of windows.values()) { w.el.hidden = w.closed || !all.some(a => a.id === w.agent.id); if (!all.some(a => a.id === w.agent.id)) drafts.clear(w.agent.id); }
     for (const a of all) {
-      const w = windows.get(a.id) ?? makeWindow(a); w.agent = a; w.el.hidden = w.closed;
+      const w = windows.get(a.id) ?? makeWindow(a);
+      if (w.agent.running && !a.running && !a.error) resolveMarks(w.el);
+      w.agent = a; w.el.hidden = w.closed;
       w.el.classList.toggle('running', a.running); w.el.classList.toggle('failed', !!a.error);
       w.el.querySelector('.agent-window-title').textContent = `${nameOf(a)} · ${shortTitle(a)}`;
       w.edge.setAttribute('aria-label', `Pan to ${nameOf(a)}: ${shortTitle(a)}`); w.edge.title = `Pan to ${nameOf(a)}`;
       w.el.querySelector('.agent-window-toggle').setAttribute('aria-label', `${nameOf(a)}: ${shortTitle(a)}`);
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
+      w.el.querySelector('.agent-window-status').title = a.error || a.status || '';
       renderTurns(w.el.querySelector('.agent-window-answer'), a);
       drafts.sync(a);
       renderHistory(w.el.querySelector('.agent-history'), a, undo);
@@ -349,6 +372,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       if (a?.running && island.dataset.state !== 'running') state('running');
       else if (previous?.running && a && !a.running) state('done');
     }
+    if (previous?.running && a && !a.running && !a.error) resolveMarks(island);
   }
   function near(id, ids) {
     const w = windows.get(id); if (!w) return;
