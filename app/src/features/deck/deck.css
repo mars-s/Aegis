@@ -62,7 +62,7 @@
 .deck-panel button { cursor: pointer; }
 /* The panel itself is the shared .side-editor (features/docs/side.js and styles/editor.css). */
 .deck-ed { flex: 1; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 104px; }
-.deck-stage { container-type: size; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .16) transparent; }
+.deck-stage { container-type: size; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .side-editor .deck-stage:focus { outline: none; }
 .side-editor .deck-stage:focus-visible { outline: none; box-shadow: inset 2px 0 0 var(--line-strong); }
 .deck-stage .deck-slide-wrap { position: relative; width: min(100%, calc(100cqh * 16 / 9)); aspect-ratio: 16 / 9; min-width: 0; }
@@ -75,7 +75,7 @@
 .deck-slide-meta { display: flex; justify-content: space-between; align-items: center; height: 32px; margin-bottom: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-slide-actions { display: flex; align-items: center; opacity: 0; transition: opacity 150ms var(--ease-out); }
 .deck-slide-wrap:hover .deck-slide-actions, .deck-slide-wrap:focus-within .deck-slide-actions { opacity: 1; }
-.deck-film { min-width: 0; height: 104px; display: flex; gap: 12px; align-items: start; padding: 6px 16px; overflow-x: auto; overflow-y: hidden; background: var(--strip); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .16) transparent; }
+.deck-film { min-width: 0; height: 104px; display: flex; gap: 12px; align-items: start; padding: 6px 16px; overflow-x: auto; overflow-y: hidden; background: var(--strip); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .deck-panel .deck-film-item { flex: none; display: grid; grid-template-rows: 63px 18px; gap: 4px; width: 112px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; text-align: left; }
 .deck-film-item .deck-fit { width: 112px; height: 63px; border-radius: 3px; }
 .deck-film-item.on .deck-fit { box-shadow: 0 0 0 1.5px var(--text); }

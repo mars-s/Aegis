@@ -46,7 +46,7 @@
 .data-column-name { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
 .data-kind { display: inline-flex; border-radius: 3px; padding: 2px 4px; color: var(--muted); background: var(--hover); font-size: 11px; line-height: 1; font-weight: 500; }
 .data-kind.kind-number { color: var(--data); background: var(--data-soft); }
-.data-sort { display: none; margin-left: auto; color: var(--data); }
+.data-sort { display: none; margin-left: auto; color: var(--muted); }
 .data-sort svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .data-viewer-grid [aria-sort=ascending] .data-sort, .data-viewer-grid [aria-sort=descending] .data-sort { display: block; }
 .data-viewer-grid [aria-sort=descending] .data-sort { rotate: 180deg; }

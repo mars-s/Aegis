@@ -1,11 +1,11 @@
-import { documentContent, wordCount } from '../../lib/board/words.js';
+import { documentContent, wordCount, wordCountLabel } from '../../lib/board/words.js';
 import { createStepper } from '../../lib/ui/stepper.js';
 import { createColourPicker } from '../colors/colour-picker.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { Editor, generateJSON } from '@tiptap/core';
 import BubbleMenu from '@tiptap/extension-bubble-menu';
 import { extensions } from './extensions.js';
-import { cardContent, COPY_TYPES, documentUpdate, markdownHTML, migrateTitle } from './content.js';
+import { cardContent, COPY_TYPES, documentUpdate, markdownHTML } from './content.js';
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
 import { bindDisclosure, createPopup } from '../../lib/ui/dropdown.js';
@@ -351,7 +351,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     align.value = editor.getAttributes('paragraph').textAlign || editor.getAttributes('heading').textAlign || 'left';
     for (const [el, mark] of toggles) el.setAttribute('aria-pressed', String(editor.isActive(mark)));
     undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); tableTools.hidden = !editor.isActive('table');
-    const words = wordCount(editor.getJSON()); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
+    $('[data-count]').textContent = wordCountLabel(wordCount(editor.getJSON()));
     syncCopyAction();
   }
   title.oninput = schedule;

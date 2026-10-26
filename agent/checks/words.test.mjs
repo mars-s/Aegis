@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentContent, documentWordCount, wordCount } from '../../app/src/lib/board/words.js';
+import { documentContent, documentWordCount, wordCount, wordCountLabel } from '../../app/src/lib/board/words.js';
 import { documentUpdate } from '../../app/src/features/docs/content.js';
 import { cardSummary } from '../../app/src/lib/board/summary.js';
 
@@ -24,4 +24,10 @@ test('marks join within words, block boundaries separate, maths and embedded lea
   ] };
   assert.equal(wordCount(doc), 6);
   assert.equal(wordCount({ type: 'doc', content: [] }), 0);
+});
+
+test('document labels share singular and thousands formatting', () => {
+  assert.equal(wordCountLabel(1), '1 word');
+  assert.equal(wordCountLabel(1001), '1,001 words');
+  assert.equal(cardSummary({ type: 'doc', props: { body: 'word '.repeat(1001) } }).facts[1], '1,001 words');
 });

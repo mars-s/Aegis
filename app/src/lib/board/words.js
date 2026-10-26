@@ -18,3 +18,5 @@ export function documentContent(card) {
   return props.docTitleMigrated ? doc : migrateTitle(doc, card.text);
 }
 export const documentWordCount = card => wordCount(documentContent(card));
+
+export const wordCountLabel = words => `${words.toLocaleString('en-AU')} word${words === 1 ? '' : 's'}`;

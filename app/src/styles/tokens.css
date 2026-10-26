@@ -3,7 +3,7 @@
 :root {
   --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  --text-caption: 11px; --text-label: 12px; --text-body: 13px; --text-subtitle: 15px; --text-title: 22px;
+  --text-caption: 12px; --text-label: 12px; --text-body: 13px; --text-subtitle: 15px; --text-title: 22px;
   --text-overview-label: 22px; --text-overview-figure: 40px; --text-headline: 26px; --text-reading: 15px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
   --radius-inset: 4px; --radius-control: 6px; --radius-surface: 10px; --radius-dialog: 14px;
