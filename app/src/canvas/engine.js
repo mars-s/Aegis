@@ -73,12 +73,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let focusedId = null;
   // PM 7: the editor owns its source marker independently of canvas selection.
   let editorSource = null;
-  const editorSourceStyle = document.createElement('style');
-  world.appendChild(editorSourceStyle);
   function setEditorSource(id) {
     mounted.get(editorSource)?.el.classList.remove('editor-source');
     editorSource = id;
-    editorSourceStyle.textContent = id ? `#stage [data-connect-card="${CSS.escape(id)}"] { display: none !important; }` : '';
     mounted.get(id)?.el.classList.add('editor-source');
     stage.classList.toggle('editor-source-selected', !!id && selected.has(id));
     schedule();

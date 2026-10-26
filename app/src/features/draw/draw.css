@@ -3,7 +3,7 @@
   padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none;
   overflow: visible; contain: layout style; pointer-events: none;
 }
-.card.ink.selected, .card.shape.selected, .card.path.selected, .card.stamp.selected { outline: 1.5px solid var(--focus); outline-offset: 4px; box-shadow: none; }
+.card.ink.selected, .card.shape.selected, .card.path.selected, .card.stamp.selected { outline: 1px solid var(--focus); outline-offset: 4px; box-shadow: none; }
 .draw-art { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .draw-art path, .draw-art circle { pointer-events: visiblePainted; }
 .card.ink .resize, .card.shape .resize, .card.path .resize, .card.stamp .resize { pointer-events: auto; }
@@ -23,7 +23,12 @@
 .draw-link-editor { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 4; }
 .draw-link-knob { fill: var(--card); stroke: var(--focus); stroke-width: 1.5; pointer-events: all; cursor: crosshair; }
 .draw-link-bend { fill: var(--focus); cursor: move; }
-.draw-drop-target { pointer-events: none; fill: var(--focus); }
+.draw-connect-preview { fill: none; stroke: var(--data); stroke-width: 1.5; stroke-linecap: round; pointer-events: none; }
+.draw-connect-target { fill: var(--data-soft); stroke: var(--data); stroke-width: 1; stroke-linejoin: round; pointer-events: none; }
+.stage.connecting, .stage.connecting * { cursor: crosshair; }
+.stage.connecting iframe { pointer-events: none; }
+.stage.connecting .editing-outline, body:has(.stage.connecting) #selectionBar { visibility: hidden; }
+.draw-connect-hint { position: absolute; left: 50%; bottom: 88px; translate: -50% 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--pill); color: var(--muted); font: 12px var(--font); pointer-events: none; z-index: 5; white-space: nowrap; }
 .links { z-index: 1; }
 .links .link-hit { cursor: pointer; }
 .links .link-label { fill: var(--text); font: 12px var(--font); paint-order: stroke; stroke: var(--bg, var(--card)); stroke-width: 5px; stroke-linejoin: round; }

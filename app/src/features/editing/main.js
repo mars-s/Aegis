@@ -178,6 +178,7 @@ export function mountEditing(ctx) {
         { const ai = button(single ? 'Ask AI about this window' : `Ask AI about ${cards.length} windows`, e => document.dispatchEvent(new CustomEvent('ask-about-selection', { detail: { ids: cards.map(c => c.id), keyboard: e.detail === 0 } })), { inline: true, icon: 'AI' });
           ai.classList.add('selection-ai'); ai.setAttribute('aria-keyshortcuts', 'Meta+K'); ai.title += ` (${shortcutText('ask')})`; bar.querySelector('.selection-inline').prepend(ai); }
         if (!locked) {
+          if (single) button('Connect', () => { toolbar.close(); stage.dispatchEvent(new CustomEvent('connectstart', { detail: { id: cards[0].id } })); }, { group: 'Actions' });
           if (text.length) {
             for (const [label, prop] of [['Bold', 'bold'], ['Italic', 'italic'], ['Underline', 'under'], ['Strike through', 'strike']]) {
               const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: shortcutText('bold'), italic: shortcutText('italic'), under: shortcutText('underline') }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
