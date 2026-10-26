@@ -2,6 +2,7 @@
 // The canvas: cards as DOM in one transformed layer, only the visible ones mounted.
 // Pan and zoom change one transform; a card re-renders only when its own data changes.
 import { effectiveFlag } from '../features/editing/model.js';
+import { mountWindowActions } from './window-actions.js';
 import { drawGridMotif } from '../features/editing/grid.js';
 import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
@@ -71,6 +72,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   const selected = new Set();
   let focusIds = null;
   let focusedId = null;
+  const windowActions = mountWindowActions({ stage, getSelection: () => [...selected], mountedEl: id => mounted.get(id)?.el, getZoom: () => view.z });
   // PM 7: the editor owns its source marker independently of canvas selection.
   let editorSource = null;
   function setEditorSource(id) {
@@ -195,6 +197,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (agentMotionQueue.length) animateAgentBatch();
     // end item 10
     drawLinks();
+    windowActions.redraw();
     // PM 7: selection can change while an editor remains open.
     stage.classList.toggle('editor-source-selected', !!editorSource && selected.has(editorSource));
     // end PM 7

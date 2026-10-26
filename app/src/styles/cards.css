@@ -28,6 +28,13 @@
 .stage .card .win-strip h3 { font: inherit; }
 .stage .card :is(.win-open, .deck-open) { align-self: center; height: 28px; min-height: 28px; padding: 0 8px; border-radius: 6px; font: 400 12px/20px var(--font); }
 .stage .card :is(.win-open, .deck-open):focus-visible { opacity: 1; outline: 1.5px solid var(--data); outline-offset: -2px; }
+.stage .card :is(.win-open, .deck-open, .canvas-open) { visibility: hidden; pointer-events: none; }
+.window-actions { position: absolute; display: flex; gap: 4px; z-index: 6; padding: 0; border-radius: 6px; background: var(--strip); }
+.window-actions button { display: grid; place-items: center; min-width: 48px; height: 32px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px; color: var(--muted); font: 12px/20px var(--font); }
+.window-actions button:hover { background: var(--hover); color: var(--text); }
+.window-actions button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; color: var(--text); }
+.stage.panning .window-actions, .stage.pan-ready .window-actions { visibility: hidden; pointer-events: none; }
+@media (hover: none), (pointer: coarse) { .window-actions button { min-width: 44px; height: 44px; } }
 @media (hover: none), (pointer: coarse) {
   .stage .card :is(.win-strip, .deck-title-strip, .web-head), .stage .card:is(.audio, .video, .link, .spotify) .media-head { height: 48px; min-height: 48px; }
   .stage .card :is(.win-open, .deck-open) { height: 44px; min-height: 44px; }
@@ -35,14 +42,13 @@
 .card::after { content: ''; position: absolute; inset: 0; border: 1px solid var(--data); border-radius: inherit; opacity: 0; pointer-events: none; }
 .card.glow::after { animation: card-touch 1.2s var(--ease-out); }
 @keyframes card-touch { from { opacity: 0.8; } to { opacity: 0; } }
-/* Dim the children, so the panel remains opaque over the dot field. */
+/* Focus belongs to the frame. Text keeps its contrast on every window. */
 .stage .card.focus-dim { opacity: 1; }
-.stage .card.window-card > :not(.resize) { opacity: var(--dim); transition: opacity 260ms var(--ease-out); }
-.stage .card.window-card.window-focus > :not(.resize) { opacity: 1; }
-.stage .card.frame.window-card > .wf-visual { opacity: calc(var(--dim) * var(--frame-opacity, 1)) !important; }
-.stage .card.frame.window-card.window-focus > .wf-visual { opacity: var(--frame-opacity, 1) !important; }
-.card.window-card.window-focus { z-index: 100000 !important; }
-.stage.instant-focus .card.window-card > :not(.resize) { transition: none; }
+.stage .card.frame.window-card > .wf-visual { opacity: var(--frame-opacity, 1) !important; }
+.card.window-card.window-focus { z-index: 100000 !important; border-color: var(--line-strong); }
+.stage .card.window-focus :is(.win-strip, .deck-title-strip, .web-head, .media-head) { background: var(--inset); }
+.stage .card.window-card { --color-muted: var(--muted); --color-faint: var(--faint); --color-label-secondary: var(--muted); }
+:root:not([data-theme=dark]) .stage .card { --faint: #62666d; }
 .card:not(.object) .body { white-space: pre-wrap; word-break: break-word; outline: none; min-height: 1em; }
 .card:not(.object) .body:empty::before { content: "Write something"; color: var(--faint); }
 .card.title { background: transparent; border-color: transparent; box-shadow: none; padding: 4px 2px; }
