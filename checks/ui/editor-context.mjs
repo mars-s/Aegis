@@ -206,6 +206,7 @@ try {
       source: { cardId: 'contextsheet', xColumn: 0, yColumns: [1] }, series: [{ name: 'Hours', points: [{ x: 'Review', y: 4 }, { x: 'Publish', y: 2 }] }] };
     await page.evaluate(data => new Promise(resolve => aegis.apply([
       { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot', text: 'Hours by task', x: 1700, y: 400, data },
+      { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot2', text: 'Hours comparison', x: 2500, y: 400, data },
       { op: 'connect', a: 'contextsheet', b: 'liveplot' },
       { op: 'connect', a: 'contextdoc', b: 'liveplot' },
     ], resolve)), chartData);
@@ -224,14 +225,21 @@ try {
     const picker = page.getByRole('combobox', { name: 'Pinned reference', exact: true });
     await picker.focus(); await page.keyboard.press('Enter');
     const choices = page.getByRole('listbox', { name: 'Pinned reference options', exact: true });
-    assert.equal(await choices.getByRole('option').count(), 2, 'all chart and dataset candidates are offered');
+    assert.equal(await choices.getByRole('option').count(), 3, 'all chart and dataset candidates are offered');
+    await choices.locator('[data-value="liveplot2"]').focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours comparison.'));
+    assert.equal(await page.locator('.editor-context-reference').getAttribute('data-card-id'), 'liveplot2');
+    await picker.focus(); await page.keyboard.press('Enter');
+    await choices.locator('[data-value="liveplot"]').focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours by task.'));
+    await picker.focus(); await page.keyboard.press('Enter');
     await page.keyboard.press('Escape'); assert.equal(await picker.getAttribute('aria-expanded'), 'false');
     assert.equal(await page.locator('.sheet-editor').count(), 1, 'Escape dismisses the switcher first');
     await close(before);
 
     before = await prepare('contextdoc'); await open('contextdoc');
     await picker.focus(); await page.keyboard.press('Enter');
-    assert.equal(await choices.getByRole('option').count(), 3, 'the switcher includes every eligible reference');
+    assert.equal(await choices.getByRole('option').count(), 4, 'the switcher includes every eligible reference');
     const sheetIndex = await choices.getByRole('option').evaluateAll(items => items.findIndex(el => el.dataset.value === 'contextsheet'));
     for (let i = 0; i < sheetIndex; i++) await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
@@ -277,7 +285,7 @@ try {
     }, dataset);
     await page.waitForFunction(() => document.querySelectorAll('.editor-reference-table td')[1]?.textContent === '9');
     await close(before);
-    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['liveplot'] }], resolve)));
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['liveplot', 'liveplot2'] }], resolve)));
     console.log(`PASS ${engineName}: live sheet edits, one pinned chart, all keyboard choices, selected table region, live table and dataset updates, concurrent CSV read, persistent pin and light theme`);
 
     // Font choices exclude loaded maths fonts and fonts already used by cards.

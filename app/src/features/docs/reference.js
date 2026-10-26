@@ -24,7 +24,7 @@ export function liveReference(root, canvas) {
     const request = ++version;
     if (card.kind === 'plot') {
       controls.remove(); content.className = 'editor-reference-chart';
-      const data = resolvePlot(card.data, canvas.board.cards), next = JSON.stringify(data);
+      const data = resolvePlot(card.data, canvas.board.cards), next = JSON.stringify([card.id, card.text, data]);
       if (next === key) return;
       key = next; clear();
       chart = mount(Chart, { target: content, props: { title: card.text || 'Chart', height: 164,
@@ -55,7 +55,7 @@ export function liveReference(root, canvas) {
     const first = Math.max(0, Math.min(columns.length - 1, Math.trunc(Number(column.value) || 1) - 1));
     row.value = String(start + 1); row.max = String(Math.max(1, rows.length));
     column.value = String(first + 1); column.max = String(columns.length);
-    const next = JSON.stringify([columns, rows.slice(start, start + 4), start, first]);
+    const next = JSON.stringify([card.id, card.text, columns, rows.slice(start, start + 4), start, first]);
     if (next === key) return;
     key = next; clear();
     const table = document.createElement('table'); table.setAttribute('aria-label', `${card.text || 'Data'} reference, rows ${start + 1} to ${Math.min(rows.length, start + 4)}`);
