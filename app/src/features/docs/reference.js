@@ -7,7 +7,7 @@ import { columnLabel, cellText } from '../../lib/board/summary.js';
 
 export const referenceCard = card => card.kind === 'plot' || card.kind === 'sheet' || card.type === 'dataset';
 
-export function liveReference(root, canvas) {
+export function liveReference(root, canvas, { region, onRegionChange = () => {} } = {}) {
   let chart, key = '', version = 0, closed = false, dataset;
   const content = document.createElement('div'); root.append(content);
   const controls = document.createElement('div'); controls.className = 'editor-reference-region';
@@ -17,6 +17,12 @@ export function liveReference(root, canvas) {
     const field = document.createElement('label'); field.textContent = label.endsWith('row') ? 'Row' : 'Column'; field.append(input); controls.append(field);
   }
   let current;
+  function setRegion(value) {
+    row.value = String(Number.isInteger(value?.row) && value.row > 0 ? value.row : 1);
+    column.value = String(Number.isInteger(value?.column) && value.column > 0 ? value.column : 1);
+    key = '';
+  }
+  setRegion(region);
   row.onchange = column.onchange = () => { key = ''; void update(current); };
   function clear() { if (chart) { void unmount(chart); chart = null; } content.replaceChildren(); }
   async function update(card) {
@@ -55,10 +61,12 @@ export function liveReference(root, canvas) {
     const start = Math.max(0, Math.min(rows.length - 1, Math.trunc(Number(row.value) || 1) - 1));
     const first = Math.max(0, Math.min(columns.length - 1, Math.trunc(Number(column.value) || 1) - 1));
     row.value = String(start + 1); row.max = String(Math.max(1, rows.length));
-    column.value = String(first + 1); column.max = String(columns.length);
+    column.value = String(first + 1); column.max = String(Math.max(1, columns.length));
     const next = JSON.stringify([card.id, card.text, columns, rows.slice(start, start + 4), start, first]);
     if (next === key) return;
-    key = next; clear();
+    key = next;
+    onRegionChange({ row: start + 1, column: first + 1 });
+    clear();
     const table = document.createElement('table'); table.setAttribute('aria-label', `${card.text || 'Data'} reference, rows ${start + 1} to ${Math.min(rows.length, start + 4)}`);
     const head = table.createTHead().insertRow();
     for (const title of columns.slice(first, first + 2)) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = title; th.title = title; head.append(th); }
@@ -69,5 +77,5 @@ export function liveReference(root, canvas) {
     }
     content.append(table);
   }
-  return { update, clear() { version++; key = ''; clear(); controls.remove(); }, destroy() { closed = true; version++; clear(); } };
+  return { update, setRegion, clear() { version++; key = ''; clear(); controls.remove(); }, destroy() { closed = true; version++; clear(); } };
 }

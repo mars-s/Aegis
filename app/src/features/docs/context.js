@@ -7,7 +7,6 @@ import { reduceMotion } from '../../lib/ui/interaction.js';
 import '../overview/overview.css';
 
 const GAP = 24;
-const pinned = new Map();
 const centre = card => ({ x: card.x + card.w / 2, y: card.y + card.h / 2 });
 const layoutBounds = el => {
   const rect = el.getBoundingClientRect();
@@ -38,14 +37,13 @@ function neighbours(board, source) {
     .sort((a, b) => rank[a.relation] - rank[b.relation] || distance(a.card) - distance(b.card));
 }
 
-export function editorContext(canvas, source, editor) {
+export function editorContext(canvas, source, editor, apply) {
   const stage = document.getElementById('stage'), boardId = canvas.board.id;
   const layer = document.createElement('div'); layer.className = 'editor-context'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Editor context');
   stage.append(layer);
   const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'editor-context-restore'; restore.textContent = 'Show references'; restore.hidden = true;
   stage.append(restore);
   const cardIds = new Set(canvas.board.cards.map(c => c.id));
-  const pinKey = `${boardId}:${source.id}`;
   let area, frame = 0, destroyed = false, dismissed = false;
   const sourceHeader = document.createElement('button'); sourceHeader.type = 'button';
   sourceHeader.className = 'editor-context-window editor-context-source'; sourceHeader.dataset.cardId = source.id;
@@ -60,8 +58,20 @@ export function editorContext(canvas, source, editor) {
   layer.append(sourceHeader, evidence, nearby);
   const candidates = neighbours(canvas.board, source);
   const references = candidates.filter(entry => referenceCard(entry.card));
-  const initial = pinned.has(pinKey) ? references.find(entry => entry.card.id === pinned.get(pinKey)) : references.find(entry => entry.relation !== 'Nearby');
-  let chosen = initial?.card.id || '';
+  const saved = source.props?.editorReference;
+  const initial = references.find(entry => entry.relation !== 'Nearby');
+  let chosen = typeof saved?.sourceId === 'string' ? saved.sourceId : saved?.sourceId === null ? '' : initial?.card.id || '';
+  const availableReference = () => neighbours(canvas.board, source).find(entry => entry.card.id === chosen && referenceCard(entry.card))?.card;
+  function remember(region = {}) {
+    if (destroyed || canvas.board.id !== boardId) return;
+    const card = canvas.board.cards.find(c => c.id === source.id); if (!card) return;
+    const next = { sourceId: chosen || null, row: region.row ?? 1, column: region.column ?? 1 };
+    if (JSON.stringify(card.props?.editorReference) !== JSON.stringify(next)) apply([{ op: 'update', id: source.id, set: { props: { editorReference: next } } }]);
+  }
+  function referenceOptions() {
+    const entries = neighbours(canvas.board, source).filter(entry => referenceCard(entry.card));
+    return [['', 'None'], ...entries.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`]), ...chosen && !entries.some(entry => entry.card.id === chosen) ? [[chosen, 'Unavailable reference']] : []];
+  }
   const switchEditor = id => {
     canvas.select([id]); window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: true } }));
   };
@@ -70,11 +80,11 @@ export function editorContext(canvas, source, editor) {
     button.textContent = `Open ${cardSummary(entry.card).title}`; button.onclick = () => switchEditor(entry.card.id); nearby.append(button);
   }
   const picker = createDropdown({ label: 'Pinned reference', value: chosen,
-    options: [['', 'None'], ...references.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`])],
-    onChange(id) { chosen = id; pinned.set(pinKey, id); refreshContent(); layout(); },
+    options: referenceOptions(),
+    onChange(id) { chosen = id; reference.setRegion({ row: 1, column: 1 }); remember(); refreshContent(); layout(); },
   });
   tools.append(picker); evidence.append(tools, empty, preview, open);
-  const reference = liveReference(preview, canvas);
+  const reference = liveReference(preview, canvas, { region: saved, onRegionChange: remember });
   open.onclick = () => switchEditor(chosen);
   function dismiss() { dismissed = true; picker.dropdown.close(); layer.hidden = true; schedule(); }
   restore.onclick = () => {
@@ -89,7 +99,9 @@ export function editorContext(canvas, source, editor) {
     sourceHeader.querySelector('strong').textContent = summary.title;
     // Documents show the same shared word count as the editor footer.
     sourceHeader.querySelector('.editor-context-count').textContent = summary.wordCount || '';
-    const selected = canvas.board.cards.find(c => c.id === chosen);
+    picker.setOptions(referenceOptions()); picker.value = chosen;
+    const selected = availableReference();
+    empty.textContent = chosen ? 'Reference unavailable. Choose another source or None.' : 'Link a window to pin it here';
     empty.hidden = !!selected; preview.hidden = open.hidden = !selected;
     if (selected) {
       evidence.dataset.cardId = selected.id;
@@ -99,7 +111,7 @@ export function editorContext(canvas, source, editor) {
   }
   function layout() {
     if (!area) return;
-    const selected = canvas.board.cards.find(c => c.id === chosen);
+    const selected = availableReference();
     const width = selected?.kind === 'plot' ? 322 : 282;
     evidence.hidden = area.w < width;
     sourceHeader.style.width = `${Math.min(322, area.w)}px`;

@@ -124,7 +124,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   const shell = { el, body, close, bookmark, previousFocus, setSaved: text => { el.querySelector('[data-saved]').textContent = text; } };
   current = shell;
   canvas.setEditorSource(card.id);
-  const context = editorContext(canvas, card, el);
+  const context = editorContext(canvas, card, el, ctx.apply);
   shell.frameContext = context.frame;
   return shell;
 }
