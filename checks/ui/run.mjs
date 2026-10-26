@@ -22,6 +22,7 @@ all.push('office');
 all.push('data-import');
 // External MCP sessions share imported sources and editable documents with the production UI.
 all.push('mcp');
+all.push('data-trust');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

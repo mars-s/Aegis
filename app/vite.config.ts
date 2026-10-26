@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 // item 14: local PDF fonts, CMaps and decoders for development and the packaged UI.
 import { pdfResources } from './src/features/imports/pdf-resources.ts';
 
@@ -14,7 +14,8 @@ export default defineConfig({
   plugins: [svelte(), pdfResources()],
   define: { __AEGIS_VERSION__: JSON.stringify(nativeVersion()) },
   base: './',
+  cacheDir: '.vite',
   clearScreen: false,
-  server: { port: 5173, strictPort: true, host: '127.0.0.1' },
+  server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [new URL('.', import.meta.url).pathname, realpathSync(new URL('./node_modules', import.meta.url))] } },
   build: { outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
 });

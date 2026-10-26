@@ -240,7 +240,7 @@ try {
   await homeName.fill('Other project renamed'); await homeName.press('Enter');
   await waitForAsync(page, async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).name === 'Other project renamed', otherProject);
   await homeName.waitFor();
-  assert.equal(await page.locator('.library-home').evaluate(el => el.open), true);
+  assert.equal(await page.locator('.library-home[open]').evaluate(el => el.open), true);
   check('Home can rename a project outside the current board scope without closing the overview');
   const coverButton = () => page.locator(`[data-project-cover="${project}"]`);
   const coverPreview = () => page.locator(`[data-cover="${project}"]`);
