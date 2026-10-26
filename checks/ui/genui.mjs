@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
+import { realpathSync, mkdtempSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
@@ -39,7 +39,7 @@ try {
   const { createServer } = await import(require.resolve('vite'));
   vite = await createServer({
     root: repo + '/app', configFile: repo + '/app/vite.config.ts',
-    server: { port: vitePort, strictPort: true, host: '127.0.0.1' },
+    server: { port: vitePort, strictPort: true, host: '127.0.0.1', fs: { allow: [repo + '/app', realpathSync(repo + '/app/node_modules')] } },
     plugins: [{
       name: 'item-12-parent-csp-check',
       transformIndexHtml: {

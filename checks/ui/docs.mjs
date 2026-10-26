@@ -2,7 +2,7 @@ import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
+import { realpathSync, mkdtempSync, readFileSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
@@ -15,7 +15,7 @@ const ui = mkdtempSync(join(tmpdir(), 'aegis-docs-ui-'));
 for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
 // Vite must serve the bundled font through the dependency symlink in this snapshot.
-writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, repo + '/app/node_modules'])} },`));
+writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, realpathSync(repo + '/app/node_modules')])} },`));
 const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
