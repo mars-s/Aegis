@@ -38,6 +38,8 @@ all.push('data-trust');
 all.push('first-minute');
 // Readable summaries and shared zoom tiers in Chromium and WebKit.
 all.push('semantic-zoom');
+// Fresh agent Undo and complete capture-batch retrieval in the production bundle.
+all.push('trust-undo');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

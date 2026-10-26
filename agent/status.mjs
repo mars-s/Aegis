@@ -94,6 +94,29 @@ function undoConflict(board, diff) {
 export function requestChanges(entries, id) {
   const cards = new Map(), fields = new Map(); let links, order;
   for (const entry of entries) {
+    if (entry.kind === 'aegis.normalise') {
+      const before = new Map(entry.data.before.cards.map(c => [c.id, c]));
+      for (const measured of entry.data.after.cards) {
+        const change = cards.get(measured.id), previous = before.get(measured.id);
+        if (!change?.after || !previous) continue;
+        const after = structuredClone(change.after);
+        // Advance only derived fields whose previous value is still the recorded value.
+        // A later content edit, move or manual resize must keep its own conflict.
+        for (const path of [['x'], ['y'], ['h'], ['data', 'state']]) {
+          const oldValue = fieldAt(previous, path), nextValue = fieldAt(measured, path);
+          if (path[0] === 'data' && oldValue !== undefined) continue;
+          if (same(oldValue, nextValue) || !same(fieldAt(after, path), oldValue)) continue;
+          if (change.before) {
+            const fieldKey = JSON.stringify(path), first = change.fields.get(fieldKey);
+            const field = { path, before: first ? first.before : fieldAt(after, path), after: nextValue };
+            if (same(field.before, field.after)) change.fields.delete(fieldKey); else change.fields.set(fieldKey, field);
+          }
+          restoreField(after, { path, before: nextValue });
+        }
+        cards.set(measured.id, { ...change, after });
+      }
+      continue;
+    }
     if (entry.kind !== 'aegis.change' || entry.data.requestId !== id) continue;
     const { before, after } = entry.data;
     const old = new Map(before.cards.map(c => [c.id, c])), next = new Map(after.cards.map(c => [c.id, c]));

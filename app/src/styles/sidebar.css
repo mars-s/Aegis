@@ -31,6 +31,10 @@
 #side button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
 #side :is(.tree-row, .layer-row):focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
 #side .phead .fold { margin: 0; }
+/* A saved capture gets room for its count and batch, without changing panel preferences. */
+#side.capture-reveal > .pbox[data-panel=tools]:not(.folded) { flex: 1 1 300px; min-height: 300px; }
+#side.capture-reveal > .pbox[data-panel=tools] > .tools-panels { flex: 1 1 0; max-height: none; scroll-behavior: auto; }
+#side.capture-reveal [data-panel=unsorted] > .pbody { height: auto !important; min-height: 220px; max-height: 42vh; }
 @media (hover: none), (pointer: coarse), (max-width: 700px) {
   #side .side-head, #side .phead { height: 48px; min-height: 48px; }
   #side :is(.side-head .icon-btn, .fold, .twisty, .layer-fold, .tree-delete, .row-more) { flex-basis: 44px; width: 44px; min-width: 44px; height: 44px; min-height: 44px; }

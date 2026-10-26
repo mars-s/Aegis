@@ -111,6 +111,10 @@ test('widget state accepts bounded JSON only and requires source, opaque origin 
   const source = {}, channel = 'channel', state = widgetState();
   const event = { origin: 'null', source, data: { type: 'aegis:html-state', channel, state } };
   assert.equal(reportedState(event, source, channel), state);
+  const initial = { ...event, data: { ...event.data, type: 'aegis:html-initial-state' } };
+  assert.equal(reportedState(initial, source, channel), null, 'initialisation is separate from an interaction');
+  assert.equal(reportedState(initial, source, channel, 'aegis:html-initial-state'), state);
+  assert.equal(reportedState({ ...initial, source: {} }, source, channel, 'aegis:html-initial-state'), null);
   assert.equal(reportedState(event, null, channel), null);
   for (const patch of [{ source: {} }, { origin: 'http://localhost' }, { data: { ...event.data, channel: 'other' } }, { data: { ...event.data, type: 'other' } }]) assert.equal(reportedState({ ...event, ...patch }, source, channel), null);
   let deep = null;
