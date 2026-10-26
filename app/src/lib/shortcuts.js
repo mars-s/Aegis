@@ -13,6 +13,7 @@ const entries = {
   stackToFront: ['Bring selection to front', '⇧⌥⌘]', 'Shift+Ctrl+Alt+]'],
   sidebar: ['Side bar', '\\'],
   focus: ['Focus selection', 'F'],
+  editorWidth: ['Toggle editor width', '⇧⌘F', 'Shift+Ctrl+F'],
   follow: ['Follow agents', 'Shift+F'],
   agents: ['Agents', 'A'],
   pan: ['Pan', 'Space+drag'],

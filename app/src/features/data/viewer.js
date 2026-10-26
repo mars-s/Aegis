@@ -8,7 +8,7 @@ let active;
 export function openDataset(card, ctx, { keyboard = false } = {}) {
   const boardId = ctx.canvas.board.id;
   if (active?.id === card.id && active.boardId === boardId) { active.focus(); return; }
-  const side = openSide({ title: card.text || card.props?.name || 'Dataset', kind: 'Data', keyboard });
+  const side = openSide({ title: card.text || card.props?.name || 'Dataset', kind: 'Data', card, ctx, keyboard });
   side.el.classList.add('data-viewer');
   side.setSaved('Read only');
   side.body.innerHTML = `<div class="data-viewer-tools"><span data-size></span><label class="data-finder-label">Find column<input type="search" aria-label="Find column" placeholder="Column name" autocomplete="off"></label><select aria-label="Go to column"></select></div><details class="data-profile"><summary>Column profile</summary><div data-profile-content></div></details><div class="data-viewport" tabindex="0" role="region" aria-label="Dataset rows" aria-busy="true"><p class="data-message" role="status">Loading source data…</p></div><footer class="data-viewer-status" role="status">Loading every row from the source file</footer>`;

@@ -12,7 +12,7 @@ export const findDeck = (ctx, id) => ctx.canvas.board.cards.find(card => card.id
 // The deck editor sits in the shared side editor panel.
 export function openDeckPanel(card, ctx, { viaKey = false, onClose }) {
   // The shared side editor (features/docs/side.js) owns the panel, its motion, Full width and Escape.
-  const shell = openSide({ title: card.text || 'Untitled deck', kind: 'Slides', keyboard: viaKey });
+  const shell = openSide({ title: card.text || 'Untitled deck', kind: 'Slides', card, ctx, keyboard: viaKey });
   shell.el.classList.add('deck-panel');
   shell.el.addEventListener('side-editor-close', () => onClose(), { once: true });
   centreCardInLeft(card, ctx, viaKey);
@@ -23,7 +23,6 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   if (!card || card.type !== 'deck') return;
   const boardId = ctx.canvas.board.id;
   if (active?.id === card.id && active.boardId === boardId) { active.focus(); return; }
-  active?.close(true);
   let slides = deckSlides(card), current = slideIndex(card.props?.current, slides.length);
   let dirty = false, saving = false, version = 0, timer, closed = false;
   let pending = Promise.resolve(), observed = JSON.stringify(card.props ?? {});
@@ -34,6 +33,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   shell.body.innerHTML = `<div class="office-ribbon deck-ribbon" role="toolbar" aria-label="Slide tools">
     <div class="ribbon-group"><button type="button" class="ribbon-btn" data-new title="New slide" aria-label="New slide">${icon('<rect x="2" y="3.5" width="9" height="7" rx="1"/><path d="M13 9v5M10.5 11.5h5"/>')}</button><button type="button" class="ribbon-btn" data-dup title="Duplicate slide" aria-label="Duplicate slide">${icon('<rect x="5" y="5" width="9" height="7" rx="1"/><path d="M11 3H3a1 1 0 0 0-1 1v6"/>')}</button></div>
     <div class="ribbon-group"><span class="ribbon-label">Layout</span><button type="button" class="ribbon-select" data-layout aria-haspopup="menu" title="Slide layout"><span data-layout-label>Title</span>${icon('<path d="m5 6 3 3 3-3"/>')}</button></div>
+    <div class="ribbon-group"><button type="button" class="ribbon-select" data-background aria-label="Slide background" aria-haspopup="menu"><span data-background-label>Typography</span>${icon('<path d="m5 6 3 3 3-3"/>')}</button></div>
     <div class="ribbon-group"><button type="button" class="ribbon-btn" data-up title="Move slide up" aria-label="Move slide up">${icon('<path d="M8 13V3M4 7l4-4 4 4"/>')}</button><button type="button" class="ribbon-btn" data-down title="Move slide down" aria-label="Move slide down">${icon('<path d="M8 3v10M4 9l4 4 4-4"/>')}</button><button type="button" class="ribbon-btn" data-del title="Delete slide" aria-label="Delete current slide">${icon('<path d="M2.5 4h11M6 4V2h4v2M4 4l.5 10h7L12 4"/>')}</button></div>
     <div class="ribbon-group ribbon-end"><button type="button" class="ribbon-select ribbon-present" data-present title="Present from the current slide">${icon('<path d="M5 3.5v9l7.5-4.5z"/>')}<span>Present</span></button></div>
   </div><div class="deck-ed"><div class="deck-stage" tabindex="0" aria-label="Slides. Scroll to move through them."></div><div class="deck-film" role="tablist" aria-label="Slide strip"></div></div>`;
@@ -193,10 +193,15 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
   const layoutButton = ribbon.querySelector('[data-layout]');
   const layoutMenu = createMenu({ trigger: layoutButton, label: 'Slide layout', items: () => Object.entries(LAYOUTS).map(([layout, title]) => ({ title, checked: (slides[current]?.layout ?? 'text') === layout,
     run: () => { if (!slides[current]) return; slides[current].layout = layout; schedule(); render(); jump(current); } })) });
+  const backgroundButton = ribbon.querySelector('[data-background]');
+  const backgroundMenu = createMenu({ trigger: backgroundButton, label: 'Slide background', items: () => [['plain', 'Typography'], ['sci-fi-wave', 'Sci-fi wave']].map(([background, title]) => ({ title, checked: (slides[current]?.background ?? 'sci-fi-wave') === background,
+    run: () => { if (!slides[current]) return; slides[current].background = background; schedule(); render(); jump(current); } })) });
   ribbon.querySelector('[data-present]').onclick = () => present();
   function paintRibbon() {
     const slide = slides[current];
     ribbon.querySelector('[data-layout-label]').textContent = LAYOUTS[slide?.layout] ?? 'Title and text';
+    backgroundButton.hidden = slide?.layout !== 'title';
+    ribbon.querySelector('[data-background-label]').textContent = slide?.background === 'plain' ? 'Typography' : 'Sci-fi wave';
     ribbon.querySelector('[data-up]').disabled = !slide || current === 0;
     ribbon.querySelector('[data-down]').disabled = !slide || current >= slides.length - 1;
     for (const key of ['dup', 'del', 'layout', 'present']) ribbon.querySelector(`[data-${key}]`).disabled = !slide;
@@ -221,7 +226,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
     show.addEventListener('click', e => step(e.clientX < innerWidth / 3 ? -1 : 1));
     document.body.append(show); paint(); show.focus();
   }
-  shell.panel.addEventListener('side-editor-close', () => layoutMenu.destroy(), { once: true });
+  shell.panel.addEventListener('side-editor-close', () => { layoutMenu.destroy(); backgroundMenu.destroy(); }, { once: true });
   function changed() {
     if (ctx.canvas.board.id !== boardId || !findDeck(ctx, card.id)) { dirty = false; shell.close(true); return; }
     const next = findDeck(ctx, card.id), json = JSON.stringify(next.props ?? {});

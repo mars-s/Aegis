@@ -14,7 +14,7 @@ export function observeSlideFits(root) {
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const slideIndex = (index, length) => Math.max(0, Math.min(length - 1, Number.isFinite(index) ? Math.trunc(index) : 0));
-export const newSlide = () => ({ id: crypto.randomUUID(), layout: 'title', title: 'New slide', sub: '', body: '' });
+export const newSlide = () => ({ id: crypto.randomUUID(), layout: 'title', background: 'plain', title: 'New slide', sub: '', body: '' });
 export function deckSlides(card) {
   return (Array.isArray(card.props?.slides) ? card.props.slides : []).filter(s => s && typeof s === 'object').map((s, i) => ({ ...s, id: String(s.id ?? `slide-${i}`) }));
 }
@@ -57,7 +57,7 @@ export function lineChart(chart = {}) {
   return html + '</svg>';
 }
 
-// The preview's deterministic ridges, made once and reused for every title slide.
+// The optional Sci-fi wave background. Saved title slides used it implicitly.
 const ridges = (() => {
   let seed = 7;
   const random = () => {
@@ -91,7 +91,8 @@ export function slideHTML(slide, editable = false, number = 1, resolveUrl = url 
   const field = (key, label) => `<p class="s-${key}" data-k="${key}"${editable ? ` contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-label="Slide ${number} ${label}" data-placeholder="${label}"` : ''}>${escapeHTML(slide[key])}</p>`;
   // item 14: imported pictures stay as asset references, separate from editable text.
   const images = Array.isArray(slide.images) ? slide.images : [];
-  const art = layout === 'title' ? ridges : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
-  return `<div class="deck-fit"><div class="deck-slide l-${layout}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
+  const wave = layout === 'title' && (slide.background === 'sci-fi-wave' || slide.background == null);
+  const art = layout === 'title' ? (wave ? ridges : '') : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
+  return `<div class="deck-fit"><div class="deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
   // end item 14
 }

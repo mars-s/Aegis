@@ -98,8 +98,8 @@ try {
   assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' });
   assert.equal(await page.evaluate(() => localStorage.getItem('aegis:doc-page')), 'dark');
   await page.screenshot({ path: out('docs-dark-paper.png') });
-  await page.getByRole('button', { name: 'Full page', exact: true }).click(); assert.ok(await page.locator('body.docs-full').count());
-  await page.getByRole('button', { name: 'Full page', exact: true }).click();
+  await page.getByRole('button', { name: 'Full width', exact: true }).click(); assert.ok(await page.locator('body.docs-full').count());
+  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await more();
   await choose('Page colour', 'light');
   assert.deepEqual(await paperAppearance(), { background: 'rgb(255, 255, 255)', colour: 'rgb(37, 37, 43)' });

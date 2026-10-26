@@ -54,9 +54,8 @@ const contentForCard = card => {
 export function openDocument(card, ctx, { keyboard = false } = {}) {
   if (active?.id === card.id && active.boardId === ctx.canvas.board.id) { active.editor.commands.focus(); return; }
   const boardId = ctx.canvas.board.id;
-  const side = openSide({ title: card.text || 'Untitled document', kind: 'Document', keyboard });
+  const side = openSide({ title: card.text || 'Untitled document', kind: 'Document', card, ctx, keyboard });
   const panel = side.el; panel.classList.add('docs-panel');
-  panel.querySelector('[data-expand]').setAttribute('aria-label', 'Full page');
   panel.querySelector('[data-close]').setAttribute('aria-label', 'Close document');
   side.body.innerHTML = `<div class="office-ribbon docs-ribbon" role="toolbar" aria-label="Formatting"></div><div class="docs-scroll"><article class="docs-paper"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
   const title = document.createElement('input'); title.className = 'docs-title'; title.setAttribute('aria-label', 'Document title'); title.placeholder = 'Untitled document'; title.value = card.text;

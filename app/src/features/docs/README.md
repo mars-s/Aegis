@@ -44,13 +44,21 @@ window with an 8px margin. Pointer opens glide the card to the left half;
 keyboard opens are instant and leave the camera alone. `docs-open` and
 `docs-full` remain aliases for `editor-open` and `editor-wide`.
 
-`openSide({ title, kind, keyboard })` returns `{ el, body, close, setSaved }`.
+`openSide({ title, kind, card, ctx, keyboard })` returns `{ el, body, close, setSaved }`.
 Append editor content to `body`, call `setSaved('Saving…')` or `setSaved('Saved')`,
 and listen for `side-editor-close` on `el` to save and dispose resources. Opening
 another shell fires that event on the previous one before replacing it.
 `close({ keyboard: true })` closes instantly. The shell provides Escape, Full
-width, the close button and body classes. It never traps focus. Optional
+width, the close button and body classes. The width action changes to Side panel when expanded and shows its Cmd+Shift+F or Ctrl+Shift+F shortcut with an accessible pressed state. It never traps focus. Optional
 `centreCardInLeft(card, ctx, keyboard)` handles the pointer camera glide.
+
+Opening records the camera and selection. Close restores surviving selected cards
+and the camera with a 250 ms ease-out, then focuses the source card. Panning,
+Fit and zooming while editing leave the bookmark intact. A new gesture interrupts
+the return. Reduced motion and Motion off restore instantly. Resizing preserves
+the world point at the viewport centre. Replacing an editor on the same board
+keeps the first camera bookmark without an intermediate return. Switching boards
+never restores another board's camera or selection.
 
 Page appearance is a local preference in `aegis:doc-page`. Paper size is stored in
 `aegis:doc-paper`. Neither changes the board document. PDF opens the native macOS print sheet through `printHtml` in the desktop app.

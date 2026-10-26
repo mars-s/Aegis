@@ -2,6 +2,7 @@
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
 import { checkObject, OBJECT_KINDS, OBJECT_SIZE } from './objects.js';
 import { collectionLayout } from './collection.js';
+import { normaliseNewSlides } from './deck.js';
 import { normaliseDocument } from './document.js';
 
 // Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
@@ -83,7 +84,9 @@ function cleanCard(type, o, board, anchor) {
   if (o.group) card.group = str(o.group, 100);
   if (typeof o.rot === 'number' && Number.isFinite(o.rot)) card.rot = clamp(o.rot, -180, 180);
   if (typeof o.parent === 'string' && o.parent) card.parent = str(o.parent, 40);
-  const props = cleanProps(o.props, 'props'); if (props) card.props = props;
+  const props = cleanProps(o.props, 'props');
+  if (type === 'deck' && Array.isArray(props?.slides)) props.slides = normaliseNewSlides(props.slides);
+  if (props) card.props = props;
   return card;
 }
 
@@ -141,6 +144,7 @@ export function applyBatch(input, batch) {
               if (c.type === 'doc' && v && Object.hasOwn(v, 'body') && !Object.hasOwn(v, 'doc')) {
                 delete next.doc; delete next.docTitleMigrated;
               }
+              if (c.type === 'deck' && Array.isArray(v?.slides)) next.slides = normaliseNewSlides(next.slides, c.props?.slides);
               c.props = cleanProps(next, 'props');
             }
             else if (k === 'items') c.items = Array.isArray(v) ? v.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : c.items;
