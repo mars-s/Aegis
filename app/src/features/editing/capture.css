@@ -1,0 +1,55 @@
+/* Keyboard capture is immediate. Pointer entry gets a small, single arrival. */
+dialog.editing-capture {
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100dvh - 48px);
+  margin: min(22vh, 180px) auto auto; padding: 0; overflow: auto;
+  border: 0; border-radius: 16px; background: var(--card); color: var(--text);
+  box-shadow: 0 24px 80px rgb(0 0 0 / .5), 0 0 0 1px var(--line-strong);
+}
+dialog.editing-capture::backdrop { background: rgb(0 0 0 / .36); }
+body.capture-open > #app { height: 100%; filter: blur(6px); }
+.editing-capture[data-entry='pointer'][open] { animation: capture-arrive 180ms var(--ease-out); }
+@keyframes capture-arrive { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+.editing-capture .capture-head { display: flex; align-items: center; gap: 12px; padding: 20px 20px 0 24px; }
+.editing-capture h2 { flex: 1; margin: 0; font: 500 14px/1.4 var(--font); letter-spacing: -.01em; color: var(--muted); }
+.editing-capture .capture-close { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; --button-padding: 0; min-width: 44px; min-height: 44px; }
+.editing-capture textarea {
+  display: block; width: 100%; min-height: 122px; max-height: 34vh; margin: 0;
+  padding: 14px 26px 10px; resize: vertical; border: 0; border-radius: 0;
+  background: transparent; color: var(--text); caret-color: var(--data);
+  font: 400 23px/1.5 var(--font); letter-spacing: -.025em;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.editing-capture textarea:focus-visible { outline: none; }
+.editing-capture textarea::placeholder { color: var(--muted); opacity: 1; }
+.editing-capture .capture-preview { min-height: 20px; margin: 8px 26px 16px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.capture-parsing { display: flex; flex-wrap: wrap; gap: 8px 20px; padding: 0 26px 22px; color: var(--ink-2); font-size: 11px; }
+.capture-parsing > span { white-space: nowrap; }
+.capture-parsing span span { margin-left: 5px; color: var(--muted); }
+.editing-capture footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 16px 12px 26px; border-top: 1px solid var(--line); }
+.capture-keys { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.capture-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.editing-capture kbd { font: inherit; color: var(--muted); }
+.capture-keys kbd { margin-right: 4px; }
+.capture-actions kbd { margin-left: 8px; }
+.editing-capture .capture-agent { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; }
+.editing-capture .capture-add { --button-bg: var(--text); --button-ink: var(--canvas); --button-hover-ink: var(--canvas); --button-shadow: none; --button-edge: transparent; }
+.capture-add kbd { color: inherit; opacity: .65; }
+.capture-confirmation { position: fixed; z-index: 80; bottom: 88px; left: 50%; translate: -50% 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; width: max-content; max-width: calc(100vw - 32px); padding: 6px 10px 6px 16px; border-radius: 12px; background: var(--card); color: var(--text); box-shadow: 0 8px 32px rgb(0 0 0 / .25), 0 0 0 1px var(--line); font-size: 13px; }
+.capture-confirmation button { min-height: 36px; padding: 0 10px; color: var(--data); border-radius: 6px; }
+.capture-confirmation button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
+.tray-item.capture-highlight { outline: 1px solid var(--data); outline-offset: -1px; background: var(--data-soft); }
+.capture-confirmation::before { content: ''; display: inline-block; width: 11px; height: 6px; margin: 0 10px 3px 0; border-left: 1.5px solid var(--data); border-bottom: 1.5px solid var(--data); transform: rotate(-45deg); }
+body.motion-off .editing-capture[data-entry] { animation: none; }
+.editing-capture:not([open]) :is(.orb-colours, .orb-light) { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .editing-capture[data-entry='pointer'][open] { animation: none; } }
+@media (max-width: 540px) {
+  .capture-confirmation button { min-height: 44px; }
+  dialog.editing-capture { margin-top: 12vh; }
+  .editing-capture textarea { font-size: 20px; padding-inline: 22px; }
+  .editing-capture .capture-head { padding: 12px 12px 0 20px; }
+  .capture-parsing { gap: 8px 12px; padding-inline: 22px; }
+  .editing-capture footer { padding: 12px; }
+  .capture-keys { flex: 1 0 100%; padding: 0 10px; }
+  .capture-actions { width: 100%; justify-content: flex-end; }
+  .capture-confirmation { top: calc(56px + env(safe-area-inset-top)); bottom: auto; }
+}

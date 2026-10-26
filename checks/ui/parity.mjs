@@ -41,7 +41,7 @@ try {
   await hub.getByRole('button',{name:'Add',exact:true}).tap(); await page.locator('.mobile-content').getByRole('button',{name:'Wireframe',exact:true}).tap(); await page.locator('.mobile-content [data-wf="box"]').tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'}); assert.equal(await page.evaluate(()=>aegis.canvas.tool),'wireframe'); await page.evaluate(()=>aegis.canvas.setTool(null));
   await hub.getByRole('button',{name:'Add',exact:true}).tap(); await page.getByRole('button',{name:'Quick capture (Shift+Cmd+K / Shift+Ctrl+K)',exact:true}).tap();
   await page.getByLabel('Capture idea',{exact:true}).fill('Phone captured idea'); await page.getByLabel('Capture idea',{exact:true}).press('Enter'); await waitSaved();
-  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); await page.getByRole('button',{name:'Phone captured idea',exact:true}).tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'}); assert.equal((await waitSaved()).tray.length,0);
+  assert.equal(await page.locator('.capture-confirmation').isVisible(),true); await page.getByRole('button',{name:'Put on board',exact:true}).tap(); assert.ok((await waitSaved()).cards.some(c=>c.text==='Phone captured idea'));
   await hub.getByRole('button',{name:'Agents',exact:true}).tap(); assert.equal(await page.locator('.mobile-content #prompt').isVisible(),true); await page.screenshot({path:out('parity-phone-agents.png')}); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
   log('hub, sheet backdrop and close, board/layer/tool picks, grouped Add and Wireframe catalogue, Agents composer');
   const cdp=await context.newCDPSession(page);
@@ -60,7 +60,7 @@ try {
   await page.evaluate(id=>aegis.apply([{op:'order',ids:[id],to:'front'}]),note.id); await waitSaved();
   await page.evaluate(c=>{aegis.canvas.setView({x:120-c.x,y:260-c.y,z:1});aegis.canvas.select([]);},note); await page.waitForTimeout(70);
   await touch('touchStart',[[1,140,340]]); await page.waitForTimeout(570); await touch('touchEnd',[]); await page.getByRole('menuitem',{name:'Arrange',exact:true}).click(); await page.getByRole('menuitem',{name:'Bring to front',exact:true}).waitFor(); assert.deepEqual(await page.evaluate(()=>aegis.canvas.selection()),[note.id]); await page.screenshot({path:out('parity-phone-card-menu.png')}); await page.keyboard.press('Escape');
-  log('520ms board/card context-menu path and 8px cancellation, quick capture and Unsorted release');
+  log('520ms board/card context-menu path and 8px cancellation, quick capture to the canvas');
   // Slow and failed saves, followed by retry and authoritative disk-backed host reads.
   let mode='slow';
   await page.route(`http://127.0.0.1:${port}/boards/*/batch`,async route=>{if(mode==='fail'){await route.abort();return;} if(mode==='slow') await new Promise(r=>setTimeout(r,400)); await route.continue();});

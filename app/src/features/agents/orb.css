@@ -1,0 +1,66 @@
+/* Two lit ribbons fold around a quiet centre. The gradients are painted once;
+   only their compositor transforms and opacity move. Percentages keep the 16px mark intact. */
+.orb-mark {
+  position: relative; display: inline-block; flex: none; width: 25px; height: 25px;
+  isolation: isolate; overflow: visible; clip-path: none;
+  filter: saturate(.85); transition: filter 160ms var(--ease-out);
+}
+.orb-colours, .orb-light {
+  position: absolute; inset: 5%;
+  border-radius: 38% 62% 58% 42% / 56% 38% 62% 44%;
+  -webkit-mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
+  mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
+}
+.orb-colours {
+  background: conic-gradient(from 30deg, #b5dbff, var(--data) 17%, #3466d4 34%, #a6a7ed 48%, #deecff 58%, var(--data) 72%, #6ac8ee 87%, #b5dbff);
+  transform: rotate(-28deg) scale(.94, 1);
+  animation: aegis-orb-fold 8s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+.orb-light {
+  inset: 12% 8%; border-radius: 58% 42% 36% 64% / 42% 62% 38% 58%;
+  background: conic-gradient(from 150deg, transparent 8%, #d2f2ff 24%, #78b9ff 35%, transparent 49%, #8d92e5 66%, #eaf3ff 78%, transparent 94%);
+  transform: rotate(38deg) scale(.82, 1); opacity: .72;
+  animation: aegis-orb-light 6s cubic-bezier(.45, 0, .55, 1) infinite;
+}
+@keyframes aegis-orb-fold {
+  0%, 100% { transform: rotate(-28deg) scale(.94, 1); }
+  35% { transform: rotate(48deg) scale(1, .8); }
+  70% { transform: rotate(138deg) scale(.82, 1); }
+}
+@keyframes aegis-orb-light {
+  0%, 100% { transform: rotate(38deg) scale(.82, 1); opacity: .58; }
+  50% { transform: rotate(-100deg) scale(1.08, .84); opacity: .94; }
+}
+.agent-island.working .orb-mark, .agent-window.running .orb-mark { filter: saturate(1.15) brightness(1.2); }
+.agent-island.working .orb-colours, .agent-window.running .orb-colours { animation-duration: 1.8s; }
+.agent-island.working .orb-light, .agent-window.running .orb-light { animation-duration: 1.4s; }
+.orb-mark.resolved { animation: aegis-orb-resolve 600ms var(--ease-out); }
+@keyframes aegis-orb-resolve {
+  0% { transform: scale(1.12); filter: brightness(1.65) saturate(.6); }
+  100% { transform: scale(1); filter: brightness(1) saturate(.85); }
+}
+.agent-window-strip .orb-mark { width: 16px; height: 16px; margin: 0; transform: none; }
+.agent-window:not(.running) .orb-colours, .agent-window:not(.running) .orb-light,
+.agent-edge .orb-colours, .agent-edge .orb-light { animation-play-state: paused; }
+.agent-edge .orb-mark { width: 13px; height: 13px; transform: none; }
+/* The selection control keeps its existing behaviour and hit area, with the same small ribbon. */
+.selection-bar .selection-ai svg { display: none; }
+.selection-bar .selection-ai::before {
+  content: ''; display: block; width: 16px; height: 16px; flex: none;
+  border-radius: 38% 62% 58% 42% / 56% 38% 62% 44%;
+  background: conic-gradient(from 30deg, #c9e5ff, var(--data), #a6a7ed, #deecff, var(--data), #6ac8ee, #c9e5ff);
+  -webkit-mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
+  mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
+}
+@media (hover: hover) and (pointer: fine) {
+  #askPill:hover .orb-mark { filter: brightness(1.3) saturate(1.05); }
+}
+body.agents-hidden :is(.orb-colours, .orb-light, .orb-mark.resolved),
+.orb-offscreen :is(.orb-colours, .orb-light),
+.island-ghost :is(.orb-colours, .orb-light) { animation-play-state: paused; }
+body.motion-off :is(.orb-colours, .orb-light, .orb-mark.resolved) { animation: none; }
+body.motion-off .orb-mark { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .orb-colours, .orb-light, .orb-mark.resolved { animation: none; }
+  .orb-mark { transition: none; }
+}
