@@ -69,3 +69,13 @@ test('sheet summaries and references retain units, typed figures and original da
   assert.equal(cellText({ kind: 'number' }, ''), '');
   assert.equal(cellText({ kind: 'percent' }, '12.5'), formatValue(12.5, { format: 'percent' }));
 });
+
+test('paragraph-first documents use one excerpt and true headings remain distinct', () => {
+  const doc = body => cardSummary({ type: 'doc', text: 'Brief', props: { body } });
+  assert.deepEqual(doc('Compare the hours with the evidence. Then decide.').facts, ['Compare the hours with the evidence.']);
+  assert.deepEqual(doc('Compare these figures.').facts, ['Compare these figures.']);
+  assert.deepEqual(doc('# Evidence\n\nCompare these figures.').facts, ['Evidence', 'Compare these figures.']);
+  assert.deepEqual(doc('# Evidence\n\nEvidence').facts, ['Evidence']);
+  assert.deepEqual(doc('').facts, []);
+});
+
