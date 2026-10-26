@@ -40,9 +40,16 @@ test('item 11: long replies grow and impossible spans fail atomically', () => {
     { op: 'layout', ids: ['$reply'], shape: 'grid', cols: 12, spans: [6], fit: true },
   ] });
   assert.ok(result.ok); assert.ok(result.board.cards[0].h > 250);
-  const bad = structuredClone(demoBatch); bad.at(-2).spans[1] = 1;
+  // A slightly narrow span widens instead of discarding the whole batch: a live run regenerated 14 KB three times.
+  const narrow = structuredClone(demoBatch); narrow.at(-2).spans[1] = 1;
+  const widened = applyBatch(emptyBoard('narrow'), { commands: narrow });
+  assert.ok(widened.ok, JSON.stringify(widened.errors)); assert.match(widened.notes[0], /widened .* from 1 to \d+ columns/);
+  assert.deepEqual(narrow.at(-2).spans.slice(0, 2), [6, 1], 'the caller\'s command is not mutated');
+  for (const a of widened.board.cards) for (const b of widened.board.cards) if (a !== b) assert.ok(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y, `${a.kind ?? a.type} overlaps ${b.kind ?? b.type}`);
+  // Content wider than the whole grid still fails atomically.
+  const bad = structuredClone(demoBatch); Object.assign(bad.at(-2), { cols: 2, spans: bad.at(-2).spans.map(() => 1), columns: undefined });
   const board = emptyBoard('bad'), failed = applyBatch(board, { commands: bad });
-  assert.equal(failed.ok, false); assert.equal(failed.board, board); assert.match(failed.errors[0].reason, /more columns/);
+  assert.equal(failed.ok, false); assert.equal(failed.board, board); assert.match(failed.errors[0].reason, /wider than the whole grid/);
 });
 
 test('measured repacking retains a nonzero grid origin and starting column', () => {

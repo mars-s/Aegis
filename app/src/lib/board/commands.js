@@ -1,6 +1,6 @@
 // Board commands: the one way anything changes a board, for people and agents alike.
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
-import { checkObject, OBJECT_SIZE } from './objects.js';
+import { checkObject, OBJECT_KINDS, OBJECT_SIZE } from './objects.js';
 import { collectionLayout } from './collection.js';
 
 // Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
@@ -92,7 +92,7 @@ const LIMIT = { url: 4000, heading: 200, badge: 40 };
 // Apply one batch atomically. Returns { ok, board, created, errors }. The input board is never mutated.
 export function applyBatch(input, batch) {
   const board = structuredClone(input);
-  const created = {}; const errors = []; const touched = new Set();
+  const created = {}; const errors = []; const touched = new Set(); const notes = [];
   const ref = id => (typeof id === 'string' && id.startsWith('$') ? created[id.slice(1)] : id);
   const byId = id => board.cards.find(c => c.id === ref(id));
   // Card ids also live in parent and props.kids (collections), so "$name" works there too.
@@ -112,7 +112,11 @@ export function applyBatch(input, batch) {
       switch (cmd?.op) {
         case 'create': {
           const anchor = cmd.near ? byId(cmd.near) : null;
-          const card = cleanCard(cmd.type ?? 'note', withRefs(cmd), board, anchor ? { x: anchor.x + anchor.w + GAP, y: anchor.y } : null);
+          // Models often name an object kind as the card type, or nest kind and data in props. Both mean one thing.
+          let input = withRefs(cmd), type = cmd.type ?? 'note';
+          if (!CARD_TYPES.includes(type) && OBJECT_KINDS.includes(type)) { input = { ...input, kind: input.kind ?? type, data: input.data ?? input.props }; delete input.props; type = 'object'; notes.push(`create #${index}: type "${cmd.type}" read as type "object", kind "${cmd.type}"`); }
+          if (type === 'object' && input.kind === undefined && OBJECT_KINDS.includes(input.props?.kind)) { const { kind, data, ...rest } = input.props; input = { ...input, kind, data: data ?? rest }; delete input.props; }
+          const card = cleanCard(type, input, board, anchor ? { x: anchor.x + anchor.w + GAP, y: anchor.y } : null);
           board.cards.push(card); touched.add(card.id);
           if (cmd.ref) created[cmd.ref] = card.id;
           break;
@@ -198,13 +202,13 @@ export function applyBatch(input, batch) {
           const ids = (Array.isArray(cmd.ids) ? cmd.ids : []).map(ref);
           const cards = ids.map(id => board.cards.find(c => c.id === id)).filter(Boolean);
           if (cards.length !== ids.length) throw new Error('layout lists a card that does not exist');
-          const options = { ...cmd, x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, cmd.spans ? 12 : 3), 1, 20) };
-          layout(cards, cmd.shape ?? 'grid', options);
+          const options = { ...cmd, spans: Array.isArray(cmd.spans) ? [...cmd.spans] : cmd.spans, columns: Array.isArray(cmd.columns) ? [...cmd.columns] : cmd.columns, x: num(cmd.x, cards[0]?.x ?? 0), y: num(cmd.y, cards[0]?.y ?? 0), cols: clamp(num(cmd.cols, cmd.spans ? 12 : 3), 1, 20) };
+          for (const w of layout(cards, cmd.shape ?? 'grid', options) ?? []) notes.push(`layout #${index}: widened ${w.id} from ${w.from} to ${w.to} columns to fit its content`);
           // Round 2 demo: keep the grid with the content so measured heights can repack it.
           for (const c of board.cards) if (c.props?.contentLayout?.ids.some(id => ids.includes(id))) { delete c.props.contentLayout; touched.add(c.id); }
           if (cmd.fit && cmd.spans && cards.length) {
             for (const c of cards) c.props = { ...c.props, contentFit: true, ...(['note', 'todo'].includes(c.type) ? { autoHeightMin: 80 } : {}) };
-            cards[0].props.contentLayout = { ids, x: options.x, y: options.y, cols: options.cols, spans: cmd.spans, columns: cmd.columns, columnWidth: cmd.columnWidth ?? 84, gap: cmd.gap ?? GAP, pack: cmd.pack ?? 'rows' };
+            cards[0].props.contentLayout = { ids, x: options.x, y: options.y, cols: options.cols, spans: options.spans, columns: options.columns, columnWidth: cmd.columnWidth ?? 84, gap: cmd.gap ?? GAP, pack: cmd.pack ?? 'rows' };
           }
           cards.forEach(c => touched.add(c.id)); break;
         }
@@ -286,36 +290,40 @@ export function applyBatch(input, batch) {
     }
   }
   board.rev = input.rev + 1;
-  return { ok: true, board, created, touched: [...touched], errors: [] };
+  return { ok: true, board, created, touched: [...touched], errors: [], ...(notes.length ? { notes } : {}) };
 }
 
 // item 11: spans opt into a fixed-column composition; existing layouts keep their sizes.
 export function layout(cards, shape, { x, y, cols, spans, columns, columnWidth = 84, gap = GAP, fit = false, pack = 'rows' }) {
+  const widened = [];
   if (shape === 'grid' && spans) {
     if (!Number.isInteger(cols) || !Array.isArray(spans) || spans.length !== cards.length || spans.some(s => !Number.isInteger(s) || s < 1 || s > cols)) throw new Error('grid needs one whole column span per card, between 1 and cols');
     if (!Number.isFinite(columnWidth) || columnWidth < 24 || columnWidth > 300 || !Number.isFinite(gap) || gap < 0 || gap > 120) throw new Error('grid columnWidth must be 24..300 and gap 0..120');
     if (!['rows', 'compact'].includes(pack)) throw new Error('grid pack must be rows or compact');
     if (columns && (pack !== 'compact' || columns.length !== cards.length || columns.some((at, i) => !Number.isInteger(at) || at < 0 || at + spans[i] > cols))) throw new Error('compact grid columns must fit each span within the grid');
     let column = 0, rowY = y, rowHeight = 0;
-    const bottoms = Array(cols).fill(y);
+    const bottoms = Array(cols).fill(y), widths = s => s * columnWidth + (s - 1) * gap;
     cards.forEach((c, i) => {
-      const span = spans[i], width = span * columnWidth + (span - 1) * gap;
+      let span = spans[i], width = widths(span), size = fit ? objectContentSize(c, width) : { w: 40, h: c.h };
+      // A window a little too narrow takes the next span that fits, so one width slip never discards a batch.
+      while (fit && size.w > width && span < cols) { span++; width = widths(span); size = objectContentSize(c, width); }
+      if (size.w > width) throw new Error(`${c.kind ?? c.type} needs at least ${size.w}px, wider than the whole grid; use wider columns or shorten its content`);
+      if (span !== spans[i]) { widened.push({ id: c.id, from: spans[i], to: span }); spans[i] = span; }
       if (width > 4000) throw new Error('grid window exceeds 4000px; use narrower columns');
       if (column + span > cols) { rowY += rowHeight + gap; column = 0; rowHeight = 0; }
-      const size = fit ? objectContentSize(c, width) : { w: 40, h: c.h };
-      if (size.w > width) throw new Error(`${c.kind ?? c.type} needs at least ${size.w}px; give it more columns or shorten its content`);
       if (size.h > 4000) throw new Error('content exceeds 4000px; split it into smaller objects');
       if (pack === 'compact') {
         // Place each window in the highest free span, breaking ties from the left.
         const candidates = Array.from({ length: cols - span + 1 }, (_, at) => ({ at, y: Math.max(...bottoms.slice(at, at + span)) }));
-        const next = columns ? candidates[columns[i]] : candidates.reduce((best, candidate) => candidate.y < best.y ? candidate : best);
+        const next = columns ? candidates[Math.min(columns[i], cols - span)] : candidates.reduce((best, candidate) => candidate.y < best.y ? candidate : best);
+        if (columns && columns[i] !== next.at) columns[i] = next.at;
         column = next.at; rowY = next.y;
       }
       Object.assign(c, { x: x + column * (columnWidth + gap), y: rowY, w: width, h: Math.ceil(size.h), rot: 0 });
       bottoms.fill(c.y + c.h + gap, column, column + span);
       rowHeight = Math.max(rowHeight, c.h); column += span;
     });
-    return;
+    return widened;
   }
   if (shape === 'column') { let cy = y; for (const c of cards) { c.x = x; c.y = cy; cy += c.h + GAP; } return; }
   if (shape === 'row') { let cx = x; for (const c of cards) { c.x = cx; c.y = y; cx += c.w + GAP; } return; }
