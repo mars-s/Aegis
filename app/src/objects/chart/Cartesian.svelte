@@ -2,9 +2,10 @@
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
   import { pointText, tickLabel, xText, type ChartEvidence, type ChartSpec } from "./chart";
-  import { areaPath, band, barPath, linear, monotone, runs, type Point } from "./geometry";
+  import { areaPath, band, barPath, linear, linePath, runs, type Point } from "./geometry";
   import { Hover } from "./hover.svelte";
   import { readout, shortValue, type Card, type Plan, type Row } from "./plan";
+  import { chartScreen } from "./screen.js";
   import Tip from "./Tip.svelte";
   /** Bars, stacks, ranges, lines and areas on two axes, drawn in one SVG. */
   let {
@@ -221,12 +222,13 @@
       return {
         key: series.key,
         color: series.color,
-        line: pieces.map((piece) => monotone(piece.map((entry) => entry.point))).join(""),
+        line: pieces.map((piece) => linePath(piece.map((entry) => entry.point), spec.smooth)).join(""),
         area: pieces
           .map((piece) =>
             areaPath(
               piece.map((entry) => entry.point),
               piece.map((entry) => entry.floor!),
+              spec.smooth,
             ),
           )
           .join(""),
@@ -324,6 +326,7 @@
 <div class="cartesian" bind:clientWidth={width} style:block-size={`${height}px`}>
   {#if width}
     <svg
+      use:chartScreen
       {width}
       {height}
       role="img"
@@ -399,7 +402,7 @@
               {#if dot}<circle
                   cx={dot.x}
                   cy={dot.y}
-                  r="3.5"
+                  r="2.5"
                   class="mark dot"
                   class:enter={!settled}
                   stroke={series.color}
@@ -554,12 +557,12 @@
 
   .focus {
     fill: var(--card);
-    stroke-width: 1.4;
+    stroke-width: 1.5;
   }
 
   .tick {
     fill: var(--color-muted);
-    font-size: var(--text-caption);
+    font-size: var(--chart-label-size, 12px);
     font-variant-numeric: tabular-nums;
   }
 
@@ -569,7 +572,7 @@
 
   .value {
     fill: var(--color-label-secondary);
-    font-size: var(--text-caption);
+    font-size: var(--chart-label-size, 12px);
     font-weight: 550;
     font-variant-numeric: tabular-nums;
   }
@@ -588,19 +591,19 @@
 
   .line {
     fill: none;
-    stroke-width: 1.4;
+    stroke-width: 1.5;
     stroke-linecap: round;
     vector-effect: non-scaling-stroke;
     stroke-linejoin: round;
   }
 
   :global(.tile) .line {
-    stroke-width: 1.4;
+    stroke-width: 1.5;
   }
 
   .dot {
     fill: var(--card);
-    stroke-width: 1.4;
+    stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
   }
 

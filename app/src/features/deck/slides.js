@@ -1,15 +1,21 @@
+import { linePath } from '../../objects/chart/geometry.ts';
+import { CHART_POINT, CHART_STROKE, chartScreen } from '../../objects/chart/screen.js';
+import { plotToDeckChart } from '../../objects/chart/source.js';
 // Shared HTML for the canvas preview, editor stage and filmstrip. No frame-time work.
 const SLIDE_WIDTH = 960, SLIDE_HEIGHT = 540;
 
 // ResizeObserver measures local layout sizes, so canvas zoom never changes the fit.
 export function observeSlideFits(root) {
+  const charts = [...root.querySelectorAll('.deck-chart')].map(chartScreen);
+  let frame = 0;
   const observer = new ResizeObserver(entries => {
     for (const { target, contentRect: { width, height } } of entries) {
       target.style.setProperty('--slide-scale', String(Math.min(width / SLIDE_WIDTH, height / SLIDE_HEIGHT)));
     }
+    cancelAnimationFrame(frame); frame = requestAnimationFrame(() => charts.forEach(chart => chart.paint()));
   });
   root.querySelectorAll('.deck-fit').forEach(frame => observer.observe(frame));
-  return () => observer.disconnect();
+  return () => { cancelAnimationFrame(frame); observer.disconnect(); charts.forEach(chart => chart.destroy()); };
 }
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -33,6 +39,11 @@ export function chartTicks(values, target = null) {
 }
 
 export function lineChart(chart = {}) {
+  if (chart.sourceId) {
+    const cards = globalThis.aegisCtx?.canvas.board.cards ?? [];
+    const source = cards.find(card => card.id === chart.sourceId && card.kind === 'plot');
+    if (source) chart = { ...chart, ...plotToDeckChart(source.data, cards) };
+  }
   const points = Array.isArray(chart.values) ? chart.values.flatMap((value, index) => Number.isFinite(value) ? [{ value, label: Array.isArray(chart.labels) ? chart.labels[index] ?? String(index + 1) : String(index + 1) }] : []) : [];
   const values = points.map(point => point.value);
   const target = Number.isFinite(chart.target) ? chart.target : null;
@@ -52,8 +63,8 @@ export function lineChart(chart = {}) {
   const every = Math.max(1, Math.ceil(values.length / 12));
   values.forEach((_, i) => { if (i % every === 0 || i === values.length - 1) html += `<text class="axis x-tick" x="${X(i)}" y="${h - 6}" text-anchor="middle">${escapeHTML(points[i].label)}</text>`; });
   if (target !== null) html += `<line class="target" x1="${left}" x2="${w - right}" y1="${Y(target)}" y2="${Y(target)}"/><text class="axis" x="${w - right + 6}" y="${Y(target) + 3.5}">${label(target)}</text>`;
-  html += `<polyline class="line" points="${values.map((v, i) => `${X(i)},${Y(v)}`).join(' ')}"/>`;
-  values.forEach((v, i) => { html += `<circle class="pt" cx="${X(i)}" cy="${Y(v)}" r="2.4"/>`; });
+  html += `<path class="line" stroke-width="${CHART_STROKE}" d="${linePath(values.map((v, i) => ({ x: X(i), y: Y(v) })), chart.smooth === true)}"/>`;
+  values.forEach((v, i) => { html += `<circle class="pt" cx="${X(i)}" cy="${Y(v)}" r="${CHART_POINT}"/>`; });
   return html + '</svg>';
 }
 

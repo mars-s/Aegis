@@ -39,6 +39,8 @@ export const SHAPES = {
   }, ['headline', 'text']),
   plot: S.obj({
     style: S.one(PLOT_STYLES),
+    smooth: S.bool(),
+    source: S.obj({ cardId: S.text(120), xColumn: S.int(0, 9), yColumns: S.list(S.int(0, 9), 1, 8) }, ['cardId', 'xColumn', 'yColumns']),
     x: S.obj({ label: S.text(24), kind: S.one(['category', 'time', 'linear']) }, ['kind']),
     y: S.obj({ label: S.text(24), unit: S.text(12), format: S.one(PLOT_FORMATS), currency: S.text(3) }, ['format']),
     series: S.list(S.obj({
@@ -281,7 +283,7 @@ export const OBJECT_GUIDE = [
   "Each kind's data follows its schema; limits are characters and items, and nothing is ever cut to fit.",
   'Prefer built-in kinds. They match the board theme and support edits, saved values and undo. Use html only when the built-ins cannot express the requested UI. Use revise with complete data to edit an existing object, including html.',
   '- reply: the answer, set large on top of the result. headline answers the request; text is one to three plain sentences with only **bold** and `code`; figures are key numbers shown large; points are short lines. One per request. It never restates an object beside it.',
-  '- plot: a chart. style is one of ' + PLOT_STYLES.join(', ') + '. x.kind is category, time (ISO dates) or linear; y.format is number, money (with currency), duration (seconds), percent or bytes. One series per thing measured; y is a number, or null for a gap. headline is the one figure the chart exists to say. basis says what the values are and where they come from; knowledge is true when they are your own knowledge, not data on the board. Never empty or all equal.',
+  '- plot: a chart. style is one of ' + PLOT_STYLES.join(', ') + '. x.kind is category, time (ISO dates) or linear; y.format is number, money (with currency), duration (seconds), percent or bytes. Optional source binds a sheet by cardId, xColumn and yColumns (zero-based). smooth is false by default; true explicitly requests a curve. One series per thing measured; y is a number, or null for a gap. headline is the one figure the chart exists to say. basis says what the values are and where they come from; knowledge is true when they are your own knowledge, not data on the board. Never empty or all equal.',
   '- sheet: real data in typed columns (' + COLUMN_KINDS.join(', ') + '), one value per cell: numbers as plain decimals, yes_no one of yes, no, partial, unknown; rating like 4/5; empty when unknown. best (max or min) marks the column\'s best cell. No sentences in cells. The person can sort it.',
   '- diagram: boxes and arrows: a flow, a pipeline, an architecture. nodes have ids that edges name; kind picks the box\'s look (step for a process step); layers group nodes into bands. direction is down (default) or right. The app lays it out; never give positions.',
   '- plan: time-ordered steps (an itinerary, a roadmap, a study plan). kind is ' + STEP_KINDS.join(', ') + '. checkable true lets the person tick steps off.',

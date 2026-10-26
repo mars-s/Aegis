@@ -63,7 +63,7 @@
   <div class="content" class:genui={generative} use:keepControlsLocal>
     {#if expanded && generative && card.kind !== 'html'}<div class="text-edit-actions"><button type="button" class="text-edit-toggle" aria-pressed={editingText} onclick={() => editingText = !editingText}>{editingText ? 'Done editing' : 'Edit text'}</button></div>{/if}
     {#if card.kind === 'reply'}<Reply data={card.data} />
-    {:else if card.kind === 'plot'}<Plot data={card.data} title={card.text || 'Chart'} />
+    {:else if card.kind === 'plot'}<Plot data={card.data} title={card.text || 'Chart'} onsmooth={smooth => onset(['smooth'], smooth)} />
     {:else if card.kind === 'sheet'}<Sheet data={card.data} {onlink} />
     {:else if card.kind === 'diagram'}<Diagram data={card.data} />
     {:else if card.kind === 'plan'}<Plan data={card.data} oncheck={(i, done) => onset(['steps', i, 'done'], done)} />

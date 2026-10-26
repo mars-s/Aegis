@@ -46,11 +46,11 @@
 /* Blink can lose SVG glyphs through the combined viewBox and slide fit
    transforms while reporting correct bounds. Geometric precision fixes painting. */
 .deck-chart, .deck-three { overflow: visible; font-family: var(--font); font-weight: 400; text-rendering: geometricPrecision; font-variant-numeric: tabular-nums; }
-.deck-chart .axis { fill: var(--slide-secondary); font-size: 12px; text-rendering: geometricPrecision; }
+.deck-chart .axis { fill: var(--slide-secondary); font-size: var(--chart-label-size, 12px); text-rendering: geometricPrecision; }
 .deck-chart .grid { stroke: rgb(255 255 255 / .07); stroke-width: 1; }
 .deck-chart .target { stroke: rgb(255 255 255 / .32); stroke-width: 1; stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; }
-.deck-chart .line { fill: none; stroke: var(--data); stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.deck-chart .pt { fill: #08090a; stroke: var(--data); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.deck-chart .line { fill: none; stroke: var(--data); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.deck-chart .pt { fill: #08090a; stroke: var(--data); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .deck-ridge { fill: none; stroke: rgb(171 178 191 / .55); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .deck-ridge.hi { stroke: var(--data); }
 .deck-three circle { fill: none; stroke: rgb(255 255 255 / .32); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -135,4 +135,4 @@ body.motion-off .deck-panel button:active, body.motion-off .deck-open:active { t
 .deck-slide-actions button { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
 .deck-slide-actions button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .deck-slide-actions button:disabled { opacity: .3; }
-.deck-slide-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.deck-slide-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
