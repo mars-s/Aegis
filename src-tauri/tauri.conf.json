@@ -46,6 +46,7 @@
     "resources": {
       "../agent/server.mjs": "agent/server.mjs",
       "../app/src/objects/kinds/html-sandbox.js": "app/src/objects/kinds/html-sandbox.js",
+      "../app/src/objects/kinds/html-theme.js": "app/src/objects/kinds/html-theme.js",
       "../agent/status.mjs": "agent/status.mjs",
       "../app/src/features/media/link-preview.mjs": "app/src/features/media/link-preview.mjs",
       "../agent/package.json": "agent/package.json",

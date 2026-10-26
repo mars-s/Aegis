@@ -77,5 +77,21 @@ try {
   });
   assert.ok(cover.every(c => c.inside), `composer parts outside its surface: ${JSON.stringify(cover)}`);
   console.log('PASS replies render bold and lists, keep unclosed markers and never inject HTML');
+
+  // Custom UI wears the app palette even when the model writes its own pale, green world.
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKE ' + JSON.stringify([{ op: 'create', type: 'object', kind: 'html', text: 'Foreign palette', x: 0, y: 900, data: {
+    html: '<h2>Capacity</h2><button class="on">On</button><div class="meter"><i></i></div><p class="note">Plain</p>',
+    css: 'body{background:#f4f6f2;color:#fff}.on{background:#25604c;color:white}.meter{height:8px;background:#333}.meter i{display:block;width:40%;height:8px;background:#30d158}.note{color:rgba(255,255,255,.4)}', js: '' } }]) }));
+  const widget = page.frameLocator('.card.kind-html iframe');
+  await widget.locator('h2').waitFor({ timeout: 15000 });
+  const paint = await widget.locator('body').evaluate(body => {
+    const css = el => getComputedStyle(el), root = css(document.documentElement);
+    const token = name => { const probe = document.createElement('i'); probe.style.color = `var(${name})`; document.body.append(probe); const value = css(probe).color; probe.remove(); return value; };
+    return { body: css(body).backgroundColor, h2: css(document.querySelector('h2')).color, text: token('--text'), meter: css(document.querySelector('.meter i')).backgroundColor, data: token('--data'), note: css(document.querySelector('.note')).color, faint: token('--faint'), card: root.backgroundColor };
+  });
+  assert.equal(paint.body, 'rgba(0, 0, 0, 0)', 'the page takes the window surface, not its own pale fill');
+  assert.equal(paint.h2, paint.text); assert.equal(paint.meter, paint.data); assert.equal(paint.note, paint.faint);
+  console.log('PASS Custom UI literal colours resolve to theme tokens inside the sandbox');
   assert.deepEqual(errors, []);
 } finally { await browser.close(); host.kill(); }

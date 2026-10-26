@@ -1,8 +1,9 @@
 // Shared with the local host. Generated code executes only in a sandboxed document served by that host.
+import { themeCss, themeHtml } from './html-theme.js';
 export const SANDBOX_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
 // The sandbox directive needs an HTTP header; browsers ignore it in a meta policy.
 export const SANDBOX_HEADER_CSP = SANDBOX_CSP + '; sandbox allow-scripts';
-export const THEME_KEYS = ['--canvas', '--card', '--strip', '--inset', '--raised', '--pill', '--line', '--line-strong', '--edge-top', '--text', '--ink-2', '--muted', '--faint', '--data', '--data-soft', '--font', '--r-win', '--r-menu', '--r-inset', '--ease-out', '--ease-drawer'];
+export const THEME_KEYS = ['--canvas', '--card', '--strip', '--inset', '--raised', '--pill', '--line', '--line-strong', '--edge-top', '--text', '--ink-2', '--muted', '--faint', '--hover', '--press', '--data', '--data-soft', '--danger', '--warn', '--ok', '--mono', '--font', '--r-win', '--r-menu', '--r-inset', '--ease-out', '--ease-drawer'];
 
 // JSON text is the only state boundary. Keep this function self-contained for the isolated bootstrap.
 export function parseHtmlState(value) {
@@ -19,6 +20,43 @@ export function parseHtmlState(value) {
     return !Object.hasOwn(state, 'custom') || json(state.custom, 0) ? state : null;
   } catch { return null; }
 }
+
+
+// The base look every widget starts from. Generated markup can stay unstyled: headings, text, controls, tables,
+// meters and SVG all inherit the board's type, spacing and palette.
+const BASE_CSS = `*,*::before,*::after{box-sizing:border-box}
+html{background:var(--card);color:var(--text);font:14px/1.5 var(--font);font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased;accent-color:var(--data)}
+body{margin:0;padding:16px;display:flow-root;min-height:80px;overflow-wrap:anywhere}
+h1,h2,h3,h4{margin:0 0 .5em;color:var(--text);font-weight:600;letter-spacing:-.015em;line-height:1.2;text-wrap:balance}
+h1{font-size:22px}h2{font-size:18px}h3{font-size:15px}h4{font-size:13px;color:var(--muted)}
+p{margin:0 0 .75em;color:var(--ink-2);text-wrap:pretty}small,figcaption,.muted{color:var(--muted);font-size:12px}
+a{color:var(--data);text-underline-offset:2px}strong,b{color:var(--text);font-weight:600}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+code,kbd,pre,samp{font:12.5px/1.5 var(--mono)}code{padding:1px 4px;border-radius:4px;background:var(--hover)}pre{margin:0 0 .75em;padding:10px 12px;border-radius:8px;background:var(--inset);overflow:auto}
+ul,ol{margin:0 0 .75em;padding-left:1.25em;color:var(--ink-2)}li+li{margin-top:2px}
+label{display:block;color:var(--muted);font-size:12px}label:has(input,select,textarea){display:grid;gap:6px}label:has(>input[type=checkbox],>input[type=radio]){display:flex;align-items:center;gap:8px;color:var(--ink-2);font-size:13px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:32px;padding:6px 12px;border:1px solid var(--line-strong);border-radius:7px;background:var(--inset);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:background-color 120ms var(--ease-out),border-color 120ms var(--ease-out),transform 120ms var(--ease-out)}
+button:hover{background:var(--press)}button:active{transform:scale(.97)}button:disabled{opacity:.45;cursor:default}
+button[aria-pressed=true],button[aria-selected=true],button.active,button.selected,button.primary,button[type=submit]{background:var(--text);border-color:var(--text);color:var(--card)}
+input:not([type=range],[type=checkbox],[type=radio],[type=color]),select,textarea{width:100%;min-height:32px;padding:6px 9px;border:1px solid var(--line-strong);border-radius:7px;background:var(--inset);color:var(--text);caret-color:var(--data)}
+input[type=number]{width:auto;max-width:9ch}textarea{min-height:72px;resize:vertical}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none;border-color:var(--data);box-shadow:0 0 0 3px var(--data-soft)}
+input[type=range]{width:100%;height:18px;margin:4px 0;background:transparent;-webkit-appearance:none;appearance:none}
+input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:var(--line-strong)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-5.5px;border-radius:50%;background:var(--text);border:0;box-shadow:0 0 0 4px var(--data-soft)}
+input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:var(--line-strong)}input[type=range]::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:var(--text)}
+progress,meter{width:100%;height:4px;border:0;border-radius:2px;background:var(--line);overflow:hidden;-webkit-appearance:none;appearance:none}
+progress::-webkit-progress-bar,meter::-webkit-meter-bar{background:var(--line);border:0;border-radius:2px}
+progress::-webkit-progress-value,meter::-webkit-meter-optimum-value{background:var(--data);border-radius:2px}
+progress::-moz-progress-bar{background:var(--data)}
+output{display:block;color:var(--text);font-size:28px;font-weight:600;letter-spacing:-.02em;line-height:1.15}
+table{width:100%;border-collapse:collapse;font-size:13px}th{color:var(--muted);font-weight:500;text-align:left}th,td{padding:7px 8px;border-bottom:1px solid var(--line)}td{color:var(--ink-2)}
+fieldset{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:8px}legend{padding:0 4px;color:var(--muted);font-size:12px}
+details{border-top:1px solid var(--line);padding:8px 0}summary{cursor:pointer;color:var(--ink-2)}
+svg{max-width:100%;overflow:visible}svg text{fill:var(--muted);font:11px var(--font)}
+:focus-visible{outline:1.5px solid var(--text);outline-offset:2px}::selection{background:var(--data-soft)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}`;
 
 export function sandboxDocument(data, channel, theme, font, motionOff = false) {
   const scriptText = text => text.replace(/<\/script/gi, '<\\/script');
@@ -91,6 +129,7 @@ export function sandboxDocument(data, channel, theme, font, motionOff = false) {
       }
       if (data.type !== 'aegis:html-preferences' || typeof data.motionOff !== 'boolean' || !data.theme || typeof data.theme !== 'object' || !themeKeys.every(key => typeof data.theme[key] === 'string')) return;
       for (const key of themeKeys) document.documentElement.style.setProperty(key, data.theme[key]);
+      if (data.scheme === 'light' || data.scheme === 'dark') document.documentElement.style.colorScheme = data.scheme;
       document.documentElement.classList.toggle('motion-off', data.motionOff);
     });
     let last = 0, queued = false;
@@ -121,8 +160,8 @@ export function sandboxDocument(data, channel, theme, font, motionOff = false) {
   })();`;
   // The trusted CSP comes first. A later policy in agent HTML can only add restrictions.
   return `<!doctype html><html lang="en-AU"${motionOff ? ' class="motion-off"' : ''}><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><meta name="referrer" content="no-referrer"><meta name="viewport" content="width=device-width, initial-scale=1">
-<style>${font ? `@font-face{font-family:'Inter Variable';font-style:normal;font-weight:100 900;src:url('${font}') format('woff2')}` : ''} :root{color-scheme:dark;${theme}} *{box-sizing:border-box}html{background:var(--card);color:var(--text);font:14px/1.45 var(--font);font-variant-numeric:tabular-nums}body{margin:0;display:flow-root;min-height:80px;overflow-wrap:anywhere}button,input,textarea{font:inherit;color:inherit}button{background:var(--inset);border:1px solid var(--line-strong);border-radius:6px;padding:8px 12px}input,textarea{background:var(--inset);border:1px solid var(--line-strong);border-radius:6px;padding:8px;caret-color:var(--data)}:focus-visible{outline:1.5px solid var(--text);outline-offset:2px}::selection{background:var(--data-soft)}</style>
-<script>${bootstrap}</script><style>${data.css}\n@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}html.motion-off,html.motion-off *,html.motion-off *::before,html.motion-off *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}</style></head><body>${data.html}<script>${scriptText(data.js)}</script></body></html>`;
+<style>${font ? `@font-face{font-family:'Inter Variable';font-style:normal;font-weight:100 900;src:url('${font}') format('woff2')}` : ''} :root{color-scheme:light dark;${theme}}${BASE_CSS}</style>
+<script>${bootstrap}</script><style>${themeCss(data.css)}\n@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}html.motion-off,html.motion-off *,html.motion-off *::before,html.motion-off *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}</style></head><body>${themeHtml(data.html, data.css)}<script>${scriptText(data.js)}</script></body></html>`;
 }
 
 // Sandboxed frames have an opaque origin, serialised as "null". Sibling frames are not trusted.
