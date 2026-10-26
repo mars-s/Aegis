@@ -8,6 +8,12 @@ let active = null;
 let keyboardInput = false;
 const reducedMotion = () => document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches;
 export const findDeck = (ctx, id) => ctx.canvas.board.cards.find(card => card.id === id && card.type === 'deck');
+// Resolved source data changes independently of a person's slide edits.
+const savedContent = props => JSON.stringify({ current: props.current, slides: props.slides?.map(slide => {
+  if (!slide.chart?.sourceId) return slide;
+  const { spec, sourceStatus, snapshotSourceId, ...chart } = slide.chart;
+  return { ...slide, chart };
+}) });
 
 // The deck editor sits in the shared side editor panel.
 export function openDeckPanel(card, ctx, { viaKey = false, onClose }) {
@@ -61,7 +67,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
     clearTimeout(timer);
     if (!dirty) return pending;
     dirty = false; saving = true;
-    const revision = version, props = structuredClone({ slides, current }), snapshot = JSON.stringify(props);
+    const revision = version, props = structuredClone({ slides, current }), snapshot = savedContent(props);
     pending = pending.catch(() => {}).then(async () => {
       const command = { op: 'update', id: card.id, set: { props } };
       if (ctx.canvas.board.id === boardId) {
@@ -72,7 +78,7 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
       for (let attempt = 0; attempt < 40; attempt++) {
         const stored = (await ctx.host.get(`/boards/${boardId}`)).cards.find(c => c.id === card.id);
         if (!stored) throw new Error('This deck was deleted');
-        if (JSON.stringify({ slides: stored.props?.slides, current: stored.props?.current }) === snapshot) {
+        if (savedContent(stored.props || {}) === snapshot) {
           observed = JSON.stringify(stored.props);
           if (version === revision) { saving = false; status.textContent = 'Saved'; }
           return;
@@ -92,7 +98,10 @@ export function openDeck(card, ctx, { viaKey = keyboardInput } = {}) {
     stopFitting();
     stage.innerHTML = slides.length ? slides.map((slide, i) => `<section class="deck-slide-wrap" data-i="${i}" role="tabpanel" aria-label="Slide ${i + 1}"><div class="deck-slide-meta"><span>Slide ${i + 1}</span><div class="deck-slide-actions"><button type="button" data-move="-1" aria-label="Move slide ${i + 1} up" ${i === 0 ? 'disabled' : ''}>${icon('<path d="M8 13V3M4 7l4-4 4 4"/>')}</button><button type="button" data-move="1" aria-label="Move slide ${i + 1} down" ${i === slides.length - 1 ? 'disabled' : ''}>${icon('<path d="M8 3v10M4 9l4 4 4-4"/>')}</button><button type="button" data-delete aria-label="Delete slide ${i + 1}">${icon('<path d="M2.5 4h11M6 4V2h4v2M4 4l.5 10h7L12 4"/>')}</button></div></div>${slideHTML(slide, true, i + 1)}</section>`).join('') : '<p class="deck-empty">Add your first slide below.</p>';
     film.innerHTML = slides.map((slide, i) => `<button class="deck-film-item" type="button" role="tab" aria-label="Go to slide ${i + 1}" data-i="${i}" aria-keyshortcuts="ArrowLeft ArrowRight Home End Alt+ArrowUp Alt+ArrowDown Delete">${slideHTML(slide)}<span class="deck-film-caption"><span class="deck-film-number">${i + 1}</span><span class="deck-film-title">${escapeHTML(slide.title || 'Untitled slide')}</span></span></button>`).join('') + '<button class="deck-film-add" type="button">Add slide</button>';
-    stopFitting = observeSlideFits(panel);
+    stopFitting = observeSlideFits(panel, { deckId: card.id, onChartSource: (slideId, sourceId) => {
+      const slide = slides.find(slide => slide.id === slideId);
+      if (slide) { slide.chart = { sourceId }; schedule(); render(); }
+    } });
     mark(current, false);
   }
   function mark(index, persist = true) {

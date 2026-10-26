@@ -75,8 +75,12 @@ body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary
 .semantic-copy:has(.semantic-deck) { position: relative; padding-right: 88px; min-height: 100px; }
 .semantic-copy .semantic-deck { position: absolute; right: 0; bottom: 0; }
 .semantic-diagram { flex-direction: column; gap: 4px; }
-.semantic-diagram .semantic-graphic { width: 188px; height: 40px; stroke: var(--muted); }
+.semantic-diagram-fit { display: block; width: 100%; height: 52px; }
+.semantic-diagram .semantic-graphic { width: 100%; height: 52px; stroke: var(--muted); }
 .semantic-diagram text { font: 12px var(--font); fill: var(--text); stroke: none; }
+.semantic-source-status { color: var(--ink-2); font-size: 12px; line-height: 16px; }
+.has-source-status .semantic-plot .semantic-graphic { display: none; }
+.has-source-status .semantic-single { display: flex; flex-direction: row; flex-wrap: wrap; }
 /* Reference summaries also use this content renderer, inside their existing 112px footprint. */
 .editor-context-window .semantic-content { padding-block: 6px; }
 .editor-context-window .semantic-copy { gap: 3px; }

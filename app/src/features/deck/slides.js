@@ -1,11 +1,15 @@
 import { linePath } from '../../objects/chart/geometry.ts';
 import { CHART_POINT, CHART_STROKE, chartScreen } from '../../objects/chart/screen.js';
-import { plotToDeckChart } from '../../objects/chart/source.js';
+import { resolveDeckChart } from '../../objects/chart/source.js';
 // Shared HTML for the canvas preview, editor stage and filmstrip.
 const SLIDE_WIDTH = 960, SLIDE_HEIGHT = 540;
 
 // ResizeObserver measures local layout sizes, so canvas zoom never changes the fit.
-export function observeSlideFits(root) {
+export function observeSlideFits(root, options = {}) {
+  let closed = false, dropCharts = () => {};
+  if (root.querySelector('[data-chart-model]')) void import('../../objects/chart/deck-mount.js').then(({ mountDeckCharts }) => {
+    if (!closed) dropCharts = mountDeckCharts(root, options);
+  });
   const charts = [...root.querySelectorAll('.deck-chart')].filter(svg => !svg.closest('.deck-thumb, .deck-film-item')).map(chartScreen);
   let frame = 0;
   const observer = new ResizeObserver(entries => {
@@ -15,7 +19,7 @@ export function observeSlideFits(root) {
     cancelAnimationFrame(frame); frame = requestAnimationFrame(() => charts.forEach(chart => chart.paint()));
   });
   root.querySelectorAll('.deck-fit').forEach(frame => observer.observe(frame));
-  return () => { cancelAnimationFrame(frame); observer.disconnect(); charts.forEach(chart => chart.destroy()); };
+  return () => { closed = true; dropCharts(); cancelAnimationFrame(frame); observer.disconnect(); charts.forEach(chart => chart.destroy()); };
 }
 
 export const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,12 +42,8 @@ export function chartTicks(values, target = null) {
   return { lo, hi, ticks };
 }
 
-export function lineChart(chart = {}) {
-  if (chart.sourceId) {
-    const cards = globalThis.aegisCtx?.canvas.board.cards ?? [];
-    const source = cards.find(card => card.id === chart.sourceId && card.kind === 'plot');
-    if (source) chart = { ...chart, ...plotToDeckChart(source.data, cards) };
-  }
+export function lineChart(chart = {}, slideId = '', title = '') {
+  if (chart.sourceId || chart.spec) return `<div class="deck-resolved-chart" data-chart-model="${escapeHTML(JSON.stringify({ chart: resolveDeckChart(chart, globalThis.aegisCtx?.canvas.board.cards ?? []), slideId, title }))}"></div>`;
   const points = Array.isArray(chart.values) ? chart.values.flatMap((value, index) => Number.isFinite(value) ? [{ value, label: Array.isArray(chart.labels) ? chart.labels[index] ?? String(index + 1) : String(index + 1) }] : []) : [];
   const values = points.map(point => point.value);
   const target = Number.isFinite(chart.target) ? chart.target : null;
@@ -104,7 +104,7 @@ export function slideHTML(slide, editable = false, number = 1, resolveUrl = url 
   // item 14: imported pictures stay as asset references, separate from editable text.
   const images = Array.isArray(slide.images) ? slide.images : [];
   const wave = layout === 'title' && (slide.background === 'sci-fi-wave' || slide.background == null);
-  const art = layout === 'title' ? (wave ? ridges : '') : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body, slide.relationship, editable, number) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
+  const art = layout === 'title' ? (wave ? ridges : '') : layout === 'chart' ? lineChart(slide.chart, slide.id, slide.title) : layout === 'three' ? three(slide.body, slide.relationship, editable, number) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
   return `<div class="deck-fit"><div class="deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${layout === 'three' && slide.relationship === 'overlap' ? ' has-overlap' : ''}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
   // end item 14
 }

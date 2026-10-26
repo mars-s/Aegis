@@ -1,4 +1,4 @@
-import { slideHTML } from '../deck/slides.js';
+import { slideHTML, observeSlideFits } from '../deck/slides.js';
 import { parseTime, seriesColor } from '../../objects/chart/chart.ts';
 
 const paths = {
@@ -25,6 +25,7 @@ export function summaryContent(summary) {
   if (preview?.type === 'plot' && preview.seriesCount > 1) copy.querySelector('.semantic-kind').textContent += ` · ${preview.seriesCount} series${preview.seriesCount > 3 ? ` (+${preview.seriesCount - 3})` : ''}`;
   const facts = preview && ['plot', 'stats', 'progress', 'sheet', 'diagram'].includes(preview.type) ? [] : summary.facts;
   for (const fact of facts) { const line = document.createElement('span'); line.className = 'semantic-fact'; line.textContent = fact; copy.append(line); }
+  if (summary.sourceStatus) { content.classList.add('has-source-status'); copy.append(element('span', 'semantic-source-status', summary.sourceStatus)); }
   if (preview) copy.append(previewContent(preview));
   return content;
 }
@@ -73,6 +74,7 @@ function previewContent(preview) {
   } else if (preview.type === 'deck' && preview.slide) {
     root.setAttribute('aria-label', `First slide: ${preview.slide.title || 'Untitled'}`);
     root.innerHTML = slideHTML(preview.slide); root.setAttribute('aria-hidden', 'true');
+    requestAnimationFrame(() => { if (root.isConnected) { observeSummaryRemoval(); summaryFits.set(root, observeSlideFits(root)); } });
   } else if (preview.type === 'diagram') {
     root.append(diagramGraphic(preview) || element('span', 'semantic-fact', `${preview.nodes.length} nodes · ${preview.edges.length} connections`));
   }
@@ -127,34 +129,84 @@ function plotGraphic(preview) {
   return svg(96, 28, marks, `${bars ? 'Bars' : 'Lines'}: ${series.map(s => s.name).join(', ')}`);
 }
 
-function diagramGraphic({ nodes, edges }) {
-  // A tiny graph must fit every node and edge. Larger, cyclic or labelled graphs use counts.
-  if (!nodes.length || nodes.length > 4 || edges.some(e => e.label)) return null;
-  const positions = new Map(nodes.map(n => [n.id, { node: n, rank: 0, incoming: edges.filter(e => e.to === n.id).length }]));
-  if (edges.some(e => !positions.has(e.from) || !positions.has(e.to))) return null;
-  const queue = [...positions.values()].filter(p => !p.incoming);
+// Every position follows real edges. Chains can fold into two rows without losing a step.
+export function diagramLayout({ nodes, edges }, width, height = 52, textWidth = name => name.length * 7) {
+  if (!nodes.length || nodes.length > 6 || edges.some(edge => edge.label)) return null;
+  const positions = new Map(nodes.map(node => [node.id, { node, rank: 0, incoming: edges.filter(edge => edge.to === node.id).length, w: Math.ceil(textWidth(node.name)) + 12 }]));
+  if (positions.size !== nodes.length || edges.some(edge => !positions.has(edge.from) || !positions.has(edge.to))) return null;
+  const queue = [...positions.values()].filter(position => !position.incoming);
   let visited = 0;
   for (const current of queue) {
     visited++;
-    for (const edge of edges.filter(e => e.from === current.node.id)) {
+    for (const edge of edges.filter(edge => edge.from === current.node.id)) {
       const next = positions.get(edge.to); next.rank = Math.max(next.rank, current.rank + 1);
       if (--next.incoming === 0) queue.push(next);
     }
   }
   if (visited !== nodes.length) return null;
-  const ranks = Array.from({ length: Math.max(...queue.map(p => p.rank)) + 1 }, (_, i) => queue.filter(p => p.rank === i));
-  if (ranks.some(rank => rank.length > 2)) return null;
-  const widths = ranks.map(rank => Math.max(...rank.map(p => p.node.name.length * 8 + 8)));
-  if (widths.reduce((sum, w) => sum + w, 0) + (ranks.length - 1) * 6 > 188) return null;
-  if (edges.some(e => positions.get(e.to).rank !== positions.get(e.from).rank + 1)) return null;
-  let left = 0;
-  ranks.forEach((rank, i) => { rank.forEach((p, j) => Object.assign(p, { x: left, y: rank.length === 1 ? 12 : j * 22, w: widths[i] })); left += widths[i] + 6; });
-  const markup = edges.map(edge => { const a = positions.get(edge.from), b = positions.get(edge.to); return `<path data-from="${nodes.indexOf(a.node)}" data-to="${nodes.indexOf(b.node)}" d="M${a.x + a.w} ${a.y + 8}L${b.x} ${b.y + 8}m-3-2 3 2-3 2"/>`; }).join('');
-  const graphic = svg(188, 40, markup, edges.length ? edges.map(e => `${positions.get(e.from).node.name} to ${positions.get(e.to).node.name}`).join(', ') : `${nodes.length} unconnected nodes`);
-  for (const p of queue) {
-    const rect = document.createElementNS(graphic.namespaceURI, 'rect');
-    for (const [key, value] of Object.entries({ x: p.x, y: p.y, width: p.w, height: 16 })) rect.setAttribute(key, String(value)); graphic.append(rect);
-    const label = document.createElementNS(graphic.namespaceURI, 'text'); label.setAttribute('x', String(p.x + 4)); label.setAttribute('y', String(p.y + 12)); label.textContent = p.node.name; graphic.append(label);
+  const ranks = Array.from({ length: Math.max(...queue.map(position => position.rank)) + 1 }, (_, i) => queue.filter(position => position.rank === i));
+  const widths = ranks.map(rank => Math.max(...rank.map(position => position.w)));
+  const needed = widths.reduce((sum, w) => sum + w, 0) + (ranks.length - 1) * 12;
+  const chain = ranks.every(rank => rank.length === 1) && edges.length === nodes.length - 1;
+  if (needed > width && chain && nodes.length <= 4 && height >= 48) {
+    const order = ranks.flat(), left = Math.max(...order.filter((_, i) => i === 0 || i === 3).map(position => position.w));
+    const right = Math.max(...order.filter((_, i) => i === 1 || i === 2).map(position => position.w));
+    if (left + right + 12 > width) return null;
+    order.forEach((position, i) => Object.assign(position, { x: i === 0 || i === 3 ? 1 : width - position.w - 1, y: i < 2 ? 1 : height - 21 }));
+  } else {
+    if (needed > width || ranks.some(rank => rank.length > 2) || edges.some(edge => positions.get(edge.to).rank !== positions.get(edge.from).rank + 1)) return null;
+    let left = 1;
+    ranks.forEach((rank, i) => {
+      rank.forEach((position, j) => Object.assign(position, { x: left, y: rank.length === 1 ? (height - 20) / 2 : j ? height - 21 : 1 }));
+      left += widths[i] + 12;
+    });
   }
-  return graphic;
+  return { nodes: nodes.map(node => positions.get(node.id)), edges: edges.map(edge => {
+    const a = positions.get(edge.from), b = positions.get(edge.to);
+    let x1, y1, x2, y2;
+    if (a.y === b.y) {
+      const forward = b.x > a.x;
+      x1 = forward ? a.x + a.w : a.x; x2 = forward ? b.x : b.x + b.w; y1 = y2 = a.y + 10;
+    } else if (chain) {
+      x1 = a.x + a.w / 2; x2 = b.x + b.w / 2; y1 = a.y + 20; y2 = b.y;
+    } else { x1 = a.x + a.w; x2 = b.x; y1 = a.y + 10; y2 = b.y + 10; }
+    const angle = Math.atan2(y2 - y1, x2 - x1), dx = Math.cos(angle), dy = Math.sin(angle);
+    return { from: nodes.indexOf(a.node), to: nodes.indexOf(b.node), d: `M${x1} ${y1}L${x2} ${y2}m${-3 * dx + 2 * dy} ${-3 * dy - 2 * dx}l${3 * dx - 2 * dy} ${3 * dy + 2 * dx}l${-3 * dx - 2 * dy} ${-3 * dy + 2 * dx}` };
+  }) };
+}
+
+const diagrams = new Map();
+const summaryFits = new Map();
+let diagramResize, summaryRemoval;
+function observeSummaryRemoval() {
+  if (summaryRemoval) return;
+  summaryRemoval = new MutationObserver(() => {
+    for (const node of diagrams.keys()) if (!node.isConnected) { diagramResize.unobserve(node); diagrams.delete(node); }
+    for (const [node, drop] of summaryFits) if (!node.isConnected) { drop(); summaryFits.delete(node); }
+  });
+  summaryRemoval.observe(document.getElementById('stage') || document.body, { childList: true, subtree: true });
+}
+function diagramGraphic(preview) {
+  const root = element('span', 'semantic-diagram-fit');
+  const render = () => {
+    const width = root.clientWidth, height = root.clientHeight;
+    const measure = document.createElement('canvas').getContext('2d');
+    measure.font = `12px ${getComputedStyle(root).fontFamily}`;
+    const layout = diagramLayout(preview, width, height, name => measure.measureText(name).width);
+    if (!layout) { root.replaceChildren(element('span', 'semantic-fact', `${preview.nodes.length} nodes · ${preview.edges.length} connections`)); return; }
+    const label = preview.edges.length ? preview.edges.map(edge => `${preview.nodes.find(node => node.id === edge.from).name} to ${preview.nodes.find(node => node.id === edge.to).name}`).join(', ') : `${preview.nodes.length} unconnected nodes`;
+    const graphic = svg(width, height, layout.edges.map(edge => `<path data-from="${edge.from}" data-to="${edge.to}" d="${edge.d}"/>`).join(''), label);
+    for (const position of layout.nodes) {
+      const rect = document.createElementNS(graphic.namespaceURI, 'rect');
+      for (const [key, value] of Object.entries({ x: position.x, y: position.y, width: position.w, height: 20 })) rect.setAttribute(key, String(value)); graphic.append(rect);
+      const text = document.createElementNS(graphic.namespaceURI, 'text'); text.setAttribute('x', String(position.x + 6)); text.setAttribute('y', String(position.y + 14)); text.textContent = position.node.name; graphic.append(text);
+    }
+    root.replaceChildren(graphic);
+  };
+  if (!diagramResize) {
+    diagramResize = new ResizeObserver(entries => { for (const { target } of entries) diagrams.get(target)?.(); });
+    observeSummaryRemoval();
+  }
+  requestAnimationFrame(() => { if (root.isConnected) { diagrams.set(root, render); diagramResize.observe(root); render(); } });
+  return root;
 }
