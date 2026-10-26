@@ -7,7 +7,7 @@ export function chartScreen(svg) {
     if (!matrix) return;
     const scale = Math.hypot(matrix.a, matrix.b);
     if (!scale) return;
-    svg.style.setProperty('--chart-label-size', `${CHART_LABEL / scale}px`);
+    svg.style.setProperty('--chart-label-size', `${Math.max(CHART_LABEL, CHART_LABEL / scale)}px`);
     svg.querySelectorAll('.dot, .pt').forEach(dot => dot.setAttribute('r', String(CHART_POINT / scale)));
   }
   const stage = document.getElementById('stage');

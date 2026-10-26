@@ -1,12 +1,12 @@
 import { linePath } from '../../objects/chart/geometry.ts';
 import { CHART_POINT, CHART_STROKE, chartScreen } from '../../objects/chart/screen.js';
 import { plotToDeckChart } from '../../objects/chart/source.js';
-// Shared HTML for the canvas preview, editor stage and filmstrip. No frame-time work.
+// Shared HTML for the canvas preview, editor stage and filmstrip.
 const SLIDE_WIDTH = 960, SLIDE_HEIGHT = 540;
 
 // ResizeObserver measures local layout sizes, so canvas zoom never changes the fit.
 export function observeSlideFits(root) {
-  const charts = [...root.querySelectorAll('.deck-chart')].map(chartScreen);
+  const charts = [...root.querySelectorAll('.deck-chart')].filter(svg => !svg.closest('.deck-thumb, .deck-film-item')).map(chartScreen);
   let frame = 0;
   const observer = new ResizeObserver(entries => {
     for (const { target, contentRect: { width, height } } of entries) {

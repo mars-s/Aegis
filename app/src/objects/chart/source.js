@@ -1,5 +1,6 @@
-export const chartCards = () => globalThis.aegisCtx?.canvas.board.cards ?? [];
 import { toNumber } from '../../lib/board/dataset.js';
+
+export const chartCards = () => globalThis.aegisCtx?.canvas.board.cards ?? [];
 
 // The saved series are the fallback if the sheet is unavailable.
 export function resolvePlot(data, cards = []) {

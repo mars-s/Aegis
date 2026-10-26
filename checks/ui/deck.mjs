@@ -67,7 +67,7 @@ try {
   assert.ok(await stage.evaluate(el => el.scrollTop > 500));
   await page.getByRole('button', { name: 'Slide overview', exact: true }).click();
   await page.getByRole('tab', { name: 'Go to slide 2', exact: true }).click(); await selected(1);
-  assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .line').evaluate(el => getComputedStyle(el).strokeWidth), '1.4px');
+  assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .line').evaluate(el => getComputedStyle(el).strokeWidth), '1.5px');
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .target').count(), 1);
   assert.deepEqual(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .y-tick').allTextContents(), ['2', '3', '4'], 'integer hour values use whole-hour ticks');
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .axis-unit').textContent(), 'hours', 'the axis preserves the supplied unit');
