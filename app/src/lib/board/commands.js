@@ -2,6 +2,7 @@
 // Pure functions over plain data, no DOM, so the canvas, the agent host and the checks share them.
 import { checkObject, OBJECT_KINDS, OBJECT_SIZE } from './objects.js';
 import { collectionLayout } from './collection.js';
+import { normaliseDocument } from './document.js';
 
 // Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
 // so the host, the canvas and the checks all accept them. Type-specific data lives in card.props.
@@ -136,7 +137,7 @@ export function applyBatch(input, batch) {
               const next = { ...(c.props ?? {}) };
               for (const [pk, pv] of Object.entries(v ?? {})) { if (pv === null) delete next[pk]; else next[pk] = pv; }
               if (c.type === 'doc' && v && Object.hasOwn(v, 'body') && !Object.hasOwn(v, 'doc')) {
-                delete next.doc; next.docTitleMigrated = true;
+                delete next.doc; delete next.docTitleMigrated;
               }
               c.props = cleanProps(next, 'props');
             }
@@ -265,6 +266,7 @@ export function applyBatch(input, batch) {
     }
   });
   if (errors.length) return { ok: false, board: input, created: {}, errors };
+  for (const card of board.cards) if (touched.has(card.id)) normaliseDocument(card);
   // Round 2 demo: only height changes repack a composition. Manual positioning releases it.
   const compositions = board.cards.filter(c => c.props?.contentLayout);
   const before = compositions.length ? new Map(input.cards.map(c => [c.id, c])) : new Map();
