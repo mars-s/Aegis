@@ -102,7 +102,7 @@ try {
       await composition(`${id}-${keyboard ? 'keyboard' : 'pointer'}`, id === 'contextdoc' ? ['contextdoc', 'linkednote', 'nearnote'] : undefined);
       await close(before);
     }
-    console.log(`PASS ${engineName}: document, sheet and deck context, linked priority, nearest fallback, readable summaries and exact return`);
+    console.log(`PASS ${engineName}: document, sheet and deck context, linked priority, quiet empty references, readable summaries and exact return`);
 
     // Closing restores the invoking Open control even when the source is summarised.
     for (const selector of ['.window-actions [data-window-action="contextdoc"]', '#selectionBar [aria-label="Open"]']) {
@@ -225,7 +225,7 @@ try {
     const picker = page.getByRole('combobox', { name: 'Pinned reference', exact: true });
     await picker.focus(); await page.keyboard.press('Enter');
     const choices = page.getByRole('listbox', { name: 'Pinned reference options', exact: true });
-    assert.equal(await choices.getByRole('option').count(), 3, 'all chart and dataset candidates are offered');
+    assert.equal(await choices.getByRole('option').count(), 4, 'None and all chart and dataset candidates are offered');
     await choices.locator('[data-value="liveplot2"]').focus(); await page.keyboard.press('Enter');
     await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours comparison.'));
     assert.equal(await page.locator('.editor-context-reference').getAttribute('data-card-id'), 'liveplot2');
@@ -239,8 +239,9 @@ try {
 
     before = await prepare('contextdoc'); await open('contextdoc');
     await picker.focus(); await page.keyboard.press('Enter');
-    assert.equal(await choices.getByRole('option').count(), 4, 'the switcher includes every eligible reference');
+    assert.equal(await choices.getByRole('option').count(), 5, 'the switcher includes None and every eligible reference');
     const sheetIndex = await choices.getByRole('option').evaluateAll(items => items.findIndex(el => el.dataset.value === 'contextsheet'));
+    await page.keyboard.press('Home');
     for (let i = 0; i < sheetIndex; i++) await page.keyboard.press('ArrowDown');
     await page.keyboard.press('Enter');
     await page.locator('.editor-reference-table table').waitFor();

@@ -28,19 +28,25 @@ function remainingArea(stage, editor) {
 
 function neighbours(board, source) {
   const linked = new Set(board.links.flatMap(link => link.a === source.id ? [link.b] : link.b === source.id ? [link.a] : []));
+  const sheet = card => card.kind === 'sheet' ? card.id : card.kind === 'plot' ? card.data.source?.cardId : undefined;
+  const sourceSheet = sheet(source);
+  const relation = card => linked.has(card.id) ? 'Linked' : sourceSheet && sheet(card) === sourceSheet ? 'Shared data' : 'Nearby';
+  const rank = { Linked: 0, 'Shared data': 1, Nearby: 2 };
   const origin = centre(source), distance = c => { const p = centre(c); return Math.hypot(p.x - origin.x, p.y - origin.y); };
   return board.cards.filter(c => c.id !== source.id && summarisedCard(c) && !effectiveFlag(board, c, 'hidden'))
-    .sort((a, b) => Number(linked.has(b.id)) - Number(linked.has(a.id)) || distance(a) - distance(b))
-    .map(card => ({ card, relation: linked.has(card.id) ? 'Linked' : 'Nearby' }));
+    .map(card => ({ card, relation: relation(card) }))
+    .sort((a, b) => rank[a.relation] - rank[b.relation] || distance(a.card) - distance(b.card));
 }
 
 export function editorContext(canvas, source, editor) {
   const stage = document.getElementById('stage'), boardId = canvas.board.id;
   const layer = document.createElement('div'); layer.className = 'editor-context'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Editor context');
   stage.append(layer);
+  const restore = document.createElement('button'); restore.type = 'button'; restore.className = 'editor-context-restore'; restore.textContent = 'Show references'; restore.hidden = true;
+  stage.append(restore);
   const cardIds = new Set(canvas.board.cards.map(c => c.id));
   const pinKey = `${boardId}:${source.id}`;
-  let area, frame = 0, destroyed = false, dismissed = false, reference, picker;
+  let area, frame = 0, destroyed = false, dismissed = false;
   const sourceHeader = document.createElement('button'); sourceHeader.type = 'button';
   sourceHeader.className = 'editor-context-window editor-context-source'; sourceHeader.dataset.cardId = source.id;
   sourceHeader.innerHTML = '<span>Editing</span><strong></strong><span class="editor-context-count"></span>';
@@ -48,13 +54,14 @@ export function editorContext(canvas, source, editor) {
   const evidence = document.createElement('section'); evidence.className = 'editor-context-window editor-context-reference';
   const tools = document.createElement('div'); tools.className = 'editor-reference-tools';
   const preview = document.createElement('div');
+  const empty = document.createElement('p'); empty.className = 'editor-reference-empty'; empty.textContent = 'Link a window to pin it here';
   const open = document.createElement('button'); open.type = 'button'; open.className = 'editor-reference-open'; open.textContent = 'Open reference';
   const nearby = document.createElement('div'); nearby.className = 'editor-context-neighbours'; nearby.setAttribute('aria-label', 'Open a neighbouring editor');
   layer.append(sourceHeader, evidence, nearby);
   const candidates = neighbours(canvas.board, source);
   const references = candidates.filter(entry => referenceCard(entry.card));
-  const initial = references.find(entry => entry.card.id === pinned.get(pinKey)) ?? references[0];
-  let chosen = initial?.card.id;
+  const initial = pinned.has(pinKey) ? references.find(entry => entry.card.id === pinned.get(pinKey)) : references.find(entry => entry.relation !== 'Nearby');
+  let chosen = initial?.card.id || '';
   const switchEditor = id => {
     canvas.select([id]); window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: true } }));
   };
@@ -62,16 +69,19 @@ export function editorContext(canvas, source, editor) {
     const button = document.createElement('button'); button.type = 'button'; button.className = 'editor-context-open'; button.dataset.cardId = entry.card.id;
     button.textContent = `Open ${cardSummary(entry.card).title}`; button.onclick = () => switchEditor(entry.card.id); nearby.append(button);
   }
-  if (initial) {
-    picker = createDropdown({ label: 'Pinned reference', value: chosen,
-      options: references.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`]),
-      onChange(id) { chosen = id; pinned.set(pinKey, id); refreshContent(); layout(); },
-    });
-    tools.append(picker); evidence.append(tools, preview, open);
-    reference = liveReference(preview, canvas);
-    open.onclick = () => switchEditor(chosen);
-  } else evidence.hidden = true;
-  function dismiss() { dismissed = true; picker?.dropdown.close(); layer.hidden = true; }
+  const picker = createDropdown({ label: 'Pinned reference', value: chosen,
+    options: [['', 'None'], ...references.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`])],
+    onChange(id) { chosen = id; pinned.set(pinKey, id); refreshContent(); layout(); },
+  });
+  tools.append(picker); evidence.append(tools, empty, preview, open);
+  const reference = liveReference(preview, canvas);
+  open.onclick = () => switchEditor(chosen);
+  function dismiss() { dismissed = true; picker.dropdown.close(); layer.hidden = true; schedule(); }
+  restore.onclick = () => {
+    dismissed = false; area = null;
+    cardIds.clear(); canvas.board.cards.forEach(card => cardIds.add(card.id));
+    fit(); picker.focus({ preventScroll: true });
+  };
   function refreshContent() {
     if (canvas.board.id !== boardId || canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) { dismiss(); return; }
     const card = canvas.board.cards.find(c => c.id === source.id);
@@ -80,25 +90,30 @@ export function editorContext(canvas, source, editor) {
     // Documents show the same shared word count as the editor footer.
     sourceHeader.querySelector('.editor-context-count').textContent = summary.wordCount || '';
     const selected = canvas.board.cards.find(c => c.id === chosen);
+    empty.hidden = !!selected; preview.hidden = open.hidden = !selected;
     if (selected) {
       evidence.dataset.cardId = selected.id;
       open.setAttribute('aria-label', `Open reference: ${cardSummary(selected).title}`);
       void reference.update(selected);
-    }
+    } else { delete evidence.dataset.cardId; reference.clear(); }
   }
   function layout() {
     if (!area) return;
     const selected = canvas.board.cards.find(c => c.id === chosen);
     const width = selected?.kind === 'plot' ? 322 : 282;
-    evidence.hidden = !selected || area.w < width || area.h < 336;
+    evidence.hidden = area.w < width;
     sourceHeader.style.width = `${Math.min(322, area.w)}px`;
     evidence.style.width = `${width}px`;
-    nearby.style.top = `${evidence.hidden ? 64 : (selected.kind === 'plot' ? 328 : 340)}px`;
+    if (area.h < 64 + evidence.offsetHeight) evidence.hidden = true;
+    nearby.style.top = `${evidence.hidden ? 64 : 64 + evidence.offsetHeight + GAP}px`;
   }
   function fit() {
     frame = 0;
-    if (destroyed || dismissed || canvas.board.id !== boardId) return;
+    if (destroyed || canvas.board.id !== boardId) return;
     const next = remainingArea(stage, editor);
+    restore.hidden = !dismissed || next.w < 160 || next.h < 32;
+    Object.assign(restore.style, { left: `${next.x}px`, top: `${next.y}px` });
+    if (dismissed) return;
     if (area && ['x', 'y', 'w', 'h'].every(key => Math.abs(next[key] - area[key]) < .1)) return;
     area = next;
     layer.hidden = area.w < 180 || area.h < 104;
@@ -110,12 +125,13 @@ export function editorContext(canvas, source, editor) {
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(fit); };
   const sizes = new ResizeObserver(schedule); sizes.observe(editor); sizes.observe(stage);
+  const contentSize = new ResizeObserver(layout); contentSize.observe(evidence);
   const chrome = new MutationObserver(schedule); chrome.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   const drawerSettled = event => { if (event.target.matches('.tools, .side, .side-editor')) schedule(); };
   document.addEventListener('transitionend', drawerSettled);
   // Manual board work takes over from the composed references, including drag and drop.
   const boardPointer = event => {
-    if (stage.contains(event.target) && (!layer.contains(event.target) || event.button !== 0 || stage.classList.contains('pan-ready'))) dismiss();
+    if (stage.contains(event.target) && !restore.contains(event.target) && (!layer.contains(event.target) || event.button !== 0 || stage.classList.contains('pan-ready'))) dismiss();
   };
   document.addEventListener('pointerdown', boardPointer, true);
   stage.addEventListener('wheel', dismiss, { passive: true });
@@ -125,12 +141,12 @@ export function editorContext(canvas, source, editor) {
   return {
     frame: fit,
     destroy() {
-      destroyed = true; cancelAnimationFrame(frame); sizes.disconnect(); chrome.disconnect();
+      destroyed = true; cancelAnimationFrame(frame); sizes.disconnect(); contentSize.disconnect(); chrome.disconnect();
       document.removeEventListener('transitionend', drawerSettled);
       document.removeEventListener('pointerdown', boardPointer, true); stage.removeEventListener('wheel', dismiss);
       stage.removeEventListener('boardchange', refreshContent);
       picker?.dropdown.destroy(); reference?.destroy();
-      layer.remove();
+      layer.remove(); restore.remove();
     },
   };
 }

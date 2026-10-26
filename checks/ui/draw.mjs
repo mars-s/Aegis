@@ -1,6 +1,6 @@
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
-import { chromium } from './playwright.mjs';
+import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
 import { realpathSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -8,16 +8,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
+const built = process.env.AEGIS_DRAW_BUILT === '1', engineName = process.env.AEGIS_BROWSER || 'chromium';
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'draw-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-draw-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise((resolve, reject) => { host.on('error', reject); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); });
-writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
-const vite = spawn(process.execPath, [out('draw-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
-vite.stderr.on('data', d => process.stderr.write('[vite] ' + d));
-await new Promise((resolve, reject) => { vite.on('exit', code => reject(new Error('Vite exited ' + code))); vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); });
-const browser = await chromium.launch();
+let vite;
+if (!built) {
+  writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
+  vite = spawn(process.execPath, [out('draw-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
+  vite.stderr.on('data', d => process.stderr.write('[vite] ' + d));
+  await new Promise((resolve, reject) => { vite.on('exit', code => reject(new Error('Vite exited ' + code))); vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); });
+}
+const browser = await ({ chromium, webkit })[engineName].launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1100 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
 const controls = page.locator('.draw-inspector');
 const errors = []; page.on('pageerror', e => errors.push(e.message));
@@ -31,7 +35,7 @@ const persist = async check => {
 async function drag(from, to, steps = 20) { await page.mouse.move(...from); await page.mouse.down(); await page.mouse.move(...to, { steps }); await page.mouse.up(); await pause(); }
 async function pathPoint(selector, fraction) { return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
 try {
-  await page.goto(`http://127.0.0.1:${5182 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
+  await page.goto(built ? `http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${TOKEN}` : `http://127.0.0.1:${5182 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   await page.evaluate(() => { if (aegis.canvas.board.cards.length) aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
   await clickTool('draw-ink');
@@ -244,4 +248,4 @@ try {
 } catch (error) {
   await page.screenshot({ path: out('draw-fail.png') });
   console.error('FAIL', error, errors); process.exitCode = 1;
-} finally { await browser.close(); host.kill(); vite.kill(); }
+} finally { await browser.close(); host.kill(); vite?.kill(); }

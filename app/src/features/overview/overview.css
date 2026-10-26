@@ -3,6 +3,10 @@
 #stage[data-zoom-tier="cluster"] .board-overview, #stage[data-has-summaries]:not([data-zoom-tier="cluster"]) .semantic-summaries { opacity: 1; }
 .card.semantic-detail { transition: opacity 180ms var(--ease-out); }
 .card.semantic-hidden { opacity: 0; pointer-events: none; }
+#stage[data-has-summaries]:not([data-zoom-tier="cluster"]) #links { z-index: 100005; }
+#stage[data-has-summaries] .window-actions, .editing-outline.summary { z-index: 100006; }
+#stage[data-zoom-tier="cluster"] :is(.window-actions, .canvas-orientation, .editing-outline), body:has(#stage[data-zoom-tier="cluster"]) #selectionBar { display: none !important; }
+.semantic-window[aria-pressed="true"] { border-color: var(--focus); }
 .semantic-window { position: absolute; left: 0; top: 0; height: 128px; overflow: hidden; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: none; }
 #stage[data-has-summaries]:not([data-zoom-tier="cluster"]) .semantic-window, #stage[data-zoom-tier="cluster"] .overview-cluster { pointer-events: auto; }
 .semantic-content { display: flex; gap: 10px; padding: 12px; text-align: left; color: var(--text); transform: translateY(4px); transition: transform 180ms var(--ease-out); }

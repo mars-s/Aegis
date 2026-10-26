@@ -71,6 +71,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: def
 .seg button { padding: 4px 12px; border-radius: 7px; color: var(--muted); }
 .seg button[aria-checked="true"] { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
 
-.toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: var(--accent); color: var(--on-accent); padding: 8px 14px; border-radius: 999px; font-size: 12px; z-index: 30; box-shadow: var(--shadow-lift); }
+.toast { position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); box-sizing: border-box; width: max-content; max-width: min(480px, calc(100vw - 48px)); overflow-wrap: anywhere; background: var(--accent); color: var(--on-accent); padding: 8px 14px; border-radius: 999px; font-size: 12px; z-index: 120; box-shadow: var(--shadow-lift); }
 @media (prefers-reduced-motion: reduce) { .card, .card.glow, .agent-row.running .dot { animation: none; transition: none; } }
 

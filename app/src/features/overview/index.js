@@ -54,7 +54,7 @@ export function mountOverview(canvas) {
         let button = windows.get(card.id);
         if (!button) {
           button = document.createElement('button'); button.type = 'button'; button.className = 'semantic-window'; button.dataset.cardId = card.id;
-          button.onclick = event => canvas.activateSummary(card.id, event.detail === 0);
+          button.onclick = event => canvas.activateSummary(card.id, event.detail === 0, event);
           summaries.append(button); windows.set(card.id, button);
         }
         if (button.revision !== revision) {
@@ -64,6 +64,7 @@ export function mountOverview(canvas) {
         }
         button.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0)`;
         button.style.width = `${rect.w}px`; button.style.height = `${rect.h}px`;
+        button.setAttribute('aria-pressed', String(canvas.selection().includes(card.id)));
       }
       for (const [id, button] of windows) if (!keep.has(id)) { button.remove(); windows.delete(id); }
     }

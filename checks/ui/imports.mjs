@@ -1,4 +1,4 @@
-import { chromium } from './playwright.mjs';
+import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { assertSlideFits } from './deck-fit.mjs';
 import assert from 'node:assert/strict';
@@ -62,7 +62,7 @@ try {
     vite.stderr.on('data', d => appendFileSync(out(`imports-vite-${stamp}.txt`), d));
     await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error(`Vite exited ${code}`))); });
   }
-  browser = await chromium.launch();
+  browser = await ({ chromium, webkit })[process.env.AEGIS_BROWSER || 'chromium'].launch();
   page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   // Keep interception enabled before any input. Enabling it per wait can race keyboard.press.
   page.on('filechooser', () => {});
