@@ -17,7 +17,7 @@ export async function importDataset(ctx, file, at) {
     const preview = parsed.rows.slice(0, 40).map(r => r.map(v => v.slice(0, 60)));
     ctx.apply([{ op: 'create', type: 'dataset', text: file.name.replace(/\.(csv|tsv)$/i, ''), x: Math.round(at.x), y: Math.round(at.y), w: 640, h: 420, ref: 'd',
       props: { src: saved.url, name: file.name, rows: parsed.rows.length, columns: parsed.columns, preview, profile } }], created => ctx.canvas.select([created.d]));
-    ctx.toast(`Imported ${parsed.rows.length.toLocaleString()} rows from ${file.name}. Select it and press the star to analyse.`);
+    ctx.toast(`Imported ${parsed.rows.length.toLocaleString()} rows from ${file.name}. Ask the agent to analyse it.`);
   } catch (error) { ctx.toast(`Could not read ${file.name}: ${error.message}`); }
 }
 
