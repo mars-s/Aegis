@@ -1,0 +1,7 @@
+{
+  "name": "@aegis/scene",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@aegis/domain": "*", "rbush": "4.0.1" }
+}

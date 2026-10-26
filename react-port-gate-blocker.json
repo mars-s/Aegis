@@ -1,0 +1,404 @@
+{
+  "count": 54,
+  "byFile": {
+    "app/src/controller.ts": 1,
+    "app/src/features/docs/index.ts": 2,
+    "app/src/features/imports/pdf-resources.ts": 4,
+    "app/src/features/registry.ts": 2,
+    "app/src/lib/host.ts": 6,
+    "app/src/lib/native-files.ts": 4,
+    "app/src/main.ts": 1,
+    "app/src/objects/chart/chart.ts": 3,
+    "app/src/objects/chart/geometry.ts": 19,
+    "app/src/objects/chart/plan.ts": 6,
+    "app/src/objects/kinds/diagram.ts": 5,
+    "app/src/objects/kinds/inline.ts": 1
+  },
+  "byRule": {
+    "suppression": 1,
+    "explicit-any": 5,
+    "type-assertion": 11,
+    "node-import": 4,
+    "non-null": 33
+  },
+  "findings": [
+    {
+      "file": "app/src/controller.ts",
+      "line": 1,
+      "column": 4,
+      "rule": "suppression",
+      "message": "TypeScript suppression directives are forbidden."
+    },
+    {
+      "file": "app/src/features/docs/index.ts",
+      "line": 7,
+      "column": 126,
+      "rule": "explicit-any",
+      "message": "Parse unknown boundary data into a schema-derived type."
+    },
+    {
+      "file": "app/src/features/docs/index.ts",
+      "line": 8,
+      "column": 39,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/features/imports/pdf-resources.ts",
+      "line": 1,
+      "column": 1,
+      "rule": "node-import",
+      "message": "Node imports cannot enter browser or pure packages."
+    },
+    {
+      "file": "app/src/features/imports/pdf-resources.ts",
+      "line": 2,
+      "column": 1,
+      "rule": "node-import",
+      "message": "Node imports cannot enter browser or pure packages."
+    },
+    {
+      "file": "app/src/features/imports/pdf-resources.ts",
+      "line": 3,
+      "column": 1,
+      "rule": "node-import",
+      "message": "Node imports cannot enter browser or pure packages."
+    },
+    {
+      "file": "app/src/features/imports/pdf-resources.ts",
+      "line": 4,
+      "column": 1,
+      "rule": "node-import",
+      "message": "Node imports cannot enter browser or pure packages."
+    },
+    {
+      "file": "app/src/features/registry.ts",
+      "line": 7,
+      "column": 11,
+      "rule": "explicit-any",
+      "message": "Parse unknown boundary data into a schema-derived type."
+    },
+    {
+      "file": "app/src/features/registry.ts",
+      "line": 8,
+      "column": 9,
+      "rule": "explicit-any",
+      "message": "Parse unknown boundary data into a schema-derived type."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 3,
+      "column": 16,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 3,
+      "column": 16,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 8,
+      "column": 11,
+      "rule": "explicit-any",
+      "message": "Parse unknown boundary data into a schema-derived type."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 9,
+      "column": 12,
+      "rule": "explicit-any",
+      "message": "Parse unknown boundary data into a schema-derived type."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 27,
+      "column": 20,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/host.ts",
+      "line": 68,
+      "column": 89,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/native-files.ts",
+      "line": 4,
+      "column": 16,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/native-files.ts",
+      "line": 4,
+      "column": 16,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/native-files.ts",
+      "line": 36,
+      "column": 47,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/lib/native-files.ts",
+      "line": 42,
+      "column": 19,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/main.ts",
+      "line": 18,
+      "column": 22,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/chart.ts",
+      "line": 114,
+      "column": 21,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/chart.ts",
+      "line": 119,
+      "column": 21,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/chart.ts",
+      "line": 120,
+      "column": 22,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 15,
+      "column": 17,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 67,
+      "column": 27,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 67,
+      "column": 50,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 69,
+      "column": 41,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 69,
+      "column": 64,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 72,
+      "column": 34,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 72,
+      "column": 54,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 72,
+      "column": 70,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 73,
+      "column": 26,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 73,
+      "column": 38,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 73,
+      "column": 50,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 74,
+      "column": 30,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 74,
+      "column": 46,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 74,
+      "column": 62,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 77,
+      "column": 15,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 78,
+      "column": 15,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 80,
+      "column": 59,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 80,
+      "column": 126,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/geometry.ts",
+      "line": 145,
+      "column": 28,
+      "rule": "type-assertion",
+      "message": "Only as const is allowed. Validate and narrow instead."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 117,
+      "column": 68,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 180,
+      "column": 9,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 183,
+      "column": 9,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 281,
+      "column": 14,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 372,
+      "column": 14,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/chart/plan.ts",
+      "line": 373,
+      "column": 13,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/diagram.ts",
+      "line": 35,
+      "column": 57,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/diagram.ts",
+      "line": 39,
+      "column": 53,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/diagram.ts",
+      "line": 39,
+      "column": 70,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/diagram.ts",
+      "line": 52,
+      "column": 59,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/diagram.ts",
+      "line": 52,
+      "column": 81,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    },
+    {
+      "file": "app/src/objects/kinds/inline.ts",
+      "line": 12,
+      "column": 75,
+      "rule": "non-null",
+      "message": "Handle the missing case instead of asserting it away."
+    }
+  ]
+}
