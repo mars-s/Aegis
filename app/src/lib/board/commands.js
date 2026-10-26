@@ -176,6 +176,21 @@ export function applyBatch(input, batch) {
           const c = byId(cmd.id); if (!c) throw new Error(`no card ${cmd.id}`);
           c.x = num(cmd.x, c.x); c.y = num(cmd.y, c.y); touched.add(c.id); break;
         }
+        case 'measure': {
+          // Rendered height is derived content geometry, not a person's resize.
+          if (!Number.isFinite(cmd.h) || cmd.h < 24 || cmd.h > 4000) throw new Error('measure needs a height between 24 and 4000');
+          const c = byId(cmd.id);
+          if (!c || c.props?.fixedHeight || (c.type !== 'object' && !c.props?.contentFit)) break;
+          if (cmd.baseHeight !== undefined && c.h !== cmd.baseHeight) break;
+          c.h = cmd.h; touched.add(c.id); break;
+        }
+        case 'initialise_html': {
+          // The first sandbox snapshot saves defaults before any interaction.
+          const c = byId(cmd.id);
+          if (c?.kind !== 'html' || c.data.state !== undefined) break;
+          if (!['html', 'css', 'js'].every(key => c.data[key] === cmd.source?.[key])) break;
+          c.data = checkObject('html', { ...c.data, state: cmd.state }); touched.add(c.id); break;
+        }
         case 'delete': {
           const ids = new Set((Array.isArray(cmd.ids) ? cmd.ids : [cmd.id]).map(ref));
           const missing = [...ids].filter(id => !board.cards.some(c => c.id === id));

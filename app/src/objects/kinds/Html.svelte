@@ -3,7 +3,7 @@
   import font from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?inline';
   import type { Host } from '../../lib/host';
   import { reportedHeight, reportedEscape, reportedState, THEME_KEYS } from './html-sandbox.js';
-  let { data, title, post, onset, onheight, onescape = () => {} }: { data: { html: string; css: string; js: string; height?: number; state?: string }; title: string; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onheight: (height: number) => void; onescape?: () => void } = $props();
+  let { cardId, data, title, post, onset, onheight, onescape = () => {} }: { cardId: string; data: { html: string; css: string; js: string; height?: number; state?: string }; title: string; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onheight: (height: number) => void; onescape?: () => void } = $props();
   let frame = $state<HTMLIFrameElement>();
   let ready = $state(false);
   let height = $state(240);
@@ -42,6 +42,8 @@
   });
   onMount(() => {
     const receive = (event: MessageEvent) => {
+      const initial = reportedState(event, frame?.contentWindow, channel, 'aegis:html-initial-state');
+      if (initial !== null && data.state === undefined) frame?.dispatchEvent(new CustomEvent('aegis:html-initialise', { bubbles: true, detail: { id: cardId, source: JSON.parse(source), state: initial } }));
       const state = reportedState(event, frame?.contentWindow, channel);
       if (state !== null && state !== data.state) onset(['state'], state);
       if (reportedEscape(event, frame?.contentWindow, channel)) onescape();

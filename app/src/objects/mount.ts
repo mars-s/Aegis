@@ -6,13 +6,15 @@ import ObjectCard from './ObjectCard.svelte';
 import './editor.js';
 import type { Host } from '../lib/host';
 import { mountIntrinsicSizing } from './intrinsic-sizing.js';
-import { emptyBoard } from '../lib/board/commands.js';
 
 type Card = { id: string; kind: string; data: unknown; text: string; ver?: number; updated?: number; h?: number };
 type Apply = (commands: unknown[]) => void;
 
-export function mountObjects({ host, apply, getBoard }: { host: Host; apply: Apply; getBoard: () => ReturnType<typeof emptyBoard> }) {
+export function mountObjects({ host, apply, getBoard }: { host: Host; apply: Apply; getBoard: () => { cards: Card[] } }) {
   mountIntrinsicSizing({ getBoard, apply });
+  document.addEventListener('aegis:html-initialise', event => {
+    if (event instanceof CustomEvent && event.target instanceof HTMLIFrameElement && event.target.isConnected) apply([{ ...event.detail, op: 'initialise_html' }]);
+  });
   const live = new Map<Element, { instance: ReturnType<typeof mount>; update: (card: Card) => void }>();
   return {
     render(el: HTMLElement, card: Card) {
@@ -38,7 +40,8 @@ export function mountObjects({ host, apply, getBoard }: { host: Host; apply: App
             const h = height + strip.offsetHeight + parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom) + border;
             if (h === lastHeight) return;
             lastHeight = h;
-            apply([{ op: 'update', id: card.id, set: { h } }]);
+            const currentCard = getBoard().cards.find(c => c.id === card.id);
+            if (currentCard) apply([{ op: 'measure', id: card.id, h, baseHeight: currentCard.h }]);
           },
         },
       });

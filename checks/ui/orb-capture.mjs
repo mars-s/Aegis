@@ -111,14 +111,14 @@ for (const name of ['chromium', 'webkit']) {
       const el = document.querySelector('.agent-window'), p = JSON.parse(localStorage.getItem(`aegis:agent-window:${el.dataset.agentId}`));
       aegis.canvas.setView({ x: 500 - p.x * .5, y: 180 - p.y * .5, z: .5 });
     });
-    // Below the detail tier an agent becomes a readable semantic summary (semantic zoom); activating it returns to 100%.
-    const summary = page.locator('.agent-window.agent-semantic .agent-zoom-summary'); await summary.waitFor();
-    check(Math.round((await summary.boundingBox()).width) >= 300, `${name}: below the detail tier an agent is a readable summary`);
-    await summary.click();
-    await page.waitForFunction(() => Math.abs(aegis.canvas.view.z - 1) < .01 && !document.querySelector('.agent-window.agent-semantic'));
-    if (await page.locator('.agent-window.collapsed .agent-window-toggle').count()) await page.locator('.agent-window.collapsed .agent-window-toggle').first().click();
+    const summary = page.locator('.agent-window.agent-semantic'); await summary.waitFor();
+    check(Math.round((await summary.boundingBox()).width) === 340, `${name}: at 50% an agent has a readable summary`);
+    check((await summary.locator('.agent-zoom-turns').textContent()).includes('messages'), `${name}: summary retains the conversation count`);
+    await summary.locator('.agent-zoom-summary').click();
+    await page.waitForFunction(() => aegis.canvas.view.z === 1 && !document.querySelector('.agent-window.agent-semantic'));
+    await page.locator('.agent-window .agent-window-toggle').click();
     const window = page.locator('.agent-window:not(.collapsed)');
-    check(Math.round((await window.boundingBox()).width) === 340, `${name}: conversation opens at 340 screen pixels`);
+    check(Math.round((await window.boundingBox()).width) === 340, `${name}: summary frames a 340px conversation at reading zoom`);
     check(await window.locator('.agent-follow input').evaluate(el => getComputedStyle(el).fontSize === '14px'), `${name}: follow-up text stays 14px`);
     await page.screenshot({ path: out(`agent-unscaled-${name}.png`), animations: 'allow' });
     await window.locator('.agent-follow input').press('Escape');

@@ -51,7 +51,7 @@ export function mountIntrinsicSizing({ getBoard, apply }) {
       const chrome = (strip?.offsetHeight ?? 0) + el.offsetHeight - el.clientHeight;
       const h = Math.max(card.type === 'object' ? 80 : 96, Math.min(1600, Math.ceil(chrome + bottom + px('paddingBottom'))));
       el.dataset.intrinsicHeight = String(h);
-      if (Math.abs(h - card.h) > 1) commands.push({ op: 'update', id: card.id, set: { h } });
+      if (Math.abs(h - card.h) > 1) commands.push({ op: 'measure', id: card.id, h, baseHeight: card.h });
     }
     pending.clear();
     if (commands.length) apply(commands);
