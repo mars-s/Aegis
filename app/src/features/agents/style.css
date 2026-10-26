@@ -170,7 +170,7 @@ body.motion-off .agent-first-hint { transition: none; }
 .agent-badge .agent-window-toggle { flex: none; width: 44px; justify-content: center; cursor: pointer; }
 .agent-badge :is(.agent-window-title, .agent-window-status, .agent-close) { display: none; }
 .agent-badge .orb-mark { width: 22px; height: 22px; }
-.island-result-undo { position: absolute; right: 10px; bottom: 0; min-height: 44px; padding: 0 12px; color: var(--data); font-size: 12px; }
+.island-result-undo { position: absolute; right: 10px; bottom: 0; min-height: 44px; padding: 0 12px; color: var(--text); font-size: 12px; }
 .island-result-undo:focus-visible { outline: 1.5px solid var(--data); outline-offset: -3px; border-radius: 6px; }
 .island-result-undo:disabled { color: var(--muted); opacity: .6; }
 .agent-island.has-result #askPill { padding-right: 76px; }

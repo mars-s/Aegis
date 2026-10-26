@@ -24,7 +24,7 @@
 .side-editor-tools button:hover, .side-editor-tools button:focus-visible, .side-editor-tools button[aria-pressed=true] { background: var(--hover); color: var(--text); }
 .side-editor-tools svg { display: block; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .side-editor-tools [data-expand] { display: inline-flex; align-items: center; gap: 6px; }
-.side-editor-tools kbd { font: 11px var(--font); color: var(--faint); }
+.side-editor-tools kbd { font: 12px var(--font); color: var(--faint); }
 .side-editor-tools [data-close] { display: grid; place-items: center; padding: 0; }
 .side-editor-body { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; border-radius: 0 0 9px 9px; }
 .side-editor :is(input, textarea, [contenteditable]) { caret-color: var(--data); }
@@ -33,7 +33,7 @@
 .editor-context { position: absolute; z-index: 100005; overflow: hidden; pointer-events: none; }
 .editor-context-window { position: absolute; left: 0; top: 0; height: 112px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: auto; }
 .editor-context-window .semantic-content { transform: none; transition: none; }
-.editor-context-source { border-color: var(--data); }
+.editor-context-source { border-color: var(--line-strong); }
 .editor-context-source .semantic-kind { color: var(--ink-2); }
 .editor-context-window:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
 #stage:has(.editor-context:not([hidden])) :is(#world > .card, #links, .semantic-summaries, .board-overview, .overview-back) { visibility: hidden; }

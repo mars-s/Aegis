@@ -11,7 +11,7 @@
 .deck-thumbs { min-height: 0; display: grid; grid-template-rows: repeat(3, minmax(0, 58.5px)); row-gap: 20px; align-content: start; }
 .deck-thumb { padding: 0; border: 0; border-radius: 4px; background: transparent; text-align: left; }
 .deck-thumb .deck-fit { height: 100%; border-radius: 4px; }
-.deck-thumb.on .deck-fit { box-shadow: 0 0 0 1.5px var(--data); }
+.deck-thumb.on .deck-fit { box-shadow: 0 0 0 1.5px var(--text); }
 .deck-main { min-width: 0; overflow: hidden; }
 .deck-main > .deck-fit { height: 100%; aspect-ratio: auto; box-shadow: none; }
 /* Every slide keeps its native 960 by 540 layout. Only the containing frame resizes. */
@@ -62,7 +62,7 @@
 .deck-panel button { cursor: pointer; }
 /* The panel itself is the shared .side-editor (features/docs/side.js and styles/editor.css). */
 .deck-ed { flex: 1; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) 104px; }
-.deck-stage { container-type: size; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .16) transparent; }
+.deck-stage { container-type: size; min-height: 0; display: grid; place-items: center; overflow: hidden; padding: 24px; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .side-editor .deck-stage:focus { outline: none; }
 .side-editor .deck-stage:focus-visible { outline: none; box-shadow: inset 2px 0 0 var(--line-strong); }
 .deck-stage .deck-slide-wrap { position: relative; width: min(100%, calc(100cqh * 16 / 9)); aspect-ratio: 16 / 9; min-width: 0; }
@@ -75,10 +75,10 @@
 .deck-slide-meta { display: flex; justify-content: space-between; align-items: center; height: 32px; margin-bottom: 6px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-slide-actions { display: flex; align-items: center; opacity: 0; transition: opacity 150ms var(--ease-out); }
 .deck-slide-wrap:hover .deck-slide-actions, .deck-slide-wrap:focus-within .deck-slide-actions { opacity: 1; }
-.deck-film { min-width: 0; height: 104px; display: flex; gap: 12px; align-items: start; padding: 6px 16px; overflow-x: auto; overflow-y: hidden; background: var(--strip); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; scrollbar-width: thin; scrollbar-color: rgb(255 255 255 / .16) transparent; }
+.deck-film { min-width: 0; height: 104px; display: flex; gap: 12px; align-items: start; padding: 6px 16px; overflow-x: auto; overflow-y: hidden; background: var(--strip); border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
 .deck-panel .deck-film-item { flex: none; display: grid; grid-template-rows: 63px 18px; gap: 4px; width: 112px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; text-align: left; }
 .deck-film-item .deck-fit { width: 112px; height: 63px; border-radius: 3px; }
-.deck-film-item.on .deck-fit { box-shadow: 0 0 0 1.5px var(--data); }
+.deck-film-item.on .deck-fit { box-shadow: 0 0 0 1.5px var(--text); }
 .deck-panel .deck-film-item.on { color: var(--text); }
 .deck-film-caption { display: flex; gap: 6px; min-width: 0; line-height: 18px; }
 .deck-film-number { flex: none; font-variant-numeric: tabular-nums; }
@@ -125,8 +125,8 @@ body.motion-off .deck-panel button:active, body.motion-off .deck-open:active { t
 .deck-ribbon [data-overview] { gap: 6px; padding: 0 8px; }
 .deck-ribbon .ribbon-group:has(> [hidden]:only-child) { display: none; }
 .deck-ribbon .ribbon-end { margin-left: auto; border-right: 0; }
-.office-ribbon .ribbon-present { min-width: 0; gap: 6px; padding: 0 12px; background: var(--data); color: #fff; box-shadow: none; }
-.office-ribbon .ribbon-present:hover:not(:disabled) { background: color-mix(in srgb, var(--data) 88%, #fff); color: #fff; }
+.office-ribbon .ribbon-present { min-width: 0; gap: 6px; padding: 0 12px; background: var(--accent); color: var(--on-accent); box-shadow: none; }
+.office-ribbon .ribbon-present:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--card)); color: var(--on-accent); }
 .office-ribbon .ribbon-present svg { fill: currentColor; stroke: none; width: 12px; height: 12px; }
 .deck-present { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; background: #000; outline: none; cursor: none; }
 .deck-present .deck-fit { width: min(100vw, calc(100vh * 16 / 9)); border-radius: 0; box-shadow: none; }

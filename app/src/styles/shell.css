@@ -16,7 +16,7 @@
 .icon-btn:hover, .text-btn:hover { color: var(--text); background: var(--hover); }
 .icon-btn[aria-pressed=true] { color: var(--text); background: var(--press); }
 button:active { scale: .97; }
-.count { position: absolute; top: 0; right: 0; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--data); color: #fff; font-size: 9px; font-weight: 600; display: grid; place-items: center; }
+.count { position: absolute; top: 0; right: 0; min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 600; display: grid; place-items: center; }
 .status { color: var(--faint); font-size: 12px; margin-right: 6px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .follow { display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px 0 6px; border-radius: 999px; color: var(--muted); font-size: 12px; }
 .follow:hover { background: var(--hover); }
@@ -113,7 +113,7 @@ body.left-open .tools.compact { transform: translate(calc(var(--side-w) + 8px), 
 /* Each tool sits on a small tile, so the grid reads as a palette rather than a list of text. */
 .tools.compact .tools-grid button svg { box-sizing: content-box; width: 14px; height: 14px; padding: 6px; border-radius: 7px; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-2); transition: color 120ms var(--ease-out), box-shadow 120ms var(--ease-out); }
 .tools.compact .tools-grid button:hover svg, .tools.compact .tools-grid button:focus-visible svg { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.tools.compact .tools-grid button[aria-pressed=true] svg { color: var(--data); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--data) 45%, transparent); }
+.tools.compact .tools-grid button[aria-pressed=true] svg { color: var(--text); box-shadow: inset 0 0 0 1px var(--line-strong); }
 .tools.compact .tools-grid button:active { transform: scale(.98); }
 .tools-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 1.3; }
 /* Keys show on hover or focus only: the resting menu is names and icons. */

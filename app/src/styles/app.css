@@ -20,7 +20,7 @@
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --ui-surface: var(--raised); --ui-edge: var(--line-strong); --ui-highlight: var(--edge-top);
   --ui-shadow: inset 0 1px 0 var(--ui-highlight);
-  --ui-scrim: rgb(0 0 0 / .36); --ui-selected: var(--data-soft);
+  --ui-scrim: rgb(0 0 0 / .36); --ui-selected: var(--press);
   --ui-danger: #b91c26;
   --dim: 0.62;
   --side-w: 300px;

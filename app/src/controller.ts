@@ -591,6 +591,6 @@ const onboarding = createOnboarding({ ctx, ask: firstMinute.ask });
 const settings = mountSettings({ canvas, host, toast, replayTour: () => onboarding.welcome(), showShortcuts: () => onboarding.shortcuts() });
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();
-// Loaded from the host (an installed UI), say plainly if the native bridge is missing.
-if (location.protocol === 'http:' && location.pathname.startsWith('/ui/')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; if (r !== 'ok') toast(`Native bridge: ${r}`); });
+// Keep environment checks in developer diagnostics. Capability errors belong to the requested action.
+if (location.protocol === 'http:' && location.pathname.startsWith('/ui/')) host.bridge().then(r => { document.documentElement.dataset.bridge = r; console.debug('Aegis bridge', { status: r }); });
 }
