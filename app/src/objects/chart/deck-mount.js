@@ -17,6 +17,7 @@ export function mountDeckCharts(root, { deckId, onChartSource } = {}) {
         top: `${(fit.clientHeight - slide.clientHeight * scale) / 2 + art.offsetTop * scale}px`,
         width: `${art.clientWidth * scale}px`, height: `${art.clientHeight * scale}px`,
       });
+      target.style.setProperty('--deck-chart-scale', String(miniature ? 1 : Math.max(12, Math.min(22, fit.clientHeight / 40)) / 12));
     };
     fit.append(target);
     const observer = new ResizeObserver(place);

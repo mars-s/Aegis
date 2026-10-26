@@ -29,7 +29,7 @@ function listen() {
   window.addEventListener('resize', queue);
 }
 
-export function chartScreen(svg) {
+export function chartScreen(svg, { labelPixels } = {}) {
   // Fit scale: rendered size over viewBox size, excluding the canvas zoom (inside the world) once measured.
   let fit = 1, inWorld = false, last = ''; // last applied label and point size
   function measure() {
@@ -47,7 +47,7 @@ export function chartScreen(svg) {
       if (inWorld && svg.closest('.card.semantic-hidden')) { last = ''; return; }
       const scale = inWorld ? fit * z : fit;
       // Quantise to whole label pixels so continuous zoom does not relayout chart text on every frame.
-      const label = Math.round(Math.max(CHART_LABEL, CHART_LABEL / scale) * 2) / 2;
+      const label = Math.round((labelPixels ? labelPixels() / scale : Math.max(CHART_LABEL, CHART_LABEL / scale)) * 2) / 2;
       const r = Math.round(CHART_POINT / scale * 100) / 100;
       const key = `${label}:${r}`;
       if (!force && key === last) return;
