@@ -6,6 +6,16 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+
+// The app answers its own confirmations: WKWebView returns false from window.confirm() without showing it.
+const nativeDialogs = [];
+const answer = async yes => {
+  const dialog = page.getByRole('dialog').filter({ has: page.locator('.aegis-confirm-actions') });
+  await dialog.waitFor();
+  assert.ok(!nativeDialogs.length, 'a native dialog was opened');
+  await dialog.locator(yes ? '.aegis-confirm-actions button:last-child' : '.aegis-confirm-actions button:first-child').click();
+  await dialog.waitFor({ state: 'detached' });
+};
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'library-smoke-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-library-'));
@@ -22,6 +32,7 @@ try {
   const port = await ready(host);
   vite = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', String(5185 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' }); await ready(vite);
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  page.on('dialog', d => { nativeDialogs.push(d.message()); d.dismiss(); });
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
   const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
@@ -425,16 +436,14 @@ try {
   check('Brain dump opens with five Unsorted ideas, files an idea onto the board and preserves the tray after reload');
   await row(starter).click(); await waitBoard(starter);
   // Delete a non-empty project and verify all copied boards are gone.
-  page.once('dialog', dialog => dialog.dismiss());
-  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click();
+  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(false);
   assert.ok((await read()).nodes.some(n => n.id === copyProject)); check('cancelling deletion leaves the project intact');
-  page.on('dialog', dialog => dialog.accept());
-  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click();
+  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(true);
   await waitForAsync(page, async id => !(await aegis.host.get('/library')).nodes.some(n => n.id === id), copyProject);
   await waitForAsync(page, async ids => !(await aegis.host.get('/library')).boards.some(b => ids.includes(b.id)), [copyParent, copyChild]);
   assert.equal((await read()).boards.some(b => b.id === copyParent || b.id === copyChild), false); check('confirmed non-empty project deletion removes its nested boards');
   // Delete the open board, then all remaining boards through their HTTP action.
-  await row(starter).click({ button: 'right' }); await uiMenu('Delete').click(); await page.waitForFunction(id => aegis.canvas.board.id !== id, starter);
+  await row(starter).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(true); await page.waitForFunction(id => aegis.canvas.board.id !== id, starter);
   for (const b of (await read()).boards) await api(`/boards/${b.id}/delete`, {});
   lib = await read(); assert.equal(lib.boards.length, 1);
   await waitBoard(lib.boards[0].id);

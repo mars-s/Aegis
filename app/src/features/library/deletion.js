@@ -1,6 +1,10 @@
+import { confirmAction } from '../../lib/ui/confirm.js';
+
 // Keep a confirmed deletion recoverable until its short Undo period has elapsed.
 export function libraryDeletion({ host, current, refresh, open, toast }) {
-  const key = `aegis:library-deletion:${host.base}`;
+  // The host's port changes every launch, so the key must not include it or a restart forgets the deletion.
+  const key = 'aegis:library-deletion';
+  localStorage.removeItem(`aegis:library-deletion:${host.base}`);
   const notice = document.createElement('div'); notice.className = 'library-undo'; notice.setAttribute('role', 'status'); notice.hidden = true;
   notice.innerHTML = '<span></span><button type="button" data-library-undo>Undo</button>'; document.body.append(notice);
   let pending, timer, committing = false;
@@ -33,12 +37,15 @@ export function libraryDeletion({ host, current, refresh, open, toast }) {
     filter(data) { if (!pending) return data; const gone = new Set(pending.ids); return { ...data, nodes: data.nodes.filter(n => !gone.has(n.id)), boards: data.boards.filter(b => !gone.has(b.id)) }; },
     async remove(item, data) {
       if (committing) return;
-      if (!confirm(`Delete "${item.name}" and everything inside it? You can Undo for 8 seconds.`)) return;
+      const board = data.boards.some(b => b.id === item.id);
+      const inside = [...data.nodes, ...data.boards].some(n => (n.boardParent ?? n.parent) === item.id);
+      if (!await confirmAction({ title: `Delete "${item.name}"?`, body: `${inside ? 'Everything inside it goes too. ' : ''}You can Undo for 8 seconds.`, confirm: board ? 'Delete board' : 'Delete' })) return;
+      if (committing) return;
       if (pending) { clearTimeout(timer); await commit(); }
       const ids = new Set([item.id]); let previous;
       do { previous = ids.size; for (const node of [...data.nodes, ...data.boards]) if (ids.has(node.boardParent ?? node.parent)) ids.add(node.id); } while (ids.size !== previous);
       if (!data.boards.some(b => !ids.has(b.id))) await host.post('/boards', { name: 'First board' });
-      pending = { id: item.id, name: item.name, board: data.boards.some(b => b.id === item.id), ids: [...ids], current: current(), until: Date.now() + 8000 };
+      pending = { id: item.id, name: item.name, board, ids: [...ids], current: current(), until: Date.now() + 8000 };
       save(); show(); await refresh();
     },
     resume: show,

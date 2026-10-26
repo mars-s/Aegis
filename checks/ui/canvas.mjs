@@ -6,6 +6,16 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
+
+// The app answers its own confirmations: WKWebView returns false from window.confirm() without showing it.
+const nativeDialogs = [];
+const answer = async yes => {
+  const dialog = page.getByRole('dialog').filter({ has: page.locator('.aegis-confirm-actions') });
+  await dialog.waitFor();
+  assert.ok(!nativeDialogs.length, 'a native dialog was opened');
+  await dialog.locator(yes ? '.aegis-confirm-actions button:last-child' : '.aegis-confirm-actions button:first-child').click();
+  await dialog.waitFor({ state: 'detached' });
+};
 const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), repo = new URL('../..', import.meta.url).pathname;
 const token = `canvas-${process.pid}`, reproduce = process.argv.includes('--reproduce');
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-canvas-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
@@ -17,6 +27,7 @@ try {
   const port = await ready(host, /"port":(\d+)/);
   web = spawn('npx', ['vite', '--port', String(5190 + offset), '--strictPort'], { cwd: repo + '/app' }); await ready(web, /Local:.*:(\d+)/);
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+  page.on('dialog', d => { nativeDialogs.push(d.message()); d.dismiss(); });
   page.on('pageerror', e => errors.push(e.message)); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
   await page.goto(`http://127.0.0.1:${5190 + offset}/?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
   const api = (path, body) => page.evaluate(([path, body]) => body === undefined ? aegis.host.get(path) : aegis.host.post(path, body), [path, body]);
@@ -121,8 +132,8 @@ try {
     await action('Rename'); const name = layer.getByRole('textbox', { name: 'Window name', exact: true }); await name.fill('Renamed research note'); await name.press('Enter'); await settle();
     verify('row menu Rename saves its name', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.layerName === 'Renamed research note'));
     await page.screenshot({ path: out(`r2-layer-menu-rows-${Date.now()}.png`) });
-    page.once('dialog', d => d.dismiss()); await action('Delete'); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
-    page.once('dialog', d => d.accept()); await action('Delete'); verify('confirmed layer deletion removes the card', await page.evaluate(() => !aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
+    await action('Delete'); await answer(false); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
+    await action('Delete'); await answer(true); verify('confirmed layer deletion removes the card', await page.evaluate(() => !aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
     await apply([{ op: 'create', type: 'note', newId: 'lateredit', text: 'Keep this later edit', x: -500, y: 0 }]);
     await page.locator('.layer-undo button').click(); await settle(); verify('layer Undo restores the card and preserves later edits', await page.evaluate(() => ['canvasnote', 'lateredit'].every(id => aegis.canvas.board.cards.some(c => c.id === id)) && aegis.canvas.board.links.some(l => l.id === 'canvaslink' && l.a === 'canvasnote' && l.b === 'canvastodo')));
   }
@@ -140,7 +151,7 @@ try {
   const project = await api('/library', { op: 'create', kind: 'project', name: 'Delete test project' }); await settle();
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('.library-home[open]').waitFor(); await page.keyboard.press('Escape');
   const row = page.locator(`.tree-row[data-node="${project.created}"]`); await row.click({ button: 'right' });
-  page.once('dialog', d => d.accept()); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await settle();
+  await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await answer(true); await settle();
   verify('side bar deletion offers Undo', await page.locator('[data-library-undo]').isVisible().catch(() => false));
   if (!reproduce) { await page.locator('[data-library-undo]').click(); await row.waitFor(); verify('Undo restores the deleted project', (await api('/library')).nodes.some(n => n.id === project.created)); }
   if (!reproduce) {
@@ -149,7 +160,7 @@ try {
       const created = kind === 'board' ? await api('/boards', { name }) : await api('/library', { op: 'create', kind, name });
       const id = created.id || created.created, row = page.locator(`.tree-row[data-${kind === 'board' ? 'board' : 'node'}="${id}"]`); await row.waitFor();
       if (kind === 'board') { await row.click(); await page.waitForFunction(id => aegis.canvas.board.id === id, id); }
-      page.once('dialog', d => d.accept()); await row.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await row.waitFor({ state: 'detached' });
+      await row.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await answer(true); await row.waitFor({ state: 'detached' });
       if (kind === 'board') { await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board); await page.locator('[data-library-undo]').waitFor(); }
       await page.locator('[data-library-undo]').click(); await row.waitFor();
       verify(`${kind} delete Undo restores it${kind === 'board' ? ' across reload' : ''}`, true);
@@ -157,7 +168,7 @@ try {
     const folder = await api('/library', { op: 'create', kind: 'folder', name: 'Nested delete', parent: project.created });
     const nested = await api('/boards', { name: 'Nested board', parent: folder.created }); await settle();
     const projectRow = page.locator(`.tree-row[data-node="${project.created}"]`);
-    page.once('dialog', d => d.accept()); await projectRow.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click();
+    await projectRow.locator('.row-more').click(); await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await answer(true);
     for (let attempt = 0; attempt < 150 && (await api('/library')).boards.some(b => b.id === nested.id); attempt++) await page.waitForTimeout(100);
     verify('confirmed project deletion removes its folder and boards after Undo expires', !(await api('/library')).nodes.some(n => [project.created, folder.created].includes(n.id)));
     await page.locator(`.tree-row[data-board="${parent}"]`).click(); await page.waitForFunction(id => aegis.canvas.board.id === id, parent);
