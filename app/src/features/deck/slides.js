@@ -11,7 +11,7 @@ export function observeSlideFits(root, options = {}) {
     if (!closed) dropCharts = mountDeckCharts(root, options);
   });
   const charts = [...root.querySelectorAll('.deck-chart')].filter(svg => !svg.closest('.deck-thumb, .deck-film-item')).map(svg => chartScreen(svg, {
-    labelPixels: () => Math.max(12, Math.min(22, svg.closest('.deck-fit').clientHeight / 40)),
+    labelPixels: () => Math.round(Math.max(12, Math.min(22, svg.closest('.deck-fit').clientHeight / 40))),
   }));
   let frame = 0;
   const observer = new ResizeObserver(entries => {

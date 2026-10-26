@@ -46,8 +46,8 @@ export function chartScreen(svg, { labelPixels } = {}) {
       // Behind a semantic summary the chart is not read, so it waits until detail returns.
       if (inWorld && svg.closest('.card.semantic-hidden')) { last = ''; return; }
       const scale = inWorld ? fit * z : fit;
-      // Quantise to whole label pixels so continuous zoom does not relayout chart text on every frame.
-      const label = Math.round((labelPixels ? labelPixels() / scale : Math.max(CHART_LABEL, CHART_LABEL / scale)) * 2) / 2;
+      // Decks supply a screen size. Canvas labels quantise to avoid relayout on every zoom frame.
+      const label = labelPixels ? labelPixels() / scale : Math.round(Math.max(CHART_LABEL, CHART_LABEL / scale) * 2) / 2;
       const r = Math.round(CHART_POINT / scale * 100) / 100;
       const key = `${label}:${r}`;
       if (!force && key === last) return;
