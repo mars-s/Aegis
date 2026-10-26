@@ -170,16 +170,17 @@ try {
       assert.equal(focusReturn.id, 'chromewidget', `Escape restores the unscaled widget action: ${JSON.stringify(focusReturn)}`);
       await page.evaluate(() => { document.activeElement?.blur(); aegis.apply([{ op: 'delete', ids: ['chromewidget'] }]); });
       console.log(`PASS ${engineName}: iframe hover reveals the window action, and Escape restores its focus`);
-      // Every registered card type uses the same selection and resize chrome.
+      // Every registered card type uses the same selection and resize chrome in detail.
       const types = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent', 'doc', 'swatch', 'audio', 'spotify', 'coll', 'frame', 'box', 'text', 'icon', 'font', 'section', 'ink', 'shape', 'path', 'stamp', 'dataset', 'canvas', 'template-group'];
       for (let start = 0; start < types.length; start += 6) {
         const group = types.slice(start, start + 6);
         await page.evaluate(group => {
           aegis.apply(group.map((type, i) => ({ op: 'create', type, newId: `atlas${type.replaceAll('-', '').slice(0, 11)}`, text: `${type} window`, x: 1800 + i % 3 * 440, y: 160 + Math.floor(i / 3) * 340, w: 360, h: 260, props: type === 'stamp' ? { emoji: '✦' } : type === 'shape' ? { shape: 'rect', fill: 'none', stroke: '#abb2bf' } : type === 'path' ? { points: [{ x: 20, y: 180 }, { x: 160, y: 40 }, { x: 320, y: 120 }], ow: 360, oh: 260 } : type === 'doc' ? { body: '## A quiet window\n\nIllustrative content.' } : type === 'swatch' ? { hex: '#3f8dfd' } : {} })));
-          aegis.canvas.select([]); aegis.canvas.setView({ x: -1720, y: 0, z: 1 }); document.getElementById('toast').hidden = true;
+          aegis.canvas.select([]); aegis.canvas.setView({ x: -1900, y: 0, z: 1.1 }); document.getElementById('toast').hidden = true;
         }, group);
         for (const type of group) {
           await card(`atlas${type.replaceAll('-', '').slice(0, 11)}`).waitFor(); await select(`atlas${type.replaceAll('-', '').slice(0, 11)}`);
+          assert.equal(await page.evaluate(id => aegis.canvas.representations.get(id)?.summary, `atlas${type.replaceAll('-', '').slice(0, 11)}`), false, `${type} is shown in detail`);
           assert.equal(await page.locator('.selection-resize:not([hidden])').count(), 1, `${type} has a selection resize target`);
           assert.ok(await card(`atlas${type.replaceAll('-', '').slice(0, 11)}`).locator('.resize').count() <= 1, `${type} has no duplicate card resize targets`);
           assert.equal(await page.locator('[data-connect-card]').count(), 0);

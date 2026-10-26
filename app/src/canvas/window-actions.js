@@ -1,15 +1,16 @@
 // Window actions live beside the canvas transform, so zoom never shrinks their targets.
-export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) {
+export function mountWindowActions({ stage, getSelection, mountedEl, getZoom, representationRect }) {
   const strip = document.createElement('div'); strip.className = 'window-actions'; strip.hidden = true; strip.setAttribute('role', 'toolbar'); stage.append(strip);
   let hovered = null, currentId = null, sources = [], leaveTimer = 0;
   function redraw(requestedId) {
-    if (stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
+    if (stage.dataset.zoomTier === 'cluster' || stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
     const focused = document.activeElement?.closest('#world > .card')?.dataset.id;
     const editorSource = stage.querySelector('#world > .card.editor-source')?.dataset.id;
     const id = editorSource || (strip.contains(document.activeElement) ? currentId : requestedId || (strip.matches(':hover') ? currentId : hovered || focused || getSelection().at(-1)));
     const card = id && mountedEl(id), actions = card ? [...card.querySelectorAll('.win-open, .deck-open, .canvas-open')] : [];
     if (!actions.length) { strip.hidden = true; return; }
-    const rect = card.getBoundingClientRect();
+    const rect = representationRect(id);
+    if (!rect) { strip.hidden = true; return; }
     if (rect.right < 0 || rect.left > innerWidth || rect.bottom < 44 || rect.top > innerHeight) { strip.hidden = true; return; }
     if (id !== currentId || actions.length !== sources.length) {
       strip.replaceChildren(); currentId = id;
@@ -28,12 +29,13 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) 
     [...strip.children].forEach((button, i) => { button.disabled = actions[i].disabled; button.setAttribute('aria-label', actions[i].getAttribute('aria-label') || button.textContent); });
     strip.hidden = false;
     const width = strip.offsetWidth, height = strip.offsetHeight, zoom = getZoom();
-    const left = zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
-    Object.assign(strip.style, { left: `${Math.max(8, Math.min(innerWidth - width - 8, left))}px`, top: `${Math.max(48, Math.min(innerHeight - height - 8, zoom < .9 ? rect.top - height - 8 : rect.top + 2))}px` });
+    const left = !rect.summary && zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
+    const top = rect.summary ? rect.top - height - 24 : zoom < .9 ? rect.top - height - 8 : rect.top + 2;
+    Object.assign(strip.style, { left: `${Math.max(8, Math.min(innerWidth - width - 8, left))}px`, top: `${Math.max(48, Math.min(innerHeight - height - 8, top))}px` });
   }
   function approach(event) {
     if (strip.contains(event.target)) { clearTimeout(leaveTimer); leaveTimer = 0; return; }
-    const id = event.target.closest('#world > .card')?.dataset.id;
+    const id = event.target.closest('.semantic-window')?.dataset.cardId || event.target.closest('#world > .card')?.dataset.id;
     if (id) { clearTimeout(leaveTimer); leaveTimer = 0; if (hovered !== id) { hovered = id; redraw(id); } }
     else if (!leaveTimer) leaveTimer = setTimeout(() => { leaveTimer = 0; if (strip.matches(':hover')) return; hovered = null; redraw(); }, 160);
   }

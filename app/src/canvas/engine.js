@@ -77,7 +77,14 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   const selected = new Set();
   let focusIds = null;
   let focusedId = null;
-  const windowActions = mountWindowActions({ stage, getSelection: () => [...selected], mountedEl: id => mounted.get(id)?.el, getZoom: () => view.z });
+  const windowActions = mountWindowActions({ stage, getSelection: () => [...selected], mountedEl: id => mounted.get(id)?.el, getZoom: () => view.z, representationRect });
+  function representationRect(id) {
+    const rect = representations.get(id);
+    if (!rect || stage.dataset.zoomTier === 'cluster') return null;
+    if (!rect.summary && mounted.has(id)) return mounted.get(id).el.getBoundingClientRect();
+    const origin = stage.getBoundingClientRect();
+    return { left: origin.left + rect.x, top: origin.top + rect.y, right: origin.left + rect.x + rect.w, bottom: origin.top + rect.y + rect.h, width: rect.w, height: rect.h, summary: rect.summary };
+  }
   // PM 7: the editor owns its source marker independently of canvas selection.
   let editorSource = null;
   function setEditorSource(id) {
@@ -456,7 +463,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"/>`; };
       if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, c));
       if (l.arrow === 'both') parts.push(arrow(p, c));
-      parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:stroke"/>`);
+      parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:${summary ? 'none' : 'stroke'}"/>`);
       if (l.label && view.z >= 0.12) { const size = 12; parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
     }
     links.innerHTML = parts.join('');
@@ -469,6 +476,13 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     mounted.get(focusedId)?.el.classList.remove('window-focus');
     focusedId = id;
     mounted.get(id)?.el.classList.add('window-focus');
+  }
+  function selectCard(id, modifiers, replace = false) {
+    const extend = modifiers.shiftKey || modifiers.metaKey || modifiers.ctrlKey;
+    if (extend) selected.has(id) ? selected.delete(id) : selected.add(id);
+    else if (replace || !selected.has(id)) { selected.clear(); selected.add(id); }
+    focusCard([...selected].at(-1));
+    return extend;
   }
   stage.addEventListener('pointerdown', e => {
     cancelAnimationFrame(anim); anim = 0;
@@ -518,9 +532,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     stage.focus({ preventScroll: true });
     if (cardEl && e.button === 0) {
       const id = cardEl.dataset.id;
-      if (e.metaKey || e.ctrlKey) { selected.clear(); selected.add(id); }
-      else if (e.shiftKey) { selected.has(id) ? selected.delete(id) : selected.add(id); }
-      else if (!selected.has(id)) { selected.clear(); selected.add(id); }
+      selectCard(id, e);
       let ids = [...selected];
       for (const h of DRAG_HANDLERS.values()) ids = h.select?.(ids, id, board, e) ?? ids;
       selected.clear(); ids.forEach(id => selected.add(id));
@@ -770,9 +782,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     get view() { return view; },
     get viewportSize() { return viewportSize; },
     get representations() { return representations; },
+    representationRect,
     get availableArea() { return frameArea(); },
-    activateSummary(id, instant = false) {
-      selected.clear(); selected.add(id); focusCard(id); onSelect?.([id]);
+    activateSummary(id, instant = false, modifiers = {}) {
+      const extend = selectCard(id, modifiers, true); onSelect?.([...selected]); schedule();
+      if (extend) return;
       frameIds([id], 1, false, instant);
       const focus = () => requestAnimationFrame(() => {
         windowActions.redraw();

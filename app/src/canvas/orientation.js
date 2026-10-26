@@ -78,7 +78,7 @@ export function createOrientation(stage, getView, schedule, onPick) {
   return {
     get active() { return active; },
     begin() {
-      active = getView().z < .2 && document.hasFocus() && (edge || near || moreMenu?.opened || layer.contains(document.activeElement) || document.activeElement === stage && stage.matches(':focus-visible'));
+      active = stage.dataset.zoomTier !== 'cluster' && getView().z < .2 && document.hasFocus() && (edge || near || moreMenu?.opened || layer.contains(document.activeElement) || document.activeElement === stage && stage.matches(':focus-visible'));
       candidates = []; visible = []; minimum = 0;
       if (active) { width = stage.clientWidth; height = stage.clientHeight; view = getView(); }
     },

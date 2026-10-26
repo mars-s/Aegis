@@ -30,6 +30,7 @@ export function connectorEditor(ctx, layer, changed) {
     if (drag?.kind === 'create' && (drag.boardId !== ctx.canvas.board.id || !ctx.canvas.board.cards.some(c => c.id === drag.a))) cancel();
     if (selected && !current()) { selected = null; changed(); }
     const link = drag?.link || current();
+    if (stage.dataset.zoomTier === 'cluster' || link && [link.a, link.b].some(id => ctx.canvas.representations.get(id)?.summary)) return;
     if (link) {
       const g = wire(link, drag ? { stroke: link.colour || 'var(--focus)', ...(link.dash ? { 'stroke-dasharray': '8 6' } : {}) } : { 'stroke-width': 7, opacity: .18 }); if (g) { knob(g.p0, { 'data-connect-end': 'a' }); knob(g.p2, { 'data-connect-end': 'b' }); knob(g.handle, { 'data-connect-bend': '1', class: 'draw-link-knob draw-link-bend' }); }
     }
