@@ -4,7 +4,7 @@
   min-height: var(--button-height, 36px);
   padding: var(--button-padding, 7px 12px);
   border: 1px solid var(--button-edge, var(--line));
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   background: var(--button-bg, var(--inset));
   color: var(--button-ink, var(--ink-2));
   box-shadow: var(--button-shadow, inset 0 1px 0 var(--edge-top));
@@ -18,9 +18,9 @@
 .aegis-button--secondary { --button-bg: var(--inset); }
 .aegis-button--quiet, .aegis-button--icon { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; }
 .aegis-button--icon { display: inline-grid; place-items: center; width: var(--button-height, 36px); --button-padding: 0; flex: none; }
-.aegis-button--destructive { --button-ink: var(--bad, #f0a4a4); --button-hover-ink: var(--bad, #f0a4a4); --button-bg: transparent; }
+.aegis-button--destructive { --button-ink: var(--ui-danger); --button-hover-ink: var(--ui-danger); --button-bg: transparent; }
 .aegis-button--primary[data-agent-action] { --button-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 0 12px rgb(63 141 253 / .14); }
-:is(.aegis-button, #side button, #sideRight button, #settings button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):not(:where(.composer *, #mobileHub *, .side-editor *, .docs-bubble *, [data-panel=agents] *, .agents-panel *)):focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; transition: none; }
+:is(.aegis-button, #side button, #sideRight button, #settings button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):not(:where(.composer *, #mobileHub *, .side-editor *, .docs-bubble *, [data-panel=agents] *, .agents-panel *)):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; transition: none; }
 :is(.aegis-button, #side button, #sideRight button, #settings button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):not(:where(.composer *, #mobileHub *, .side-editor *, .docs-bubble *, [data-panel=agents] *, .agents-panel *)):active:not(:disabled):not(:focus-visible) { transform: scale(.97); }
 :is(.aegis-button, #side button, #sideRight button, #settings button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):disabled { opacity: .45; cursor: default; }
 /* Compact chrome uses quiet variants of the same button. */

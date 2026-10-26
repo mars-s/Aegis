@@ -1,4 +1,4 @@
-import { createDropdown } from '../../lib/ui/dropdown.js';
+import { createPopup, createDropdown } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import '../wireframe/icons/names.js';
 import { DEVICES, PIECES, TYPES, uid, wireCard, screenCommand, frameAt, pieceCommands, sectionCommands, alignmentCommands, expandDrag, snapDrag } from './model.js';
@@ -110,15 +110,16 @@ export function mountPanel(hostEl, ctx) {
       const b = button('', () => {
         if (swap && ctx.canvas.board.cards.some(c => c.id === swap)) { ctx.apply([{ op: 'update', id: swap, set: { props: { name } } }]); swap = null; }
         else arm({ type: 'icon', name });
-        popover.hidden = true;
+        iconPopup.close(true);
       }, name.replaceAll('_', ' ')); b.dataset.icon = name; b.setAttribute('aria-label', name.replaceAll('_', ' ')); const glyph = node('span', 'wf-mi', name); b.append(glyph); iconGrid.append(b);
     }
     if (hits.length > 180) iconGrid.append(node('small', 'wf-icon-more', `${hits.length - 180} more. Keep typing to narrow the search.`));
     if (!hits.length) iconGrid.append(node('small', '', 'No matching icons.'));
   }
-  function showIcons(id) { swap = id; search.value = ''; popover.hidden = false; renderIcons(); search.focus(); }
-  search.oninput = renderIcons; search.onkeydown = e => { if (e.key === 'Escape') { popover.hidden = true; swap = null; ctx.canvas.setTool(null); } e.stopPropagation(); };
-  popover.append(search, button('Close icon search', () => { popover.hidden = true; swap = null; }), iconGrid); panel.append(popover);
+  const iconPopup = createPopup({ menu: popover, role: 'dialog', bindTrigger: false, portal: true });
+  function showIcons(id) { swap = id; search.value = ''; renderIcons(); iconPopup.setTrigger(document.activeElement); iconPopup.open(); search.focus(); }
+  search.oninput = renderIcons; search.onkeydown = e => { if (e.key === 'Escape') { iconPopup.close(true); swap = null; ctx.canvas.setTool(null); } e.stopPropagation(); };
+  popover.append(search, button('Close icon search', () => { iconPopup.close(true); swap = null; }), iconGrid); panel.append(popover);
   function updateProperty(key, value) {
     const cards = selected(ctx).filter(c => propertyTypes.includes(c.type)), commands = [];
     for (const c of cards) {
@@ -209,7 +210,7 @@ export function mountPanel(hostEl, ctx) {
     if (!ctx.canvas.tool && !popover.hidden) return;
     if (!ctx.canvas.tool) status.textContent = 'Pick a tool, then click the canvas. Drag to draw a box.';
   }, 180);
-  function escape(e) { if (e.key === 'Escape') { popover.hidden = true; swap = null; gesture?.preview?.remove(); gesture = null; } }
+  function escape(e) { if (e.key === 'Escape') { iconPopup.close(true); swap = null; gesture?.preview?.remove(); gesture = null; } }
   function cancel() { gesture?.preview?.remove(); gesture = null; }
   document.addEventListener('keydown', escape); document.addEventListener('pointercancel', cancel);
   const disposeSections = mountSectionBehaviour(ctx);

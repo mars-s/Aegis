@@ -1,3 +1,4 @@
+import { createDialog } from '../../lib/ui/dialog.js';
 export function node(tag, className, text) {
   const el = document.createElement(tag);
   if (className) el.className = className;
@@ -15,8 +16,7 @@ export function field(label, type, value, parent) {
 }
 export function dialog(title) {
   document.querySelector('.media-dialog')?.close();
-  const el = node('dialog', 'media-dialog'), heading = node('h2', '', title); el.append(heading); document.body.append(el);
+  const el = createDialog({ className: 'media-dialog', label: title }), heading = node('h2', '', title); el.append(heading); document.body.append(el);
   el.addEventListener('close', () => el.remove(), { once: true });
-  el.addEventListener('click', e => { if (e.target === el && (e.clientX < el.getBoundingClientRect().left || e.clientX > el.getBoundingClientRect().right || e.clientY < el.getBoundingClientRect().top || e.clientY > el.getBoundingClientRect().bottom)) el.close(); });
   el.showModal(); return el;
 }

@@ -27,15 +27,17 @@ const inside = async locator => {
 };
 // PM6.5: inspect the heading at a real wheel or keyboard scroll position.
 const stickyProvider = async menu => {
-  assert.ok(await menu.evaluate(el => {
+  const state = await menu.evaluate(el => {
     const rect = el.getBoundingClientRect();
-    const group = [...el.querySelectorAll('[role=group]')].find(group => { const r = group.getBoundingClientRect(); return r.top <= rect.top + 8 && r.bottom > rect.top + 48; });
+    const group = [...el.querySelectorAll('[role=group]')].find(group => { const r = group.getBoundingClientRect(); return r.top <= rect.top + 8 && r.bottom > rect.top + (group.querySelector('.aegis-model-group')?.offsetHeight ?? 0) + 1; });
     const heading = group?.querySelector('.aegis-model-group');
-    if (!heading) return false;
+    if (!heading) return { ok: false, scrollTop: el.scrollTop, groups: [...el.querySelectorAll('[role=group]')].map(group => ({ label: group.getAttribute('aria-label'), top: group.getBoundingClientRect().top, bottom: group.getBoundingClientRect().bottom })), top: rect.top };
     const box = heading.getBoundingClientRect(), style = getComputedStyle(heading);
-    return style.position === 'sticky' && style.backgroundColor === getComputedStyle(el).backgroundColor && box.top >= rect.top && box.top <= rect.top + 8 && heading.contains(document.elementFromPoint(box.x + 12, box.y + box.height / 2));
-  }), 'current provider stays visible on an opaque heading above scrolling choices');
+    return { ok: style.position === 'sticky' && style.backgroundColor === getComputedStyle(el).backgroundColor && box.top >= rect.top && box.top <= rect.top + 8 && heading.contains(document.elementFromPoint(box.x + 12, box.y + box.height / 2)), position: style.position, background: style.backgroundColor, menuBackground: getComputedStyle(el).backgroundColor, top: box.top, menuTop: rect.top, hit: document.elementFromPoint(box.x + 12, box.y + box.height / 2)?.outerHTML.slice(0, 180) };
+  });
+  assert.ok(state.ok, 'current provider stays visible on an opaque heading above scrolling choices: ' + JSON.stringify(state));
 };
+
 try {
   host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   host.stderr.on('data', data => process.stderr.write(data));

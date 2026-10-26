@@ -1,9 +1,10 @@
+import { createDialog } from '../../lib/ui/dialog.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { createMenu } from '../../lib/ui/menu.js';
 import { boardPreview, escapeHtml as esc } from './preview.js';
 
 export function createHome({ getData, load, open, create, menu, scope, onClose, cover, rename, toast }) {
-  const dialog = document.createElement('dialog'); dialog.className = 'library-home'; dialog.setAttribute('aria-label', 'All projects');
+  const dialog = createDialog({ className: 'library-home', label: 'All projects' });
   document.body.append(dialog);
   const coverMenus = new Set();
   let at = null, generation = 0, returnFocus, coverFor, editing = false;

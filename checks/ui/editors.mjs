@@ -95,7 +95,7 @@ try {
   const half = await page.locator('.docs-panel').boundingBox(); assert.equal(half.width, 788); assert.equal(half.y, 8);
   assert.deepEqual(await stageBounds(), stage, 'Opening documents does not reflow the stage');
   const type = await page.locator('.docs-prose').evaluate(el => { const css = getComputedStyle(el); return [css.fontSize, css.lineHeight, css.caretColor, css.fontFamily]; });
-  assert.deepEqual(type.slice(0, 3), ['19.5px', '30px', 'rgb(63, 141, 253)']); assert.match(type[3], /Inter Variable/);
+  assert.deepEqual(type.slice(0, 3), ['18px', '28px', 'rgb(63, 141, 253)']); assert.match(type[3], /Inter Variable/);
   await page.waitForTimeout(450);
   const centred = await page.evaluate(() => { const c = aegis.canvas.board.cards.find(c => c.id === 'doc00001'); return aegis.canvas.worldToScreen(c.x + c.w / 2, c.y + c.h / 2); });
   assert.ok(Math.abs(centred.x - 400) < 1, 'Pointer open centres the card in the left half');
@@ -107,6 +107,7 @@ try {
   await page.screenshot({ path: out('editors-document-wide.png') });
   assert.equal(await page.locator('.docs-panel .docs-ribbon[role=toolbar]').count(), 1, 'Writing has one themed formatting ribbon');
   assert.equal(await page.locator('.side-editor-head .docs-title').count(), 1, 'The title is editable in the window strip');
+  await page.getByLabel('Format document', { exact: true }).click();
   const toolbarFocus = await page.evaluate(async () => {
     const { currentDocument } = await import('/src/features/docs/editor.js');
     const editor = currentDocument().editor, text = editor.getText();
@@ -125,6 +126,8 @@ try {
   assert.equal(toolbarFocus.after, toolbarFocus.text);
   console.log('PASS toolbar fields keep focus during rapid changes and preserve document text');
   await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.docs-format').evaluate(el => el.open), false, 'Escape closes Format before the editor');
+  await page.keyboard.press('Escape');
   assert.equal(await page.locator('.side-editor').count(), 0); assert.equal(await page.locator('body.editor-open, body.editor-wide, body.docs-open, body.docs-full').count(), 0);
   console.log('PASS document Open event, half and full width, type, camera placement, no stage reflow and Escape close');
 
@@ -135,7 +138,7 @@ try {
   await page.waitForTimeout(450); await page.keyboard.press('Escape');
   await page.evaluate(() => aegis.canvas.setView({ x: 0, y: 0, z: 1 }));
   await page.locator('.card[data-id=sheet001]').click({ button: 'right', position: { x: 20, y: 20 } });
-  await page.getByText('Open sheet', { exact: true }).click(); await page.locator('.sheet-editor').waitFor();
+  await page.getByRole('menuitem', { name: 'Open', exact: true }).click(); await page.locator('.sheet-editor').waitFor();
   await page.waitForTimeout(450); await page.keyboard.press('Escape');
   await openEvent('note0001'); assert.equal(await page.locator('.side-editor').count(), 0);
   console.log('PASS sheet double-click and context menu, header sort preservation and ignored other card kinds');

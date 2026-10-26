@@ -151,7 +151,7 @@ try {
   assert.equal(await prompt.inputValue(), ''); assert.equal(await page.locator('#toolsPopover').isVisible(), false);
   await page.keyboard.press('Meta+k'); await prompt.fill('Menu idea'); await page.locator('#orbMenuButton').click();
   const menuNotes = page.locator('#orbMenu').getByRole('menuitem', { name: /^Add as notes/ });
-  assert.ok((await menuNotes.boundingBox()).height >= 44); await shot('notes-options-1586'); await menuNotes.press('Enter');
+  assert.equal(await menuNotes.evaluate(el => el.offsetHeight >= parseFloat(getComputedStyle(el).getPropertyValue('--menu-row-height'))), true); await shot('notes-options-1586'); await menuNotes.press('Enter');
   board = await saved(); assert.ok(board.cards.some(c => c.text === 'Menu idea'));
   assert.equal(await page.evaluate(() => window.notesEvents), 2); assert.equal(requests.length, 0);
   await page.keyboard.press('Meta+k'); await prompt.fill('Keyboard idea'); await prompt.press('Meta+Enter');

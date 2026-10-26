@@ -22,6 +22,8 @@ all.push('office');
 all.push('data-import');
 // External MCP sessions share imported sources and editable documents with the production UI.
 all.push('mcp');
+// Shared UI controls and theme captures from the shipped bundle.
+all.push('design-system');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {
@@ -31,4 +33,5 @@ for (const name of names) {
   console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }
 }
+console.log(`${names.length - failed.length}/${names.length} UI suites passed${failed.length ? ': failed ' + failed.join(', ') : ''}`);
 process.exitCode = failed.length ? 1 : 0;

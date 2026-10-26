@@ -1,9 +1,6 @@
 .media-field { display: flex; align-items: center; gap: 8px; font-size: 12px; justify-content: space-between; }
 .media-field input:not([type=checkbox]), .media-field select { min-width: 0; width: 135px; background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 5px; }
 .media-field input[type=checkbox] { width: auto; }
-.media-dialog { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 12px; padding: 20px; width: min(720px, calc(100vw - 50px)); max-height: calc(100vh - 50px); overflow: auto; }
-.media-dialog::backdrop { background: #0007; }
-.media-dialog h2 { font-size: 17px; margin: 0 0 15px; }
 .media-dialog > .media-field { margin-bottom: 10px; }
 .media-dialog > .media-field input { width: 70%; }
 .media-actions { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px; align-items: center; }

@@ -737,7 +737,7 @@ try {
   // The Open view covers the top-right chrome, so use its keyboard entry point.
   await page.locator('#settingsBtn').press('Enter');
   await page.getByRole('tab', { name: 'Board', exact: true }).click();
-  const motion = page.getByRole('checkbox', { name: 'Motion', exact: true });
+  const motion = page.getByRole('switch', { name: 'Motion', exact: true });
   for (const off of [true, false]) {
     await motion.setChecked(!off);
     for (const widget of widgetFrames) {

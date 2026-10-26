@@ -100,9 +100,6 @@
 .agent-row.part { margin-left: 18px; padding: 7px 10px; border-style: dashed; }
 .agent-row.part .out, .agent-row.part .actions { display: none; }
 .card[data-color="custom"] { background: var(--card-fill); }
-.ctx-menu { position: fixed; z-index: 90; min-width: 190px; padding: 5px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-lift); display: flex; flex-direction: column; }
-.ctx-menu button { text-align: left; padding: 6px 10px; border-radius: 7px; }
-.ctx-menu button:hover, .ctx-menu button:focus-visible { background: var(--hover); outline: none; }
 .ctx-sep { height: 1px; background: var(--line); margin: 4px 2px; }
 
 @media (prefers-reduced-motion: reduce) {
@@ -129,3 +126,6 @@ body.motion-off .card.object * { transition: none !important; }
 
 /* Windows pinned as an agent's context: a dashed blue outline, distinct from selection. */
 .card.in-context { outline: 1px dashed color-mix(in srgb, var(--data) 75%, transparent); outline-offset: 4px; }
+
+/* The former global Settings .sheet border accidentally contained spreadsheet note margins. */
+.card.kind-sheet .sheet { display: flow-root; }

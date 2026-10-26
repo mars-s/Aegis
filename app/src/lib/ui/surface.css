@@ -1,0 +1,47 @@
+/* Aegis floating chrome. Feature CSS owns layout; this file owns material and controls. */
+.aegis-dialog.aegis-dialog {
+  box-sizing: border-box; margin: auto; padding: var(--space-5); width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px); overflow: auto; border: 1px solid var(--ui-edge); border-radius: var(--radius-dialog);
+  background: var(--ui-surface); color: var(--text); box-shadow: var(--ui-shadow); font: var(--text-body)/1.5 var(--font);
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.aegis-dialog::backdrop { background: var(--ui-scrim); }
+.aegis-dialog :is(h1, h2) { margin: 0 0 var(--space-3); font-size: var(--text-subtitle); line-height: 1.35; font-weight: 600; letter-spacing: -.015em; text-wrap: balance; }
+.aegis-dialog :is(input, textarea):not([type=checkbox], [type=color], [type=range]) {
+  min-height: var(--control-height); padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control);
+  background: var(--inset); color: var(--text); font: inherit; caret-color: var(--data);
+}
+.aegis-dialog input::placeholder { color: var(--muted); opacity: 1; }
+.aegis-dialog :is(button, input, textarea):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.aegis-dialog .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) var(--space-5); }
+.aegis-dialog .sheet-head h2 { margin: 0; }
+.aegis-dialog .sheet-sec { padding: var(--space-4) 0; }
+.aegis-dialog .sheet-sec h3 { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--text-label); font-weight: 500; }
+.aegis-dialog.media-dialog { width: min(720px, calc(100vw - 32px)); }
+.aegis-dialog.library-home { inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 32px; border: 0; border-radius: 0; background: var(--bg); box-shadow: none; }
+.aegis-dialog.onboarding { inset: 0; width: 100%; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.aegis-dialog.onboarding .tour-card { background: var(--ui-surface); border: 1px solid var(--ui-edge); border-radius: var(--radius-dialog); box-shadow: var(--ui-shadow); }
+.aegis-dialog.aegis-confirm { width: min(400px, calc(100vw - 32px)); }
+.aegis-dialog.aegis-confirm h2 { margin: 0; }
+.aegis-dialog.aegis-confirm p { margin: var(--space-2) 0 0; color: var(--muted); text-wrap: pretty; }
+.aegis-confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-6); }
+.aegis-button--danger { --button-bg: var(--ui-danger); --button-ink: var(--ui-surface); --button-hover-ink: var(--ui-surface); --button-edge: transparent; --button-shadow: none; }
+
+.aegis-tabs { display: flex; gap: var(--space-1); overflow-x: auto; scrollbar-width: thin; }
+.aegis-tabs [role=tab] { flex: none; min-height: var(--control-height); padding: 6px 10px; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--muted); background: transparent; font: 500 var(--text-label)/1.4 var(--font); }
+.aegis-tabs [role=tab][aria-selected=true] { background: var(--press); border-color: var(--line); color: var(--text); box-shadow: inset 0 1px 0 var(--ui-highlight); }
+.aegis-tabs [role=tab]:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+input.aegis-switch[type=checkbox] {
+  appearance: none; position: relative; flex: 0 0 30px; width: 30px; height: 18px; margin: 0; padding: 0;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-capsule); background: var(--press); cursor: pointer;
+  transition: background-color var(--motion-fast) var(--ease-out);
+}
+input.aegis-switch::before { content: ''; position: absolute; width: 12px; height: 12px; left: 2px; top: 2px; background: var(--muted); border-radius: 50%; transition: transform var(--motion-fast) var(--ease-out); }
+input.aegis-switch:checked { background: var(--data); border-color: transparent; }
+input.aegis-switch:checked::before { background: #fff; transform: translateX(12px); }
+input.aegis-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+input.aegis-switch:disabled { opacity: .45; cursor: default; }
+.aegis-tooltip { position: fixed; z-index: 10030; max-width: 260px; padding: 6px 9px; border: 1px solid var(--ui-edge); border-radius: var(--radius-control); background: var(--ui-surface); box-shadow: var(--ui-shadow); color: var(--text); font: var(--text-label)/1.4 var(--font); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { input.aegis-switch, input.aegis-switch::before { transition: none; } }
+@media (forced-colors: active) { input.aegis-switch:checked { background: Highlight; } input.aegis-switch::before { background: ButtonText; } }

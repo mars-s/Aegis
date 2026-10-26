@@ -14,8 +14,9 @@ import { objectSaveState } from './objects/save-state.js';
 import * as registry from './features/registry';
 import './features/index';
 // round2-sidebar: shortcut copy comes from the shared display map.
-import { shortcutText } from './lib/shortcuts.js';
+import { shortcutText, menuShortcut } from './lib/shortcuts.js';
 import { createMenu } from './chrome/menu.js';
+import { createPopup } from './lib/ui/dropdown.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
@@ -144,9 +145,11 @@ const TOOL_KEYS = { v: 'select', n: 'note', h: 'title', c: 'todo', r: 'readme', 
 const TOOL_NAMES = { note: 'Note', title: 'Heading', todo: 'Checklist', readme: 'Read me', link: 'Link' };
 const CORE_TOOLS = ['select', 'note', 'title', 'todo', 'doc', 'deck', 'draw-ink', 'draw-shape', 'media'];
 const toolHomes = new Map();
+const toolsPopup = createPopup({ trigger: $('toolsFold'), menu: $('toolsPopover'), role: 'dialog', placement: 'right', bindTrigger: false, onToggle(open) { if (!open) foldTools(true); } });
 function foldTools(closed, focus = false) {
   const dock = $('tools'), popover = $('toolsPopover'), trigger = $('toolsFold');
   if (closed) {
+    if (toolsPopup.opened) { toolsPopup.close(focus, true); return; }
     const hadFocus = popover.contains(document.activeElement);
     for (const [button, home] of toolHomes) home.replaceWith(button);
     toolHomes.clear(); popover.replaceChildren(); popover.hidden = true;
@@ -183,7 +186,7 @@ function foldTools(closed, focus = false) {
   const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.type = 'button';
   customise.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg><span>Customise toolbar</span>';
   customise.onclick = () => { foldTools(true); dock.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
-  popover.append(customise); popover.hidden = false; popover.classList.toggle('instant', focus); dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
+  popover.append(customise); dock.classList.add('more-open'); toolsPopup.open(focus ? { type: 'keydown' } : undefined);
   if (focus) popover.querySelector('[data-tool]')?.focus({ preventScroll: true });
 }
 function pickTool(t) {
@@ -516,17 +519,37 @@ const editing = mountEditing(ctx);
 // Right-click: feature menu items for the cards under the pointer, or the board's own items on empty canvas.
 const menu = createMenu();
 function showContext(x, y, at, ids) {
-  const list = ids.length ? registry.cardMenu : registry.boardMenu;
-  const items = list.filter(m => !m.when || m.when(ctx, ids));
-  const builtIn = ids.length ? [
-    { id: 'front', title: 'Bring to front', shortcut: shortcutText('stackToFront'), section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'front' }]) },
-    { id: 'back', title: 'Send to back', shortcut: shortcutText('stackToBack'), section: 'Arrange', run: () => apply([{ op: 'order', ids, to: 'back' }]) },
-    { id: 'delete', title: 'Delete', section: 'zz', run: () => apply([{ op: 'delete', ids }]) },
-  ] : [
-    { id: 'note', title: 'New note here', section: 'Add', run: () => place('note', at) },
-    { id: 'fit', title: 'Zoom to fit', section: 'View', run: () => canvas.fit() },
+  if (!ids.length) {
+    const items = registry.boardMenu.filter(m => !m.when || m.when(ctx, ids));
+    menu.show(x, y, [...items.map(m => ({ ...m, run: () => m.run(ctx, ids, at) })),
+      { title: 'New note here', section: 'Add', run: () => place('note', at) },
+      { title: 'Zoom to fit', section: 'View', run: () => canvas.fit() },
+    ]); return;
+  }
+  const cards = canvas.board.cards.filter(card => ids.includes(card.id)), single = cards.length === 1;
+  const registered = registry.cardMenu.filter(item => !item.when || item.when(ctx, ids));
+  const open = single && registered.find(item => /(?:^Open |^Edit )/.test(item.title));
+  const opener = single && canvas.mountedEl(cards[0].id)?.querySelector('.win-open');
+  const editable = single && canvas.mountedEl(cards[0].id)?.querySelector('[contenteditable]');
+  const locked = cards.some(card => card.props?.locked);
+  const actions = [];
+  if (open || opener || editable) actions.push({ title: opener || open ? 'Open' : 'Edit', run: event => {
+    const keyboardCommand = event.detail === 0 && open && registry.commands.find(command => command.id === open.id);
+    if (keyboardCommand) keyboardCommand.run(ctx); else if (open) open.run(ctx, ids, at); else if (opener) opener.click(); else editable?.focus();
+  } });
+  actions.push({ title: 'Copy', shortcut: /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘C' : 'Ctrl+C', run: () => editing.copy() },
+    { title: 'Duplicate', shortcut: menuShortcut('duplicate'), disabled: locked, run: () => editing.duplicate() });
+  const arrange = [
+    ...[['Bring to front', 'front', 'stackToFront'], ['Bring forward', 'forward', 'stackForward'], ['Send backward', 'backward', 'stackBack'], ['Send to back', 'back', 'stackToBack']].map(([title, direction, key]) => ({ title, shortcut: menuShortcut(key), run: () => editing.stack(direction) })),
+    ...(cards.length > 1 ? [{ title: 'Group', run: () => editing.group() }] : []),
+    ...(cards.some(card => card.group) ? [{ title: 'Ungroup', shortcut: menuShortcut('ungroup'), run: () => editing.group(true) }] : []),
+    ...registered.filter(item => !item.id.startsWith('editing-') && !/(?:^Open |^Edit |Ungroup)/.test(item.title)).map(item => ({ ...item, run: () => item.run(ctx, ids, at) })),
   ];
-  menu.show(x, y, [...items, ...builtIn].map(m => ({ ...m, run: () => m.run(ctx, ids, at) })));
+  actions.push({ title: 'Arrange', items: arrange, disabled: locked },
+    { title: locked ? 'Unlock' : 'Lock', run: () => apply(cards.map(card => ({ op: 'update', id: card.id, set: { props: { locked: !locked } } }))) },
+    { title: 'Delete', section: 'Danger', shortcut: menuShortcut('remove'), destructive: true, disabled: locked, run: () => apply([{ op: 'delete', ids }]) });
+  menu.show(x, y, actions);
+
 }
 addEventListener('keydown', e => {
   if (e.target.closest?.('textarea, input, [contenteditable], select')) return;

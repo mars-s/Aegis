@@ -26,7 +26,18 @@ export function selectionToolbar(bar, changed) {
   more.append(trigger, menu); scroll.append(more);
   const sections = new Map(), popovers = [more];
   const section = title => {
-    if (!sections.has(title)) { const el = document.createElement('section'), heading = document.createElement('h3'); heading.textContent = title; el.append(heading); menu.append(el); sections.set(title, el); }
+    if (!sections.has(title)) {
+      const name = { Typography: 'Format', Arrange: 'Arrange', Export: 'Export', Card: 'Details' }[title];
+      const el = document.createElement('section');
+      if (name) {
+        const details = document.createElement('details'); details.className = 'selection-submenu';
+        const summary = document.createElement('summary'); summary.setAttribute('aria-label', `${name} selection`);
+        summary.innerHTML = `<span>${name}</span><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>`;
+        el.className = 'selection-menu selection-submenu-panel'; el.setAttribute('aria-label', `${name} selection controls`);
+        details.append(summary, el); menu.append(details); popovers.push(details); bind(details);
+      } else { el.className = 'selection-actions'; menu.append(el); }
+      sections.set(title, el);
+    }
     return sections.get(title);
   };
   function row(control, title, group) {
@@ -36,7 +47,8 @@ export function selectionToolbar(bar, changed) {
   function button(label, action, { inline = false, group = 'Actions', shortcut = '', icon = label, text = false } = {}) {
     const el = document.createElement('button'); el.type = 'button'; el.title = label; el.setAttribute('aria-label', label);
     if (inline) { el.className = 'selection-action'; el.innerHTML = selectionIcon(icon); if (text) { const caption = document.createElement('span'); caption.textContent = label; el.append(caption); } scroll.insertBefore(el, more); }
-    else { el.className = 'selection-menu-action'; const name = document.createElement('span'), hint = document.createElement('span'); name.textContent = label; hint.textContent = shortcut; hint.className = 'selection-value'; el.append(name, hint); section(group).append(el); }
+    else { el.className = 'selection-menu-action'; const name = document.createElement('span'), hint = document.createElement('kbd'); name.textContent = label; hint.textContent = shortcut; hint.className = 'selection-value'; el.append(name, hint); section(group).append(el); }
+    if (label === 'Delete') el.classList.add('aegis-menu-destructive');
     el.onclick = action; return el;
   }
   function input(label, value, action, type = 'text', group = 'Card') {
@@ -71,12 +83,12 @@ export function selectionToolbar(bar, changed) {
   const surfaces = new Map();
   function positionMenus() { for (const surface of surfaces.values()) surface.position(); }
   function bind(details) {
-    const surface = createPopup({ trigger: details.firstElementChild, menu: details.lastElementChild, role: 'dialog', onToggle(on) { details.open = on; if (on) { for (const [other, pop] of surfaces) if (other !== details) pop.close(); } changed(); } });
+    const surface = createPopup({ trigger: details.firstElementChild, menu: details.lastElementChild, portal: details.classList.contains('selection-submenu'), role: 'dialog', placement: details.classList.contains('selection-submenu') ? 'right' : 'bottom', onToggle(on) { details.open = on; if (on) { for (const [other, pop] of surfaces) if (other !== details && !other.contains(details) && !pop.menu.contains(details)) pop.close(); } changed(); } });
     surfaces.set(details, surface);
     details.addEventListener('toggle', () => { if (!details.open) surface.close(); });
   }
   // Popups built by the toolbar are bound as they are added.
-  popovers.forEach(bind);
+  bind(more);
   scroll.addEventListener('scroll', positionMenus); addEventListener('resize', positionMenus);
   return { button, input, select, stepper, popup, choices, section, more, positionMenus, close: () => surfaces.forEach(pop => pop.close()), destroy() { surfaces.forEach(pop => pop.destroy()); removeEventListener('resize', positionMenus); } };
 }

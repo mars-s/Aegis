@@ -3,9 +3,13 @@
 :root {
   --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  --text-caption: 11px; --text-label: 12px; --text-body: 13px; --text-title: 22px;
+  --text-caption: 11px; --text-label: 12px; --text-body: 13px; --text-subtitle: 15px; --text-title: 22px;
   --text-overview-label: 22px; --text-overview-figure: 40px; --text-headline: 26px; --text-reading: 15px;
-  --radius-inset: 4px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
+  --radius-inset: 4px; --radius-control: 6px; --radius-surface: 10px; --radius-dialog: 14px;
+  --control-height: 32px; --menu-row-height: 34px; --setting-row-height: 44px;
+  --menu-padding: 5px; --menu-width: 220px; --menu-gap: 6px;
+  --motion-menu: 140ms; --motion-dialog: 180ms;
   --radius-capsule: 999px; --radius-swatch: 3px; --radius-control-compact: 10px;
   --motion-instant: 0ms; --motion-fast: 120ms; --motion-base: 200ms; --motion-slow: 300ms; --motion-page: 400ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -18,7 +22,7 @@
   --color-surface: #ffffff; --color-float: #ffffff;
   --color-fill: rgb(24 24 27 / 0.05); --color-fill-hover: rgb(24 24 27 / 0.08);
   --color-border: rgb(24 24 27 / 0.07); --color-border-strong: rgb(24 24 27 / 0.13);
-  --color-ring: rgb(24 24 27 / 0.4); --color-tint-graphite: #5e5e64;
+  --color-ring: #3f8dfd; --color-tint-graphite: #5e5e64;
   --color-term: #2b5ea7; --color-code-chip: rgb(24 24 27 / 0.06); --color-code-chip-ink: #3a3a40;
   --shadow-float: 0 6px 22px rgb(24 24 27 / 0.16), 0 0 0 0.5px rgb(24 24 27 / 0.1);
   --chart-1: #0a6cff; --chart-2: #a6531e; --chart-3: #449d7a; --chart-4: #7f5f0a;
@@ -31,7 +35,7 @@
   --color-surface: #141618; --color-float: #24272b;
   --color-fill: rgb(255 255 255 / 0.05); --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-border: rgb(255 255 255 / 0.07); --color-border-strong: rgb(255 255 255 / 0.13);
-  --color-ring: rgb(255 255 255 / 0.5); --color-tint-graphite: #8e939b;
+  --color-ring: #3f8dfd; --color-tint-graphite: #8e939b;
   --color-term: #8db8ff; --color-code-chip: rgb(255 255 255 / 0.08); --color-code-chip-ink: #e2e4e8;
   --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.09), 0 16px 40px rgb(0 0 0 / 0.6);
   /* Charts lead with the data blue; the rest are quiet and only appear in multi-series charts. */

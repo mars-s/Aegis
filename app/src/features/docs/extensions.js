@@ -49,5 +49,5 @@ export const extensions = () => [
   TextAlign.configure({ types: ['paragraph', 'heading'] }), Highlight.configure({ multicolor: true }),
   Image.configure({ allowBase64: true }), TaskList, TaskItem.configure({ nested: true, HTMLAttributes: { 'data-type': 'taskItem' } }),
   InlineMath, BlockMath, MarkdownWriting,
-  Placeholder.configure({ placeholder: 'Write Markdown, use $maths$, or drag cards here…' }), CharacterCount,
+  Placeholder.configure({ placeholder: 'Start writing…' }), CharacterCount,
 ];

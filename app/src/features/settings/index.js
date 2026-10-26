@@ -1,4 +1,6 @@
 import { shortcutTitle } from '../../lib/shortcuts.js';
+import { createTabs, enhanceSwitches } from '../../lib/ui/controls.js';
+import { enhanceDialog } from '../../lib/ui/dialog.js';
 import { createDropdown } from '../../lib/ui/dropdown.js';
 import { mountModelSettings } from '../agents/models.js';
 import { preference } from './preferences.js';
@@ -11,21 +13,17 @@ export function mountSettings({ canvas, host, toast, replayTour }) {
   capture.onclick = () => { const dialog = document.querySelector('.editing-capture'); const input = dialog.querySelector('input'); input.value = ''; if (!dialog.open) dialog.showModal(); input.focus(); };
   document.getElementById('retrySave').after(capture);
   const dialog = document.getElementById('settings');
+  enhanceDialog(dialog, { label: 'Settings' }); enhanceSwitches(dialog);
   const tabs = document.createElement('nav'); tabs.className = 'settings-tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Settings');
   const pages = new Map();
   for (const name of ['General', 'Board', 'Toolbar', 'Panels', 'Accounts', 'Integrations', 'About']) {
     const id = name.toLowerCase(), b = document.createElement('button'), panel = document.createElement('div');
     b.textContent = name; b.id = `settings-tab-${id}`; b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', `settings-${id}`);
     panel.id = `settings-${id}`; panel.setAttribute('role', 'tabpanel'); panel.setAttribute('aria-labelledby', b.id); panel.className = 'settings-page';
-    b.onclick = () => select(id);
-    b.onkeydown = e => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) { e.preventDefault(); const buttons = [...tabs.children], index = buttons.indexOf(b), next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length; buttons[next].click(); buttons[next].focus(); } };
     tabs.append(b); pages.set(id, panel); dialog.append(panel);
   }
   dialog.querySelector('.sheet-head').after(tabs);
-  function select(id) {
-    for (const [key, panel] of pages) { panel.hidden = key !== id; const b = document.getElementById(`settings-tab-${key}`); b.setAttribute('aria-selected', String(key === id)); b.tabIndex = key === id ? 0 : -1; }
-    if (id === 'integrations') void integrations.refresh();
-  }
+  const { select } = createTabs({ list: tabs, panels: pages, onChange(id) { if (id === 'integrations') void integrations.refresh(); } });
   pages.get('accounts').append(dialog.querySelector('[data-settings="accounts"]'));
   pages.get('general').append(dialog.querySelector('[data-settings="appearance"]'));
   for (const section of [...dialog.querySelectorAll(':scope > .sheet-sec')]) {
@@ -74,7 +72,6 @@ export function mountSettings({ canvas, host, toast, replayTour }) {
   // The editing feature's Customise toolbar entry point still lands on its controls.
   document.getElementById('tools').addEventListener('contextmenu', () => select('toolbar'), true);
   document.addEventListener('click', e => { if (e.target.closest?.('button')?.textContent.trim() === 'Customise toolbar') select('toolbar'); }, true);
-  dialog.addEventListener('click', e => { if (e.target !== dialog) return; const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); });
   select('general');
   return { select };
 }
