@@ -26,3 +26,14 @@ Shared integration edits are the library feature import, shared card-type import
 ## Verification
 
 Host/board cases live in `agent/checks/library.test.mjs`. The disposable browser exercise is `checks/ui/library.mjs`, using Vite port 5185 and temporary host data. Run `PLAYWRIGHT=/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.mjs AEGIS_CHECK_OUT=/tmp/aegis-check-library node checks/ui/run.mjs library` from the repo root. It checks saved JSON as well as the UI and writes screenshots under `/tmp/aegis-check-library/`.
+
+Home focuses its search field when opened. Search matches board names and the
+first heading or document title, including boards inside folders. One New menu
+creates a Board, Folder or Project. New folders and projects can be named in
+place. A new board opens immediately.
+
+Previews load only near the viewport, with four reads at a time and a bounded
+cache keyed by board ID and revision. The host includes a content subtitle and
+`editedAt` in the board list, so search needs no preview reads. Content batches,
+renaming and library changes update that time. Camera changes do not. Older
+boards without a timestamp say “Edit time unavailable” until their next edit.
