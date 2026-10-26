@@ -34,5 +34,5 @@ export function renderDeck(el, card, api) {
   el.querySelectorAll('.deck-thumb').forEach(button => {
     button.onclick = () => api.setProps(card.id, { current: Number(button.dataset.i) });
   });
-  fits.set(el, observeSlideFits(el));
+  fits.set(el, observeSlideFits(el, { deckId: card.id }));
 }

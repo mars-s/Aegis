@@ -1,5 +1,6 @@
 import { mount, unmount } from 'svelte';
 import Chart from '../../objects/chart/Chart.svelte';
+import SourceStatus from '../../objects/chart/SourceStatus.svelte';
 import { styleSpec } from '../../objects/chart/chart.ts';
 import { resolvePlot } from '../../objects/chart/source.js';
 import { parseCsv } from '../../lib/board/dataset.js';
@@ -8,7 +9,7 @@ import { columnLabel, cellText } from '../../lib/board/summary.js';
 export const referenceCard = card => card.kind === 'plot' || card.kind === 'sheet' || card.type === 'dataset';
 
 export function liveReference(root, canvas) {
-  let chart, key = '', version = 0, closed = false, dataset;
+  let chart, sourceStatus, key = '', version = 0, closed = false, dataset;
   const content = document.createElement('div'); root.append(content);
   const controls = document.createElement('div'); controls.className = 'editor-reference-region';
   const row = document.createElement('input'), column = document.createElement('input');
@@ -18,7 +19,7 @@ export function liveReference(root, canvas) {
   }
   let current;
   row.onchange = column.onchange = () => { key = ''; void update(current); };
-  function clear() { if (chart) { void unmount(chart); chart = null; } content.replaceChildren(); }
+  function clear() { if (chart) { void unmount(chart); chart = null; } if (sourceStatus) { void unmount(sourceStatus); sourceStatus = null; } content.replaceChildren(); }
   async function update(card) {
     if (!card || closed) return;
     current = card;
@@ -28,6 +29,7 @@ export function liveReference(root, canvas) {
       const data = resolvePlot(card.data, canvas.board.cards), next = JSON.stringify([card.id, card.text, data]);
       if (next === key) return;
       key = next; clear();
+      sourceStatus = mount(SourceStatus, { target: content, props: { status: data.sourceStatus || '' } });
       chart = mount(Chart, { target: content, props: { title: card.text || 'Chart', height: 164,
         spec: { ...styleSpec(data.style), x: data.x, y: data.y, series: data.series, smooth: data.smooth, values: false } } });
       return;

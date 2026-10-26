@@ -4,6 +4,7 @@ import { checkObject, OBJECT_KINDS, OBJECT_SIZE } from './objects.js';
 import { collectionLayout } from './collection.js';
 import { normaliseNewSlides } from './deck.js';
 import { normaliseDocument } from './document.js';
+import { saveChartSnapshots } from '../../objects/chart/source.js';
 
 // Built-in card types. Feature modules add more with registerCardType (a doc, a swatch, a drawing...),
 // so the host, the canvas and the checks all accept them. Type-specific data lives in card.props.
@@ -96,6 +97,7 @@ const LIMIT = { url: 4000, heading: 200, badge: 40 };
 // Apply one batch atomically. Returns { ok, board, created, errors }. The input board is never mutated.
 export function applyBatch(input, batch) {
   const board = structuredClone(input);
+  saveChartSnapshots(board.cards);
   const created = {}; const errors = []; const touched = new Set(); const documents = new Set(); const notes = [];
   const ref = id => (typeof id === 'string' && id.startsWith('$') ? created[id.slice(1)] : id);
   const byId = id => board.cards.find(c => c.id === ref(id));
@@ -282,6 +284,7 @@ export function applyBatch(input, batch) {
         }
         default: throw new Error(`unknown op "${cmd?.op}". Use create, update, revise, move, delete, connect, link_update, layout, order, focus, restore or board_set`);
       }
+      saveChartSnapshots(board.cards);
     } catch (e) {
       errors.push({ index, reason: e.message, hint: 'read the board again to get current card ids' });
     }

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte';
   import { resolvePlot, chartCards } from '../chart/source.js';
   import Chart from '../chart/Chart.svelte';
+  import SourceStatus from '../chart/SourceStatus.svelte';
   import { styleSpec, type ChartSpec, type ChartStyle, type ChartFormat } from '../chart/chart';
   type Plot = {
     smooth?: boolean;
@@ -14,7 +15,7 @@
     headline?: { label: string; value: string };
     target?: ChartSpec['target'];
   };
-  let { data, title, detail = 'full', onsmooth }: { data: Plot; title: string; onsmooth?: (smooth: boolean) => void; detail?: 'full' | 'overview' | 'tile' } = $props();
+  let { data, title, detail = 'full', onsmooth, onsource }: { data: Plot; title: string; onsmooth?: (smooth: boolean) => void; onsource?: (source: Plot['source']) => void; detail?: 'full' | 'overview' | 'tile' } = $props();
   let cards = $state(chartCards());
   onMount(() => {
     const stage = document.getElementById('stage');
@@ -22,7 +23,7 @@
     stage?.addEventListener('boardchange', refresh);
     return () => stage?.removeEventListener('boardchange', refresh);
   });
-  const resolved: Plot = $derived(resolvePlot(data, cards));
+  const resolved: Plot & { sourceStatus?: string } = $derived(resolvePlot(data, cards));
   const spec: ChartSpec = $derived({
     ...styleSpec(data.style),
     smooth: data.smooth,
@@ -30,7 +31,7 @@
     y: data.y,
     basis: data.basis,
     knowledge: data.knowledge,
-    headline: data.headline,
+    headline: resolved.headline,
     target: data.target,
     series: resolved.series.map(s => ({
       name: s.name,
@@ -39,6 +40,7 @@
   });
 </script>
 
+<SourceStatus status={resolved.sourceStatus || ''} sources={cards.filter(card => card.kind === 'sheet')} onchoose={onsource ? id => onsource?.({ cardId: id, xColumn: data.source?.xColumn ?? 0, yColumns: data.source?.yColumns ?? [1] }) : undefined} />
 <Chart {spec} {title} {detail} />
 {#if onsmooth && ['line', 'area', 'area_stacked'].includes(data.style)}
   <label class="smoothing"><input type="checkbox" checked={data.smooth === true} onchange={event => onsmooth?.(event.currentTarget.checked)} />Smooth line</label>

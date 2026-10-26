@@ -1,4 +1,4 @@
-import { slideHTML } from '../deck/slides.js';
+import { slideHTML, observeSlideFits } from '../deck/slides.js';
 import { parseTime, seriesColor } from '../../objects/chart/chart.ts';
 
 const paths = {
@@ -74,6 +74,7 @@ function previewContent(preview) {
   } else if (preview.type === 'deck' && preview.slide) {
     root.setAttribute('aria-label', `First slide: ${preview.slide.title || 'Untitled'}`);
     root.innerHTML = slideHTML(preview.slide); root.setAttribute('aria-hidden', 'true');
+    requestAnimationFrame(() => { if (root.isConnected) { observeSummaryRemoval(); summaryFits.set(root, observeSlideFits(root)); } });
   } else if (preview.type === 'diagram') {
     root.append(diagramGraphic(preview) || element('span', 'semantic-fact', `${preview.nodes.length} nodes · ${preview.edges.length} connections`));
   }
@@ -175,7 +176,16 @@ export function diagramLayout({ nodes, edges }, width, height = 52, textWidth = 
 }
 
 const diagrams = new Map();
-let diagramResize, diagramRemoval;
+const summaryFits = new Map();
+let diagramResize, summaryRemoval;
+function observeSummaryRemoval() {
+  if (summaryRemoval) return;
+  summaryRemoval = new MutationObserver(() => {
+    for (const node of diagrams.keys()) if (!node.isConnected) { diagramResize.unobserve(node); diagrams.delete(node); }
+    for (const [node, drop] of summaryFits) if (!node.isConnected) { drop(); summaryFits.delete(node); }
+  });
+  summaryRemoval.observe(document.getElementById('stage') || document.body, { childList: true, subtree: true });
+}
 function diagramGraphic(preview) {
   const root = element('span', 'semantic-diagram-fit');
   const render = () => {
@@ -195,10 +205,7 @@ function diagramGraphic(preview) {
   };
   if (!diagramResize) {
     diagramResize = new ResizeObserver(entries => { for (const { target } of entries) diagrams.get(target)?.(); });
-    diagramRemoval = new MutationObserver(() => {
-      for (const node of diagrams.keys()) if (!node.isConnected) { diagramResize.unobserve(node); diagrams.delete(node); }
-    });
-    diagramRemoval.observe(document.getElementById('stage') || document.body, { childList: true, subtree: true });
+    observeSummaryRemoval();
   }
   requestAnimationFrame(() => { if (root.isConnected) { diagrams.set(root, render); diagramResize.observe(root); render(); } });
   return root;

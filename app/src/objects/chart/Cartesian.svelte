@@ -29,8 +29,8 @@
     onevidence?: (reference: ChartEvidence) => void;
     glyph?: Snippet<[ChartEvidence]>;
   } = $props();
-  /** An average glyph's advance at the caption size, for room only, never for layout of the marks. */
-  const CHAR = 6.5;
+  /** Reserve room for caption digits and currency symbols, including A$ prefixes. */
+  const CHAR = 8;
   let width = $state(0);
   const hover = new Hover();
   onDestroy(() => hover.dispose());
@@ -96,6 +96,11 @@
   const right = $derived(Math.max(left + 1, width - pad.right));
   const top = $derived(pad.top);
   const bottom = $derived(Math.max(top + 1, height - pad.bottom));
+  // A short preview keeps its full series but draws only ticks that fit at 12px.
+  const visibleTicks = $derived.by(() => {
+    const limit = Math.max(2, Math.floor((bottom - top) / 24) + 1);
+    return shape.ticks.length <= limit ? shape.ticks : Array.from({ length: limit }, (_, i) => shape.ticks[Math.round(i * (shape.ticks.length - 1) / (limit - 1))]!);
+  });
 
   /** The value axis, up the plot or across it when the bars lie down. */
   const value = $derived(
@@ -337,7 +342,7 @@
     >
       {#if !tile && !(lying && valued)}
         <g class="grid" aria-hidden="true">
-          {#each shape.ticks as tick (tick)}
+          {#each visibleTicks as tick (tick)}
             {@const at = Math.round(value(tick)) + 0.5}
             {#if lying}<line x1={at} x2={at} y1={top} y2={bottom} />{:else}<line
                 x1={left}
@@ -448,7 +453,7 @@
       {/if}
       {#if valueAxis}
         <g class="axis" aria-hidden="true">
-          {#each shape.ticks as tick (tick)}
+          {#each visibleTicks as tick (tick)}
             {#if lying}<text class="tick" x={value(tick)} y={bottom + 16} text-anchor="middle"
                 >{tickLabel(tick, spec.y)}</text
               >{:else}<text

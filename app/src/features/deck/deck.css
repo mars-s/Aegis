@@ -30,6 +30,10 @@
 .deck-slide.l-chart .s-title { font-size: 4.6cqw; }
 .deck-slide.l-chart .s-sub { font-size: 2.2cqw; margin-top: 1.2cqw; }
 .deck-slide.l-chart .s-art { inset: 19cqw 6cqw 4cqw; height: auto; }
+.deck-fit > .deck-resolved-chart { position: absolute; left: calc(50% - 422.4px * var(--slide-scale)); top: calc(50% - 87.6px * var(--slide-scale)); width: calc(844.8px * var(--slide-scale)); height: calc(319.2px * var(--slide-scale)); }
+.deck-resolved-chart svg { display: block; text-rendering: geometricPrecision; }
+.deck-resolved-chart .chart-legend { font-size: 12px; line-height: 16px; }
+.deck-resolved-chart .chart-legend .name { white-space: normal; overflow: visible; }
 .deck-slide.l-three .s-copy { left: 48px; top: 48px; width: 864px; }
 .deck-slide.l-three .s-title { font-size: 5cqw; }
 .deck-slide.l-three .s-art { inset: 220px 48px 48px; height: auto; }

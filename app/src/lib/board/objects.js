@@ -41,6 +41,9 @@ export const SHAPES = {
     style: S.one(PLOT_STYLES),
     smooth: S.bool(),
     source: S.obj({ cardId: S.text(120), xColumn: S.int(0, 9), yColumns: S.list(S.int(0, 9), 1, 8) }, ['cardId', 'xColumn', 'yColumns']),
+    snapshot: S.obj({ binding: S.text(300), series: S.list(S.obj({
+      name: S.text(24), points: S.list(S.obj({ x: S.cell(200), y: S.value() }, ['x', 'y']), 0, 200),
+    }, ['name', 'points']), 1, 8) }, ['binding', 'series']),
     x: S.obj({ label: S.text(24), kind: S.one(['category', 'time', 'linear']) }, ['kind']),
     y: S.obj({ label: S.text(24), unit: S.text(12), format: S.one(PLOT_FORMATS), currency: S.text(3) }, ['format']),
     series: S.list(S.obj({

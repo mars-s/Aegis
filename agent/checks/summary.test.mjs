@@ -14,7 +14,8 @@ test('plot summary resolves live sheet values, subsequent saves and reopened boa
   const saved = JSON.parse(JSON.stringify([card, sheet]));
   assert.equal(cardSummary(saved[0], saved).preview.value, '12');
   assert.equal(card.data.series[0].points[1].y, 2);
-  assert.equal(cardSummary(card, []).preview.value, '2');
+  assert.equal(cardSummary(card, []).preview.value, 'No data');
+  assert.equal(cardSummary(card, []).sourceStatus, 'Source missing, no saved snapshot');
 });
 
 test('plot summaries keep chart kind, missing values, units and series identity', () => {
@@ -74,8 +75,8 @@ test('paragraph-first documents use one excerpt and true headings remain distinc
   const doc = body => cardSummary({ type: 'doc', text: 'Brief', props: { body } });
   assert.deepEqual(doc('Compare the hours with the evidence. Then decide.').facts, ['Compare the hours with the evidence.']);
   assert.deepEqual(doc('Compare these figures.').facts, ['Compare these figures.']);
+  assert.deepEqual(doc('Compare these figures.\n\n## Later section').facts, ['Compare these figures.']);
   assert.deepEqual(doc('# Evidence\n\nCompare these figures.').facts, ['Evidence', 'Compare these figures.']);
   assert.deepEqual(doc('# Evidence\n\nEvidence').facts, ['Evidence']);
   assert.deepEqual(doc('').facts, []);
 });
-

@@ -1,12 +1,12 @@
 import { documentWordCount, wordCountLabel } from './words.js';
-import { resolvePlot } from '../../objects/chart/source.js';
+import { resolvePlot, resolveDeckChart } from '../../objects/chart/source.js';
 import { formatValue, parseTime, pointText, styleSpec, xText } from '../../objects/chart/chart.ts';
 // Shared by the host's lightweight board list and the Library preview.
 export const plainLine = value => String(value ?? '').split('\n').find(line => line.trim())?.replace(/^\s*#{1,6}\s+/, '').replace(/[*_`]/g, '').trim().slice(0, 160) || '';
 export const cardTitle = card => plainLine(card.props?.layerName || card.heading || card.text || card.props?.name);
 const count = (n, singular, plural = `${singular}s`) => `${n} ${n === 1 ? singular : plural}`;
 const words = text => count(String(text || '').replace(/<[^>]*>/g, ' ').trim().split(/\s+/).filter(Boolean).length, 'word');
-const heading = text => plainLine(/^\s*#{1,6}\s+(.+)$/m.exec(text || '')?.[1]);
+const heading = text => plainLine(/^\s*#{1,6}\s+(.+)$/.exec(String(text || '').split('\n').find(line => line.trim()) || '')?.[1]);
 const names = { doc: 'Document', note: 'Note', todo: 'Checklist', deck: 'Deck', slides: 'Deck', dataset: 'Dataset', html: 'Custom UI', plot: 'Plot', sheet: 'Sheet' };
 
 // Data only. Cache these when the board changes, never parse content during a zoom gesture.
@@ -49,7 +49,8 @@ export function cardSummary(card, cards = []) {
   // Documents share one word count with the editor footer (lib/board/words.js); it is a secondary detail, not a visible fact.
   const wordCount = type === 'doc' ? wordCountLabel(documentWordCount(card)) : undefined;
   const distinct = facts.filter((fact, i) => fact && !facts.slice(0, i).some(previous => previous?.toLocaleLowerCase() === fact.toLocaleLowerCase()));
-  return { title, kind, facts: distinct.slice(0, 2), ...(wordCount ? { wordCount } : {}), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
+  const sourceStatus = data.sourceStatus || (type === 'deck' || type === 'slides' ? props.slides?.map(slide => slide.chart && resolveDeckChart(slide.chart, cards).sourceStatus).find(Boolean) : '');
+  return { title, kind, facts: distinct.slice(0, 2), ...(sourceStatus ? { sourceStatus } : {}), ...(wordCount ? { wordCount } : {}), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
 }
 
 // Match the sheet editor's header and the typed sheet's figures. Dates and text stay verbatim.
