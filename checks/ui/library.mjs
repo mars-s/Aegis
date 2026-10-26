@@ -61,7 +61,8 @@ try {
   assert.deepEqual((await tools.locator('.tools-panels > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel))).sort(), ['board-colours', 'draw', 'keys', 'media-devices', 'unsorted', 'wireframe']);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
   assert.match(await windows.locator('.phead').textContent(), /^Windows/);
-  assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, JSON.stringify(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => ({ id: el.dataset.panel, height: el.offsetHeight, flex: getComputedStyle(el).flex, body: el.querySelector('.pbody').offsetHeight })))));
+  assert.ok((await windows.boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
+  assert.ok((await library.boundingBox()).height >= 240);
   assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
   assert.equal(await keys.locator('.pbody').isVisible(), false, 'Shortcuts starts collapsed');
   assert.equal(await windows.getByRole('searchbox', { name: 'Filter windows' }).isVisible(), false, 'small Windows lists need no filter');
@@ -124,7 +125,8 @@ try {
   for (const width of [1440, 1586]) {
     await page.setViewportSize({ width, height: 992 });
     await page.waitForFunction(() => Math.abs(document.getElementById('side').getBoundingClientRect().left - 8) < .5);
-    assert.ok((await windows.boundingBox()).height > (await library.boundingBox()).height, 'Windows stays larger than Library on a busy board');
+    assert.ok((await windows.boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1, 'Windows uses at most 45% of the sidebar');
+    assert.ok((await library.boundingBox()).height >= 240, 'Library keeps at least 240px');
     await page.screenshot({ path: out(`r3-nav-${Date.now()}-windows-first-${width}.png`) });
   }
   const scrollWindows = windows.locator('.pbody'), scrollLibrary = library.locator('.tree');
@@ -163,7 +165,7 @@ try {
   await page.evaluate(() => new Promise(resolve => aegisCtx.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }], resolve)));
   for (const id of navFolders) await api('/library', { op: 'delete', id, recursive: true });
   await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 0);
-  check('Windows leads and is taller than compact Library at 1440/1586; each section scrolls independently; Shortcuts starts collapsed and remembers changes; old layouts migrate; phone says Windows');
+  check('Windows stays below 45% at 1440/1586 and Library keeps at least 240px; each section scrolls independently; Shortcuts remembers changes; phone says Windows');
   await page.locator('[data-add="project"]').click();
   await page.waitForFunction(() => document.querySelector('.tree-row.project'));
   let lib = await read(), project = lib.nodes.find(n => n.kind === 'project').id;

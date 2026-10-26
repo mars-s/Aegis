@@ -203,5 +203,5 @@ export function createLibrary({ el, host, current, openBoard, toast }) {
   for (const kind of ['board', 'folder', 'project']) el.querySelector(`[data-add="${kind}"]`).onclick = guard(() => create(kind));
   addEventListener('focus', guard(refresh));
   deletion.resume();
-  return { refresh, render };
+  return { refresh: guard(refresh), render };
 }

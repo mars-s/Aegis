@@ -39,8 +39,8 @@
     <div class="phead"><span>Library</span><button class="fold" aria-label="Fold Library"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div>
     <div class="pbody">
       <div class="tree" role="tree"></div>
-      <div class="adds"><button data-add="board">+ Board</button><button data-add="folder">+ Folder</button><button data-add="project">+ Project</button></div>
     </div>
+    <footer class="adds library-footer" aria-label="Create in library"><button data-add="board">+ Board</button><button data-add="folder">+ Folder</button><button data-add="project">+ Project</button></footer>
     <div class="resize-handle" title="Drag to resize"></div>
   </section>
   <section class="pbox" data-panel="keys">

@@ -20,8 +20,12 @@
 #side .tree-sep { padding: 12px 4px 4px; }
 #side .layer-filter { margin: 4px 8px 8px; padding: 4px 8px; }
 #side .library-home-button { height: 32px; margin: 0 0 4px; padding: 0 8px; border-radius: 6px; font-weight: 400; }
-#side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 168px; max-height: 28vh; }
-#side .adds { gap: 4px; padding: 8px 0 0; }
+#side > .pbox[data-panel=layers]:not(.folded) { flex: 0 1 auto; min-height: 80px; max-height: 45%; }
+#side > .pbox[data-panel=layers]:not(.folded) > .pbody { flex: 0 1 auto; height: auto; }
+#side > .pbox[data-panel=library]:not(.folded) { flex: 1 0 240px; min-height: 240px; }
+#side > .pbox[data-panel=library]:not(.folded) > .pbody { flex: 1 1 0; height: auto !important; max-height: none; }
+#side .adds { flex: none; gap: 4px; margin: 0; padding: 8px; border-top: 1px solid var(--line); }
+#side > .pbox.folded > .library-footer { display: none; }
 #side .adds button { height: 32px; min-height: 32px; min-width: 0; padding: 0 4px; border-radius: 6px; font-size: 12px; font-weight: 400; }
 #side :is(.side-head .icon-btn, .fold, .twisty, .layer-fold, .tree-delete, .row-more, .adds button, .library-home-button, .board-crumbs button):hover { background: var(--hover); border-color: transparent; }
 #side button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; }
