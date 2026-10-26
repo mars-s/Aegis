@@ -5,8 +5,10 @@ import { extensions } from './extensions.js';
 import { cardContent, COPY_TYPES, documentUpdate, markdownHTML, migrateTitle } from './content.js';
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
-import { bindDisclosure, createPopup, createCombobox } from '../../lib/ui/dropdown.js';
+import { bindDisclosure, createPopup } from '../../lib/ui/dropdown.js';
+import { writingFontChooser } from '../editing/writing-fonts.js';
 import { chooser as select } from './menu.js';
+import { OrbMark } from '../../lib/ui/orb-mark.js';
 import '../../lib/ui/ribbon.css';
 
 let active = null;
@@ -121,6 +123,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     menuPopup.destroy(); colourPopups.forEach(popup => popup.destroy());
     window.removeEventListener('pagehide', save);
     editor.destroy(); bubble.remove();
+    fonts.destroy();
     if (active?.id === card.id) active = null;
   }, { once: true });
   function pasteCards(data) {
@@ -211,14 +214,13 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     chain.run();
   }); tool.append(blocks);
   tool = typeGroup;
-  const fonts = createCombobox({ label: 'Font family' });
-  const used = new Set(['Inter Variable', 'Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
+  const used = new Set();
   function collect(node) { for (const mark of node?.marks ?? []) if (mark.attrs?.fontFamily) used.add(mark.attrs.fontFamily); for (const child of node?.content ?? []) collect(child); }
   for (const c of ctx.canvas.board.cards) { collect(c.props?.doc); if (c.props?.font) used.add(c.props.font); }
-  fonts.setOptions([...used]);
+  const fonts = writingFontChooser([...used]);
   // Keep form controls focused. TipTap's focus() queues a frame that can steal
   // focus from the next field and insert its typed value into the document.
-  fonts.onchange = () => { if (fonts.value.trim()) editor.chain().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts);
+  fonts.onchange = () => { if (fonts.fontFamily) editor.chain().setFontFamily(fonts.fontFamily).run(); }; tool.append(fonts);
   const sizes = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
   const size = document.createElement('input'); size.type = 'number'; size.min = '6'; size.max = '200'; size.setAttribute('aria-label', 'Font size');
   const setSize = value => { const n = Math.max(6, Math.min(200, Number(value) || 16)); editor.chain().setFontSize(`${n}px`).run(); size.value = String(n); };
@@ -287,12 +289,16 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     form.onsubmit = event => { event.preventDefault(); if (!/^(https?:|mailto:)/i.test(input.value)) return ctx.toast('Use an https, http or email link'); editor.chain().focus().extendMarkRange('link').setLink({ href: input.value }).run(); form.remove(); };
     openForm(form, 'Edit document link'); input.focus();
   }
+  let rewriting = false;
   async function requestRewrite(how) {
+    if (rewriting) return;
     const { from, to, empty } = editor.state.selection;
     if (empty) return ctx.toast('Select some words to rewrite first');
     if (!rewrite) return ctx.toast('Document rewriting needs an Aegis agent host adapter');
     const original = editor.state.doc.textBetween(from, to, '\n'), snapshot = editor.state.doc;
     setStatus('Rewriting…');
+    rewriting = true;
+    for (const control of [ai, bubble]) control.setAttribute('aria-busy', 'true');
     try {
       const result = await rewrite({ text: original, how, title: title.value, around: editor.state.doc.textBetween(Math.max(0, from - 700), Math.min(editor.state.doc.content.size, to + 700), '\n'), boardId, cardId: card.id, host: ctx.host });
       if (closed) return;
@@ -300,7 +306,11 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
       if (typeof result !== 'string' || !result.trim()) throw new Error('The agent returned no text');
       editor.chain().focus().insertContentAt({ from, to }, { type: 'text', text: result }).setTextSelection({ from, to: from + result.length }).run();
     } catch (error) { ctx.toast(`Could not rewrite: ${error.message}`); }
-    finally { if (!dirty && !saving) setStatus('Saved'); }
+    finally {
+      rewriting = false;
+      for (const control of [ai, bubble]) control.setAttribute('aria-busy', 'false');
+      if (!dirty && !saving) setStatus('Saved');
+    }
   }
   function rewriteMenu(parent) {
     const chooser = select('Rewrite selection', [['', 'Rewrite'], ...['Shorter', 'Clearer', 'Friendlier', 'More confident', 'More professional', 'Fix spelling & grammar', 'Into bullet points', 'Custom instruction'].map(v => [v, v])], value => {
@@ -312,7 +322,9 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
         form.append(button('Cancel rewrite', 'Cancel', () => form.remove()));
         form.onsubmit = event => { event.preventDefault(); if (input.value.trim()) requestRewrite(input.value.trim()); form.remove(); }; openForm(form, 'Rewrite instruction'); input.focus();
       } else requestRewrite(value);
-    }); parent.append(chooser);
+    });
+    chooser.querySelector('button').insertAdjacentHTML('afterbegin', OrbMark());
+    parent.append(chooser);
   }
   const ai = group(); ai.classList.add('ribbon-ai'); rewriteMenu(ai); rewriteMenu(bubble);
   function commandPopover(label, content, className) {
@@ -334,7 +346,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   function paint() {
     if (!editor || editor.isDestroyed || !tableTools) return;
     const attrs = editor.getAttributes('textStyle');
-    if (document.activeElement !== fonts) fonts.value = attrs.fontFamily || 'Inter Variable';
+    if (document.activeElement !== fonts) fonts.setFont(attrs.fontFamily || 'Inter Variable');
     if (document.activeElement !== size) size.value = String(parseFloat(attrs.fontSize) || 18);
     blocks.value = editor.isActive('heading') ? ['title', 'heading', 'sub'][editor.getAttributes('heading').level - 1] : editor.isActive('blockquote') ? 'quote' : editor.isActive('codeBlock') ? 'code' : editor.getAttributes('paragraph').kind || 'body';
     align.value = editor.getAttributes('paragraph').textAlign || editor.getAttributes('heading').textAlign || 'left';

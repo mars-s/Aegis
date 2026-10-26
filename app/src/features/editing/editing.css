@@ -95,7 +95,7 @@ body.left-open .editing-hints { visibility: hidden; }
 .selection-menu section + section { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
 .selection-menu h3 { margin: 6px 8px 4px; color: var(--faint); font-size: 11px; font-weight: 500; }
 .selection-menu .selection-menu-action { display: flex; justify-content: space-between; width: 100%; padding: 0 8px; text-align: left; }
-.selection-value { margin-left: auto; color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.selection-value { flex: 0 1 96px; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-left: auto; text-align: right; color: var(--faint); font: 11px var(--font); font-variant-numeric: tabular-nums; }
 .selection-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 2px 8px; }
 .selection-row > span:first-child { flex: 1; min-width: 0; }
 .selection-bar input, .selection-bar select { width: 126px; min-width: 0; height: 28px; padding: 4px 6px; background: var(--inset); color: var(--text); border: 0; border-radius: 5px; font: inherit; font-variant-numeric: tabular-nums; }
@@ -139,11 +139,8 @@ body.phone .selection-bar .selection-stepper input { min-width: 44px; }
 
 .selection-colours button[aria-pressed=true] { background: transparent; }
 
-/* Ask AI: the one coloured control in the bar, wearing the orb's star in the agent blue. */
+/* Inline AI actions share the folded orb. */
 .selection-bar .selection-ai { color: var(--data); }
-.selection-bar .selection-ai svg { fill: currentColor; stroke: none; transition: transform 160ms var(--ease-out); }
+.selection-bar .selection-ai.selection-ai::before { content: none; }
 .selection-bar .selection-ai:hover { background: var(--data-soft); color: var(--data); }
-.selection-bar .selection-ai:hover svg { transform: rotate(45deg) scale(1.08); }
 .selection-bar .selection-ai + .selection-count { padding-left: 4px; }
-body.motion-off .selection-bar .selection-ai svg { transition: none; }
-@media (prefers-reduced-motion: reduce) { .selection-bar .selection-ai svg { transition: none; } }

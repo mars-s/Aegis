@@ -47,7 +47,8 @@ try {
   const stage = await stageBounds(), camera = await page.evaluate(() => ({ ...aegis.canvas.view }));
   await page.keyboard.press('Enter');
   await page.locator('.sheet-editor').waitFor();
-  assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera, 'Keyboard opens skip the camera glide');
+  await page.waitForTimeout(450);
+  assert.notDeepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera, 'Keyboard opens frame the editor context');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionDuration), '0s');
   const grid = page.locator('.sheet-scroll');
   const gridFocus = await grid.evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, ring: getComputedStyle(el).boxShadow }));
@@ -97,8 +98,8 @@ try {
   const type = await page.locator('.docs-prose').evaluate(el => { const css = getComputedStyle(el); return [css.fontSize, css.lineHeight, css.caretColor, css.fontFamily]; });
   assert.deepEqual(type.slice(0, 3), ['18px', '28px', 'rgb(63, 141, 253)']); assert.match(type[3], /Inter Variable/);
   await page.waitForTimeout(450);
-  const centred = await page.evaluate(() => { const c = aegis.canvas.board.cards.find(c => c.id === 'doc00001'); return aegis.canvas.worldToScreen(c.x + c.w / 2, c.y + c.h / 2); });
-  assert.ok(Math.abs(centred.x - 400) < 1, 'Pointer open centres the card in the left half');
+  const source = await page.locator('.editor-context-source').boundingBox();
+  assert.ok(source.x >= 24 && source.x + source.width <= half.x - 24, 'Pointer open frames a compact source with clearance beside the actual editor');
   await page.screenshot({ path: out('editors-document-half.png') });
   await page.getByRole('button', { name: 'Full width', exact: true }).click();
   assert.equal((await page.locator('.docs-panel').boundingBox()).width, 1584);

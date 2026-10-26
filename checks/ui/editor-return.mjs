@@ -111,14 +111,14 @@ try {
       }
       console.log(`PASS ${engineName}: camera and selection return after pan, Fit and reference framing; stateful width controls and shortcut`);
 
-      // Keyboard opens keep the current view. Back and Escape both return to the source.
+      // Keyboard opens frame context too. Back and Escape restore the original view.
       let before = await prepare('returndoc', false);
       await page.keyboard.press('Enter'); await page.locator('.docs-panel').waitFor();
-      assert.deepEqual((await snapshot()).view, before.view);
+      await page.waitForTimeout(450); assert.notDeepEqual((await snapshot()).view, before.view);
       await page.getByRole('button', { name: 'Back to board', exact: false }).click(); await waitReturn(before, 'returndoc');
       await page.locator('.side-editor').waitFor({ state: 'detached' });
       before = await prepare('returndeck', false); await page.keyboard.press('Enter'); await page.locator('.deck-panel').waitFor();
-      assert.deepEqual((await snapshot()).view, before.view);
+      await page.waitForTimeout(450); assert.notDeepEqual((await snapshot()).view, before.view);
       await page.keyboard.press('Escape'); await waitReturn(before, 'returndeck');
 
       // Replacing editors retains the first canvas view and does not start a return between them.
@@ -152,6 +152,19 @@ try {
       await page.keyboard.press('Escape');
       await waitReturn({ ...before, view: { ...before.view, x: before.view.x - 80, y: before.view.y - 50 } }, 'returnsheet');
       await page.setViewportSize({ width: 1440, height: 1000 });
+
+      // A new selection in the close event takes priority over deferred source focus.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      await prepare('returnsheet'); await open('returnsheet');
+      await page.evaluate(() => {
+        document.querySelector('.side-editor [data-close]').click();
+        aegis.canvas.select(['reference']); aegis.canvas.frameIds(['reference'], 1, false, true);
+        document.getElementById('stage').focus();
+      });
+      await page.waitForTimeout(100);
+      assert.equal(await page.evaluate(() => document.activeElement.id), 'stage', 'the source cannot steal focus after a new selection');
+      assert.deepEqual((await snapshot()).selection, ['reference']);
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
       console.log(`PASS ${engineName}: keyboard, Back, replacement, interruption, reduced motion, Motion off and resize`);
 
       // Typography is the default through the real agent tool. Wave selection persists and presents.

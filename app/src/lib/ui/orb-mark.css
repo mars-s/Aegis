@@ -1,0 +1,6 @@
+.orb-mark.orb-inline { width: 16px; height: 16px; transition: none; }
+.orb-mark.orb-inline :is(.orb-colours, .orb-light) { animation: none; }
+[aria-busy=true] .orb-mark.orb-inline .orb-colours { animation: aegis-orb-fold 1.8s cubic-bezier(.45, 0, .55, 1) infinite; }
+[aria-busy=true] .orb-mark.orb-inline .orb-light { animation: aegis-orb-light 1.4s cubic-bezier(.45, 0, .55, 1) infinite; }
+body.motion-off .orb-mark.orb-inline :is(.orb-colours, .orb-light) { animation: none; }
+@media (prefers-reduced-motion: reduce) { [aria-busy] .orb-mark.orb-inline :is(.orb-colours, .orb-light) { animation: none; } }

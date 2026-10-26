@@ -30,6 +30,13 @@
 .side-editor :is(input, textarea, [contenteditable]) { caret-color: var(--data); }
 .side-editor :is(input, textarea)::placeholder { color: var(--faint); }
 .side-editor :is([contenteditable], input) { user-select: text; -webkit-user-select: text; }
+.editor-context { position: absolute; z-index: 100005; overflow: hidden; pointer-events: none; }
+.editor-context-window { position: absolute; left: 0; top: 0; height: 112px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: auto; }
+.editor-context-window .semantic-content { transform: none; transition: none; }
+.editor-context-source { border-color: var(--data); }
+.editor-context-source .semantic-kind { color: var(--ink-2); }
+.editor-context-window:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
+#stage:has(.editor-context:not([hidden])) :is(.board-overview, .overview-back) { visibility: hidden; }
 body.motion-off .side-editor { transform: none; opacity: 0; transition: opacity 160ms linear; }
 body.motion-off .side-editor.is-open { opacity: 1; }
 body.motion-off .side-editor button { transition: none; transform: none; }

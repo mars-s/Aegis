@@ -1,8 +1,20 @@
 import { createTooltip } from '../../lib/ui/index.js';
 import { reduceMotion } from '../../lib/ui/interaction.js';
 import { menuShortcut } from '../../lib/shortcuts.js';
+import { editorContext } from './context.js';
 
 let current = null;
+
+function captureScroll(stage) {
+  const saved = [];
+  for (const card of stage.querySelectorAll('#world > .card')) for (const node of card.querySelectorAll('*')) {
+    if (!node.scrollTop && !node.scrollLeft) continue;
+    const path = [];
+    for (let el = node; el !== card; el = el.parentElement) path.unshift([...el.parentElement.children].indexOf(el));
+    saved.push({ id: card.dataset.id, path, top: node.scrollTop, left: node.scrollLeft });
+  }
+  return saved;
+}
 
 /** Shared, non-modal editor shell. Captures the board before moving its camera.
  * Listen for side-editor-close to flush edits and dispose the editor content.
@@ -12,7 +24,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   const canvas = ctx.canvas, stage = document.getElementById('stage');
   const boardId = canvas.board.id;
   const bookmark = current?.bookmark.boardId === boardId ? current.bookmark : {
-    boardId, view: { ...canvas.view }, width: stage.clientWidth, height: stage.clientHeight,
+    boardId, view: { ...canvas.view }, width: stage.clientWidth, height: stage.clientHeight, scroll: captureScroll(stage),
   };
   const selection = [...ctx.selection()];
   current?.close({ keyboard: true, restoreFocus: false });
@@ -30,10 +42,17 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   let closed = false;
   function returnToBoard() {
     if (canvas.board.id !== boardId) return;
-    canvas.select(selection.filter(id => canvas.board.cards.some(c => c.id === id)));
+    const restoredSelection = selection.filter(id => canvas.board.cards.some(c => c.id === id));
+    canvas.select(restoredSelection);
     stage.focus({ preventScroll: true });
     const focusSource = () => requestAnimationFrame(() => {
       if (canvas.board.id !== boardId || current || document.activeElement !== stage) return;
+      const selected = canvas.selection();
+      if (selected.length !== restoredSelection.length || selected.some((id, index) => id !== restoredSelection[index]) || ['x', 'y', 'z'].some(key => canvas.view[key] !== target[key])) return;
+      for (const saved of bookmark.scroll) {
+        const node = saved.path.reduce((el, index) => el?.children[index], canvas.mountedEl(saved.id));
+        if (node) { node.scrollTop = saved.top; node.scrollLeft = saved.left; }
+      }
       const source = canvas.mountedEl(card.id);
       if (source) { if (!source.hasAttribute('tabindex')) source.tabIndex = -1; source.focus({ preventScroll: true }); }
     });
@@ -44,6 +63,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   function close({ keyboard = false, restoreFocus = true } = {}) {
     if (closed) return;
     closed = true;
+    context.destroy();
     el.dispatchEvent(new Event('side-editor-close'));
     document.removeEventListener('keydown', widthKeys, true);
     document.removeEventListener('keydown', keys);
@@ -92,14 +112,12 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   const shell = { el, body, close, bookmark, setSaved: text => { el.querySelector('[data-saved]').textContent = text; } };
   current = shell;
   canvas.setEditorSource(card.id);
+  const context = editorContext(canvas, card, el);
+  shell.frameContext = context.frame;
   return shell;
 }
 
 export function centreCardInLeft(card, ctx, keyboard = false) {
-  if (keyboard || innerWidth <= 760 || document.body.classList.contains('editor-wide')) return;
-  const stage = document.getElementById('stage').getBoundingClientRect();
-  const view = ctx.canvas.view;
-  const centre = ctx.canvas.worldToScreen(card.x + card.w / 2, card.y + card.h / 2);
-  const target = { x: view.x + innerWidth / 4 - stage.left - centre.x, y: view.y + innerHeight / 2 - 30 - stage.top - centre.y, z: view.z };
-  ctx.canvas.glideTo(target, reduceMotion() ? 0 : 380);
+  // Existing editor callers share the shell's context and its original bookmark.
+  current?.frameContext();
 }

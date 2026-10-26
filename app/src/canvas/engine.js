@@ -648,7 +648,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     if (!ms || preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); onComplete(); return; }
     const from = { ...view }, t0 = performance.now(); const ease = t => 1 - Math.pow(1 - t, 3);
     const step = now => { const t = Math.min(1, (now - t0) / ms), k = ease(t);
-      setView({ x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, z: from.z + (target.z - from.z) * k }, t === 1);
+      setView(t === 1 ? target : { x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, z: from.z + (target.z - from.z) * k }, t === 1);
       if (t < 1) anim = requestAnimationFrame(step); else onComplete(); };
     anim = requestAnimationFrame(step);
   }

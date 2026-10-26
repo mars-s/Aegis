@@ -13,7 +13,7 @@ import { mountLayerDeletion } from './layer-delete.js';
 import { deletionNotice } from './deletion.js';
 import { mountNoteSizing } from './note-sizing.js';
 import { createMenu } from '../../chrome/menu.js';
-import { shortcutText } from '../../lib/shortcuts.js';
+import { menuShortcut } from '../../lib/shortcuts.js';
 import { createPopup } from '../../lib/ui/dropdown.js';
 
 registerTool({ id: 'coll', title: 'Collection', key: 'g', group: 'editing', icon: '<rect x="2" y="2" width="12" height="12" rx="2"/><path d="M2 6h12"/>', place(at, ctx) { ctx.apply([{ op: 'create', type: 'coll', text: 'Collection', x: at.x, y: at.y, props: { kids: [] }, ref: 'collection' }], ids => ctx.canvas.select([ids.collection])); } });
@@ -193,12 +193,12 @@ export function mountEditing(ctx) {
         if (!single) { const count = document.createElement('span'); count.className = 'selection-count'; count.textContent = `${cards.length} selected`; bar.querySelector('.selection-inline').prepend(count); }
         // Ask about these windows: opens the composer with the selection pinned as the agent's context.
         { const ai = button(single ? 'Ask AI about this window' : `Ask AI about ${cards.length} windows`, e => document.dispatchEvent(new CustomEvent('ask-about-selection', { detail: { ids: cards.map(c => c.id), keyboard: e.detail === 0 } })), { inline: true, icon: 'AI' });
-          ai.classList.add('selection-ai'); ai.setAttribute('aria-keyshortcuts', 'Meta+K'); ai.title += ` (${shortcutText('ask')})`; bar.querySelector('.selection-inline').prepend(ai); }
+          ai.classList.add('selection-ai'); ai.setAttribute('aria-keyshortcuts', 'Meta+K Control+K'); ai.title += ` (${menuShortcut('ask')})`; bar.querySelector('.selection-inline').prepend(ai); }
         if (!locked) {
           if (single) button('Connect', () => { toolbar.close(); stage.dispatchEvent(new CustomEvent('connectstart', { detail: { id: cards[0].id } })); }, { group: 'Actions' });
           if (text.length) {
             for (const [label, prop] of [['Bold', 'bold'], ['Italic', 'italic'], ['Underline', 'under'], ['Strike through', 'strike']]) {
-              const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: shortcutText('bold'), italic: shortcutText('italic'), under: shortcutText('underline') }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
+              const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: menuShortcut('bold'), italic: menuShortcut('italic'), under: menuShortcut('underline') }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
             }
             const values = text.map(typography), size = values.every(value => value.size === values[0].size) ? values[0].size : '';
             stepper('Text size', size, v => format('size', Number(v)), { inline: textInline });
@@ -235,12 +235,12 @@ export function mountEditing(ctx) {
             button('Group', () => group(), { inline: true });
             button('Collect', () => { const b = bounds(cards), id = uid(); const coll = { id, type: 'coll', x: b.x - 12, y: b.y - 52, w: Math.max(300, b.right - b.x + 24), h: 180, props: { kids: cards.map(c => c.id) } }; apply([{ op: 'create', type: 'coll', newId: id, text: 'Collection', x: coll.x, y: coll.y, w: coll.w, h: coll.h, props: coll.props }, { op: 'order', ids: [id], to: 'back' }, ...collectionLayout(canvas.board, coll)], () => canvas.select([id])); }, { group: 'Arrange' });
           }
-          if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: shortcutText('ungroup') });
+          if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: menuShortcut('ungroup') });
           if (single && !textInline && !media && canOpen(cards[0])) button('Open', () => openCard(cards[0]), { inline: true, text: true });
           if (media) { button('Replace', () => replaceMedia(cards[0]), { inline: true, text: true }); button('Download', () => downloadMedia(cards[0]), { inline: true }); }
           for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Actions').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
-          button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: shortcutText('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: shortcutText('remove') });
-          for (const [label, direction, key] of [['Bring to front', 'front', 'stackToFront'], ['Bring forward', 'forward', 'stackForward'], ['Send backward', 'backward', 'stackBack'], ['Send to back', 'back', 'stackToBack']]) button(label, () => stack(direction), { group: 'Arrange', shortcut: shortcutText(key) });
+          button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: menuShortcut('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: menuShortcut('remove') });
+          for (const [label, direction, key] of [['Bring to front', 'front', 'stackToFront'], ['Bring forward', 'forward', 'stackForward'], ['Send backward', 'backward', 'stackBack'], ['Send to back', 'back', 'stackToBack']]) button(label, () => stack(direction), { group: 'Arrange', shortcut: menuShortcut(key) });
           button('Lock', () => apply(editableCards().map(c => ({ op: 'update', id: c.id, set: { props: { locked: true } } }))), { group: 'Arrange' });
         } else button('Unlock', () => apply(cards.map(c => ({ op: 'update', id: c.id, set: { props: { locked: false } } }))), { inline: true, text: true });
         button('PNG', () => exportBoard(ctx, true), { group: 'Export', shortcut: 'Image' }); button('PDF', () => exportBoard(ctx, true, 'pdf'), { group: 'Export', shortcut: 'Document' });
@@ -290,7 +290,7 @@ export function mountEditing(ctx) {
   stage.addEventListener('canvaspaint', () => { const ids = canvas.selection().join(); if (ids !== tiltSelection) { tiltPopup.close(); tiltSelection = ids; } });
   mountLayerDeletion(ctx, history);
   const layerMenu = createMenu();
-  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', shortcut: shortcutText('stackToFront'), section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', shortcut: shortcutText('stackToBack'), section: 'Arrange', run: () => stack('back') }]); });
+  stage.addEventListener('layercontext', e => { const { x, y, ids } = e.detail; layerMenu.show(x, y, [...cardMenu.filter(m => !m.when || m.when(ctx, ids)).map(m => ({ ...m, run: () => m.id === 'delete' ? stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) : m.run(ctx, ids) })), { title: 'Delete', section: 'zz', run: () => stage.dispatchEvent(new CustomEvent('layerdelete', { detail: { ids } })) }, { title: 'Bring to front', shortcut: menuShortcut('stackToFront'), section: 'Arrange', run: () => stack('front') }, { title: 'Send to back', shortcut: menuShortcut('stackToBack'), section: 'Arrange', run: () => stack('back') }]); });
 
   let trayEl, traySig = '';
   trayMount = el => { trayEl = el; el.classList.add('unsorted-list'); renderTray(); };
@@ -298,7 +298,7 @@ export function mountEditing(ctx) {
     if (!trayEl || !canvas.board) return;
     const sig = JSON.stringify([canvas.board.id, canvas.board.tray]); if (sig === traySig) return; traySig = sig;
     trayEl.replaceChildren(); const items = canvas.board.tray ?? [];
-    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : `Capture ideas with ${shortcutText('quickCapture')}. Drag cards here to put them aside.`; trayEl.append(hint);
+    const hint = document.createElement('p'); hint.className = 'muted small'; hint.textContent = items.length ? `${items.length} ideas. Drag onto the board.` : `Capture ideas with ${menuShortcut('quickCapture')}. Drag cards here to put them aside.`; trayEl.append(hint);
     for (const item of items) {
       const row = document.createElement('button'); row.className = 'tray-item'; row.textContent = item.text || item.heading || item.url || item.type; row.dataset.id = item.id;
       row.onclick = () => release(item, canvas.centre());
@@ -320,7 +320,7 @@ export function mountEditing(ctx) {
     const r = trayEl.closest('.pbox').getBoundingClientRect(); if (x < r.left || x > r.right || y < r.top || y > r.bottom || !r.height) return;
     return () => { const clip = makeClip(canvas.board, cards.map(c => c.id)), first = clip.cards[0]; if (!first) return; const item = { ...first, id: uid(), bundle: { cards: clip.cards, links: clip.links } }; apply([{ op: 'board_set', set: { tray: [...(canvas.board.tray ?? []), item] } }, { op: 'delete', ids: clip.cards.map(c => c.id) }], () => canvas.select([])); };
   });
-  for (const [id, title, run] of [['duplicate', 'Duplicate', duplicate], ['copy', 'Copy', () => copy()], ['cut', 'Cut', () => copy(null, true)], ['group', 'Group', () => group()], ['ungroup', 'Ungroup', () => group(true)], ['forward', 'Bring forward', () => stack('forward')], ['backward', 'Send backward', () => stack('backward')], ['export', 'Export selection as PNG', () => exportBoard(ctx, true)], ['export-pdf', 'Export selection as PDF', () => exportBoard(ctx, true, 'pdf')]]) registerCardMenu({ id: `editing-${id}`, title, ...(id === 'forward' || id === 'backward' ? { shortcut: shortcutText(id === 'forward' ? 'stackForward' : 'stackBack') } : {}), section: 'Editing', run });
+  for (const [id, title, run] of [['duplicate', 'Duplicate', duplicate], ['copy', 'Copy', () => copy()], ['cut', 'Cut', () => copy(null, true)], ['group', 'Group', () => group()], ['ungroup', 'Ungroup', () => group(true)], ['forward', 'Bring forward', () => stack('forward')], ['backward', 'Send backward', () => stack('backward')], ['export', 'Export selection as PNG', () => exportBoard(ctx, true)], ['export-pdf', 'Export selection as PDF', () => exportBoard(ctx, true, 'pdf')]]) registerCardMenu({ id: `editing-${id}`, title, ...(id === 'forward' || id === 'backward' ? { shortcut: menuShortcut(id === 'forward' ? 'stackForward' : 'stackBack') } : {}), section: 'Editing', run });
   registerCardMenu({ id: 'editing-reset-tilt', title: 'Reset tilts', section: 'Editing', when: () => editableCards().some(c => c.rot && !['frame', 'section', 'coll', 'ink'].includes(c.type)), run: () => { const cards = editableCards().filter(c => !['frame', 'section', 'coll', 'ink'].includes(c.type)); apply(cards.map(c => ({ op: 'update', id: c.id, set: { rot: 0 } }))); } });
   registerBoardMenu({ id: 'editing-export-board', title: 'Export board as PNG', section: 'Export', run: () => exportBoard(ctx, false) });
   registerBoardMenu({ id: 'editing-export-board-pdf', title: 'Export board as PDF', section: 'Export', run: () => exportBoard(ctx, false, 'pdf') });

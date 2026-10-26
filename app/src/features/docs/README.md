@@ -50,9 +50,14 @@ and listen for `side-editor-close` on `el` to save and dispose resources. Openin
 another shell fires that event on the previous one before replacing it.
 `close({ keyboard: true })` closes instantly. The shell provides Escape, Full
 width, the close button and body classes. The width action changes to Side panel when expanded and shows its Cmd+Shift+F or Ctrl+Shift+F shortcut with an accessible pressed state. It never traps focus. Optional
-`centreCardInLeft(card, ctx, keyboard)` handles the pointer camera glide.
+`centreCardInLeft(card, ctx, keyboard)` delegates to the shell's shared context
+framing. Pointer and keyboard opens both frame the source with up to two linked
+or nearby windows in the space left by the measured editor and sidebar bounds.
+The overview summaries keep the source compact and the context readable, with
+24 px clearance. Width and viewport changes reframe that space. Camera motion
+can be interrupted and honours both motion preferences.
 
-Opening records the camera and selection. Close restores surviving selected cards
+Opening records the camera, selection and scrolled canvas content. Close restores surviving selected cards
 and the camera with a 250 ms ease-out, then focuses the source card. Panning,
 Fit and zooming while editing leave the bookmark intact. A new gesture interrupts
 the return. Reduced motion and Motion off restore instantly. Resizing preserves
