@@ -50,6 +50,7 @@ all.push('spatial-interaction');
 all.push('spatial-memory');
 // Fresh agent Undo and complete capture-batch retrieval in the production bundle.
 all.push('trust-undo');
+all.push('crop-a11y');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

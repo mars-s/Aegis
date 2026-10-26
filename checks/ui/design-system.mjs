@@ -158,7 +158,7 @@ try {
       await select([imageId]); await page.locator(`.card[data-id="${imageId}"]`).getByRole('button', { name: button, exact: true }).click();
       await shot('media-' + button.toLowerCase(), page.getByRole('dialog', { name: title, exact: true })); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     }
-    await select(['designlink']); await page.locator('.card[data-id="designlink"]').getByRole('button', { name: 'Edit link', exact: true }).click();
+    await select(['designlink']); await page.locator('.card[data-id="designlink"]').getByRole('button', { name: 'Edit link', exact: true }).focus(); await page.keyboard.press('Enter');
     await shot('media-link', page.getByRole('dialog', { name: 'Edit link', exact: true })); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
     await page.mouse.move(24, 480); await page.locator('#toolsFold').click();
     await shot('more-tools', page.locator('#toolsPopover'));
