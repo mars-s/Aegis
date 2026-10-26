@@ -6,15 +6,32 @@ import { cardContent, COPY_TYPES, documentUpdate, markdownHTML, migrateTitle } f
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
 import { chooser as select } from './menu.js';
+import '../../lib/ui/ribbon.css';
 
 let active = null;
 let rewrite = null;
 /** Host adapters return replacement text. No provider credentials enter this module. */
 export function registerDocRewriter(handler) { rewrite = handler; return () => { if (rewrite === handler) rewrite = null; }; }
 export const currentDocument = () => active;
+// Ribbon glyphs share the app's 16px, 1.4 stroke icon grid.
+const GLYPH = {
+  Undo: '<path d="M5.5 6H10a3.5 3.5 0 0 1 0 7H7M5.5 6l2.5-2.5M5.5 6 8 8.5"/>', Redo: '<path d="M10.5 6H6a3.5 3.5 0 0 0 0 7h3M10.5 6 8 3.5M10.5 6 8 8.5"/>',
+  Bold: '<path d="M4.5 2.5h4a2.75 2.75 0 0 1 0 5.5h-4m0 0H9a2.75 2.75 0 0 1 0 5.5H4.5z"/>', Italic: '<path d="M7 2.5h6M3 13.5h6M10 2.5l-4 11"/>',
+  Underline: '<path d="M4 2.5v5a4 4 0 0 0 8 0v-5M3 14h10"/>', Strikethrough: '<path d="M11.5 4c-1-2-6.5-2-6.5 1 0 1.5 1.5 2 3 2.5M3 8h10M5 11.5c1 2.5 7 2.5 7-.5 0-.7-.4-1.3-1-1.7"/>',
+  Link: '<path d="M7 9a2.5 2.5 0 0 0 3.5 0l2-2A2.5 2.5 0 0 0 9 3.5l-.5.5M9 7a2.5 2.5 0 0 0-3.5 0l-2 2A2.5 2.5 0 0 0 7 12.5l.5-.5"/>',
+  'Bullet list': '<circle cx="3.5" cy="4.5" r=".8"/><circle cx="3.5" cy="8" r=".8"/><circle cx="3.5" cy="11.5" r=".8"/><path d="M6.5 4.5h7M6.5 8h7M6.5 11.5h7"/>',
+  'Numbered list': '<path d="M3 3.5h1v3M3 6.5h2M2.8 9.5h1.7l-1.7 3h1.9M6.5 4.5h7M6.5 8h7M6.5 11.5h7"/>',
+  'Task list': '<rect x="2.5" y="3" width="3" height="3" rx=".6"/><path d="m3 11 1 1 1.8-2M7.5 4.5h6M7.5 11h6"/>',
+  'Insert image': '<rect x="2" y="2.5" width="12" height="11" rx="2"/><circle cx="6" cy="6.5" r="1.2"/><path d="m2.5 12 3.5-3.5 3 3 2-2 2.5 2.5"/>',
+  'Insert table': '<rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M2 6.5h12M2 10h12M6.5 2.5v11"/>',
+  Divider: '<path d="M2 8h12M5 4.5h6M5 11.5h6"/>', 'Clear formatting': '<path d="M3 13h10M5 10l5.5-6.5 2.5 2.5L7.5 12H5z"/>',
+  'Decrease font size': '<path d="M4 8h8"/>', 'Increase font size': '<path d="M4 8h8M8 4v8"/>',
+};
 const button = (label, text, action) => {
   const el = document.createElement('button'); el.type = 'button'; el.title = label; el.setAttribute('aria-label', label);
-  el.textContent = text; el.onpointerdown = e => e.preventDefault(); el.onclick = action; return el;
+  if (GLYPH[label]) { el.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${GLYPH[label]}</svg>`; el.classList.add('ribbon-btn'); }
+  else el.textContent = text;
+  el.onpointerdown = e => e.preventDefault(); el.onclick = action; return el;
 };
 const loadContent = card => {
   const doc = card.props?.doc ?? generateJSON(markdownHTML(card.props?.body ?? ''), extensions());
@@ -40,11 +57,11 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   const panel = side.el; panel.classList.add('docs-panel');
   panel.querySelector('[data-expand]').setAttribute('aria-label', 'Full page');
   panel.querySelector('[data-close]').setAttribute('aria-label', 'Close document');
-  side.body.innerHTML = `<div class="docs-scroll"><article class="docs-paper"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
+  side.body.innerHTML = `<div class="office-ribbon docs-ribbon" role="toolbar" aria-label="Formatting"></div><div class="docs-scroll"><article class="docs-paper"><div class="docs-body"></div></article></div><footer class="docs-footer"><button type="button" data-back>← Back to board</button><span data-count></span><span class="docs-spacer"></span><button type="button" data-copy-cards>Copy selected board cards</button></footer>`;
   const title = document.createElement('input'); title.className = 'docs-title'; title.setAttribute('aria-label', 'Document title'); title.placeholder = 'Untitled document'; title.value = card.text;
   panel.querySelector('.side-editor-name').replaceWith(title);
   const menu = document.createElement('details'); menu.className = 'docs-more';
-  menu.innerHTML = '<summary aria-label="Document options" aria-haspopup="true">…</summary><div class="docs-more-tools"><div class="docs-page-options"></div><button type="button" data-pdf>Export PDF</button><button type="button" data-word>Export Word</button><details class="docs-appearance"><summary>Text appearance and inserts</summary><div class="docs-appearance-tools"></div></details></div>';
+  menu.innerHTML = '<summary aria-label="Document options" aria-haspopup="true">…</summary><div class="docs-more-tools"><div class="docs-page-options"></div><button type="button" data-pdf>Export PDF</button><button type="button" data-word>Export Word</button></div>';
   panel.querySelector('.side-editor-tools').prepend(menu);
   // PM4.10: keep the board action beside writing only when it can copy something.
   const copyCards = panel.querySelector('[data-copy-cards]');
@@ -183,13 +200,17 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     onUpdate: () => { schedule(); paint(); }, onSelectionUpdate: () => paint(),
   });
   lastDoc = JSON.stringify(editor.getJSON());
-  const tool = $('.docs-appearance-tools');
+  // The formatting ribbon sits above the page in groups: history, style, type, paragraph, insert.
+  const ribbon = $('.docs-ribbon'), group = () => { const g = document.createElement('div'); g.className = 'ribbon-group'; ribbon.append(g); return g; };
+  const history = group(), styleGroup = group(), typeGroup = group(), markGroup = group(), paraGroup = group(), insertGroup = group();
+  let tool = history;
   const toggles = [];
   const action = (label, text, fn, mark, parent = tool) => {
     const el = button(label, text, () => { editor.view.focus(); fn(); paint(); }); parent.append(el); if (mark) toggles.push([el, mark]); return el;
   };
   const undo = action('Undo', 'Undo', () => editor.chain().focus().undo().run());
   const redo = action('Redo', 'Redo', () => editor.chain().focus().redo().run());
+  tool = styleGroup;
   const blocks = select('Block style', [['body', 'Body'], ['title', 'Title'], ['heading', 'Heading'], ['sub', 'Subheading'], ['lead', 'Lead'], ['caption', 'Caption'], ['quote', 'Quote'], ['code', 'Code']], value => {
     let chain = editor.chain().clearNodes();
     if (['title', 'heading', 'sub'].includes(value)) chain = chain.setHeading({ level: ['title', 'heading', 'sub'].indexOf(value) + 1 });
@@ -198,6 +219,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     else chain = chain.setParagraph().updateAttributes('paragraph', { kind: ['lead', 'caption'].includes(value) ? value : null });
     chain.run();
   }); tool.append(blocks);
+  tool = typeGroup;
   const fonts = document.createElement('input'); fonts.setAttribute('aria-label', 'Font family'); fonts.title = 'Font family'; fonts.setAttribute('list', 'docs-fonts');
   const fontList = document.createElement('datalist'); fontList.id = 'docs-fonts';
   const used = new Set(['Inter Variable', 'Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
@@ -217,12 +239,15 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     for (const [label, text, mark, command] of [['Bold', 'B', 'bold', 'toggleBold'], ['Italic', 'I', 'italic', 'toggleItalic'], ['Underline', 'U', 'underline', 'toggleUnderline'], ['Strikethrough', 'S̶', 'strike', 'toggleStrike']]) action(label, text, () => editor.chain().focus()[command]().run(), mark, parent);
     action('Link', 'Link', showLink, 'link', parent);
   }
-  inline(tool); inline(bubble);
+  tool = markGroup; inline(tool); inline(bubble);
   const palette = ['#25252b', '#6b6370', '#e8590c', '#1f9d63', '#1f7ae0', '#6b4fe0', '#c0392b'];
   for (const c of ctx.canvas.board.cards) { const colour = c.props?.hex ?? c.color; if (/^#[0-9a-f]{6}$/i.test(colour)) palette.push(colour); }
   function colourPicker(label, highlight) {
     const menu = document.createElement('details'); menu.className = 'docs-colours';
-    const summary = document.createElement('summary'); summary.textContent = label; menu.append(summary);
+    const summary = document.createElement('summary'); summary.title = label; summary.setAttribute('aria-label', label);
+    // A letter with a colour bar for text, a marker for highlight.
+    summary.innerHTML = highlight ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 11 6.5-6.5 2 2L6 13H4zM9 6l2 2"/><path d="M2.5 14.5h11" stroke="var(--warn)" stroke-width="2"/></svg>' : '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 11 3.5-8.5 3.5 8.5M5.7 8.2h4.6"/><path d="M2.5 14.5h11" stroke="var(--data)" stroke-width="2"/></svg>';
+    menu.append(summary);
     const choices = document.createElement('div'); menu.append(choices);
     const set = colour => { const chain = editor.chain().focus(); (highlight ? chain.setHighlight({ color: colour }) : chain.setColor(colour)).run(); menu.open = false; };
     for (const colour of highlight ? ['#fff1a8', '#ffd3e5', '#cdf2df', '#d4e8ff', '#e5dbff', ...palette.slice(7)] : palette) {
@@ -233,10 +258,12 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     tool.append(menu);
   }
   colourPicker('Text colour', false); colourPicker('Highlight', true);
+  tool = paraGroup;
   const align = select('Text alignment', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right'], ['justify', 'Justified']], value => editor.chain().setTextAlign(value).run()); tool.append(align);
   action('Bullet list', 'List', () => editor.chain().focus().toggleBulletList().run(), 'bulletList');
   action('Numbered list', '1. List', () => editor.chain().focus().toggleOrderedList().run(), 'orderedList');
   action('Task list', 'Tasks', () => editor.chain().focus().toggleTaskList().run(), 'taskList');
+  tool = insertGroup;
   const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*'; file.hidden = true;
   file.onchange = () => { if (file.files[0]) image(file.files[0]); file.value = ''; }; panel.append(file);
   action('Insert image', 'Image', () => file.click());
@@ -248,7 +275,8 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     else if (value) editor.chain().updateAttributes(editor.isActive('heading') ? 'heading' : 'paragraph', { lineHeight: value }).run();
     more.value = '';
   }); tool.append(more);
-  const tableTools = document.createElement('span'); tableTools.className = 'docs-table-tools'; tool.append(tableTools);
+  // Table tools appear as their own ribbon group only while the caret is in a table.
+  const tableTools = group(); tableTools.classList.add('docs-table-tools');
   for (const [label, command] of [['Add row', 'addRowAfter'], ['Remove row', 'deleteRow'], ['Add column', 'addColumnAfter'], ['Remove column', 'deleteColumn'], ['Header row', 'toggleHeaderRow'], ['Delete table', 'deleteTable']]) action(label, label, () => editor.chain().focus()[command]().run(), null, tableTools);
 
   function showLink() {
@@ -289,7 +317,9 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
       } else requestRewrite(value);
     }); parent.append(chooser);
   }
-  rewriteMenu(tool); rewriteMenu(bubble);
+  const ai = group(); ai.classList.add('ribbon-ai'); rewriteMenu(ai); rewriteMenu(bubble);
+  // The table group trails the ribbon so its appearance never shifts the other groups.
+  ribbon.append(tableTools);
   function paint() {
     if (!editor || editor.isDestroyed || !tableTools) return;
     const attrs = editor.getAttributes('textStyle');

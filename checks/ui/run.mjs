@@ -16,6 +16,8 @@ all.push('prod-composer');
 all.push('agent-drafts');
 // Ask AI about the selected windows.
 all.push('ask-selection');
+// Office tools in the sheet and slide editors.
+all.push('office');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

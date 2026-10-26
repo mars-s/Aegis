@@ -44,7 +44,7 @@ export function openSide({ title, kind, keyboard = false }) {
     if (keyboard) el.remove(); else setTimeout(() => el.remove(), reduced ? 160 : 200);
   }
   function keys(event) {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || document.querySelector('.deck-present')) return;
     event.preventDefault(); event.stopImmediatePropagation(); close({ keyboard: true });
   }
   el.querySelector('[data-close]').onclick = event => close({ keyboard: event.detail === 0 });

@@ -102,3 +102,21 @@ body.motion-off .deck-panel button:active, body.motion-off .deck-open:active { t
 .deck-title-strip .deck-source + .deck-open { margin-left: 0; }
 .deck-source:hover, .deck-source:focus-visible { color: var(--text); }
 /* end item 14 */
+
+/* Slide ribbon: Present stands apart on the right, in the agent blue. */
+.deck-ribbon { margin: 0; padding: 4px 12px; }
+.deck-ribbon .ribbon-end { margin-left: auto; border-right: 0; }
+.office-ribbon .ribbon-present { min-width: 0; gap: 6px; padding: 0 12px; background: var(--data); color: #fff; box-shadow: none; }
+.office-ribbon .ribbon-present:hover:not(:disabled) { background: color-mix(in srgb, var(--data) 88%, #fff); color: #fff; }
+.office-ribbon .ribbon-present svg { fill: currentColor; stroke: none; width: 12px; height: 12px; }
+.deck-present { position: fixed; inset: 0; z-index: 12000; display: grid; place-items: center; background: #000; outline: none; cursor: none; animation: deck-present-in 200ms var(--ease-out); }
+.deck-present .deck-fit { width: min(100vw, calc(100vh * 16 / 9)); border-radius: 0; box-shadow: none; }
+.deck-present .deck-slide { border-radius: 0; }
+.deck-present-count { position: fixed; right: 20px; bottom: 16px; color: rgb(255 255 255 / .35); font-size: 12px; font-variant-numeric: tabular-nums; }
+@keyframes deck-present-in { from { opacity: 0; } }
+body.motion-off .deck-present { animation: none; }
+@media (prefers-reduced-motion: reduce) { .deck-present { animation: none; } }
+.deck-slide-actions button { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
+.deck-slide-actions button:hover:not(:disabled) { background: var(--hover); color: var(--text); }
+.deck-slide-actions button:disabled { opacity: .3; }
+.deck-slide-actions svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }

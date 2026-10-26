@@ -23,7 +23,8 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, co
 page.on('response', async r => { if (r.status() >= 500) console.error('HTTP', r.url(), (await r.text()).slice(0, 3000)); });
 const errors = []; page.on('pageerror', e => errors.push(e.stack));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
-const more = async () => { if (!await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('Document options', { exact: true }).click(); if (!await page.locator('.docs-appearance').evaluate(el => el.open)) await page.locator('.docs-appearance > summary').click(); };
+// Formatting lives on the ribbon; page options and export stay in the Document options menu.
+const more = async () => { if (!await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('Document options', { exact: true }).click(); };
 const less = async () => { if (await page.locator('.docs-more').evaluate(el => el.open)) await page.getByLabel('Document options', { exact: true }).click(); };
 const choose = async (label, value, scope = page.locator('.docs-panel')) => { const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) await more(); await root.locator(':scope > button').click(); await root.getByRole('menuitemradio').filter({ hasText: new RegExp('^' + ({ lead: 'Lead', center: 'Centre', dark: 'Dark page', light: 'Light page', auto: 'Auto page', letter: 'Letter' }[value] || value) + '$') }).click(); };
 const saved = async () => { await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };

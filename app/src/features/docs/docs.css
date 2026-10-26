@@ -141,3 +141,24 @@
 .doc-page pre { white-space: pre-wrap; font: 15px/1.6 Menlo, monospace; }
 body.motion-off :is(.docs-more-tools, .docs-choice-options) { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .docs-more-tools, .docs-choice-options { animation: none !important; } }
+
+
+/* Document ribbon: compact choosers and fields that sit on the ribbon line. */
+.docs-ribbon { margin: 0; padding: 4px 12px; }
+.docs-ribbon .docs-choice > .aegis-dropdown { min-width: 108px; height: 32px; min-height: 32px; border: 0; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
+.docs-ribbon input[aria-label="Font family"] { width: 128px; height: 32px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
+.docs-ribbon input[aria-label="Font size"] { width: 40px; height: 32px; padding: 0; border: 0; background: transparent; text-align: center; font-size: 12.5px; appearance: textfield; }
+.docs-ribbon input::-webkit-inner-spin-button { appearance: none; }
+.docs-ribbon :is(input, .aegis-dropdown):focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--data); }
+.docs-ribbon .docs-colours > summary { display: inline-flex; align-items: center; height: 32px; padding: 0 8px; border-radius: 7px; color: var(--ink-2); font-size: 12.5px; list-style: none; cursor: pointer; }
+.docs-ribbon .docs-colours > summary:hover { background: var(--hover); color: var(--text); }
+.docs-ribbon .docs-colours { position: relative; }
+.docs-ribbon .docs-colours > div { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; display: grid; grid-template-columns: repeat(6, 24px); gap: 6px; padding: 10px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--raised); box-shadow: 0 12px 32px rgb(0 0 0 / .4); }
+.docs-ribbon .docs-colours > div > button[aria-label*="#"] { width: 24px; height: 24px; min-width: 0; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
+.docs-ribbon .docs-colours > div > :is(input[type=color], button:last-child) { grid-column: span 3; }
+.docs-ribbon .docs-table-tools { width: auto; border-top: 0; padding-top: 0; }
+.docs-ribbon .docs-table-tools[hidden] { display: none; }
+.docs-ribbon .docs-table-tools button { height: 32px; padding: 0 8px; font-size: 12px; }
+.docs-ribbon .ribbon-ai .aegis-dropdown { color: var(--data); background: var(--data-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--data) 35%, transparent); }
+.docs-ribbon .ribbon-ai .aegis-dropdown::before { content: ''; width: 10px; height: 10px; margin-right: 2px; background: currentColor; clip-path: path('M5 0C5.4 2.3 6.3 3.4 10 5 6.3 6.6 5.4 7.7 5 10 4.6 7.7 3.7 6.6 0 5 3.7 3.4 4.6 2.3 5 0Z'); flex: none; }
+.docs-panel .docs-ribbon button.ribbon-btn { height: 32px; min-width: 32px; padding: 0; }
