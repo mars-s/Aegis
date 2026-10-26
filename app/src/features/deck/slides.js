@@ -43,7 +43,7 @@ export function lineChart(chart = {}) {
   const X = i => values.length === 1 ? (w + left - right) / 2 : left + i * (w - left - right) / (values.length - 1);
   const Y = v => top + (hi - v) * (h - top - bottom) / (hi - lo);
   const label = v => Number(v.toPrecision(12)).toString();
-  let html = `<svg class="deck-chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="${escapeHTML(chart.label || 'Line chart')}">`;
+  let html = `<svg class="deck-chart" viewBox="0 0 ${w} ${h}" font-family="Inter Variable, sans-serif" font-size="12" font-weight="400" text-rendering="geometricPrecision" role="img" aria-label="${escapeHTML(chart.label || 'Line chart')}">`;
   if (unit) html += `<text class="axis axis-unit" x="${left}" y="12">${escapeHTML(unit)}</text>`;
   for (const v of ticks) {
     const y = Y(v);
@@ -79,9 +79,10 @@ const ridges = (() => {
   return html + '</svg>';
 })();
 
-function three(body) {
-  const labels = String(body ?? '').split('\n').filter(Boolean).slice(0, 3);
-  return `<svg viewBox="0 0 200 180" aria-hidden="true" class="deck-three">
+function three(body, relationship, editable, number) {
+  const labels = String(body ?? '').split('\n').slice(0, 3);
+  if (relationship !== 'overlap') return `<div class="deck-ideas">${Array.from({ length: 3 }, (_, i) => `<p class="deck-idea" data-k="body" data-idea="${i}"${editable ? ` contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-label="Slide ${number} idea ${i + 1}" data-placeholder="Idea ${i + 1}"` : ''}>${escapeHTML(labels[i])}</p>`).join('')}</div>`;
+  return `<svg viewBox="0 0 200 180" role="img" aria-label="Overlapping ideas" class="deck-three" font-family="Inter Variable, sans-serif" font-size="10" font-weight="400" text-rendering="geometricPrecision">
     <circle cx="78" cy="72" r="52"/><circle cx="122" cy="72" r="52"/><circle class="hi" cx="100" cy="110" r="52"/>
     <text x="52" y="58">${escapeHTML(labels[0])}</text><text x="148" y="58">${escapeHTML(labels[1])}</text><text x="100" y="150">${escapeHTML(labels[2])}</text></svg>`;
 }
@@ -92,7 +93,7 @@ export function slideHTML(slide, editable = false, number = 1, resolveUrl = url 
   // item 14: imported pictures stay as asset references, separate from editable text.
   const images = Array.isArray(slide.images) ? slide.images : [];
   const wave = layout === 'title' && (slide.background === 'sci-fi-wave' || slide.background == null);
-  const art = layout === 'title' ? (wave ? ridges : '') : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
-  return `<div class="deck-fit"><div class="deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
+  const art = layout === 'title' ? (wave ? ridges : '') : layout === 'chart' ? lineChart(slide.chart) : layout === 'three' ? three(slide.body, slide.relationship, editable, number) : layout === 'image' ? images.map(image => `<img class="s-picture" src="${escapeHTML(resolveUrl(image.src))}" alt="${escapeHTML(image.alt || slide.title || 'Slide image')}" loading="lazy" decoding="async" draggable="false">`).join('') : '';
+  return `<div class="deck-fit"><div class="deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${layout === 'three' && slide.relationship === 'overlap' ? ' has-overlap' : ''}${slide.imageOnly ? ' image-only' : ''}" style="width:${SLIDE_WIDTH}px;height:${SLIDE_HEIGHT}px" data-slide="${escapeHTML(slide.id)}"><div class="s-copy">${field('title', 'title')}${field('sub', 'subtitle')}${layout === 'text' || layout === 'image' ? field('body', 'body') : ''}</div>${art ? `<div class="s-art">${art}</div>` : ''}</div></div>`;
   // end item 14
 }
