@@ -105,6 +105,20 @@ test('the title migration removes only a matching leading H1 and saves through n
   assert.deepEqual(stored.props.doc, migrated);
 });
 
+test('document normalisation uses the final batch title and leaves restored history snapshots exact', () => {
+  const doc = { type: 'doc', content: [{ type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'Final title' }] }, paragraph('Keep this')] };
+  const result = applyBatch(emptyBoard('normalise'), { commands: [
+    { op: 'create', type: 'doc', text: 'Initial title', props: { doc }, ref: 'doc' },
+    { op: 'update', id: '$doc', set: { text: 'Final title' } },
+  ] });
+  assert.equal(result.board.cards[0].props.body, 'Keep this');
+  const legacy = { ...result.board.cards[0], props: { doc } };
+  const restored = applyBatch(result.board, { commands: [{ op: 'restore', cards: [legacy], links: [] }] });
+  assert.deepEqual(restored.board.cards[0], legacy);
+  const moved = applyBatch(restored.board, { commands: [{ op: 'move', id: legacy.id, x: 100, y: 200 }] });
+  assert.deepEqual(moved.board.cards[0].props, legacy.props, 'moving old work does not rewrite its content');
+});
+
 test('Markdown keeps fenced code literal, renders links safely and preserves maths source', () => {
   const html = markdownHTML('## Findings\n- Item\n1. First\n- [ ] Task\n> Quote\n**bold** *italic* `code` [Source](https://example.com)\n```js\nconst x = "<tag> **literal** $x$";\n```\n---\nInline $a^2+b^2=c^2$\n$$\n\\sum_{i=1}^{n} i\n$$');
   for (const fragment of ['<h2>Findings</h2>', '<ul>', '<ol>', 'data-type="taskList"', '<blockquote>', '<strong>bold</strong>', '<em>italic</em>', '<code>code</code>', 'href="https://example.com"', 'class="language-js"', '&lt;tag&gt; **literal** $x$', '<hr>', 'data-type="inlineMath"', 'data-type="blockMath"']) assert.ok(html.includes(fragment), fragment);

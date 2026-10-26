@@ -93,7 +93,7 @@ const LIMIT = { url: 4000, heading: 200, badge: 40 };
 // Apply one batch atomically. Returns { ok, board, created, errors }. The input board is never mutated.
 export function applyBatch(input, batch) {
   const board = structuredClone(input);
-  const created = {}; const errors = []; const touched = new Set(); const notes = [];
+  const created = {}; const errors = []; const touched = new Set(); const documents = new Set(); const notes = [];
   const ref = id => (typeof id === 'string' && id.startsWith('$') ? created[id.slice(1)] : id);
   const byId = id => board.cards.find(c => c.id === ref(id));
   // Card ids also live in parent and props.kids (collections), so "$name" works there too.
@@ -119,12 +119,14 @@ export function applyBatch(input, batch) {
           if (type === 'object' && input.kind === undefined && OBJECT_KINDS.includes(input.props?.kind)) { const { kind, data, ...rest } = input.props; input = { ...input, kind, data: data ?? rest }; delete input.props; }
           const card = cleanCard(type, input, board, anchor ? { x: anchor.x + anchor.w + GAP, y: anchor.y } : null);
           board.cards.push(card); touched.add(card.id);
+          if (card.type === 'doc') documents.add(card.id);
           if (cmd.ref) created[cmd.ref] = card.id;
           break;
         }
         case 'update': {
           const c = byId(cmd.id); if (!c) throw new Error(`no card ${cmd.id}`);
           const set = withRefs(cmd.set ?? {});
+          if (c.type === 'doc' && set.props) documents.add(c.id);
           for (const k of EDITABLE) if (k in set) {
             const v = set[k];
             if (['x', 'y'].includes(k)) c[k] = num(v, c[k]);
@@ -266,7 +268,7 @@ export function applyBatch(input, batch) {
     }
   });
   if (errors.length) return { ok: false, board: input, created: {}, errors };
-  for (const card of board.cards) if (touched.has(card.id)) normaliseDocument(card);
+  for (const card of board.cards) if (documents.has(card.id)) normaliseDocument(card);
   // Round 2 demo: only height changes repack a composition. Manual positioning releases it.
   const compositions = board.cards.filter(c => c.props?.contentLayout);
   const before = compositions.length ? new Map(input.cards.map(c => [c.id, c])) : new Map();
