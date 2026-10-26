@@ -1,11 +1,14 @@
 import './dropdown.css';
+import './surface.css';
+import { mountInteraction } from './interaction.js';
+import { mountDialogs } from './dialog.js';
 let serial = 0, active, keyboardInput = false;
 const reduced = () => document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches;
 const visibleItems = menu => [...menu.querySelectorAll('button:not(:disabled), input:not(:disabled), [tabindex="0"]')].filter(el => !el.closest('[hidden]') && el.getClientRects().length);
 
 // Shared positioning, dismissal and keyboard behaviour for value pickers and action menus.
 export function createPopup({ trigger, menu, onToggle = () => {}, portal = false, role = 'menu', duration = 140, bindTrigger = true }) {
-  menu.classList.add('aegis-dropdown-menu'); menu.setAttribute('role', role); menu.hidden = true;
+  menu.classList.add('aegis-dropdown-menu', 'aegis-surface'); menu.setAttribute('role', role); menu.hidden = true;
   if (!menu.id) menu.id = `aegis-menu-${++serial}`;
   if (trigger) { trigger.setAttribute('aria-controls', menu.id); trigger.setAttribute('aria-haspopup', role); trigger.setAttribute('aria-expanded', 'false'); }
   let opened = false, point, parent, animation, search = '', lastKey = 0, positionFrame = 0;
@@ -33,7 +36,7 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
   }
   function position() {
     if (!opened) return;
-    const margin = 10, gap = 6, viewportWidth = document.documentElement.clientWidth, viewportHeight = innerHeight;
+    const margin = 10, gap = parseFloat(getComputedStyle(menu).getPropertyValue('--menu-gap')) || 6, viewportWidth = document.documentElement.clientWidth, viewportHeight = innerHeight;
     const r = trigger?.getBoundingClientRect();
     // Measure the themed height before applying the current side's space limit.
     menu.style.position = 'fixed'; menu.style.right = 'auto'; menu.style.bottom = 'auto';
@@ -54,6 +57,7 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     const left = Math.max(margin, Math.min(viewportWidth - width - margin, point?.x ?? r?.left ?? margin));
     menu.style.left = `${left}px`;
     menu.style.top = `${Math.max(margin, Math.min(viewportHeight - height - margin, flip ? above - height : below))}px`;
+    menu.dataset.side = flip ? 'top' : 'bottom';
     menu.style.transformOrigin = `${r ? Math.max(0, Math.min(width, r.left + r.width / 2 - left)) : 12}px ${flip ? '100%' : '0'}`;
   }
 
@@ -67,17 +71,18 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     if (focus && trigger?.isConnected) trigger.focus({ preventScroll: true });
   }
   function open(event, at) {
-    if (opened) return;
+    if (opened || trigger?.disabled) return;
     parent = active?.menu.contains(trigger) ? active : null; if (!parent) active?.close(); active = api; point = at; if (event) keyboardInput = event.type === 'keydown' || event.type === 'click' && event.detail === 0; search = '';
-    if (portal) (trigger?.closest('dialog[open]') ?? document.body).append(menu);
+    if (portal) (trigger?.closest('dialog[open]') ?? [...document.querySelectorAll('dialog[open]')].findLast(d => d.matches(':modal')) ?? document.body).append(menu);
     opened = true; menu.inert = false; menu.removeAttribute('aria-hidden');
     motion(true); menu.hidden = false; trigger?.setAttribute('aria-expanded', 'true');
     menu.style.minWidth = originalMinWidth; onToggle(true); desiredMinWidth = menu.style.minWidth; position(); watchPosition();
     addEventListener('resize', queuePosition); addEventListener('scroll', queuePosition, true);
   }
   function key(event) {
-    if (event.key === 'Escape') { event.preventDefault(); close(true); return; }
-    if (event.key === 'Tab') { close(true); return; }
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); return; }
+    if (event.key === 'Tab') { if (role !== 'dialog') close(true); return; }
+    if (role === 'dialog') return;
     if (['Enter', ' '].includes(event.key) && document.activeElement.matches('button[role=option], button[role=menuitem], button[role=menuitemradio], button[role=menuitemcheckbox]')) { event.preventDefault(); document.activeElement.click(); return; }
     const items = visibleItems(menu); if (!items.length) return;
     const index = items.indexOf(document.activeElement);
@@ -144,7 +149,7 @@ export function createDropdown({ label, options = [], value, onChange = () => {}
   trigger.dropdownKey = e => {
     if (e.ctrlKey || e.metaKey || e.altKey && e.key !== 'ArrowDown' || e.key === 'Tab') return;
     if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key) || e.key.length === 1) {
-      e.preventDefault(); popup.open(e); const current = menu.querySelector('[aria-selected="true"]') || menu.querySelector('[role=option]'); current?.focus();
+      e.preventDefault(); popup.open(e); const current = menu.querySelector('[aria-selected="true"]:not(:disabled)') || menu.querySelector('[role=option]:not(:disabled)'); current?.focus();
       if (e.key.length === 1 && e.key !== ' ') popup.key(e);
     }
   };
@@ -167,7 +172,7 @@ export function replaceSelect(source) {
 
 let installed = false;
 export function mountDropdowns() {
-  if (installed) return; installed = true;
+  if (installed) return; installed = true; mountInteraction(); mountDialogs();
   // The island's hidden data selects stay native: its menu reads their .options and draws its own themed choices.
   const excluded = '[data-native-select], #model, #count, .composer, .ask-island, #mobileHub, .side-editor, .docs-toolbar, .docs-panel, .docview, .docs-bubble, .docs-bubble-menu, .docs-format, .doc-window, .card.doc';
   const scan = root => { if (root.nodeType !== 1) return; for (const select of [...root.matches('select') ? [root] : [], ...root.querySelectorAll('select')]) if (select.isConnected && !select.closest(excluded)) replaceSelect(select); };
@@ -182,5 +187,6 @@ export function mountDropdowns() {
     }
     else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
   }, true);
+  addEventListener('focusin', e => { if (active?.menu.getAttribute('role') === 'dialog' && !active.menu.contains(e.target) && !active.trigger?.contains(e.target)) active.close(); });
   addEventListener('blur', () => { while (active) active.close(); });
 }

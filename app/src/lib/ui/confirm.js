@@ -1,12 +1,11 @@
-import './confirm.css';
+import { createDialog } from './dialog.js';
 
 // The app's own confirmation. Tauri's WKWebView has no JavaScript panel handler, so window.confirm() returns
 // false without showing anything there. Resolves true only for the confirming button.
 /** @param {{ title: string, body?: string, confirm?: string, cancel?: string, destructive?: boolean }} options */
 export function confirmAction({ title, body = '', confirm = 'Delete', cancel = 'Cancel', destructive = true }) {
   const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  const dialog = document.createElement('dialog');
-  dialog.className = 'aegis-confirm';
+  const dialog = createDialog({ className: 'aegis-confirm' });
   const heading = document.createElement('h2'), text = document.createElement('p'), actions = document.createElement('div');
   heading.id = `confirm-${Math.random().toString(36).slice(2)}`; heading.textContent = title;
   text.textContent = body; text.hidden = !body; actions.className = 'aegis-confirm-actions';

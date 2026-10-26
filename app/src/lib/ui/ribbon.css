@@ -6,7 +6,7 @@
 .ribbon-group:last-child, .ribbon-group:has(+ [hidden]:last-child) { border-right: 0; }
 .ribbon-group:first-child { padding-left: 2px; }
 .ribbon-label { margin-right: 6px; color: var(--faint); font-size: 11px; }
-.office-ribbon :is(.ribbon-btn, .ribbon-select) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 32px; height: 32px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--ink-2); font: 500 12.5px var(--font); cursor: pointer; transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out); }
+.office-ribbon :is(.ribbon-btn, .ribbon-select) { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 32px; height: var(--control-height); padding: 0 8px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink-2); font: 500 var(--text-body) var(--font); cursor: pointer; transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out); }
 .office-ribbon .ribbon-btn { padding: 0; }
 .office-ribbon .ribbon-select { min-width: 96px; justify-content: space-between; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); }
 .office-ribbon svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }

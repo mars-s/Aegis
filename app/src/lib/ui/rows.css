@@ -57,4 +57,3 @@ body.motion-off .side .pbody, body.motion-off .side .tree { scroll-behavior: aut
 .side .keys > div { flex-wrap: wrap; column-gap: 8px; row-gap: 4px; padding: 6px 0; }
 .side .keys span { flex: 1 1 90px; max-width: 100%; }
 .side .keys kbd:only-of-type { margin-left: auto; max-width: 100%; white-space: normal; text-align: right; }
-.aegis-menu-shortcut { margin-left: auto; padding-left: 20px; color: var(--muted); font-size: 12px; }
