@@ -1,6 +1,7 @@
 import './style.css';
 import './orb.css';
 import { createIslandMorph } from './morph.js';
+import { frameAboveIsland, requestResult } from './framing.js';
 import { mountIslandMenu } from './menu.js';
 import { renderHistory } from './history.js';
 import { mountAgentIdentity } from './identity.js';
@@ -23,6 +24,7 @@ function renderTurns(el, agent) {
   const signature = JSON.stringify(turns);
   if (el.dataset.turns === signature) return;
   const follow = el.scrollHeight - el.scrollTop - el.clientHeight < 36;
+  const scrollTop = el.scrollTop;
   el.dataset.turns = signature;
   const nodes = turns.map(turn => {
     const row = document.createElement('div'); row.className = `island-turn ${turn.role}`;
@@ -33,7 +35,7 @@ function renderTurns(el, agent) {
     row.append(label, text); return row;
   });
   el.replaceChildren(...nodes);
-  if (follow) el.scrollTop = el.scrollHeight;
+  el.scrollTop = follow ? el.scrollHeight : scrollTop;
 }
 
 export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUndo }) {
@@ -57,10 +59,24 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   // Round 3 navigation: keep this hookup separate from history and placement.
   const { discover, dismiss: dismissHint } = createOrbHint({ island, host });
   // Round 3 agents: camera framing reads cached geometry only when asked to Fit.
-  canvas.setAgentBounds(() => [...windows.values()].filter(w => !w.el.hidden && w.agent.boardId === canvas.board?.id).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH, h: w.height ?? COLLAPSED_HEIGHT })));
+  canvas.setAgentBounds(() => [...windows.values()].filter(w => !w.el.hidden && w.agent.boardId === canvas.board?.id).map(w => ({ x: w.x, y: w.y, w: w.el.offsetWidth / canvas.view.z, h: (w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight) / canvas.view.z })));
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
+  const resultUndo = document.createElement('button'); resultUndo.type = 'button'; resultUndo.className = 'island-result-undo'; resultUndo.textContent = 'Undo'; resultUndo.hidden = true; island.querySelector('.island-content').append(resultUndo);
+  resultUndo.onclick = async () => {
+    const a = current(), result = requestResult(a); if (!result?.entry.canUndo) return;
+    resultUndo.disabled = true; await undo(a.id, result.entry.id);
+  };
+  let framedIds = [];
+  new ResizeObserver(() => { if (expanded() && framedIds.length) frameAboveIsland(canvas, island, framedIds); }).observe(island.querySelector('.island-morph'));
+  function syncResult() {
+    const result = requestResult(current()), visible = island.dataset.state === 'done' && !!result;
+    island.classList.toggle('has-result', visible); resultUndo.hidden = !visible;
+    resultUndo.disabled = !result?.entry.canUndo;
+    resultUndo.title = result?.entry.undoBlockedReason || 'Undo this request';
+    orb.setAttribute('aria-label', visible ? `${result.label}. Show changed windows.` : 'Ask the agent. Shortcut Cmd+K.');
+  }
   // Windows pinned from the selection bar travel with the next request, whatever is selected by then.
   const contextEl = $('islandContext'); let pinned = [];
   const titleOf = c => (c.heading || c.text || c.data?.title || c.kind || c.type || 'window').split('\n')[0].trim().slice(0, 40);
@@ -97,7 +113,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   } });
   const paintEdges = mountAgentEdges({ edges, recover, label: a => `${nameOf(a)}: ${shortTitle(a)}` });
   function recover(w, event) {
-    const z = canvas.view.z, view = { x: stage.clientWidth / 2 - (w.x + WINDOW_WIDTH / 2) * z, y: stage.clientHeight / 2 - (w.y + (w.height ?? COLLAPSED_HEIGHT) / 2) * z, z };
+    const z = canvas.view.z, view = { x: stage.clientWidth / 2 - w.x * z - w.el.offsetWidth / 2, y: stage.clientHeight / 2 - w.y * z - (w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight) / 2, z };
     if (event.detail === 0) {
       canvas.setView(view);
       w.el.querySelector('.agent-window-toggle').focus({ preventScroll: true });
@@ -120,8 +136,9 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       composer.classList.toggle('instant', instant); composer.classList.toggle('open', open); composer.inert = !open;
       orb.hidden = open; orb.setAttribute('aria-expanded', String(open));
       if (open) sizeInput(); else closeMenu();
+      syncResult();
     }, { instant, crossfade: old !== next });
-    if (next === 'done') doneTimer = setTimeout(() => { if (island.dataset.state === 'done') state('idle'); }, 3600);
+    if (next === 'done') doneTimer = setTimeout(() => { if (island.dataset.state === 'done') state('idle'); }, 8000);
   }
   function open(instant = false, focus = true) {
     dismissHint();
@@ -130,7 +147,8 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     island.hidden = inSheet;
     if (inSheet) composer.append($('orbMenu'));
     renderOrb(); state(current() ? 'conversation' : 'typing', instant);
-    history.scrollTop = history.scrollHeight;
+    framedIds = pinned.length ? [...pinned] : canvas.selection().length ? canvas.selection() : requestResult(current())?.ids ?? [];
+    if (framedIds.length) frameAboveIsland(canvas, island, framedIds, instant);
     if (focus) prompt.focus({ preventScroll: true });
   }
   function close(instant = false) {
@@ -140,7 +158,11 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     hoverSuppressed = island.matches(':hover');
     if (hadFocus) { restoringFocus = true; orb.focus({ preventScroll: true }); restoringFocus = false; }
   }
-  orb.onclick = e => open(e.detail === 0);
+  orb.onclick = e => {
+    const result = requestResult(current());
+    if (island.dataset.state === 'done' && result) { frameAboveIsland(canvas, island, result.ids, e.detail === 0); canvas.glow(result.ids); }
+    else open(e.detail === 0);
+  };
   island.addEventListener('pointerenter', e => {
     dismissHint();
     clearTimeout(leaveTimer);
@@ -150,7 +172,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     hoverSuppressed = false;
     leaveTimer = setTimeout(() => { if (island.dataset.state === 'hover') state('idle'); }, 160);
   });
-  orb.addEventListener('focus', () => { if (!restoringFocus) open(true); });
+  orb.addEventListener('focus', () => { if (!restoringFocus && island.dataset.state !== 'done') open(true); });
   stage.addEventListener('pointerdown', () => { if (expanded()) close(); }, true);
   composer.addEventListener('open-composer', () => open(true));
   document.addEventListener('capture-to-agent', e => {
@@ -190,12 +212,13 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const affected = cards.filter(c => w.touched?.has(c.id));
     const c = affected[0], at = canvas.centre();
     const anchor = anchorOverride ?? (c ? { x: c.x - WINDOW_WIDTH - 24, y: c.y } : { x: at.x - WINDOW_WIDTH / 2, y: at.y - 180 });
-    const height = w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight;
-    const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: WINDOW_WIDTH, h: n.collapsed ? COLLAPSED_HEIGHT : n.el.offsetHeight }));
+    const z = canvas.view.z, width = (w.collapsed && z < .65 ? 44 : WINDOW_WIDTH) / z;
+    const height = (w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight) / z;
+    const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: (n.collapsed && z < .65 ? 44 : WINDOW_WIDTH) / z, h: (n.collapsed ? COLLAPSED_HEIGHT : n.el.offsetHeight) / z }));
     const occupied = [...cardSpace, ...movingSpace, ...neighbours];
     // Once placed, a free window stays spatial even if a later camera move leaves it outside.
-    const keep = w.placed && preferred && !occupied.some(c => intersects({ ...preferred, w: WINDOW_WIDTH, h: height }, c));
-    const p = keep ? preferred : freeAgentRect([...cardSpace, ...movingSpace], neighbours, anchor, height, preferred, canvas.viewportRect());
+    const keep = w.placed && preferred && !occupied.some(c => intersects({ ...preferred, w: width, h: height }, c));
+    const p = keep ? preferred : freeAgentRect([...cardSpace, ...movingSpace], neighbours, anchor, height, preferred, canvas.viewportRect(), width);
     if (p.x !== w.x || p.y !== w.y) canvas.clearAgentLine();
     w.x = p.x; w.y = p.y; w.height = height; w.placed = true; save(w);
   }
@@ -224,12 +247,14 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const width = stage.clientWidth, height = stage.clientHeight, offscreen = [];
     for (const w of windows.values()) {
       const p = canvas.worldToScreen(w.x, w.y), z = canvas.view.z;
-      w.el.style.transform = `translate(${p.x}px, ${p.y}px) scale(${z})`;
+      const badge = w.collapsed && z < .65;
+      w.el.classList.toggle('agent-badge', badge);
+      w.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
       // Round 3 agents: only open spatial windows get a constant-size edge target.
-      const h = (w.height ?? COLLAPSED_HEIGHT) * z;
-      w.edge.hidden = w.el.hidden || (p.x + WINDOW_WIDTH * z > 0 && p.x < width && p.y + h > 0 && p.y < height);
+      const h = w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight, screenWidth = badge ? 44 : WINDOW_WIDTH;
+      w.edge.hidden = w.el.hidden || (p.x + screenWidth > 0 && p.x < width && p.y + h > 0 && p.y < height);
       if (!w.edge.hidden) {
-        const dx = p.x + WINDOW_WIDTH * z / 2 - width / 2, dy = p.y + h / 2 - height / 2;
+        const dx = p.x + screenWidth / 2 - width / 2, dy = p.y + h / 2 - height / 2;
         offscreen.push({ window: w, dx, dy });
       }
     }
@@ -251,7 +276,14 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     body.id = `agent-body-${a.id}`; toggle.setAttribute('aria-controls', body.id);
     function collapse(value) {
       w.collapsed = value; body.hidden = value; toggle.setAttribute('aria-expanded', String(!value));
-      w.el.classList.toggle('collapsed', value); place(w); paint(); save(w);
+      w.el.classList.toggle('agent-badge', value && canvas.view.z < .65);
+      w.el.classList.toggle('collapsed', value); place(w);
+      if (!value) {
+        const area = canvas.viewportRect(), z = canvas.view.z;
+        w.x = Math.max(area.x, Math.min(w.x, area.x + area.w - WINDOW_WIDTH / z));
+        w.y = Math.max(area.y, Math.min(w.y, area.y + area.h - w.el.offsetHeight / z));
+      }
+      paint(); save(w);
     }
     w.expand = () => collapse(false);
     toggle.onclick = () => { if (w.dragged) { w.dragged = false; return; } collapse(!w.collapsed); };
@@ -261,7 +293,10 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       selectedId = a.id; newAgent = false; renderOrb(true);
     });
     for (const type of ['dblclick', 'wheel']) w.el.addEventListener(type, e => e.stopPropagation());
-    w.el.addEventListener('keydown', e => { if (['Enter', ' ', 'Backspace', 'Delete'].includes(e.key)) e.stopPropagation(); });
+    w.el.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !w.collapsed) { e.preventDefault(); e.stopPropagation(); collapse(true); toggle.focus({ preventScroll: true }); }
+      if (['Enter', ' ', 'Backspace', 'Delete'].includes(e.key)) e.stopPropagation();
+    });
     w.el.querySelector('.agent-close').onclick = () => { w.closed = true; w.el.hidden = true; w.edge.hidden = true; save(w); };
     w.el.querySelector('.agent-stop').onclick = () => stop(a.id);
     const form = w.el.querySelector('form');
@@ -286,7 +321,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     orbVisibility.observe(w.el);
     // History disclosure changes geometry without an agent update or a camera paint.
     const size = new ResizeObserver(() => {
-      if (!w.el.hidden && w.height !== w.el.offsetHeight) { place(w); paint(); }
+      if (!w.el.hidden && w.height !== w.el.offsetHeight / canvas.view.z) { place(w); paint(); }
     }); size.observe(w.el);
     return w;
   }
@@ -333,6 +368,8 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       const a = current(), running = !!a?.running;
       orb.classList.toggle('working', running);
       $('orbStatus').textContent = running ? a.status || 'Considering your request and the board' : a?.error || (a?.text ? a.text.replace(/\s+/g, ' ').slice(0, 130) : 'Ready for your next request');
+      const result = !running && requestResult(a);
+      if (result) $('orbStatus').textContent = result.label;
       head.hidden = false; history.hidden = !a;
       head.querySelector('.orb-activity').textContent = a?.error || a?.status || 'Aegis';
       island.classList.toggle('working', running);
@@ -342,6 +379,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       if (!pinned.length) prompt.placeholder = a ? 'Follow up with this agent…' : 'Ask about your board…';
       $('send').setAttribute('aria-label', a ? 'Send follow-up' : 'Start agent');
       if (expanded()) { island.dataset.state = a ? 'conversation' : 'typing'; sizeInput(); }
+      syncResult();
     }, { instant });
   }
   function update(agents) {
@@ -364,7 +402,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       drafts.sync(a);
       renderHistory(w.el.querySelector('.agent-history'), a, undo);
       w.el.querySelector('.agent-stop').hidden = !a.running;
-      if (w.height !== w.el.offsetHeight) place(w);
+      if (w.height !== w.el.offsetHeight / canvas.view.z) place(w);
     }
     renderOrb(); paint();
     const a = current();

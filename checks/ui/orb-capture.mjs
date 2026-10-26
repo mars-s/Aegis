@@ -49,14 +49,22 @@ for (const name of ['chromium', 'webkit']) {
     await page.screenshot({ path: out(`quick-capture-${name}.png`), animations: 'allow' });
     await input.press('Enter');
     check(!await dialog.isVisible(), `${name}: Return captures and closes`);
+    await page.waitForFunction(() => document.querySelectorAll('.tray-item.capture-highlight').length === 4);
+    check(await page.evaluate(() => document.activeElement.id === 'stage'), `${name}: capture keeps focus on the canvas`);
+    check(await page.locator('.tray-item.capture-highlight').first().isVisible(), `${name}: saved items are revealed and highlighted`);
+    await page.screenshot({ path: out(`quick-capture-tray-${name}.png`), animations: 'allow' });
+    await page.getByRole('button', { name: 'Put on board', exact: true }).click();
     const cards = await page.evaluate(() => aegis.canvas.board.cards);
     check(cards.length === 4 && cards.filter(c => c.type === 'note').length === 2 && cards.find(c => c.type === 'link').url === 'https://example.com/research', `${name}: notes and URL become real canvas cards`);
     check(cards.find(c => c.type === 'todo').items.length === 2 && cards.find(c => c.type === 'todo').items[1].done, `${name}: checklist items retain their checked state`);
     await page.waitForFunction(() => document.querySelectorAll('.card.glow').length === 4);
     check(await page.locator('.capture-confirmation').isVisible(), `${name}: captured confirmation and canvas glow`);
-    check(await page.evaluate(() => aegis.canvas.view.z >= .8), `${name}: capture frames readable cards after removing the backdrop`);
+    check(await page.evaluate(() => aegis.canvas.view.z >= .6), `${name}: capture frames readable cards after removing the backdrop`);
     await page.screenshot({ path: out(`quick-capture-confirmed-${name}.png`), animations: 'allow' });
     await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.length === 4);
+    await page.keyboard.press('Meta+Shift+k'); await input.fill('Undo this capture'); await input.press('Enter');
+    await page.locator('.capture-confirmation [data-undo]').click();
+    check(await page.evaluate(() => !aegis.canvas.board.tray.some(c => c.text === 'Undo this capture') && aegis.canvas.board.cards.length === 4), `${name}: capture Undo preserves unrelated work`);
 
     await page.keyboard.press('Meta+k'); await page.getByLabel('Message', { exact: true }).fill('Keep this draft');
     await page.keyboard.press('Meta+Shift+k'); await input.fill('Dismiss this'); await page.keyboard.press('Escape');
@@ -79,8 +87,49 @@ for (const name of ['chromium', 'webkit']) {
     await page.locator('#agentIsland[data-state="done"]').waitFor({ timeout: 20000 });
     check(await page.locator('#agentIsland .orb-mark.resolved').count() > 0, `${name}: completion resolves the mark`);
     check(await page.evaluate(() => aegis.canvas.board.cards.some(c => c.text === 'Sent from capture')), `${name}: Cmd Return sends capture through the agent`);
+    check((await page.locator('#orbStatus').textContent()).includes('Created 1 window'), `${name}: completion names the result`);
+    check(await page.locator('.island-result-undo').isVisible(), `${name}: completion offers Undo`);
+    await page.locator('#askPill').click();
+    check(await page.locator('.card.glow').count() > 0, `${name}: clicking the result highlights its work`);
+    await page.screenshot({ path: out(`orb-result-${name}.png`), animations: 'allow' });
+    await page.locator('.island-result-undo').click();
+    await page.waitForFunction(() => !aegis.canvas.board.cards.some(c => c.text === 'Sent from capture'));
+    check(await page.evaluate(() => aegis.canvas.board.cards.length === 4), `${name}: result Undo reverses only that request`);
+    await page.waitForTimeout(500);
+
+    await page.evaluate(() => {
+      const el = document.querySelector('.agent-window'), p = JSON.parse(localStorage.getItem(`aegis:agent-window:${el.dataset.agentId}`));
+      aegis.canvas.setView({ x: 500 - p.x * .5, y: 180 - p.y * .5, z: .5 });
+    });
+    const badge = page.locator('.agent-window.agent-badge'); await badge.waitFor();
+    check(Math.round((await badge.boundingBox()).width) === 44, `${name}: below 65% an agent is a usable badge`);
+    await badge.locator('.agent-window-toggle').click();
+    const window = page.locator('.agent-window:not(.collapsed)');
+    check(Math.round((await window.boundingBox()).width) === 340, `${name}: conversation opens at 340 screen pixels at 50% zoom`);
+    check(await window.locator('.agent-follow input').evaluate(el => getComputedStyle(el).fontSize === '14px'), `${name}: follow-up text stays 14px`);
+    await page.screenshot({ path: out(`agent-unscaled-${name}.png`), animations: 'allow' });
+    await window.locator('.agent-follow input').press('Escape');
+    await page.evaluate(async () => {
+      const a = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`))[0];
+      await aegis.host.post(`/agents/${a.id}/message`, { content: 'FAKEREPLY ' + 'Keep the source beside the working result.\n\n'.repeat(60) });
+    });
+    await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`))[0].running);
+    await page.waitForFunction(async () => !(await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`))[0].running, null, { timeout: 20000 });
+    await page.waitForFunction(() => !document.getElementById('askPill').classList.contains('working'));
+    await page.evaluate(() => aegis.canvas.select(aegis.canvas.board.cards.map(c => c.id)));
     await page.keyboard.press('Meta+k');
     check((await page.locator('#composer .island-turns').textContent()).includes('FAKE'), `${name}: sent capture is in the conversation`);
+    const turns = page.locator('#composer .island-turns');
+    check((await turns.boundingBox()).height <= 280, `${name}: conversation history is capped at 280px`);
+    const clearance = await page.evaluate(() => {
+      const top = document.getElementById('agentIsland').getBoundingClientRect().top;
+      return [...document.querySelectorAll('.card')].every(el => el.getBoundingClientRect().bottom <= top - 23);
+    });
+    check(clearance, `${name}: selected work has a 24px gap above the island`);
+    await turns.evaluate(el => { el.scrollTop = 32; });
+    await page.keyboard.press('Escape'); await page.keyboard.press('Meta+k');
+    check(await turns.evaluate(el => Math.abs(el.scrollTop - 32) < 2), `${name}: reopening preserves the history scroll position`);
+    await page.screenshot({ path: out(`island-clearance-${name}.png`), animations: 'allow' });
     await page.keyboard.press('Escape');
 
     for (const mode of ['os', 'app']) {

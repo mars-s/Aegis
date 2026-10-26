@@ -35,7 +35,7 @@
 .island-head { flex: none; display: flex; align-items: center; gap: 10px; padding: 0 0 8px 8px; }
 .orb-activity { flex: 1; min-width: 0; margin: 0; color: var(--ink-2); font-size: 12px; line-height: 1.5; }
 #composer .island-stop { min-height: 44px; padding: 0 8px; color: var(--ink-2); font-size: 12px; }
-.island-turns { min-height: 50px; flex: 1 1 auto; max-height: 38vh; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; margin: 0 0 16px; padding: 0 8px 8px; user-select: text; }
+.island-turns { min-height: 50px; flex: 1 1 auto; max-height: min(280px, 38vh); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; margin: 0 0 16px; padding: 0 8px 8px; user-select: text; }
 .island-turn { padding: 8px 0 12px; }
 .turn-author { display: block; margin-bottom: 5px; color: var(--faint); font-size: 11px; }
 .island-turn.assistant .turn-author { color: var(--data); }
@@ -162,6 +162,18 @@ body.motion-off .agent-first-hint { transition: none; }
 @media (max-width: 420px) { .agent-first-hint { left: auto; right: calc(100% + 8px); font-size: 11px; } }
 
 .orb-menu.aegis-dropdown-menu button[role^="menuitem"] { min-height: 44px; }
+
+.agent-window-body { font-size: 14px; }
+.agent-follow input { font-size: 14px; }
+.agent-badge { width: 44px; border-radius: 22px; }
+.agent-badge .agent-window-strip { padding: 0; }
+.agent-badge .agent-window-toggle { flex: none; width: 44px; justify-content: center; cursor: pointer; }
+.agent-badge :is(.agent-window-title, .agent-window-status, .agent-close) { display: none; }
+.agent-badge .orb-mark { width: 22px; height: 22px; }
+.island-result-undo { position: absolute; right: 10px; bottom: 0; min-height: 44px; padding: 0 12px; color: var(--data); font-size: 12px; }
+.island-result-undo:focus-visible { outline: 1.5px solid var(--data); outline-offset: -3px; border-radius: 6px; }
+.island-result-undo:disabled { color: var(--muted); opacity: .6; }
+.agent-island.has-result #askPill { padding-right: 76px; }
 
 .agent-edge-cluster::before { inset: 5px; background: var(--raised); }
 .agent-edge-count { position: relative; font: 500 13px var(--font); }
