@@ -35,13 +35,12 @@ export async function checkRefineSettings(browser, url) {
     await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
     const settings = page.locator('#settings');
     await settings.getByRole('tab', { name: 'General', exact: true }).click();
+    await settings.locator('.settings-appearance > summary').click();
     assert.equal(await settings.locator('.settings-colour').count(), 4);
     for (const well of await settings.locator('.settings-colour').all()) {
-      assert.equal(await well.locator('input').evaluate(el => {
-        const r = el.getBoundingClientRect(), s = getComputedStyle(el);
-        return r.width === r.height && r.width === 24 && s.borderRadius === '50%' && s.borderTopWidth === '1px' && s.padding === '0px';
-      }), true, 'colour wells have equal dimensions and one clear circular edge');
-      assert.equal(await well.locator('output').textContent(), (await well.locator('input').inputValue()).toUpperCase());
+      const picker = well.locator('.aegis-colour-picker');
+      assert.equal(await picker.locator('.aegis-colour-sample').evaluate(el => { const r = el.getBoundingClientRect(), s = getComputedStyle(el); return r.width === r.height && s.borderRadius === '50%' && s.borderTopWidth === '1px'; }), true);
+      assert.equal(await picker.locator('span').last().textContent(), (await picker.evaluate(el => el.value)).toUpperCase());
     }
     for (const [width, height] of [[1440, 992], [1586, 992], [390, 844]]) {
       await page.setViewportSize({ width, height });
@@ -49,17 +48,16 @@ export async function checkRefineSettings(browser, url) {
       assert.equal(await settings.evaluate(el => el.scrollWidth <= el.clientWidth), true);
     }
     const colour = settings.getByLabel('App board background', { exact: true });
-    // Confirm the labelled row forwards a real click, without opening an OS chooser in CI.
-    await colour.evaluate(el => el.addEventListener('click', event => { el.dataset.pointerActivated = String(event.isTrusted); event.preventDefault(); }, { once: true }));
-    await settings.locator('.settings-colour-name').filter({ hasText: 'App board background' }).click();
-    assert.equal(await colour.getAttribute('data-pointer-activated'), 'true', 'the labelled activation target reaches the native colour input');
-    // The native colour chooser is outside the browser DOM. Exercise its input contract.
-    await colour.evaluate(el => { el.value = '#123456'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-    assert.equal(await colour.locator('..').locator('..').locator('output').textContent(), '#123456');
+    await colour.click();
+    const editor = settings.getByRole('dialog', { name: 'Colour editor', exact: true });
+    await editor.getByRole('textbox', { name: 'Hex', exact: true }).fill('#123456');
+    await editor.getByRole('textbox', { name: 'Hex', exact: true }).press('Tab');
+    assert.equal(await colour.evaluate(el => el.value), '#123456');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:colour-settings')).dark.bg), '#123456');
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--canvas')), '#123456');
+    await editor.getByRole('button', { name: 'Done', exact: true }).click();
     await settings.getByRole('button', { name: 'Reset colours for this mode', exact: true }).click();
-    console.log('PASS Settings colour wells are true circles, show label and value, save colour input changes and fit desktop and phone');
+    console.log('PASS Settings colour buttons use the shared editor, save changes and fit desktop and phone');
 
     await settings.getByRole('tab', { name: 'Panels', exact: true }).click();
     const parent = settings.locator('[data-panel-visibility=tools]'), children = settings.getByRole('group', { name: 'Tools panels', exact: true });

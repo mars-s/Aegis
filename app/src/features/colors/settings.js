@@ -1,4 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
+import { createColourPicker } from './colour-picker.js';
 import { normHex } from './model.js';
 import { node, button } from '../media/dom.js';
 const storageKey = 'aegis:colour-settings';
@@ -45,14 +46,11 @@ export function installColourSettings(ctx) {
     if (values.accent) { set('--accent', values.accent); set('--on-accent', contrastText(values.accent)); }
     ctx.canvas.redraw();
   };
-  const showValue = input => { input.closest('label').querySelector('output').textContent = input.value.toUpperCase(); };
-  const refresh = () => { const mode = currentMode(); modeText.textContent = `Editing ${mode} mode`; for (const [key, input] of inputs) { input.value = data[mode][key] || liveHex(key); showValue(input); } };
+  const refresh = () => { const mode = currentMode(); modeText.textContent = `Editing ${mode} mode`; for (const [key, input] of inputs) { input.value = data[mode][key] || liveHex(key); } };
   for (const [key, title] of [['bg','App board background'],['dot','Grid dots'],['panel','Panels'],['accent','Accent']]) {
-    // PM4.8: the full labelled row activates the native colour input.
-    const label = node('label', 'settings-colour'), swatch = node('span', 'settings-colour-swatch'), input = node('input');
-    input.type = 'color'; input.setAttribute('aria-label', title); inputs.set(key, input);
-    swatch.append(input); label.append(swatch, node('span', 'settings-colour-name', title), node('output')); section.append(label);
-    input.oninput = () => { data[currentMode()][key] = input.value; showValue(input); localStorage.setItem(storageKey, JSON.stringify(data)); apply(); };
+    const row = node('div', 'settings-colour'), titleText = node('span', 'settings-colour-name', title);
+    const picker = createColourPicker({ label: title, value: liveHex(key), board: () => ctx.canvas.board, onChange(value) { data[currentMode()][key] = value; localStorage.setItem(storageKey, JSON.stringify(data)); apply(); } });
+    inputs.set(key, picker); row.append(titleText, picker); section.append(row);
   }
   button('Reset colours for this mode', () => { data[currentMode()] = {}; localStorage.setItem(storageKey, JSON.stringify(data)); apply(); refresh(); }, section);
   settings.append(section);

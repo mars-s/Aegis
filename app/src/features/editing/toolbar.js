@@ -1,5 +1,6 @@
 import { createDropdown, createPopup } from '../../lib/ui/dropdown.js';
 import { OrbMark } from '../../lib/ui/orb-mark.js';
+import { createStepper } from '../../lib/ui/stepper.js';
 // Selection controls share their live nodes between the toolbar and its menus.
 const paths = {
   Bold: '<path d="M4.5 2.5h4a2.75 2.75 0 0 1 0 5.5h-4m0 0H9a2.75 2.75 0 0 1 0 5.5H4.5z"/>',
@@ -59,14 +60,7 @@ export function selectionToolbar(bar, changed) {
     const el = createDropdown({ label, options: values, value: value ?? '', onChange: action }); el.title = label; return row(el, label, group);
   }
   function stepper(label, value, action, { inline = false, min = 6, max = 400, step = 1, group = 'Typography' } = {}) {
-    const wrap = document.createElement('span'); wrap.className = 'selection-stepper';
-    const field = document.createElement('input'); field.type = 'text'; field.inputMode = 'decimal'; field.value = value ?? ''; field.setAttribute('aria-label', label); field.title = label;
-    const commit = n => { if (!Number.isFinite(n)) return; const v = Math.round(Math.max(min, Math.min(max, n)) * 100) / 100; field.value = String(v); action(String(v)); };
-    field.onchange = () => commit(Number(field.value));
-    field.onkeydown = e => { if (['ArrowUp', 'ArrowDown'].includes(e.key)) { e.preventDefault(); commit(Number(field.value) + (e.key === 'ArrowUp' ? 1 : -1) * step * (e.shiftKey ? 10 : 1)); } };
-    for (const [name, sign, path] of [['Decrease', -1, '<path d="M4 8h8"/>'], ['Increase', 1, '<path d="M4 8h8M8 4v8"/>']]) {
-      const b = document.createElement('button'); b.type = 'button'; b.setAttribute('aria-label', `${name} ${label.toLowerCase()}`); b.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${path}</svg>`; b.onclick = () => commit(Number(field.value) + sign * step); wrap.append(b); if (sign < 0) wrap.append(field);
-    }
+    const { el: wrap, input: field } = createStepper({ label, value, min, max, step, onChange: action }); wrap.classList.add('selection-stepper');
     if (inline) scroll.insertBefore(wrap, more); else row(wrap, label, group); return field;
   }
   function popup(label, build, icon = label) {

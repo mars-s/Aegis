@@ -95,9 +95,13 @@ try {
   await page.screenshot({ path: out(`genui-overview-${stamp}.png`) });
 
   const frame = async kind => {
-    await page.evaluate(kind => aegis.canvas.frameIds([aegis.canvas.board.cards.find(c => c.kind === kind).id], 1), kind);
+    await page.evaluate(kind => aegis.canvas.frameIds([aegis.canvas.board.cards.find(c => c.kind === kind).id], 1, false, true), kind);
     await page.locator(`.card.kind-${kind} .object`).waitFor({ state: 'visible' });
-    await page.locator(`.card.kind-${kind} .win-strip h3`).click();
+    // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
+    await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
+    // Narrow screens frame below the detail tier, where the semantic summary is the selectable surface.
+    if (await page.evaluate(() => document.getElementById('stage').dataset.zoomTier === 'detail')) await page.locator(`.card.kind-${kind} .win-strip h3`).click();
+    else await page.evaluate(kind => aegis.canvas.select([aegis.canvas.board.cards.find(c => c.kind === kind).id]), kind);
     await page.waitForTimeout(500);
     return page.locator(`.card.kind-${kind}`);
   };
@@ -114,8 +118,10 @@ try {
       assert.equal(await card.getByRole('button', { name: /^Open(?: |$)/ }).count(), 0, `${kind} has no Open affordance`);
       checkedOpen.add(kind); return;
     }
-    await card.hover();
-    const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
+    // Detail tier opens from the hovered window's action strip; the summary tier (narrow screens) uses the selection toolbar.
+    const detail = await page.evaluate(() => document.getElementById('stage').dataset.zoomTier === 'detail');
+    if (detail) await card.hover();
+    const open = detail ? page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true }) : page.locator('.selection-bar').getByRole('button', { name: 'Open', exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
     await editor.waitFor({ state: 'visible', timeout: 3000 });
@@ -153,7 +159,7 @@ try {
     await page.keyboard.press('Escape');
     assert.equal(await editor.count(), 0, 'Escape removes the editor immediately');
     // Focus returns to the invoking Open action for this window (or the window itself if the action is gone).
-    await page.waitForFunction(kind => { const a = document.activeElement; const id = a?.dataset.windowAction; return a?.closest('.card')?.classList.contains(`kind-${kind}`) || (id && document.querySelector(`.card[data-id="${id}"]`)?.classList.contains(`kind-${kind}`)); }, kind);
+    await page.waitForFunction(kind => { const a = document.activeElement; const id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains(`kind-${kind}`); }, kind);
     checkedOpen.add(kind);
   };
   for (const kind of Object.keys(samples)) {
@@ -575,7 +581,7 @@ try {
   console.log('pass genui: table shows Saving, host-confirmed Saved, failure Retry and successful recovery in Open and canvas headers');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Monday review');
-  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-table'));
+  await page.waitForFunction(() => { const a = document.activeElement, id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains('kind-table'); });
 
   expanded = await openEditor('form');
   await expanded.editor.getByLabel('What needs to change?', { exact: true }).fill('Expanded edits save on Escape.');
@@ -608,7 +614,7 @@ try {
   assert.equal(await page.locator('.side-editor-name').textContent(), 'Sample stats', 'global Open uses the same expanded view');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionDuration), '0.24s', 'pointer Open in the selection toolbar slides in');
   await page.keyboard.press('Escape');
-  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-stats'));
+  await page.waitForFunction(() => { const a = document.activeElement, id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains('kind-stats'); });
   await toolbarOpen.press('Enter');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'keyboard Open in the selection toolbar is instant');
   await page.keyboard.press('Escape');
@@ -821,7 +827,7 @@ try {
   await page.screenshot({ path: out(`genui-html-reopen-50-${stamp}.png`) });
   await page.frameLocator('.side-editor iframe').locator('#minutes').press('Escape');
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
-  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-html'));
+  await page.waitForFunction(() => { const a = document.activeElement, id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains('kind-html'); });
   console.log('pass genui: expanded custom UI runs in its isolated iframe and Escape closes from inside the widget');
 
   const savedState = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state);

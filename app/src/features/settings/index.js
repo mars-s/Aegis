@@ -16,6 +16,8 @@ export function mountSettings({ canvas, host, toast, replayTour, showShortcuts }
   enhanceDialog(dialog, { label: 'Settings' }); enhanceSwitches(dialog);
   const tabs = document.createElement('nav'); tabs.className = 'settings-tabs'; tabs.setAttribute('role', 'tablist'); tabs.setAttribute('aria-label', 'Settings');
   const pages = new Map();
+  const appearance = document.createElement('details'); appearance.className = 'settings-appearance';
+  const appearanceTitle = document.createElement('summary'); appearanceTitle.textContent = 'Appearance'; appearance.append(appearanceTitle);
   for (const name of ['General', 'Board', 'Toolbar', 'Panels', 'Accounts', 'Integrations', 'About']) {
     const id = name.toLowerCase(), b = document.createElement('button'), panel = document.createElement('div');
     b.textContent = name; b.id = `settings-tab-${id}`; b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', `settings-${id}`);
@@ -28,7 +30,7 @@ export function mountSettings({ canvas, host, toast, replayTour, showShortcuts }
   pages.get('general').append(dialog.querySelector('[data-settings="appearance"]'));
   for (const section of [...dialog.querySelectorAll(':scope > .sheet-sec')]) {
     if (section.querySelector('.panel-layout-options')) pages.get('panels').append(section);
-    else if (section.hasAttribute('data-colour-settings')) pages.get('general').append(section);
+    else if (section.hasAttribute('data-colour-settings')) appearance.append(section);
     else if (section.classList.contains('editing-settings')) {
       // Move nodes rather than rebuild them, so the editing feature's handlers and references stay live.
       const board = document.createElement('section'); board.className = 'sheet-sec editing-settings';
@@ -58,6 +60,7 @@ export function mountSettings({ canvas, host, toast, replayTour, showShortcuts }
   function applyMotion() { document.body.classList.toggle('motion-off', preference('motion', 'on') === 'off'); }
   applyMotion();
   mountModelSettings(pages.get('general'));
+  pages.get('general').append(appearance);
   const integrations = mountIntegrations(pages.get('integrations'), { host, toast });
   const about = pages.get('about');
   const version = document.createElement('p'); version.textContent = `Aegis ${__AEGIS_VERSION__}`; about.append(version);

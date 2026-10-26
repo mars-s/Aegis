@@ -26,6 +26,11 @@ export function createPanels({ side, onChange }) {
   });
   addEventListener('blur', () => { for (const key of ['left', 'right']) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); } });
   const all = new Map(), defaults = [], save = () => localStorage.setItem(KEY, JSON.stringify(state));
+  let revealPanel;
+  function endReveal() {
+    if (!revealPanel) return;
+    revealPanel.closest('aside')?.classList.remove('capture-reveal'); revealPanel = null; apply();
+  }
   const boxes = col => [...col.querySelectorAll(':scope > .pbox')];
   // R4 sidebar: one persistent disclosure holds occasional panels, with their own controls intact.
   const occasional = new Set(['wireframe', 'board-colours', 'media-devices', 'draw', 'unsorted', 'keys']);
@@ -44,8 +49,9 @@ export function createPanels({ side, onChange }) {
       if (box) { const parent = key === 'left' && occasional.has(id) ? toolsBody : col; parent.insertBefore(box, parent.querySelector(':scope > .side-resize')); }
     }
     for (const [id, box] of all) {
-      box.hidden = !!state.off[id]; box.classList.toggle('folded', !!state.folded[id]);
-      box.querySelector('.fold')?.setAttribute('aria-expanded', String(!state.folded[id]));
+      const folded = !!state.folded[id] || id === 'layers' && revealPanel?.closest('aside') === box.closest('aside');
+      box.hidden = !!state.off[id]; box.classList.toggle('folded', folded);
+      box.querySelector('.fold')?.setAttribute('aria-expanded', String(!folded));
       box.querySelector('.pbody').style.height = state.heights[id] ? `${state.heights[id]}px` : '';
     }
     syncSides(); onChange?.(state);
@@ -102,7 +108,8 @@ export function createPanels({ side, onChange }) {
     const head = box.querySelector('.phead'), body = box.querySelector('.pbody'), fold = box.querySelector('.fold');
     if (fold) fold.onclick = event => {
       const col = box.parentElement, before = new Map(boxes(col).map(b => [b, b.getBoundingClientRect()]));
-      state.folded[id] = !box.classList.contains('folded'); apply(); save();
+      const folded = box.classList.contains('folded'); endReveal();
+      state.folded[id] = !folded; apply(); save();
       if (!event.detail || document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       // Round 3 navigation: sections settle with transforms; their scrollers keep their position.
       for (const [section, rect] of before) {
@@ -180,8 +187,12 @@ export function createPanels({ side, onChange }) {
     state.folded[box.dataset.panel] = false;
     box.classList.remove('folded'); box.querySelector('.fold')?.setAttribute('aria-expanded', 'true');
     if (toolsBody.contains(box)) { state.folded.tools = false; tools.classList.remove('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'true'); }
+    if (event.detail?.capture && !document.body.classList.contains('phone')) {
+      endReveal(); revealPanel = box; box.closest('aside')?.classList.add('capture-reveal'); apply();
+    }
     save();
   });
+  addEventListener('panelrevealend', endReveal);
   for (const box of boxes(side)) register(box);
   // Feature panels may be mounted after the shell starts.
   const observer = new MutationObserver(() => {

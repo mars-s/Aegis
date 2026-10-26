@@ -16,15 +16,15 @@
   scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; font: var(--text-body)/1.4 var(--font);
 }
 .aegis-dropdown-menu.aegis-surface.aegis-value-menu { max-width: min(420px, calc(100vw - 20px)); min-width: 160px; }
-.aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]) {
+.aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action) {
   display: flex; align-items: center; justify-content: flex-start; gap: var(--space-3); width: 100%; min-height: var(--menu-row-height);
-  padding: 7px 10px; margin: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent;
+  padding: 6px 10px; margin: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent;
   color: inherit; box-shadow: none; font: var(--text-body)/1.35 var(--font); text-align: left; cursor: pointer;
 }
 .aegis-option-check, .aegis-menu-check { margin-left: auto; visibility: hidden; color: var(--data); }
 [aria-selected=true] > .aegis-option-check, [aria-checked=true] > .aegis-menu-check { visibility: visible; }
 .aegis-menu-radio circle { fill: currentColor; stroke: none; }
-.aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]):focus-visible {
+.aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action):focus-visible {
   outline: 2px solid var(--focus); outline-offset: -2px; background: var(--hover);
 }
 .aegis-dropdown:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
@@ -54,10 +54,10 @@
 .aegis-surface button:disabled { pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
   .aegis-dropdown:hover { border-color: var(--ui-edge); background: var(--press); }
-  .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]):hover:not(:disabled) { background: var(--hover); }
+  .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action):hover:not(:disabled) { background: var(--hover); }
 }
-@media (hover: none), (pointer: coarse) { .aegis-dropdown, .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]) { min-height: 44px; } }
-body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]) { min-height: 44px; }
+@media (hover: none), (pointer: coarse) { .aegis-dropdown, .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action) { min-height: 44px; } }
+body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem], .selection-menu-action) { min-height: 44px; }
 
 .aegis-surface .selection-value:empty { display: none; }
 
@@ -72,3 +72,9 @@ body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button
 .selection-submenu > summary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
 .aegis-surface.selection-overflow { width: 240px; }
 .selection-actions + .selection-actions { border: 0 !important; margin: 0 !important; padding: 0 !important; }
+
+/* These states travel with a popup, including when it is portalled outside its feature. */
+:where(.aegis-dropdown, .aegis-surface button, .aegis-surface summary) { transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), color 140ms var(--ease-out); }
+:where(.aegis-dropdown, .aegis-surface button, .aegis-surface summary):active:not(:disabled):not(:focus-visible) { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) { :where(.aegis-dropdown, .aegis-surface button, .aegis-surface summary) { transition: none; transform: none !important; } }
+body.motion-off :where(.aegis-dropdown, .aegis-surface button, .aegis-surface summary) { transition: none; transform: none !important; }

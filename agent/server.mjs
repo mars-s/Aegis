@@ -132,6 +132,16 @@ async function commit(boardId, batch, author, expectedRev) {
         for (const [target, requestId] of targets) await target.submit({ type: 'write', requestId: `history:batch:${boardId}:${result.board.rev}`,
           entry: { kind: 'aegis.change', data: { requestId, ...data } } }, context);
       }
+    } else if (batch.commands.every(cmd => ['measure', 'initialise_html'].includes(cmd.op)) && patch.cards.length) {
+      // Save automatic geometry and initial widget defaults in the request after-state.
+      // Keep only derived fields in this passive ledger, never later user content.
+      const canonical = ({ id, x, y, h, kind, data }) => ({ id, x, y, h, ...(kind === 'html' ? { data: { state: data.state } } : {}) });
+      const data = { before: { cards: board.cards.filter(c => touched.has(c.id)).map(canonical) }, after: { cards: patch.cards.map(canonical) } };
+      for (const [id, meta] of run) if (meta.boardId === boardId) {
+        const conversation = await harness.conversation(Number.isNaN(Number(id)) ? id : Number(id), context);
+        if (conversation) await conversation.submit({ type: 'write', requestId: `history:normalise:${boardId}:${result.board.rev}`,
+          entry: { kind: 'aegis.normalise', data } }, context);
+      }
     }
     broadcast({ type: 'board', boardId, baseRev: board.rev, rev: result.board.rev, patch, author, touched: result.touched, focus: result.board.focus ?? null, sentAt: Date.now() });
     // Round 3 Undo: person edits also refresh the request's availability in both timelines.

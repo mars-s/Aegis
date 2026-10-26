@@ -79,7 +79,7 @@
     {:else if card.kind === 'stages'}<Stages data={card.data} {onset} />
     {:else if card.kind === 'callout'}<Callout data={card.data} />
     {:else if card.kind === 'form'}<Form data={card.data} {onset} />
-    {:else if card.kind === 'html'}<Html data={card.data} title={card.text || 'Custom UI'} {post} {onset} {onheight} {onescape} />
+    {:else if card.kind === 'html'}<Html cardId={card.id} data={card.data} title={card.text || 'Custom UI'} {post} {onset} {onheight} {onescape} />
     {:else}<p class="unknown">Unknown object kind: {card.kind}</p>{/if}
   </div>
 </section>

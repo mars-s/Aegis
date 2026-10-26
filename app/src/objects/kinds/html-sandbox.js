@@ -123,7 +123,7 @@ export function sandboxDocument(data, channel, theme, font, motionOff = false) {
         if (data.state !== null && !parseState(data.state)) return;
         if (data.state !== lastState) restore(data.state ?? defaultState);
         // Save the first live defaults too, including generated script state before any interaction.
-        if (data.state === null && lastState) send({ type: 'aegis:html-state', channel: ${encodedChannel}, state: lastState }, '*');
+        if (data.state === null && lastState) send({ type: 'aegis:html-initial-state', channel: ${encodedChannel}, state: lastState }, '*');
         document.documentElement.style.removeProperty('visibility');
         return;
       }
@@ -175,7 +175,7 @@ export function reportedEscape(event, source, channel) {
   return !!source && event.source === source && event.origin === 'null' && event.data?.type === 'aegis:html-escape' && event.data.channel === channel;
 }
 
-export function reportedState(event, source, channel) {
+export function reportedState(event, source, channel, type = 'aegis:html-state') {
   const d = event.data;
-  return source && event.source === source && event.origin === 'null' && d?.type === 'aegis:html-state' && d.channel === channel && Object.keys(d).every(key => ['type', 'channel', 'state'].includes(key)) && parseHtmlState(d.state) ? d.state : null;
+  return source && event.source === source && event.origin === 'null' && d?.type === type && d.channel === channel && Object.keys(d).every(key => ['type', 'channel', 'state'].includes(key)) && parseHtmlState(d.state) ? d.state : null;
 }

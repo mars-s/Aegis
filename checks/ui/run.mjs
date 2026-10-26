@@ -25,12 +25,15 @@ all.push('office');
 // Editor camera bookmarks and explicit slide backgrounds in both browser engines.
 all.push('editor-return');
 all.push('editor-context');
+// Active-slide workspace and painted chart/diagram text in the shipped bundle.
+all.push('deck-studio');
 // CSV import and plain-composer data analysis.
 all.push('data-import');
 // External MCP sessions share imported sources and editable documents with the production UI.
 all.push('mcp');
 // Shared UI controls and theme captures from the shipped bundle.
 all.push('design-system');
+all.push('controls-polish');
 // Canvas chrome: link handles, sidebar placement and alignment.
 all.push('canvas-chrome');
 // Data viewer, deletion recovery, typography and sheet units.
@@ -39,6 +42,8 @@ all.push('data-trust');
 all.push('first-minute');
 // Readable summaries and shared zoom tiers in Chromium and WebKit.
 all.push('semantic-zoom');
+// Fresh agent Undo and complete capture-batch retrieval in the production bundle.
+all.push('trust-undo');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

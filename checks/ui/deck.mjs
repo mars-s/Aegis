@@ -61,9 +61,11 @@ try {
   assert.equal(await page.locator('body.editor-open').count(), 1);
   assert.equal(await panel.locator('.deck-slide-wrap').count(), 4);
   const stage = panel.locator('.deck-stage');
+  await page.getByRole('button', { name: 'Slide overview', exact: true }).click();
   await stage.hover(); await page.mouse.wheel(0, 465); await selected(1);
   await page.getByRole('tab', { name: 'Go to slide 3', exact: true }).click(); await selected(2);
   assert.ok(await stage.evaluate(el => el.scrollTop > 500));
+  await page.getByRole('button', { name: 'Slide overview', exact: true }).click();
   await page.getByRole('tab', { name: 'Go to slide 2', exact: true }).click(); await selected(1);
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .line').evaluate(el => getComputedStyle(el).strokeWidth), '1.4px');
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .target').count(), 1);
@@ -204,7 +206,7 @@ try {
   await page.keyboard.press('b');
   await page.locator('#stage').click({ position: { x: 1200, y: 250 } }); await panel.waitFor();
   assert.equal(await panel.locator('.deck-slide-wrap').count(), 1);
-  await page.getByRole('button', { name: 'Delete slide 1', exact: true }).click(); await saved();
+  await page.getByRole('button', { name: 'Delete current slide', exact: true }).click(); await saved();
   assert.equal(await panel.locator('.deck-slide-wrap').count(), 0);
   await page.getByRole('button', { name: 'Add slide', exact: true }).click();
   await page.getByRole('textbox', { name: 'Slide 1 title', exact: true }).fill('Saved on close');

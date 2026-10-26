@@ -40,7 +40,8 @@ export function mountNavigation(ctx, { exportBoard }) {
   document.body.append(confirmation);
   let confirmationTimer, highlightTimer, result;
   const message = confirmation.querySelector('[role="status"]'), put = confirmation.querySelector('[data-put]');
-  const dismissConfirmation = () => { confirmation.hidden = true; clearTimeout(confirmationTimer); };
+  const endReveal = () => document.dispatchEvent(new CustomEvent('panelrevealend', { bubbles: true }));
+  const dismissConfirmation = () => { confirmation.hidden = true; clearTimeout(confirmationTimer); endReveal(); };
   function expireConfirmation() { clearTimeout(confirmationTimer); confirmationTimer = setTimeout(dismissConfirmation, 6000); }
   confirmation.onpointerenter = confirmation.onfocusin = () => clearTimeout(confirmationTimer);
   confirmation.onpointerleave = confirmation.onfocusout = expireConfirmation;
@@ -49,12 +50,16 @@ export function mountNavigation(ctx, { exportBoard }) {
     document.querySelectorAll('.tray-item.capture-highlight').forEach(el => el.classList.remove('capture-highlight'));
     const rows = [...document.querySelectorAll('.tray-item')].filter(el => ids.includes(el.dataset.id));
     rows.forEach(el => el.classList.add('capture-highlight'));
-    rows[0]?.scrollIntoView({ block: 'nearest' });
+    const panel = rows[0]?.closest('[data-panel="unsorted"]');
+    if (panel) {
+      panel.querySelector('.pbody').scrollTop = 0;
+      panel.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+    }
     highlightTimer = setTimeout(() => rows.forEach(el => el.classList.remove('capture-highlight')), 1200);
   }
   function revealTray(ids) {
     const panel = document.querySelector('[data-panel="unsorted"]');
-    panel?.dispatchEvent(new CustomEvent('panelreveal', { bubbles: true }));
+    panel?.dispatchEvent(new CustomEvent('panelreveal', { bubbles: true, detail: { capture: true } }));
     const side = panel?.closest('aside');
     if (document.body.classList.contains('phone')) document.querySelector('#mobileHub [data-sheet="unsorted"]')?.click();
     else if (side?.hidden || side?.inert) document.getElementById(side.id === 'sideRight' ? 'agentsBtn' : 'boardName').click();
@@ -72,6 +77,7 @@ export function mountNavigation(ctx, { exportBoard }) {
     const at = canvas.centre(), cols = Math.min(3, items.length);
     result.ids = cloned.ids;
     apply([{ op: 'board_set', set: { tray: canvas.board.tray.filter(c => !result.trayIds.includes(c.id)) } }, ...cloned.commands, { op: 'layout', ids: cloned.ids, shape: 'grid', cols, x: at.x - cols * 148, y: at.y - 100 }], () => {
+      endReveal();
       canvas.frameIds(result.ids, 1, false, true); canvas.glow(result.ids);
       message.textContent = `On the board · ${describe(items)}`; put.hidden = true; expireConfirmation(); focusCanvas();
     });
@@ -100,7 +106,7 @@ export function mountNavigation(ctx, { exportBoard }) {
   }
   function openCapture(keyboard = true) {
     if (document.querySelector('dialog[open]')) return;
-    clearTimeout(confirmationTimer); confirmation.hidden = true;
+    dismissConfirmation();
     input.value = ''; input.style.height = ''; updateCapture(); capture.dataset.entry = keyboard ? 'keyboard' : 'pointer';
     document.body.classList.add('capture-open'); capture.showModal(); input.focus({ preventScroll: true });
   }

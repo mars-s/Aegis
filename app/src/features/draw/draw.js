@@ -1,3 +1,6 @@
+import { createDropdown } from '../../lib/ui/dropdown.js';
+import { createStepper } from '../../lib/ui/stepper.js';
+import { createColourPicker } from '../colors/colour-picker.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerTool, registerPanel, registerCommand, registerCardMenu } from '../registry';
 import { svg, SHAPES, INKS, colour, outlineStyle } from './geometry.js';
@@ -38,15 +41,19 @@ function updateCard(props) { const c = selectedCard(); if (c) ctx.apply([{ op: '
 function button(parent, text, run, title = text) { const el = document.createElement('button'); el.type = 'button'; el.textContent = text; el.title = title; el.setAttribute('aria-label', title); el.addEventListener('click', run); parent.append(el); return el; }
 function label(parent, name) { const row = document.createElement('label'); row.className = 'draw-field'; const text = document.createElement('span'); text.textContent = name; row.append(text); parent.append(row); return row; }
 function select(parent, name, values, value, change) {
-  const row = label(parent, name), el = document.createElement('select'); el.setAttribute('aria-label', name);
-  for (const [v, title] of Object.entries(values)) { const option = document.createElement('option'); option.value = v; option.textContent = title; el.append(option); }
-  el.value = value; el.onchange = () => change(el.value); row.append(el); return el;
+  const row = label(parent, name), el = createDropdown({ label: name, options: Object.entries(values), value, onChange: change }); row.append(el); return el;
 }
 function input(parent, name, type, value, change, attrs = {}) {
-  const row = label(parent, name), el = document.createElement('input'); el.type = type; el.value = String(value); el.setAttribute('aria-label', name); Object.assign(el, attrs);
+  const row = label(parent, name);
+  if (type === 'color') {
+    const picker = createColourPicker({ label: name, value: String(value), board: () => ctx.canvas.board, onChange: change }); row.append(picker); return picker;
+  }
+  const el = document.createElement('input'); el.type = type; el.value = String(value); el.setAttribute('aria-label', name); Object.assign(el, attrs);
   el.addEventListener(type === 'range' ? 'input' : 'change', () => change(el.value)); row.append(el); return el;
 }
-function number(parent, name, value, min, max, change) { return input(parent, name, 'number', value, v => change(Math.max(min, Math.min(max, Number(v) || 0))), { min: String(min), max: String(max), step: '1' }); }
+function number(parent, name, value, min, max, change) {
+  const row = label(parent, name), stepper = createStepper({ label: name, value, min, max, onChange: value => change(Number(value)) }); row.append(stepper.el); return stepper.input;
+}
 function hint(parent, text) { const p = document.createElement('p'); p.className = 'draw-hint'; p.textContent = text; parent.append(p); }
 let signature = '';
 function refresh(force = false) {

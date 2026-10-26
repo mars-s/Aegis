@@ -4,3 +4,4 @@ export { createDialog, enhanceDialog } from './dialog.js';
 export { confirmAction } from './confirm.js';
 export { createTabs, enhanceSwitch, enhanceSwitches } from './controls.js';
 export { createTooltip } from './tooltip.js';
+export { createStepper } from './stepper.js';

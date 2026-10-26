@@ -44,8 +44,6 @@
 .draw-field > span { flex: 1; }
 .draw-field input, .draw-field select { min-width: 0; max-width: 132px; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 5px; padding: 4px; font: inherit; }
 .draw-field input[type="range"] { width: 85px; accent-color: var(--focus); padding: 0; }
-.draw-field input[type="number"] { width: 64px; }
-.draw-field input[type="color"] { padding: 2px; width: 44px; height: 28px; }
 .draw-field output { font-size: 10px; min-width: 30px; }
 .draw-size-dot { display: block; border: 1px solid var(--line); border-radius: 50%; flex: none; }
 .draw-swatches { display: flex; gap: 5px; padding: 8px 0; }
