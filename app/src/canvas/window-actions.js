@@ -5,7 +5,8 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) 
   function redraw() {
     if (stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
     const focused = document.activeElement?.closest('#world > .card')?.dataset.id;
-    const id = hovered || (strip.contains(document.activeElement) ? currentId : focused || getSelection().at(-1));
+    const underPointer = stage.querySelector('#world > .card:hover')?.dataset.id;
+    const id = underPointer || hovered || (strip.contains(document.activeElement) ? currentId : focused || getSelection().at(-1));
     const card = id && mountedEl(id);
     const actions = card ? [...card.querySelectorAll('.win-open, .deck-open, .canvas-open')] : [];
     if (!actions.length) { strip.hidden = true; return; }
@@ -15,7 +16,11 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) 
       strip.replaceChildren(); currentId = id; sources = actions;
       for (const [index, source] of actions.entries()) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = source.textContent.trim() || 'Open'; button.setAttribute('aria-label', source.getAttribute('aria-label') || button.textContent); button.dataset.windowAction = id;
-        button.onclick = event => sources[index]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: event.detail })); strip.append(button);
+        button.onclick = event => {
+          const owner = mountedEl(currentId);
+          if (owner?.classList.contains('object')) owner.dispatchEvent(new CustomEvent('aegis:open-card', { bubbles: true, detail: { id: currentId, keyboard: event.detail === 0 } }));
+          else sources[index]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: event.detail }));
+        }; strip.append(button);
       }
     }
     sources = actions;
@@ -28,6 +33,7 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) 
   }
   stage.addEventListener('pointermove', event => { if (strip.contains(event.target)) return; const id = event.target.closest('#world > .card')?.dataset.id || null; if (id !== hovered) { hovered = id; redraw(); } });
   stage.addEventListener('pointerleave', () => { hovered = null; redraw(); });
+  stage.addEventListener('pointerover', () => redraw());
   stage.addEventListener('focusin', () => redraw());
   strip.addEventListener('pointerdown', event => event.stopPropagation());
   new MutationObserver(redraw).observe(stage, { attributes: true, attributeFilter: ['class'] });

@@ -34,7 +34,7 @@ try {
     const centre = locator => locator.evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     const moveTo = async locator => { const p = await centre(locator); await page.mouse.move(p.x, p.y); return p; };
     try {
-      await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
+      await page.addInitScript(() => { if (window !== window.top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       // A fresh board per engine keeps persisted-link assertions independent.
@@ -161,6 +161,13 @@ try {
       await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board?.links?.[0]?.label === 'Shared context');
       assert.equal(await page.locator('.link-hit').count(), 1);
       console.log(`PASS ${engineName}: drag creates a persisted editable link; bend, label and reconnected endpoint save; duplicate and empty drops leave links unchanged; reload keeps the link`);
+      await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'object', kind: 'html', newId: 'chromewidget', text: 'Widget actions', x: 400, y: 540, w: 440, h: 300, data: { html: '<p>Interactive widget</p>', css: '', js: '', height: 180 } }]); aegis.canvas.select([]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
+      await card('chromewidget').locator('iframe').hover();
+      const widgetOpen = page.locator('.window-actions').getByRole('button', { name: 'Open Widget actions', exact: true });
+      await widgetOpen.click(); await page.locator('.object-editor.is-open').waitFor(); await page.keyboard.press('Escape');
+      assert.equal(await widgetOpen.evaluate(el => el === document.activeElement), true, 'Escape restores the unscaled widget action');
+      await page.evaluate(() => { document.activeElement?.blur(); aegis.apply([{ op: 'delete', ids: ['chromewidget'] }]); });
+      console.log(`PASS ${engineName}: iframe hover reveals the window action, and Escape restores its focus`);
       // Every registered card type uses the same selection and resize chrome.
       const types = ['note', 'title', 'todo', 'link', 'image', 'video', 'web', 'agent', 'doc', 'swatch', 'audio', 'spotify', 'coll', 'frame', 'box', 'text', 'icon', 'font', 'section', 'ink', 'shape', 'path', 'stamp', 'dataset', 'canvas', 'template-group'];
       for (let start = 0; start < types.length; start += 6) {
