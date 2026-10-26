@@ -12,9 +12,9 @@ export function cardSummary(card) {
   const kind = names[type] || `${type?.[0]?.toUpperCase() || ''}${type?.slice(1) || 'Window'}`;
   const data = card.data || {}, props = card.props || {};
   const title = cardTitle(card) || kind;
-  let facts = [];
+  let facts = [], preview;
   switch (type) {
-    case 'doc': facts = [heading(props.body), words(props.body)]; break;
+    case 'doc': facts = [heading(props.body), plainLine(String(props.body || '').split('\n').filter(line => line.trim() && !/^\s*#/.test(line))[0]).split(/(?<=[.!?])\s/)[0]]; break;
     case 'sheet': case 'table': facts = [`${count(data.rows?.length || 0, 'row')} · ${count(data.columns?.length || 0, 'column')}`, plainLine(data.note)]; break;
     case 'dataset': facts = [`${count(props.rows || 0, 'row')} · ${count(props.columns?.length || 0, 'column')}`, plainLine(props.filename || props.source)]; break;
     case 'deck': case 'slides': facts = [count(props.slides?.length || 0, 'slide'), plainLine(props.slides?.[0]?.title)]; break;
@@ -30,7 +30,17 @@ export function cardSummary(card) {
     case 'callout': case 'reply': facts = [plainLine(data.headline || data.text), plainLine(data.attribution)]; break;
     default: facts = [plainLine(card.heading ? card.text : String(card.text || '').split('\n').slice(1).join('\n')), words(card.text)];
   }
-  return { title, kind, facts: facts.filter(Boolean).slice(0, 2) };
+  if (type === 'plot') {
+    const points = (data.series?.[0]?.points || []).filter(p => Number.isFinite(p.y));
+    const last = points.at(-1);
+    preview = { type: 'plot', values: points.map(p => p.y), value: last ? `${last.y}${data.y?.unit ? ` ${data.y.unit}` : ''}` : '', label: last ? `${last.x} · ${data.y?.label || data.series?.[0]?.name || ''}` : '' };
+  } else if (type === 'stats') preview = { type, tiles: (data.tiles || []).slice(0, 2) };
+  else if (type === 'progress') preview = { type, goals: (data.goals || []).slice(0, 2) };
+  else if (type === 'sheet' || type === 'table') preview = { type: 'sheet', columns: (data.columns || []).slice(0, 3).map(c => c.label), rows: (data.rows || []).slice(0, 2).map(row => row.cells?.slice(0, 3) || []) };
+  else if (type === 'deck' || type === 'slides') preview = { type: 'deck', slide: props.slides?.[0] };
+  else if (type === 'diagram') preview = { type, nodes: (data.nodes || []).slice(0, 4), edges: data.edges || [] };
+  if (type === 'callout' || type === 'reply') facts = [plainLine(data.headline || data.text).split(/(?<=[.!?])\s/)[0]];
+  return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(preview ? { preview } : {}) };
 }
 export function boardSubtitle(board) {
   const cards = board?.cards ?? [];

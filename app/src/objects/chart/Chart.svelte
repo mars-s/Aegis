@@ -271,6 +271,7 @@
 
 <style>
   .chart {
+    --text-caption: 12px;
     display: flex;
     flex-direction: column;
     gap: 12px;

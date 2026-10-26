@@ -15,10 +15,10 @@ export function mountOverview(canvas) {
   function renderMembers(button) {
     const list = button.querySelector('.overview-members'), ids = button.memberIds;
     // Two spare rows on either side keep scrolling smooth without mounting thousands of entries.
-    const start = Math.min(Math.max(0, ids.length - 1), Math.max(0, Math.floor((button.memberScrollTop || 0) / 112) - 2)), end = Math.min(ids.length, start + 8);
+    const start = Math.min(Math.max(0, ids.length - 1), Math.max(0, Math.floor((button.memberScrollTop || 0) / 128) - 2)), end = Math.min(ids.length, start + 8);
     if (list.dataset.start === String(start) && list.dataset.revision === String(revision)) return;
     const spacer = height => { const node = document.createElement('span'); node.className = 'overview-spacer'; node.style.height = `${height}px`; return node; };
-    list.replaceChildren(spacer(start * 112), ...ids.slice(start, end).map(id => summaryContent(content.get(id))), spacer((ids.length - end) * 112));
+    list.replaceChildren(spacer(start * 128), ...ids.slice(start, end).map(id => summaryContent(content.get(id))), spacer((ids.length - end) * 128));
     list.dataset.start = String(start); list.dataset.revision = String(revision);
   }
   function reset() {
@@ -41,24 +41,20 @@ export function mountOverview(canvas) {
     if (far && !wasFar) bookmark = working ? { ...working } : null;
     wasFar = far;
     if (layer.inert !== !far) { layer.inert = !far; layer.setAttribute('aria-hidden', String(!far)); }
-    if (summaries.inert !== (tier !== 'summary')) { summaries.inert = tier !== 'summary'; summaries.setAttribute('aria-hidden', String(tier !== 'summary')); }
+    const hasSummaries = !far && [...canvas.representations.values()].some(r => r.summary);
+    if (summaries.inert !== !hasSummaries) { summaries.inert = !hasSummaries; summaries.setAttribute('aria-hidden', String(!hasSummaries)); }
     back.hidden = !bookmark;
     // Keep outgoing nodes for the crossfade. Build and place only visible summaries.
-    if (tier === 'summary') {
-      const keep = new Set(), occupied = [...agents];
+    if (!far) {
+      const keep = new Set();
       for (const card of cards) {
-        const x = card.x * view.z + view.x, y = card.y * view.z + view.y;
-        const w = Math.max(180, Math.min(360, card.w * .5)), h = Math.max(112, card.h * view.z);
-        if (x + w < 0 || y + h < 0 || x > width || y > height) continue;
-        // Fixed screen-space metrics avoid measuring text or flushing layout during a pinch.
-        let top = y;
-        for (const rect of occupied) if (x < rect.right + 8 && x + w > rect.left - 8 && top < rect.bottom + 8 && top + 112 > rect.top - 8) top = rect.bottom + 8;
-        occupied.push({ left: x, right: x + w, top, bottom: top + 112 });
+        const rect = canvas.representations.get(card.id);
+        if (!rect?.summary || rect.x + rect.w < 0 || rect.y + rect.h < 0 || rect.x > width || rect.y > height) continue;
         keep.add(card.id);
         let button = windows.get(card.id);
         if (!button) {
           button = document.createElement('button'); button.type = 'button'; button.className = 'semantic-window'; button.dataset.cardId = card.id;
-          button.onclick = event => { canvas.frameIds([card.id], 1, false, event.detail === 0); stage.focus({ preventScroll: true }); };
+          button.onclick = event => canvas.activateSummary(card.id, event.detail === 0);
           summaries.append(button); windows.set(card.id, button);
         }
         if (button.revision !== revision) {
@@ -66,9 +62,8 @@ export function mountOverview(canvas) {
           button.setAttribute('aria-label', `Frame ${content.get(card.id).title}`);
           button.title = [content.get(card.id).title, ...content.get(card.id).facts].join('\n');
         }
-        button.style.transform = `translate3d(${x}px, ${top}px, 0)`;
-        const size = `${w}px`;
-        if (button.style.width !== size) button.style.width = size;
+        button.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0)`;
+        button.style.width = `${rect.w}px`; button.style.height = `${rect.h}px`;
       }
       for (const [id, button] of windows) if (!keep.has(id)) { button.remove(); windows.delete(id); }
     }
@@ -94,8 +89,8 @@ export function mountOverview(canvas) {
           event.preventDefault(); event.stopPropagation();
           const list = button.querySelector('.overview-members');
           if (event.key === 'Home') list.scrollTop = 0;
-          else if (event.key === 'End') list.scrollTop = button.memberIds.length * 112;
-          else list.scrollTop += (['ArrowUp', 'PageUp'].includes(event.key) ? -1 : 1) * (event.key.startsWith('Page') ? 224 : 112);
+          else if (event.key === 'End') list.scrollTop = button.memberIds.length * 128;
+          else list.scrollTop += (['ArrowUp', 'PageUp'].includes(event.key) ? -1 : 1) * (event.key.startsWith('Page') ? 224 : 128);
         });
         button.onclick = event => {
           const current = clusters.find(c => c.id === button.dataset.cluster); if (!current) return;

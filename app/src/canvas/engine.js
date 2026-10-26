@@ -8,7 +8,9 @@ import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
 // R4 orientation: names stay in screen space and reuse visible-card culling.
 import { createOrientation } from './orientation.js';
-import { zoomTier, summarisedCard } from '../features/overview/zoom.js';
+import { zoomTier, summarisedCard, cardTier } from '../features/overview/zoom.js';
+
+import { spatialLayout, fitSpatial, projectCard } from '../features/overview/spatial.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
@@ -55,6 +57,7 @@ export function registerDragHandler(id, handler) { DRAG_HANDLERS.set(id, handler
 export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
+  let representations = new Map();
   let viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
   // PM5.6: omitted names use the same camera framing as Windows rows.
   const orientation = createOrientation(stage, () => view, () => schedule(), (id, keyboard) => frameIds([id], 1, false, keyboard));
@@ -185,6 +188,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
     const tier = zoomTier(view.z, stage.dataset.zoomTier);
     if (stage.dataset.zoomTier !== tier) stage.dataset.zoomTier = tier;
+    if (board) representations = spatialLayout(board.cards.filter(c => !effectiveFlag(board, c, 'hidden')), view, tier, frameArea(), agentBounds().map(c => projectCard(c, view)), representations);
+    stage.toggleAttribute('data-has-summaries', [...representations.values()].some(r => r.summary));
     const crisp = localStorage.getItem('aegis:crisp') === 'on' && view.z > 1.02;
     if (!crisp || Number(world.style.zoom) !== view.z) { world.style.zoom = ''; world.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.z})`; }
     else world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`;
@@ -312,6 +317,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       const summary = tierIsSummary(c);
       if (el.inert !== summary) el.inert = summary;
       el.classList.toggle('semantic-detail', summarisedCard(c));
+      el.classList.toggle('semantic-hidden', summary);
       el.classList.toggle('selected', selected.has(c.id));
       // PM 7: preserve the marker across virtual mounts and saved content renders.
       el.classList.toggle('editor-source', c.id === editorSource);
@@ -321,7 +327,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     });
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
-  function tierIsSummary(card) { return stage.dataset.zoomTier !== 'detail' && summarisedCard(card); }
+  function tierIsSummary(card) { return summarisedCard(card) && cardTier(card, view.z, representations.get(card.id)?.summary ? 'summary' : 'detail', stage.dataset.zoomTier) !== 'detail'; }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot, c.parent]);
   const objectAppearance = c => c.type === 'object' ? JSON.stringify([c.color, c.props, c.parent]) : null;
@@ -439,15 +445,19 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const screen = p => ({ x: p.x * view.z + view.x, y: p.y * view.z + view.y });
     for (const l of board.links) {
       const a = by.get(l.a), b = by.get(l.b); if (!a || !b || effectiveFlag(board, a, 'hidden') || effectiveFlag(board, b, 'hidden')) continue;
-      const g = linkGeometry(l, a, b), p = screen(g.p0), q = screen(g.p2), c = screen(g.control), h = screen(g.handle);
+      const ra = representations.get(a.id), rb = representations.get(b.id), summary = ra?.summary || rb?.summary;
+      if (stage.dataset.zoomTier === 'cluster') continue;
+      const geometry = summary ? linkGeometry({ ...l, pa: ra.summary ? null : l.pa, pb: rb.summary ? null : l.pb, bend: (l.bend ?? 0) * view.z }, { ...a, ...ra, rot: ra.summary ? 0 : displayRotation(a) }, { ...b, ...rb, rot: rb.summary ? 0 : displayRotation(b) }) : linkGeometry(l, a, b);
+      const g = summary ? geometry : Object.fromEntries(Object.entries(geometry).map(([key, value]) => [key, screen(value)]));
+      const p = g.p0, q = g.p2, c = g.control, h = g.handle;
       const d = `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;
       const colour = /^#[0-9a-f]{6}$/i.test(l.colour ?? '') ? l.colour : 'var(--line-strong)';
-      parts.push(`<path class="link-line" data-link-line="${esc(l.id)}" d="${d}" style="stroke:${colour}"${l.dash ? ' stroke-dasharray="8 6"' : ''}/>`);
-      const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour}"/>`; };
+      parts.push(`<path class="link-line" data-link-line="${esc(l.id)}" d="${d}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"${l.dash ? ' stroke-dasharray="8 6"' : ''}/>`);
+      const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"/>`; };
       if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, c));
       if (l.arrow === 'both') parts.push(arrow(p, c));
       parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:stroke"/>`);
-      if (l.label && view.z >= 0.12) { const size = 12 * Math.min(1, view.z); parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
+      if (l.label && view.z >= 0.12) { const size = 12; parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
     }
     links.innerHTML = parts.join('');
   }
@@ -655,21 +665,24 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   // Round 3 agents: spatial windows join Fit and agent-result framing only.
   let agentBounds = () => [];
   function frameArea() {
-    // Frame inside the free area: right of the side bar and tool bar, above the composer.
-    const left = Math.max(0, ...[...document.querySelectorAll('.side:not(.side-right):not([hidden]) .pbox:not([hidden]), .tools')].map(el => el.getBoundingClientRect().right)) + 24;
-    const rightPanel = document.querySelector('.side-right:not([hidden])');
-    const right = rightPanel && rightPanel.getBoundingClientRect().width ? stage.clientWidth - rightPanel.getBoundingClientRect().left + 24 : 24;
-    return { x: left, y: 44, w: Math.max(160, stage.clientWidth - left - right), h: Math.max(160, stage.clientHeight - (document.body.classList.contains('just-board') ? 64 : 160)) };
+    const visible = el => { const r = el.getBoundingClientRect(); return r.width && r.height && getComputedStyle(el).visibility !== 'hidden' ? r : null; };
+    const left = Math.max(0, ...[...document.querySelectorAll('.side:not(.side-right):not([hidden]) .pbox:not([hidden]), .tools')].map(el => visible(el)?.right || 0)) + 24;
+    const panel = document.querySelector('.side-right:not([hidden])');
+    const right = panel && visible(panel) ? visible(panel).left - 24 : stage.clientWidth - 24;
+    const island = document.querySelector('#agentIsland .island-morph');
+    const islandRect = island && visible(island);
+    const bottom = Math.min(stage.clientHeight - 24, islandRect ? islandRect.top - 24 : Infinity);
+    const top = 68;
+    return { x: left, y: top, w: Math.max(160, right - left), h: Math.max(160, bottom - top) };
   }
+
   function frameIds(ids, maxZ = 1, includeAgents = false, instant = false) {
     const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...(includeAgents ? agentBounds() : [])]; if (!cards.length) return;
-    const x0 = Math.min(...cards.map(c => c.x)), y0 = Math.min(...cards.map(c => c.y));
-    const x1 = Math.max(...cards.map(c => c.x + c.w)), y1 = Math.max(...cards.map(c => c.y + c.h));
-    const { x: left, y: top, w: W, h: H } = frameArea(), pad = 56;
-    const z = Math.min(maxZ, (W - pad * 2) / Math.max(1, x1 - x0), (H - pad * 2) / Math.max(1, y1 - y0));
-    // PM5.6: pointer recovery glides; choosing a name with the keyboard jumps.
-    glideTo({ x: left + W / 2 - ((x0 + x1) / 2) * z, y: top + H / 2 - ((y0 + y1) / 2) * z, z: Math.max(MIN_Z, z) }, instant ? 0 : 420);
+    const area = frameArea();
+    const target = fitSpatial(cards, area, maxZ);
+    glideTo(target, instant ? 0 : 420);
   }
+
   function fit() { if (board?.cards.length || agentBounds().length) frameIds(board.cards.map(c => c.id), 1, true); else glideTo({ x: stage.clientWidth / 2, y: stage.clientHeight / 2, z: 1 }); }
   function glow(ids) {
     for (const id of ids) {
@@ -755,6 +768,21 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     setFocus(ids) { focusIds = ids ? new Set(ids) : null; if (ids?.length) focusCard(ids.at(-1)); schedule(); },
     get view() { return view; },
     get viewportSize() { return viewportSize; },
+    get representations() { return representations; },
+    get availableArea() { return frameArea(); },
+    activateSummary(id, instant = false) {
+      selected.clear(); selected.add(id); focusCard(id); onSelect?.([id]);
+      frameIds([id], 1, false, instant);
+      const focus = () => requestAnimationFrame(() => {
+        windowActions.redraw();
+        const action = stage.querySelector(`.window-actions:not([hidden]) [data-window-action="${id}"]`);
+        const card = mounted.get(id)?.el;
+        if (action) action.focus({ preventScroll: true });
+        else if (card) { card.tabIndex = 0; card.focus({ preventScroll: true }); }
+      });
+      if (instant || reduced.matches || preference("motion", "on") === "off") focus();
+      else setTimeout(focus, 440);
+    },
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
     // PM 7: shared editor open and close hook.

@@ -1,18 +1,18 @@
 .board-overview, .semantic-summaries { position: absolute; inset: 0; z-index: 100004; pointer-events: none; opacity: 0; transition: opacity 180ms var(--ease-out); }
-.board-overview, .semantic-summaries { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-#stage[data-zoom-tier="cluster"] .board-overview, #stage[data-zoom-tier="summary"] .semantic-summaries { opacity: 1; }
+.board-overview { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+#stage[data-zoom-tier="cluster"] .board-overview, #stage[data-has-summaries]:not([data-zoom-tier="cluster"]) .semantic-summaries { opacity: 1; }
 .card.semantic-detail { transition: opacity 180ms var(--ease-out); }
-#stage:is([data-zoom-tier="summary"], [data-zoom-tier="cluster"]) .card.semantic-detail { opacity: 0; pointer-events: none; }
-.semantic-window { position: absolute; left: 0; top: 0; height: 112px; overflow: hidden; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: none; }
-#stage[data-zoom-tier="summary"] .semantic-window, #stage[data-zoom-tier="cluster"] .overview-cluster { pointer-events: auto; }
+.card.semantic-hidden { opacity: 0; pointer-events: none; }
+.semantic-window { position: absolute; left: 0; top: 0; height: 128px; overflow: hidden; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: none; }
+#stage[data-has-summaries]:not([data-zoom-tier="cluster"]) .semantic-window, #stage[data-zoom-tier="cluster"] .overview-cluster { pointer-events: auto; }
 .semantic-content { display: flex; gap: 10px; padding: 12px; text-align: left; color: var(--text); transform: translateY(4px); transition: transform 180ms var(--ease-out); }
-#stage[data-zoom-tier="summary"] .semantic-window .semantic-content, #stage[data-zoom-tier="cluster"] .overview-members .semantic-content { transform: translateY(0); }
-.semantic-content svg { flex: none; width: 16px; height: 20px; fill: none; stroke: var(--data); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+#stage[data-has-summaries]:not([data-zoom-tier="cluster"]) .semantic-window .semantic-content, #stage[data-zoom-tier="cluster"] .overview-members .semantic-content { transform: translateY(0); }
+.semantic-content svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .semantic-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; font: 400 12px/18px var(--font); }
 .semantic-kind { color: var(--muted); font-size: 12px; line-height: 18px; }
 .semantic-content strong { font-size: 14px; line-height: 20px; font-weight: 500; }
 .semantic-fact { color: var(--ink-2); font-size: 12px; line-height: 18px; }
-.semantic-content :is(strong, .semantic-fact) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.semantic-content :is(strong, .semantic-fact) { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .semantic-window:is(:hover, :focus-visible), .overview-cluster:is(:hover, :focus-visible) { border-color: var(--data); }
 .semantic-window:focus-visible, .overview-cluster:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .overview-cluster { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); pointer-events: none; text-align: left; }
@@ -20,7 +20,7 @@
 .overview-heading strong { font-size: 14px; font-weight: 500; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .overview-heading > span { flex: none; color: var(--muted); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }
 .overview-members { display: block; flex: 1; min-height: 0; width: 100%; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-.overview-members .semantic-content { box-sizing: border-box; height: 112px; padding: 10px 0; border-top: 1px solid var(--line); }
+.overview-members .semantic-content { box-sizing: border-box; height: 128px; padding: 10px 0; border-top: 1px solid var(--line); }
 .overview-spacer { display: block; }
 .overview-back { position: absolute; top: 66px; right: 24px; z-index: 100007; min-height: 44px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--text); font-size: 12px; }
 .overview-back:hover { background: var(--raised); }
@@ -40,3 +40,25 @@ body.motion-off .semantic-content { transform: none; }
 .agent-semantic .agent-zoom-summary { opacity: 1; transform: translateY(0); pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) { .agent-window > :is(.agent-window-strip, .agent-window-body), .agent-zoom-summary { transition: none; transform: none; } }
 body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary) { transition: none; transform: none; }
+
+.semantic-summaries { overflow: hidden; }
+.semantic-preview { display: flex; gap: 6px; min-width: 0; }
+.semantic-preview .semantic-graphic { width: 96px; height: 28px; stroke: var(--data); stroke-width: 1; }
+.semantic-headline { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
+.semantic-plot { align-items: center; }
+.semantic-stats { gap: 16px; }
+.semantic-stat { display: flex; flex-direction: column; }
+.semantic-metric { font-size: 24px; line-height: 28px; font-variant-numeric: tabular-nums; }
+.semantic-progress, .semantic-goal { display: flex; flex-direction: column; gap: 2px; }
+.semantic-progress { gap: 4px; }
+.semantic-track { display: block; height: 6px; width: 100%; background: var(--line); }
+.semantic-fill { display: block; height: 6px; background: var(--data); }
+.semantic-table { width: 100%; border-collapse: collapse; font-size: 12px; line-height: 14px; color: var(--ink-2); }
+.semantic-table :is(th, td) { text-align: left; padding: 0 4px; border: 1px solid var(--line); font-weight: 400; }
+.semantic-table th { color: var(--text); background: var(--inset); }
+.semantic-deck { width: 80px; height: 45px; overflow: hidden; flex: none; }
+.semantic-deck .deck-fit { width: 80px; height: 45px; --slide-scale: .0833333333; }
+.semantic-copy:has(.semantic-deck) { position: relative; padding-right: 88px; min-height: 100px; }
+.semantic-copy .semantic-deck { position: absolute; right: 0; bottom: 0; }
+.semantic-diagram { flex-direction: column; gap: 4px; }
+.semantic-diagram .semantic-graphic { width: 160px; height: 18px; stroke: var(--muted); }
