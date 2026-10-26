@@ -55,7 +55,7 @@ try {
   await page.evaluate(() => { const card = aegis.canvas.board.cards.find(c => c.text === 'Captured thought'); aegis.apply([{ op: 'board_set', set: { tray: [card] } }, { op: 'delete', ids: [card.id] }]); });
   await pause();
   await page.evaluate(() => document.querySelector('[data-panel="unsorted"]').dispatchEvent(new CustomEvent('panelreveal', { bubbles: true })));
-  await page.locator('#boardName').click();
+  if (!(await page.locator('#side').isVisible())) await page.locator('#boardName').click();
   await page.getByRole('button', { name: 'Captured thought', exact: true }).click(); await pause(); assert.equal((await saved()).tray.length, 0); assert.ok((await board()).cards.some(c => c.text === 'Captured thought')); console.log('capture and tray release saved');
   await select(['noteaa']); await key('Mod+c'); await pause(); assert.ok(await page.evaluate(() => localStorage.getItem('aegis:clip')));
   await key('Mod+v'); await pause(); assert.equal((await saved()).cards.filter(c => c.text === 'First idea').length, 2); console.log('OS clipboard paste');
