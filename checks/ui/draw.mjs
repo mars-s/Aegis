@@ -120,12 +120,13 @@ try {
   await controls.getByLabel('Connector colour', { exact: true }).fill('#cd3971');
   await controls.getByLabel('Connector label', { exact: true }).fill('Next <step>'); await controls.getByLabel('Connector label', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.links[0]?.label === 'Next <step>');
-  await page.locator('[data-connect-bend]').waitFor({ state: 'visible' });
-  let knob = await page.locator('[data-connect-bend]').boundingBox();
+  // The connector layer redraws by replacing its children, so read a knob only once it is attached and stable.
+  const box = async selector => { for (let i = 0; i < 40; i++) { await page.locator(selector).waitFor({ state: 'visible' }); const b = await page.locator(selector).boundingBox(); if (b) return b; await page.waitForTimeout(25); } throw new Error(`No box for ${selector}`); };
+  let knob = await box('[data-connect-bend]');
   await drag([knob.x + 6, knob.y + 6], [720, 600]);
   await persist(() => Math.abs(aegis.canvas.board.links[0]?.bend || 0) > 80);
   await page.screenshot({ path: out('draw-connectors.png') });
-  knob = await page.locator('[data-connect-end="b"]').boundingBox();
+  knob = await box('[data-connect-end="b"]');
   await drag([knob.x + 6, knob.y + 6], [1000, 300]);
   await persist(() => aegis.canvas.board.cards.find(c => c.id === aegis.canvas.board.links[0]?.b)?.type === 'stamp');
   await page.getByRole('button', { name: 'Auto ends', exact: true }).click();

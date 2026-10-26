@@ -75,7 +75,8 @@ try {
       await page.screenshot({ path: out(`trust-data-profile-${engineName}.png`) });
       pass(`${engineName}: column finder, horizontal scrolling, kinds, profile and numeric sort`);
       await close(); await select([id]); await page.keyboard.press('Enter'); await page.locator('.data-viewer-grid').waitFor(); await close();
-      await page.locator(`.card[data-id="${id}"] .win-open`).click(); await page.locator('.data-viewer-grid').waitFor(); await close();
+      // Window actions render in screen space beside the card (canvas chrome), not inside the scaled card.
+      await page.locator(`.window-actions [data-window-action="${id}"]`).click(); await page.locator('.data-viewer-grid').waitFor(); await close();
       pass(`${engineName}: Enter and the dataset window Open action use the shared editor`);
 
       await apply([{ op: 'create', newId: 'trusthdr', type: 'title', text: 'Launch review', x: 0, y: 0 }, { op: 'create', newId: 'trustweb', type: 'web', text: 'No editor', x: 400, y: 0 }]);

@@ -62,3 +62,9 @@ registerRenderer('dataset', {
 const selectedDataset = ctx => ctx.selection().length === 1 && ctx.canvas.board.cards.find(card => card.id === ctx.selection()[0] && card.type === 'dataset');
 registerCommand({ id: 'data-open', title: 'Open selected dataset', keys: 'enter', when: ctx => !document.activeElement?.closest('.side-editor') && !!selectedDataset(ctx), run: ctx => openDataset(selectedDataset(ctx), ctx, { keyboard: true }) });
 registerCardMenu({ id: 'data-open', title: 'Open data', section: 'Data', when: (ctx, ids) => ids.length === 1 && ctx.canvas.board.cards.some(card => card.id === ids[0] && card.type === 'dataset'), run: (ctx, ids) => openDataset(ctx.canvas.board.cards.find(card => card.id === ids[0]), ctx) });
+
+// The screen-space window action strip opens cards through this event, like documents, sheets and decks.
+window.addEventListener('aegis:open-card', event => {
+  const ctx = globalThis.aegisCtx, card = ctx?.canvas.board.cards.find(c => c.id === event.detail?.id);
+  if (card?.type === 'dataset') openDataset(card, ctx, { keyboard: event.detail?.keyboard ?? false });
+});
