@@ -1,3 +1,5 @@
+import { createStepper } from '../../lib/ui/stepper.js';
+import { createColourPicker } from '../colors/colour-picker.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { Editor, generateJSON } from '@tiptap/core';
 import BubbleMenu from '@tiptap/extension-bubble-menu';
@@ -220,11 +222,10 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   // focus from the next field and insert its typed value into the document.
   fonts.onchange = () => { if (fonts.value.trim()) editor.chain().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts);
   const sizes = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
-  const size = document.createElement('input'); size.type = 'number'; size.min = '6'; size.max = '200'; size.setAttribute('aria-label', 'Font size');
-  const setSize = value => { const n = Math.max(6, Math.min(200, Number(value) || 16)); editor.chain().setFontSize(`${n}px`).run(); size.value = String(n); };
-  action('Decrease font size', '−', () => setSize([...sizes].reverse().find(n => n < Number(size.value)) ?? Number(size.value) - 1));
-  size.onchange = () => setSize(size.value); tool.append(size);
-  action('Increase font size', '+', () => setSize(sizes.find(n => n > Number(size.value)) ?? Number(size.value) + 1));
+  const { el: sizeControl, input: size } = createStepper({ label: 'Font size', min: 6, max: 200,
+    next: (value, direction) => direction < 0 ? [...sizes].reverse().find(n => n < value) ?? value - 1 : sizes.find(n => n > value) ?? value + 1,
+    onChange: value => editor.chain().setFontSize(`${value}px`).run(),
+  }); tool.append(sizeControl);
   function inline(parent) {
     for (const [label, text, mark, command] of [['Bold', 'B', 'bold', 'toggleBold'], ['Italic', 'I', 'italic', 'toggleItalic'], ['Underline', 'U', 'underline', 'toggleUnderline'], ['Strikethrough', 'S̶', 'strike', 'toggleStrike']]) action(label, text, () => editor.chain().focus()[command]().run(), mark, parent);
     action('Link', 'Link', showLink, 'link', parent);
@@ -244,7 +245,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     for (const colour of highlight ? ['#fff1a8', '#ffd3e5', '#cdf2df', '#d4e8ff', '#e5dbff', ...palette.slice(7)] : palette) {
       const pick = button(`${label} ${colour}`, '', () => set(colour)); pick.style.background = colour; choices.append(pick);
     }
-    const wheel = document.createElement('input'); wheel.type = 'color'; wheel.setAttribute('aria-label', `Any ${label.toLowerCase()}`); wheel.oninput = () => set(wheel.value); choices.append(wheel);
+    const wheel = createColourPicker({ label: `Any ${label.toLowerCase()}`, value: highlight ? '#fff1a8' : '#25252b', board: () => ctx.canvas.board, onChange(colour) { const chain = editor.chain(); (highlight ? chain.setHighlight({ color: colour }) : chain.setColor(colour)).run(); } }); choices.append(wheel);
     choices.append(button(`Remove ${label.toLowerCase()}`, 'Reset', () => { const chain = editor.chain().focus(); (highlight ? chain.unsetHighlight() : chain.unsetColor()).run(); menu.open = false; }));
     tool.append(menu);
   }

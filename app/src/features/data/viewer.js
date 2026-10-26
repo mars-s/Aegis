@@ -1,4 +1,5 @@
 import { openSide, centreCardInLeft } from '../docs/side.js';
+import { createDropdown } from '../../lib/ui/dropdown.js';
 
 const ROW_HEIGHT = 32, HEADER_HEIGHT = 48, ROW_NUMBER_WIDTH = 76, OVERSCAN = 6;
 const fmt = value => typeof value === 'number' ? value.toLocaleString('en-AU', { maximumFractionDigits: 2 }) : String(value);
@@ -11,9 +12,10 @@ export function openDataset(card, ctx, { keyboard = false } = {}) {
   const side = openSide({ title: card.text || card.props?.name || 'Dataset', kind: 'Data', card, ctx, keyboard });
   side.el.classList.add('data-viewer');
   side.setSaved('Read only');
-  side.body.innerHTML = `<div class="data-viewer-tools"><span data-size></span><label class="data-finder-label">Find column<input type="search" aria-label="Find column" placeholder="Column name" autocomplete="off"></label><select aria-label="Go to column"></select></div><details class="data-profile"><summary>Column profile</summary><div data-profile-content></div></details><div class="data-viewport" tabindex="0" role="region" aria-label="Dataset rows" aria-busy="true"><p class="data-message" role="status">Loading source data…</p></div><footer class="data-viewer-status" role="status">Loading every row from the source file</footer>`;
+  side.body.innerHTML = `<div class="data-viewer-tools"><span data-size></span><label class="data-finder-label">Find column<input type="search" aria-label="Find column" placeholder="Column name" autocomplete="off"></label><span data-column-picker></span></div><details class="data-profile"><summary>Column profile</summary><div data-profile-content></div></details><div class="data-viewport" tabindex="0" role="region" aria-label="Dataset rows" aria-busy="true"><p class="data-message" role="status">Loading source data…</p></div><footer class="data-viewer-status" role="status">Loading every row from the source file</footer>`;
   const viewport = side.body.querySelector('.data-viewport'), status = side.body.querySelector('.data-viewer-status');
-  const finder = side.body.querySelector('input'), picker = side.body.querySelector('select'), details = side.body.querySelector('details');
+  const finder = side.body.querySelector('input'), picker = createDropdown({ label: 'Go to column' }), details = side.body.querySelector('details');
+  side.body.querySelector('[data-column-picker]').replaceWith(picker);
   picker.disabled = true; finder.disabled = true;
   let worker, columns = [], profile, total = 0, tbody, headers = [], request = 0, frame, lastRange = '', sortColumn = -1, sortDirection = 1, closed = false;
   const offsets = [];
@@ -76,13 +78,9 @@ export function openDataset(card, ctx, { keyboard = false } = {}) {
   }
   function findColumns() {
     const query = finder.value.trim().toLocaleLowerCase(), previous = picker.value;
-    picker.replaceChildren();
-    columns.forEach((name, column) => {
-      if (!name.toLocaleLowerCase().includes(query)) return;
-      const option = document.createElement('option'); option.value = String(column); option.textContent = name; picker.append(option);
-    });
-    picker.disabled = !picker.options.length;
-    if ([...picker.options].some(option => option.value === previous)) picker.value = previous;
+    const options = columns.map((name, column) => [String(column), name]).filter(([, name]) => name.toLocaleLowerCase().includes(query));
+    picker.setOptions(options); picker.disabled = !options.length;
+    picker.value = options.some(([value]) => value === previous) ? previous : options[0]?.[0] ?? '';
     if (!picker.disabled) revealColumn();
     else status.textContent = 'No matching columns';
   }
@@ -146,7 +144,7 @@ export function openDataset(card, ctx, { keyboard = false } = {}) {
   const watch = () => { if (ctx.canvas.board.id !== boardId || !ctx.canvas.board.cards.some(c => c.id === card.id)) side.close({ keyboard: true }); };
   document.getElementById('stage').addEventListener('boardchange', watch);
   side.el.addEventListener('side-editor-close', () => {
-    closed = true; worker?.terminate(); observer.disconnect(); cancelAnimationFrame(frame);
+    closed = true; worker?.terminate(); observer.disconnect(); cancelAnimationFrame(frame); picker.dropdown.destroy();
     window.removeEventListener('keydown', keys, true); document.getElementById('stage').removeEventListener('boardchange', watch);
     if (active?.id === card.id) active = null;
   }, { once: true });

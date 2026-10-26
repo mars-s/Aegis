@@ -70,7 +70,25 @@ const confirmed = await confirmAction({ title: 'Delete this board?', body: 'This
 
 Native `<dialog>` provides the focus trap, inert background and top layer. `enhanceDialog` adds the shared skin, heading association, backdrop dismissal, keyboard-aware entry and focus restoration to existing nodes. The app installs this for existing dialogs once. `createDialog` installs it synchronously for new callers. Confirmations open inside an existing modal when necessary and initially focus Cancel.
 
-`createTabs({ list, panels: Map, onChange })` sets one Tab stop and uses Left, Right, Home and End for automatic activation. Call `.select(id)` for external entry points. `enhanceSwitch(input)` preserves a native checkbox's state, labels and change handler, adds `role=switch` and the common visual. `enhanceSwitches(root)` also handles rows inserted later, such as Customise toolbar. Colour wells keep the native macOS colour chooser and a visible hex value.
+`createTabs({ list, panels: Map, onChange })` sets one Tab stop and uses Left, Right, Home and End for automatic activation. Call `.select(id)` for external entry points. `enhanceSwitch(input)` preserves a native checkbox's state, labels and change handler, adds `role=switch` and the common visual. `enhanceSwitches(root)` also handles rows inserted later, such as Customise toolbar. Colour buttons in Settings, drawing and document formatting use `features/colors/colour-picker.js`, with a visible hex value and the common colour editor. Its popup stays inside an open modal and restores focus to its button.
+
+`createStepper({ label, value, min, max, step, next, onChange })` returns `{ el, input }`. It owns its sizing, including when portalled: 32px decrement, value and increment targets in a 96px group. Selection rows are 44px high, with a 112px label column. Touch targets expand to 44px. Arrow keys adjust by one step, Shift and arrows by ten steps. `next(value, direction)` supports font size presets. Typed values are bounded and invalid input restores the previous value.
+
+Settings uses a 620px shell at y=48px, with height `min(760px, 100dvh - 96px)`. Its header and tabs stay fixed while the active page scrolls. Raw colour settings live in the collapsed Appearance subsection of General.
+
+## Native control inventory
+
+The audit covers literal selects, dynamically created selects, numeric inputs and colour inputs in `app/src`.
+
+| Remaining native control | Reason |
+| --- | --- |
+| `App.svelte`: `#model`, `#count` | Hidden data stores for the shared agent menus. Neither is visible or keyboard focusable. |
+| `features/agents/models.js`: source selects | `mountDropdowns()` immediately replaces these with shared dropdown buttons. The detached selects retain existing handlers. |
+| `objects/kinds/Form.svelte`: `input[type=number][step=any]` | Person-authored data, with arbitrary numeric precision, nullable values and browser required-field validation. It is not a bounded formatting adjustment. |
+
+There are no native colour inputs. Dataset navigation and drawing choices use `createDropdown` directly. All other visible selects pass through the shared bridge. Only explicit `[data-native-select]` controls and the two hidden stores bypass that bridge.
+
+`checks/ui/controls-polish.mjs` checks the production bundle in Chromium and WebKit, in both themes. It measures Settings at 1440, 1586 and 390px widths, the dataset picker, portalled steppers, sidebar targets, menu press and focus states, Library and toast styling. It verifies colour persistence, column selection and first-Escape focus restoration followed by editor dismissal. Captures and measurements use `AEGIS_CHECK_OUT`.
 
 `createTooltip(trigger, text)` supports focus and hover, a 450 ms initial delay, a 400 ms warm period for immediate adjacent tips, Escape dismissal, viewport clamping and reduced motion. Destroy it with its owner.
 

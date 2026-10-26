@@ -3,7 +3,7 @@
 .card.dataset .data-size { margin-left: auto; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 8px; }
 .data-cols { flex: none; display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 12px 8px; border-bottom: 1px solid var(--line); }
 .data-col { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px 0 4px; border-radius: 6px; background: var(--inset); color: var(--ink-2); font-size: 11.5px; white-space: nowrap; }
-.data-col b { display: inline-grid; place-items: center; min-width: 18px; height: 16px; padding: 0 3px; border-radius: 4px; background: var(--hover); color: var(--muted); font: 600 9.5px var(--font); }
+.data-col b { display: inline-grid; place-items: center; min-width: 18px; height: 16px; padding: 0 3px; border-radius: 4px; background: var(--hover); color: var(--muted); font: 600 11px var(--font); }
 .data-col.kind-number b { color: var(--data); background: var(--data-soft); }
 .data-col.kind-date b { color: var(--warn); background: color-mix(in srgb, var(--warn) 16%, transparent); }
 .data-col i { font-style: normal; color: var(--faint); }
@@ -20,9 +20,9 @@
 .data-viewer-tools { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .data-viewer-tools [data-size] { margin-right: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .data-finder-label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
-.data-viewer-tools input, .data-viewer-tools select { height: 32px; min-width: 0; width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; background: var(--inset); color: var(--text); }
-.data-viewer-tools select { width: 156px; }
-.data-viewer-tools input:focus-visible, .data-viewer-tools select:focus-visible { outline-color: var(--data); }
+.data-viewer-tools input, .data-viewer-tools .aegis-dropdown { height: 32px; min-width: 0; width: 148px; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; background: var(--inset); color: var(--text); }
+.data-viewer-tools .aegis-dropdown { width: 156px; }
+.data-viewer-tools input:focus-visible, .data-viewer-tools .aegis-dropdown:focus-visible { outline-color: var(--data); }
 .data-profile { flex: none; border-bottom: 1px solid var(--line); color: var(--muted); }
 .data-profile summary { min-height: 36px; padding: 8px 16px; }
 .data-profile [data-profile-content] { max-height: 240px; overflow: auto; padding: 0 16px 16px; scrollbar-width: thin; }
@@ -44,7 +44,7 @@
 .data-viewer-grid tbody th { z-index: 1; }
 .data-viewer-grid thead button { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; width: 100%; height: 48px; padding: 7px 12px; border-radius: 0; text-align: left; }
 .data-column-name { flex-basis: 100%; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
-.data-kind { display: inline-flex; border-radius: 3px; padding: 2px 4px; color: var(--muted); background: var(--hover); font-size: 10px; line-height: 1; font-weight: 500; }
+.data-kind { display: inline-flex; border-radius: 3px; padding: 2px 4px; color: var(--muted); background: var(--hover); font-size: 11px; line-height: 1; font-weight: 500; }
 .data-kind.kind-number { color: var(--data); background: var(--data-soft); }
 .data-sort { display: none; margin-left: auto; color: var(--data); }
 .data-sort svg { display: block; width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; }
@@ -56,4 +56,4 @@
 .data-viewer-status { flex: none; min-height: 32px; padding: 8px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .data-message { margin: 24px 16px 12px; color: var(--muted); }
 .data-retry { margin: 0 16px; padding: 8px 12px; background: var(--inset); border: 1px solid var(--line); border-radius: 6px; }
-@media (max-width: 760px) { .data-viewer-tools [data-size] { flex-basis: 100%; } .data-viewer-tools select { flex: 1; } }
+@media (max-width: 760px) { .data-viewer-tools [data-size] { flex-basis: 100%; } .data-viewer-tools .aegis-dropdown { flex: 1; } }

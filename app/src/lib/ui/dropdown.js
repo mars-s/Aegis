@@ -191,7 +191,7 @@ let installed = false;
 export function mountDropdowns() {
   if (installed) return; installed = true; mountInteraction(); mountDialogs();
   // The island's hidden data selects stay native: its menu reads their .options and draws its own themed choices.
-  const excluded = '[data-native-select], #model, #count, .composer, .ask-island, #mobileHub, .side-editor, .docs-toolbar, .docs-panel, .docview, .docs-bubble, .docs-bubble-menu, .docs-format, .doc-window, .card.doc';
+  const excluded = '[data-native-select], #model, #count';
   const scan = root => { if (root.nodeType !== 1) return; for (const select of [...root.matches('select') ? [root] : [], ...root.querySelectorAll('select')]) if (select.isConnected && !select.closest(excluded)) replaceSelect(select); };
   new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) scan(node); if (active && (!active.menu.isConnected || active.trigger && !active.trigger.isConnected)) active.close(); for (const record of records) for (const node of record.removedNodes) if (node.nodeType === 1 && !node.isConnected) for (const el of [...node.matches('.aegis-dropdown, .aegis-combobox, .aegis-tooltip-trigger') ? [node] : [], ...node.querySelectorAll('.aegis-dropdown, .aegis-combobox, .aegis-tooltip-trigger')]) { el.dropdown?.destroy(); el.dropdown?.disposeSource?.(); el.uiTooltip?.destroy(); } }).observe(document.body, { childList: true, subtree: true });
   scan(document.body);
@@ -208,7 +208,7 @@ export function mountDropdowns() {
       if (active.menu.getAttribute('role') === 'dialog' && !['Escape', 'Tab'].includes(e.key) && !e.target.closest('[role=menu]')) return;
       e.stopImmediatePropagation(); active.key(e);
     }
-    else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
+    else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && !['Tab', 'Escape'].includes(e.key)) { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }
   }, true);
   addEventListener('focusin', e => { if (active?.menu.getAttribute('role') === 'dialog' && !active.menu.contains(e.target) && !active.trigger?.contains(e.target)) active.close(); });
   addEventListener('blur', () => { while (active) active.close(); });

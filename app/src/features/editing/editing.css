@@ -102,9 +102,6 @@ body.left-open .editing-hints { visibility: hidden; }
 .selection-bar input::placeholder { color: var(--faint); }
 .selection-bar input[type=range] { padding: 0; accent-color: var(--muted); }
 .selection-bar select { appearance: none; padding-right: 20px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23959ba4' stroke-width='1.5'%3E%3Cpath d='m5 6 3 3 3-3'/%3E%3C/svg%3E"); background-position: right 4px center; background-size: 14px; background-repeat: no-repeat; }
-.selection-stepper { display: inline-flex; align-items: center; flex: none; gap: 0; }
-.selection-bar .selection-stepper input { width: 38px; padding: 0; text-align: center; background: transparent; }
-.selection-bar .selection-stepper button { width: 32px; padding: 0; }
 .selection-popup-menu { width: max-content; min-width: 150px; max-width: calc(100vw - 24px); }
 .selection-segments { display: flex; gap: 2px; }
 .selection-colours { display: grid; grid-template-columns: repeat(4, 32px); gap: 4px; }
@@ -115,21 +112,19 @@ body.left-open .editing-hints { visibility: hidden; }
 @keyframes selection-fade { from { opacity: 0; } to { opacity: 1; } }
 body.motion-off .selection-enter { animation-name: selection-fade; }
 @media (prefers-reduced-motion: reduce) { .selection-enter { animation-name: selection-fade; } }
-@media (hover: none), (pointer: coarse) { .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-bar .selection-stepper button { width: 44px; } .selection-colours { grid-template-columns: repeat(4, 44px); } .selection-row { min-height: 44px; } }
+@media (hover: none), (pointer: coarse) { .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-colours { grid-template-columns: repeat(4, 44px); } .selection-row { min-height: 44px; } }
 body.phone .selection-bar { width: calc(100vw - 20px); max-width: calc(100vw - 20px); }
 body.phone .selection-inline { width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 body.phone .selection-bar button, body.phone .selection-bar summary { min-width: 44px; min-height: 44px; }
-body.phone .selection-bar .selection-stepper button { width: 44px; }
-@media (max-width: 700px) { body .selection-bar { width: calc(100vw - 20px); max-width: calc(100vw - 20px); overflow: visible; } .selection-inline { width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; } .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-bar .selection-stepper button { width: 44px; } .selection-row { min-height: 44px; } }
+@media (max-width: 700px) { body .selection-bar { width: calc(100vw - 20px); max-width: calc(100vw - 20px); overflow: visible; } .selection-inline { width: 100%; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; } .selection-bar button, .selection-bar summary { min-width: 44px; min-height: 44px; } .selection-row { min-height: 44px; } }
 
 .editing-tilt { background: var(--raised); border-radius: 12px; box-shadow: none; }
 .editing-tilt button, .editing-tilt input { min-height: 32px; background: transparent; border: 0; border-radius: 6px; font: 12px var(--font); }
 .editing-tilt button:hover { background: var(--hover); }
 .editing-tilt button[aria-pressed=true] { background: var(--press); }
 
-@media (hover: none), (pointer: coarse), (max-width: 700px) { .selection-bar input, .selection-bar select { height: 44px; } .selection-bar .selection-stepper input { min-width: 44px; } }
+@media (hover: none), (pointer: coarse), (max-width: 700px) { .selection-bar input, .selection-bar select { height: 44px; } }
 body.phone .selection-bar input, body.phone .selection-bar select { height: 44px; }
-body.phone .selection-bar .selection-stepper input { min-width: 44px; }
 
 .selection-colours button { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; flex: 0 0 32px; }
 .selection-colours button::before { display: block; width: 18px; height: 18px; min-width: 18px; min-height: 18px; aspect-ratio: 1; flex: 0 0 18px; }

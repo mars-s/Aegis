@@ -1,0 +1,14 @@
+/* Size the component itself so portalling cannot change its targets. */
+.aegis-stepper.aegis-stepper { display: inline-grid; grid-template-columns: repeat(3, 32px); align-items: center; flex: none; width: 96px; min-width: 96px; gap: 0; }
+.aegis-stepper.aegis-stepper > :is(button, input) { box-sizing: border-box; width: 32px; min-width: 32px; height: 32px; min-height: 32px; margin: 0; padding: 0; border-radius: var(--radius-control); font: var(--text-label)/1 var(--font); }
+.aegis-stepper.aegis-stepper > input { text-align: center; border: 1px solid var(--line-strong); background: var(--inset); color: var(--text); font-variant-numeric: tabular-nums; caret-color: var(--data); }
+.aegis-stepper.aegis-stepper > button { display: grid; place-items: center; }
+.aegis-stepper svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.aegis-stepper > :is(button, input):focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.selection-row:has(> .aegis-stepper) { display: grid; grid-template-columns: 112px 96px; justify-content: space-between; min-height: 44px; }
+.selection-row:has(> .aegis-stepper) > span:first-child { white-space: nowrap; }
+@media (hover: none), (pointer: coarse), (max-width: 700px) {
+  .aegis-stepper.aegis-stepper { grid-template-columns: repeat(3, 44px); width: 132px; min-width: 132px; }
+  .aegis-stepper.aegis-stepper > :is(button, input) { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .selection-row:has(> .aegis-stepper) { grid-template-columns: 112px 132px; }
+}

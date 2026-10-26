@@ -102,7 +102,6 @@
 .docs-download > div { display: grid; gap: 8px; padding-top: 8px; }
 .docs-colours > div { display: flex; flex-wrap: wrap; gap: 5px; padding: 8px 0; }
 .docs-colours > div button:empty { width: 32px; height: 32px; border: 1px solid #8885; }
-.docs-colours input[type=color] { width: 32px; height: 32px; padding: 1px; }
 .docs-link-form { position: absolute; top: 100px; left: 18px; right: 18px; z-index: 56; display: flex; flex-wrap: wrap; gap: 6px; padding: 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow-lift); }
 .docs-link-form input { min-width: 80px; flex: 1; }
 .docs-drop-target { outline: 2px solid var(--data) !important; outline-offset: -2px; }
@@ -138,14 +137,12 @@
 .docs-ribbon { margin: 0; padding: 4px 12px; }
 .docs-ribbon .docs-choice > .aegis-dropdown { min-width: 108px; height: 32px; min-height: 32px; border: 0; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
 .docs-ribbon input[aria-label="Font family"] { width: 128px; height: 32px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--inset); box-shadow: inset 0 0 0 1px var(--line); font-size: 12.5px; }
-.docs-ribbon input[aria-label="Font size"] { width: 40px; height: 32px; padding: 0; border: 0; background: transparent; text-align: center; font-size: 12.5px; appearance: textfield; }
-.docs-ribbon input::-webkit-inner-spin-button { appearance: none; }
 .docs-ribbon :is(input, .aegis-dropdown):focus-visible { outline: none; box-shadow: inset 0 0 0 1.5px var(--data); }
 .docs-ribbon .docs-colours > summary { display: inline-flex; align-items: center; height: 32px; padding: 0 8px; border-radius: 7px; color: var(--ink-2); font-size: 12.5px; list-style: none; cursor: pointer; }
 .docs-ribbon .docs-colours > summary:hover { background: var(--hover); color: var(--text); }
 .docs-ribbon .docs-colours { position: relative; }
-.docs-ribbon .docs-colours > div > button[aria-label*="#"] { width: 24px; height: 24px; min-width: 0; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
-.docs-ribbon .docs-colours > div > :is(input[type=color], button:last-child) { grid-column: span 3; }
+.docs-ribbon .docs-colours > div > button[aria-label*="#"] { width: 32px; height: 32px; min-width: 32px; padding: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgb(255 255 255 / .12); }
+.docs-ribbon .docs-colours > div > :is(.aegis-colour-picker, button:last-child) { grid-column: span 3; }
 .docs-ribbon .docs-table-tools { width: auto; border-top: 0; padding-top: 0; }
 .docs-ribbon .docs-table-tools[hidden] { display: none; }
 .docs-ribbon .docs-table-tools button { height: 32px; padding: 0 8px; font-size: 12px; }
@@ -154,7 +151,7 @@
 .docs-panel .docs-ribbon button.ribbon-btn { height: 32px; min-width: 32px; padding: 0; }
 
 .docs-more-tools.aegis-surface { width: min(340px, calc(100vw - 24px)); padding: var(--space-3); }
-.docs-colours > .aegis-surface { display: grid; grid-template-columns: repeat(6, 24px); gap: var(--space-2); min-width: 0; padding: var(--space-3); }
+.docs-colours > .aegis-surface { display: grid; grid-template-columns: repeat(6, 32px); gap: var(--space-2); min-width: 0; padding: var(--space-3); }
 
 /* Writing stays on one 40px row. Detailed controls live in Format. */
 .docs-ribbon.office-ribbon { flex-wrap: nowrap; height: 40px; min-height: 40px; padding: 4px 8px; overflow-x: auto; overflow-y: visible; scrollbar-width: none; }
