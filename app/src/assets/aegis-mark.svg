@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="192 192 640 640" fill="none">
+  <title>Aegis</title>
+  <path d="M256 288H480V384H352V464L480 616V752L276 528C263 513 256 494 256 474Z" fill="#f5f7fa"/>
+  <path d="M544 288H768V474C768 494 761 513 748 528L544 752V616L672 464V384H544Z" fill="#3f8dfd"/>
+</svg>

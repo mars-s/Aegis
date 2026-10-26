@@ -1,3 +1,5 @@
+<img src="src-tauri/icons/icon.png" width="112" height="112" alt="Aegis folded shield icon">
+
 # Aegis
 
 A minimal infinite canvas for you and your agents. Brain-dump into the box at the bottom; agents running on [Pi Durable](https://www.npmjs.com/package/@earendil-works/pi-durable) sort it into groups, checklists and links on the board while you watch.
