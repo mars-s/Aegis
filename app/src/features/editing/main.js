@@ -10,6 +10,7 @@ import { selectionPosition } from './selection.js';
 import { selectionToolbar } from './toolbar.js';
 import { prepareImage } from '../media/images.js';
 import { mountLayerDeletion } from './layer-delete.js';
+import { deletionNotice } from './deletion.js';
 import { mountNoteSizing } from './note-sizing.js';
 import { createMenu } from '../../chrome/menu.js';
 import { shortcutText } from '../../lib/shortcuts.js';
@@ -34,6 +35,7 @@ export function mountEditing(ctx) {
   const selectedCards = () => { const ids = canvas.selection(); if (!ids.length) return []; if (indexedCards !== canvas.board?.cards) { indexedCards = canvas.board?.cards; byId = new Map((indexedCards ?? []).map(c => [c.id, c])); } return ids.map(id => byId.get(id)).filter(Boolean); };
   const editableCards = () => selectedCards().filter(c => !effectiveFlag(canvas.board, c, 'locked'));
   const history = createHistory({ read: () => canvas.board, apply, busy: () => canvas.busy() || gesture });
+  const deletion = deletionNotice(ctx, history);
   stage.addEventListener('boardchange', e => { history.observe(e.detail.board); if (e.detail.first) { focus = null; } renderTray(); renderBar(true); });
   stage.addEventListener('pointerdown', () => history.flush(), true);
   const storedClip = () => { try { const v = JSON.parse(localStorage.getItem('aegis:clip')); return v?.cards?.length && v.cards.every(c => c && typeof c.id === 'string' && typeof c.type === 'string' && ['x', 'y', 'w', 'h'].every(k => Number.isFinite(c[k]))) && Array.isArray(v.links) ? v : null; } catch { return null; } };
@@ -62,7 +64,12 @@ export function mountEditing(ctx) {
     if (!clip?.cards?.length) { const cached = storedClip(); if (cached && e.clipboardData.getData('text/plain') === cached.text) clip = cached; }
     if (clip?.cards?.length) { e.preventDefault(); e.stopImmediatePropagation(); paste(clip); }
   }, true);
-  function remove() { const ids = editableCards().map(c => c.id); if (ids.length) apply([{ op: 'delete', ids }], () => canvas.select([])); }
+  function remove() {
+    const ids = editableCards().map(c => c.id), selection = canvas.selection();
+    if (!ids.length) return;
+    history.flush();
+    apply([{ op: 'delete', ids }], () => { canvas.select([]); deletion.show(selection, ids.length); });
+  }
   function group(ungroup = false) {
     const cards = editableCards(); if (!ungroup && cards.length < 2) return;
     const group = ungroup ? '' : uid(), groups = new Set(cards.map(c => c.group).filter(Boolean));
@@ -71,6 +78,12 @@ export function mountEditing(ctx) {
   }
   function stack(direction) { const commands = stackCommands(canvas.board, editableCards().map(c => c.id), direction); if (commands.length) apply(commands); }
   const textCards = () => editableCards().filter(c => ['note', 'title', 'todo', 'shape', 'coll'].includes(c.type));
+  const typography = card => {
+    const el = canvas.mountedEl(card.id), target = el?.querySelector('.body, .todo-item span, .collection-head') ?? el;
+    const style = target && getComputedStyle(target);
+    const size = card.props?.size || parseFloat(style?.getPropertyValue('--card-text-size')) || parseFloat(style?.fontSize) || 15;
+    return { size, lh: card.props?.lh || parseFloat(style?.getPropertyValue('--card-line-height')) || parseFloat(style?.lineHeight) / size || lineHeightDefault(card.type) };
+  };
   function format(key, value) { const cards = textCards(); if (value === undefined) value = !cards.every(c => c.props?.[key]); if (cards.length) apply(cards.map(c => ({ op: 'update', id: c.id, set: { props: { [key]: value } } }))); }
   const navigation = mountNavigation(ctx, { exportBoard: (selection, format) => exportBoard(ctx, selection, format) });
   let focus = null;
@@ -85,7 +98,8 @@ export function mountEditing(ctx) {
     if (mod && e.shiftKey && !e.altKey && key === 'k' && !document.querySelector('dialog[open]')) { e.preventDefault(); e.stopImmediatePropagation(); navigation.capture(); return; }
     if (e.defaultPrevented || document.querySelector('dialog[open]') || typing(e) || gesture || canvas.busy()) return;
     let handled = true;
-    if (mod && key === 'z') { if (!history.travel(e.shiftKey ? 1 : -1)) toast(e.shiftKey ? 'Nothing left to redo' : 'Nothing left to undo'); }
+    if (mod && key === 'z') { if (!(e.shiftKey ? history.travel(1) : deletion.undo() || history.travel(-1))) toast(e.shiftKey ? 'Nothing left to redo' : 'Nothing left to undo'); }
+    else if (['backspace', 'delete'].includes(key) && canvas.selection().length && !e.target.closest?.('.side-editor')) { e.preventDefault(); setTimeout(deletion.prepare(), 0); handled = false; }
     else if (mod && key === 'g' && !e.altKey) group(e.shiftKey);
     else if (mod && key === 'd') duplicate();
     else if (mod && (key === 'c' || key === 'x')) { const ids = canvas.selection(); setTimeout(() => { if (!copyEventSeen && ids.length) copy(null, key === 'x'); copyEventSeen = false; }, 50); handled = false; }
@@ -132,10 +146,12 @@ export function mountEditing(ctx) {
   const releaseBar = () => { pointerHeld = false; renderBar(); };
   for (const type of ['pointerup', 'pointercancel']) addEventListener(type, () => { if (pointerHeld) queueMicrotask(releaseBar); }, true);
   function openCard(card) {
-    const el = canvas.mountedEl(card.id), open = el?.querySelector('.win-open');
+    const el = canvas.mountedEl(card.id), open = el?.querySelector('.win-open, .deck-open');
     if (open) open.click();
-    else el?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+    else openAction(card)?.run(ctx, [card.id]);
   }
+  const openAction = card => cardMenu.find(item => /(^open-|[-]open$)/.test(item.id) && item.when?.(ctx, [card.id]));
+  const canOpen = card => !!canvas.mountedEl(card.id)?.querySelector('.win-open, .deck-open') || !!openAction(card);
   function replaceMedia(card) {
     if (card.type !== 'image') { apply([{ op: 'update', id: card.id, set: { props: { replacing: true } } }]); return; }
     const picker = document.createElement('input'); picker.type = 'file'; picker.accept = 'image/*';
@@ -182,7 +198,7 @@ export function mountEditing(ctx) {
             for (const [label, prop] of [['Bold', 'bold'], ['Italic', 'italic'], ['Underline', 'under'], ['Strike through', 'strike']]) {
               const b = button(label, () => format(prop), { inline: textInline && ['bold', 'italic'].includes(prop), group: 'Typography', shortcut: { bold: shortcutText('bold'), italic: shortcutText('italic'), under: shortcutText('underline') }[prop] }); b.dataset.format = prop; b.setAttribute('aria-pressed', String(text.every(c => c.props?.[prop])));
             }
-            const size = text.every(c => c.props?.size === text[0].props?.size) ? text[0].props?.size || (text[0].type === 'title' ? 44 : 15) : '';
+            const values = text.map(typography), size = values.every(value => value.size === values[0].size) ? values[0].size : '';
             stepper('Text size', size, v => format('size', Number(v)), { inline: textInline });
             select('Text size preset', [['', 'Custom'], ['12', 'Small'], ['15', 'Medium'], ['21', 'Large'], ['30', 'Extra large']], '', v => { if (v) format('size', Number(v)); });
             if (textInline) popup('Align', panel => choices(panel, 'Text alignment', [['left', 'Left'], ['center', 'Centre'], ['right', 'Right']], text[0].props?.align || 'left', v => format('align', v)));
@@ -196,10 +212,10 @@ export function mountEditing(ctx) {
             button('Fonts…', e => { const close = fontPicker(e.currentTarget, textCards(), ctx, value => format('font', value)); cleanups.push(close); }, { group: 'Typography' });
             if (!text.every(c => (c.props?.font || '') === (text[0].props?.font || ''))) font.setOptions([['__mixed', 'Mixed fonts'], ['', 'Default font'], ['system-ui', 'System'], ['serif', 'Serif'], ['monospace', 'Monospace']]), font.value = '__mixed';
             font.onkeydown = e => { if (e.key === 'Escape') { canvas.redraw(); font.blur(); } };
-            const height = text[0].props?.lh ?? lineHeightDefault(text[0].type);
+            const height = Math.round(values[0].lh * 100) / 100;
             const setHeight = v => { const value = Number(v); if (!Number.isFinite(value)) return; format('lh', value); for (const control of bar.querySelectorAll('[data-line-height]')) control.value = String(value); };
             const lineHeight = stepper('Line height', height, setHeight, { min: .8, max: 3, step: .05 }); lineHeight.dataset.lineHeight = '1'; lineHeight.oninput = () => { const v = Number(lineHeight.value); if (v >= .8 && v <= 3) setHeight(v); };
-            const slider = input('Line height slider', height, setHeight, 'range', 'Typography'); slider.min = '.8'; slider.max = '3'; slider.step = '.05'; slider.dataset.lineHeight = '1'; slider.oninput = slider.onchange;
+            const slider = input('Line height slider', height, setHeight, 'range', 'Typography', { min: '.8', max: '3', step: '.05' }); slider.dataset.lineHeight = '1'; slider.oninput = slider.onchange;
             select('Spacing', [['', 'Custom'], ['compact', 'Compact'], ['normal', 'Normal'], ['open', 'Open']], '', v => { if (v === 'normal') apply(textCards().map(c => ({ op: 'update', id: c.id, set: { props: { lh: null } } }))); else if (v) format('lh', { compact: 1.1, open: 1.8 }[v]); });
             stepper('Letter spacing', text[0].props?.ls || 0, v => format('ls', Number(v)), { min: -10, max: 50, step: .5 });
             select('Display case', [['', 'As typed'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['title', 'Title case']], text[0].props?.tcase || '', v => format('tcase', v || null));
@@ -219,7 +235,7 @@ export function mountEditing(ctx) {
             button('Collect', () => { const b = bounds(cards), id = uid(); const coll = { id, type: 'coll', x: b.x - 12, y: b.y - 52, w: Math.max(300, b.right - b.x + 24), h: 180, props: { kids: cards.map(c => c.id) } }; apply([{ op: 'create', type: 'coll', newId: id, text: 'Collection', x: coll.x, y: coll.y, w: coll.w, h: coll.h, props: coll.props }, { op: 'order', ids: [id], to: 'back' }, ...collectionLayout(canvas.board, coll)], () => canvas.select([id])); }, { group: 'Arrange' });
           }
           if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: shortcutText('ungroup') });
-          if (single && !textInline && !media) button('Open', () => openCard(cards[0]), { inline: true, text: true });
+          if (single && !textInline && !media && canOpen(cards[0])) button('Open', () => openCard(cards[0]), { inline: true, text: true });
           if (media) { button('Replace', () => replaceMedia(cards[0]), { inline: true, text: true }); button('Download', () => downloadMedia(cards[0]), { inline: true }); }
           for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Card').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
           button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: shortcutText('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: shortcutText('remove') });
