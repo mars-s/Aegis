@@ -1,6 +1,6 @@
 import { openSide, centreCardInLeft } from '../docs/side.js';
 
-const ROW_HEIGHT = 32, HEADER_HEIGHT = 48, OVERSCAN = 6;
+const ROW_HEIGHT = 32, HEADER_HEIGHT = 48, ROW_NUMBER_WIDTH = 76, OVERSCAN = 6;
 const fmt = value => typeof value === 'number' ? value.toLocaleString('en-AU', { maximumFractionDigits: 2 }) : String(value);
 const kindName = kind => ({ number: 'Number', date: 'Date', text: 'Text' }[kind] ?? 'Text');
 let active;
@@ -70,7 +70,7 @@ export function openDataset(card, ctx, { keyboard = false } = {}) {
   }
   function revealColumn() {
     const column = Number(picker.value); if (!Number.isInteger(column) || !headers[column]) return;
-    viewport.scrollLeft = offsets[column] - 56;
+    viewport.scrollLeft = offsets[column] - ROW_NUMBER_WIDTH;
     for (const [i, header] of headers.entries()) header.classList.toggle('is-found', i === column);
     showProfile();
   }
@@ -88,8 +88,8 @@ export function openDataset(card, ctx, { keyboard = false } = {}) {
   }
   function buildTable() {
     const table = document.createElement('table'); table.className = 'data-viewer-grid'; table.setAttribute('aria-label', card.text || 'Dataset'); table.setAttribute('aria-rowcount', String(total + 1));
-    const colgroup = document.createElement('colgroup'), first = document.createElement('col'); first.style.width = '56px'; colgroup.append(first);
-    let left = 56;
+    const colgroup = document.createElement('colgroup'), first = document.createElement('col'); first.style.width = `${ROW_NUMBER_WIDTH}px`; colgroup.append(first);
+    let left = ROW_NUMBER_WIDTH;
     offsets.length = 0;
     columns.forEach((name, column) => { const col = document.createElement('col'); const width = profile.columns[column].kind === 'number' ? 156 : 204; offsets.push(left); left += width; col.style.width = `${width}px`; colgroup.append(col); });
     table.style.width = `${left}px`; table.append(colgroup);

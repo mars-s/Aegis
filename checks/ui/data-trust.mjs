@@ -164,6 +164,9 @@ try {
             samples.sort((a, b) => a - b); return { p95ms: samples[Math.floor(samples.length * .95)], maxms: samples.at(-1), mounted: el.querySelectorAll('tbody tr:not(.data-spacer)').length };
           });
           await page.waitForFunction(count => [...document.querySelectorAll('.data-viewer-grid tbody th')].some(el => el.textContent === String(count)), count);
+          const rowNumber = await page.locator('.data-viewer-grid tbody th').last().evaluate(el => ({ width: el.clientWidth, content: el.scrollWidth }));
+          assert.ok(rowNumber.content <= rowNumber.width, 'six-digit source row numbers fit without clipping');
+          assert.match(await page.locator('.data-viewer-grid thead th.is-found').evaluate(el => getComputedStyle(el).backgroundColor), /^rgb\(/, 'the sticky header stays opaque over scrolling rows');
           assert.ok(timing.mounted < 70, JSON.stringify(timing)); assert.ok(timing.p95ms < 100 && timing.maxms < 250, JSON.stringify(timing));
           await page.screenshot({ path: out(`trust-data-${count}-last-row.png`) });
           await page.getByRole('button', { name: 'Sort by amount', exact: true }).click();
