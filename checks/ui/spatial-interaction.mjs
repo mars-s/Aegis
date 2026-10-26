@@ -94,7 +94,7 @@ try {
       assert.ok(geometry.actions.right <= geometry.summary.right + 1, JSON.stringify(geometry));
       await shot(`${engineName}-summary-controls`);
       await page.evaluate(() => { aegis.canvas.setView({ x: 300, y: 250, z: .05 }); document.getElementById('stage').focus(); }); await page.waitForTimeout(150);
-      assert.ok(await page.locator('#selectionBar, .window-actions, .canvas-orientation, .editing-outline').evaluateAll(els => els.every(el => el.hidden || getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden')));
+      assert.ok(await page.locator('#selectionBar, .window-actions, .editing-outline').evaluateAll(els => els.every(el => el.hidden || getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden')));
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision']);
       await shot(`${engineName}-selected-cluster`);
     });

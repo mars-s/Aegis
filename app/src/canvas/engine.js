@@ -532,7 +532,10 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     stage.focus({ preventScroll: true });
     if (cardEl && e.button === 0) {
       const id = cardEl.dataset.id;
-      selectCard(id, e);
+      // Detailed windows: Shift toggles; Cmd/Ctrl press starts a snapping-bypass drag of just this window.
+      if (e.metaKey || e.ctrlKey) { selected.clear(); selected.add(id); }
+      else if (e.shiftKey) { selected.has(id) ? selected.delete(id) : selected.add(id); }
+      else if (!selected.has(id)) { selected.clear(); selected.add(id); }
       let ids = [...selected];
       for (const h of DRAG_HANDLERS.values()) ids = h.select?.(ids, id, board, e) ?? ids;
       selected.clear(); ids.forEach(id => selected.add(id));
