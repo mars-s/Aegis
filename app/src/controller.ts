@@ -26,6 +26,7 @@ import { repairBatch } from './features/settings/preferences.js';
 import { createSaveQueue } from './features/settings/save.js';
 import { createOnboarding } from './features/onboarding/index.js';
 import { mountFirstMinute } from './features/first-minute/index.js';
+import { mountOverview } from './features/overview/index.js';
 import { installNativeDownloads } from './lib/native-files';
 // item 14: shared import hook, installed once the canvas context exists.
 import { importFiles } from './features/media/imports.js';
@@ -562,6 +563,7 @@ const firstMinute = mountFirstMinute(ctx, {
   },
   document: () => registry.tools.find(t => t.id === 'doc')?.place(canvas.centre(), ctx),
 });
+mountOverview(canvas);
 const onboarding = createOnboarding({ ctx, ask: firstMinute.ask });
 const settings = mountSettings({ canvas, host, toast, replayTour: () => onboarding.welcome(), showShortcuts: () => onboarding.shortcuts() });
 window.aegis = { canvas, host, apply, editing };
