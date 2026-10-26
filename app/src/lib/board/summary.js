@@ -1,3 +1,4 @@
+import { documentWordCount } from './words.js';
 // Shared by the host's lightweight board list and the Library preview.
 export const plainLine = value => String(value ?? '').split('\n').find(line => line.trim())?.replace(/^\s*#{1,6}\s+/, '').replace(/[*_`]/g, '').trim().slice(0, 160) || '';
 export const cardTitle = card => plainLine(card.props?.layerName || card.heading || card.text || card.props?.name);
@@ -14,7 +15,7 @@ export function cardSummary(card) {
   const title = cardTitle(card) || kind;
   let facts = [];
   switch (type) {
-    case 'doc': facts = [heading(props.body), words(props.body)]; break;
+    case 'doc': facts = [heading(props.body), count(documentWordCount(card), 'word')]; break;
     case 'sheet': case 'table': facts = [`${count(data.rows?.length || 0, 'row')} · ${count(data.columns?.length || 0, 'column')}`, plainLine(data.note)]; break;
     case 'dataset': facts = [`${count(props.rows || 0, 'row')} · ${count(props.columns?.length || 0, 'column')}`, plainLine(props.filename || props.source)]; break;
     case 'deck': case 'slides': facts = [count(props.slides?.length || 0, 'slide'), plainLine(props.slides?.[0]?.title)]; break;

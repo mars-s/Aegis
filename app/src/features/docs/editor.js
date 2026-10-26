@@ -1,3 +1,4 @@
+import { documentContent, wordCount } from '../../lib/board/words.js';
 import { createStepper } from '../../lib/ui/stepper.js';
 import { createColourPicker } from '../colors/colour-picker.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
@@ -38,10 +39,7 @@ const button = (label, text, action) => {
   else el.textContent = text;
   el.onpointerdown = e => e.preventDefault(); el.onclick = action; return el;
 };
-const loadContent = card => {
-  const doc = card.props?.doc ?? generateJSON(markdownHTML(card.props?.body ?? ''), extensions());
-  return card.props?.docTitleMigrated ? doc : migrateTitle(doc, card.text);
-};
+const loadContent = documentContent;
 const inRect = (el, x, y) => {
   const r = el.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 };
@@ -353,7 +351,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     align.value = editor.getAttributes('paragraph').textAlign || editor.getAttributes('heading').textAlign || 'left';
     for (const [el, mark] of toggles) el.setAttribute('aria-pressed', String(editor.isActive(mark)));
     undo.disabled = !editor.can().undo(); redo.disabled = !editor.can().redo(); tableTools.hidden = !editor.isActive('table');
-    const words = editor.storage.characterCount.words(); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
+    const words = wordCount(editor.getJSON()); $('[data-count]').textContent = `${words.toLocaleString()} word${words === 1 ? '' : 's'}`;
     syncCopyAction();
   }
   title.oninput = schedule;
