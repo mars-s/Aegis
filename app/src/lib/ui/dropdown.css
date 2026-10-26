@@ -6,9 +6,11 @@
 }
 .aegis-dropdown-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aegis-dropdown > svg, .aegis-dropdown-menu svg { flex: none; width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+:where(.aegis-dropdown-menu.aegis-surface) {
+  width: max-content; min-width: var(--menu-width); max-width: calc(100vw - 20px); max-height: min(560px, calc(100dvh - 20px));
+}
 .aegis-dropdown-menu.aegis-surface {
-  position: fixed; z-index: 10010; box-sizing: border-box; width: max-content; min-width: var(--menu-width);
-  max-width: calc(100vw - 20px); max-height: min(560px, calc(100dvh - 20px)); padding: var(--menu-padding);
+  position: fixed; z-index: 10010; box-sizing: border-box; padding: var(--menu-padding);
   overflow: auto; overscroll-behavior: contain; border: 1px solid var(--ui-edge); border-radius: var(--radius-surface);
   background: var(--ui-surface); color: var(--text); box-shadow: var(--ui-shadow);
   scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; font: var(--text-body)/1.4 var(--font);
@@ -30,7 +32,7 @@
 .aegis-dropdown[aria-expanded=true] { border-color: var(--ui-edge); background: var(--press); }
 .aegis-surface .aegis-menu-separator, .aegis-surface hr { height: 1px; padding: 0; border: 0; margin: var(--space-1) 5px; background: var(--line); }
 .aegis-menu-heading, .aegis-surface .aegis-menu-section { max-width: 300px; padding: 8px 10px 5px; color: var(--muted); font-size: var(--text-label); font-weight: 500; overflow-wrap: anywhere; }
-.aegis-model-group { position: sticky; top: -5px; z-index: 1; padding: 8px 10px 6px; display: flex; justify-content: space-between; gap: var(--space-5); background: var(--ui-surface); color: var(--muted); font-size: var(--text-caption); }
+.aegis-model-group { position: sticky; top: 0; z-index: 1; padding: 8px 10px 6px; display: flex; justify-content: space-between; gap: var(--space-5); background: var(--ui-surface); color: var(--muted); font-size: var(--text-caption); }
 .aegis-model-group span:first-child { color: var(--ink-2); font-weight: 500; }
 .aegis-dropdown-menu [role=group] > button { scroll-margin-top: 40px; }
 .aegis-surface.aegis-dropdown-menu button.aegis-menu-destructive { color: var(--ui-danger); }
@@ -56,3 +58,10 @@
 }
 @media (hover: none), (pointer: coarse) { .aegis-dropdown, .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]) { min-height: 44px; } }
 body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button:is([role=option], [role^=menuitem]) { min-height: 44px; }
+
+.aegis-surface .selection-value:empty { display: none; }
+
+.aegis-surface.aegis-dropdown-menu [data-highlighted] { background: var(--hover); outline: 2px solid var(--focus); outline-offset: -2px; }
+.aegis-combobox { min-height: var(--control-height); padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--inset); color: var(--text); font: var(--text-body)/1.4 var(--font); }
+
+.aegis-surface [aria-checked=true] > svg { color: var(--data); }

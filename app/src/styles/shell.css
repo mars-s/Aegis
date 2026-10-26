@@ -98,11 +98,7 @@ body.left-open .tools.compact { transform: translate(calc(var(--side-w) + 8px), 
 .tools.compact > [data-tool] .tools-label, .tools.compact > [data-tool] kbd { display: none; }
 .tools-fold { margin-top: 4px; position: relative; }
 .tools-fold::before { content: ''; position: absolute; left: 8px; right: 8px; top: -3px; height: 1px; background: var(--line); }
-.tools-popover { position: absolute; left: calc(100% + 12px); top: 50%; translate: 0 -50%; width: min(372px, calc(100vw - var(--side-w, 0px) - 80px)); max-height: calc(100dvh - 112px); padding: 6px; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--raised); color: var(--text); box-shadow: 0 18px 48px rgb(0 0 0 / .45); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; transform-origin: 0 50%; }
-/* Opens from the rail it belongs to: a short fade and a small travel from the left, never from nothing. */
-.tools-popover:not([hidden]) { animation: tools-popover-in 160ms var(--ease-out); }
-.tools-popover.instant { animation: none; }
-@keyframes tools-popover-in { from { opacity: 0; transform: translateX(-6px) scale(.98); } }
+.tools-popover { width: min(372px, calc(100vw - 80px)); max-height: calc(100dvh - 112px); }
 .tools-popover section { padding: 8px 4px 6px; }
 .tools-popover section + section { border-top: 1px solid var(--line); }
 .tools-popover h3 { margin: 0 8px 4px; color: var(--faint); font-size: 11px; font-weight: 500; letter-spacing: .01em; }
@@ -127,7 +123,6 @@ body.left-open .tools.compact { transform: translate(calc(var(--side-w) + 8px), 
 .tools.compact .tools-customise svg { width: 14px; height: 14px; margin: 0 6px; }
 .tools.compact .tools-customise:hover { color: var(--text); }
 body.motion-off .tools-popover, body.motion-off .tools-popover * { animation: none !important; transition: none !important; }
-@media (prefers-reduced-motion: reduce) { .tools-popover:not([hidden]) { animation-name: tools-popover-fade; } @keyframes tools-popover-fade { from { opacity: 0; } } }
 body[data-tool-size=small] .tools.compact { --tool-step: 27px; }
 body[data-tool-size=large] .tools.compact { --tool-step: 38px; }
 @media (max-width: 900px) { body.left-open .tools-grid { grid-template-columns: 1fr; } }

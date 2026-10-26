@@ -5,6 +5,7 @@ import { extensions } from './extensions.js';
 import { cardContent, COPY_TYPES, documentUpdate, markdownHTML, migrateTitle } from './content.js';
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
+import { bindDisclosure, createPopup, createCombobox } from '../../lib/ui/dropdown.js';
 import { chooser as select } from './menu.js';
 import '../../lib/ui/ribbon.css';
 
@@ -72,17 +73,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     if (copyCards.parentElement !== parent) parent.append(copyCards);
   }
   syncCopyAction();
-  menu.querySelector('summary').addEventListener('click', event => { menu.classList.toggle('instant', event.detail === 0); });
-  menu.addEventListener('toggle', () => menu.querySelector('summary').setAttribute('aria-expanded', String(menu.open)));
-  menu.addEventListener('keydown', event => {
-    if (event.target.closest('.docs-choice, input') || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault(); menu.classList.add('instant'); menu.open = true;
-    const controls = [...menu.querySelectorAll('button, summary, input')].filter(el => !el.disabled && el.getClientRects().length);
-    const current = controls.indexOf(document.activeElement), step = event.key === 'ArrowUp' ? -1 : 1;
-    controls[event.key === 'Home' ? 1 : event.key === 'End' ? controls.length - 1 : (current + step + controls.length) % controls.length]?.focus();
-  });
-  const dismissMenu = event => { if (!menu.contains(event.target)) menu.open = false; };
-  document.addEventListener('pointerdown', dismissMenu);
+  const menuPopup = bindDisclosure(menu, { label: 'Document options menu' }), colourPopups = [];
   const bubble = document.createElement('div'); bubble.className = 'docs-bubble'; bubble.setAttribute('role', 'toolbar'); bubble.setAttribute('aria-label', 'Selection formatting');
   const $ = selector => panel.querySelector(selector);
   let timer, version = 0, dirty = false, saving = false, closed = false, lastDoc, lastBody = card.props?.body, pendingSave = Promise.resolve();
@@ -128,7 +119,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     panel.querySelector('.docs-math-source')?.blur();
     save(); closed = true; clearInterval(watch); clearTimeout(timer);
     document.removeEventListener('keydown', keys, true); document.removeEventListener('visibilitychange', visibility);
-    document.removeEventListener('pointerdown', dismissMenu);
+    menuPopup.destroy(); colourPopups.forEach(popup => popup.destroy());
     window.removeEventListener('pagehide', save);
     editor.destroy(); bubble.remove();
     if (active?.id === card.id) active = null;
@@ -221,15 +212,14 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     chain.run();
   }); tool.append(blocks);
   tool = typeGroup;
-  const fonts = document.createElement('input'); fonts.setAttribute('aria-label', 'Font family'); fonts.title = 'Font family'; fonts.setAttribute('list', 'docs-fonts');
-  const fontList = document.createElement('datalist'); fontList.id = 'docs-fonts';
+  const fonts = createCombobox({ label: 'Font family' });
   const used = new Set(['Inter Variable', 'Arial', 'Helvetica Neue', 'Georgia', 'Times New Roman', 'Menlo', 'monospace', 'sans-serif', 'serif']);
   function collect(node) { for (const mark of node?.marks ?? []) if (mark.attrs?.fontFamily) used.add(mark.attrs.fontFamily); for (const child of node?.content ?? []) collect(child); }
   for (const c of ctx.canvas.board.cards) { collect(c.props?.doc); if (c.props?.font) used.add(c.props.font); }
-  for (const name of used) fontList.append(new Option(name, name));
+  fonts.setOptions([...used]);
   // Keep form controls focused. TipTap's focus() queues a frame that can steal
   // focus from the next field and insert its typed value into the document.
-  fonts.onchange = () => { if (fonts.value.trim()) editor.chain().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts, fontList);
+  fonts.onchange = () => { if (fonts.value.trim()) editor.chain().setFontFamily(fonts.value.trim()).run(); }; tool.append(fonts);
   const sizes = [9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 40, 48, 60, 72];
   const size = document.createElement('input'); size.type = 'number'; size.min = '6'; size.max = '200'; size.setAttribute('aria-label', 'Font size');
   const setSize = value => { const n = Math.max(6, Math.min(200, Number(value) || 16)); editor.chain().setFontSize(`${n}px`).run(); size.value = String(n); };
@@ -250,6 +240,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     summary.innerHTML = highlight ? '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 11 6.5-6.5 2 2L6 13H4zM9 6l2 2"/><path d="M2.5 14.5h11" stroke="var(--warn)" stroke-width="2"/></svg>' : '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 11 3.5-8.5 3.5 8.5M5.7 8.2h4.6"/><path d="M2.5 14.5h11" stroke="var(--data)" stroke-width="2"/></svg>';
     menu.append(summary);
     const choices = document.createElement('div'); menu.append(choices);
+    const colourPopup = bindDisclosure(menu, { label: label + ' choices' }); colourPopups.push(colourPopup);
     const set = colour => { const chain = editor.chain().focus(); (highlight ? chain.setHighlight({ color: colour }) : chain.setColor(colour)).run(); menu.open = false; };
     for (const colour of highlight ? ['#fff1a8', '#ffd3e5', '#cdf2df', '#d4e8ff', '#e5dbff', ...palette.slice(7)] : palette) {
       const pick = button(`${label} ${colour}`, '', () => set(colour)); pick.style.background = colour; choices.append(pick);
@@ -280,6 +271,12 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   const tableTools = group(); tableTools.classList.add('docs-table-tools');
   for (const [label, command] of [['Add row', 'addRowAfter'], ['Remove row', 'deleteRow'], ['Add column', 'addColumnAfter'], ['Remove column', 'deleteColumn'], ['Header row', 'toggleHeaderRow'], ['Delete table', 'deleteTable']]) action(label, label, () => editor.chain().focus()[command]().run(), null, tableTools);
 
+  function openForm(form, label) {
+    panel.append(form);
+    const trigger = document.activeElement?.closest('button, summary') ?? ribbon;
+    const popup = createPopup({ trigger, menu: form, role: 'dialog', bindTrigger: false, portal: true, onToggle(open) { if (!open) form.remove(); } });
+    popup.menu.setAttribute('aria-label', label); colourPopups.push(popup); popup.open();
+  }
   function showLink() {
     panel.querySelector('.docs-link-form')?.remove();
     const form = document.createElement('form'); form.className = 'docs-link-form';
@@ -289,7 +286,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     form.append(button('Open link', 'Open', () => { if (/^(https?:|mailto:)/i.test(input.value)) ctx.host.openUrl(input.value); }));
     form.append(button('Close link menu', '×', () => { form.remove(); editor.commands.focus(); }));
     form.onsubmit = event => { event.preventDefault(); if (!/^(https?:|mailto:)/i.test(input.value)) return ctx.toast('Use an https, http or email link'); editor.chain().focus().extendMarkRange('link').setLink({ href: input.value }).run(); form.remove(); };
-    panel.append(form); input.focus();
+    openForm(form, 'Edit document link'); input.focus();
   }
   async function requestRewrite(how) {
     const { from, to, empty } = editor.state.selection;
@@ -314,7 +311,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
         const input = document.createElement('input'); input.setAttribute('aria-label', 'Rewrite instruction'); input.placeholder = 'How should the selection change?';
         const submit = document.createElement('button'); submit.textContent = 'Rewrite'; form.append(input, submit);
         form.append(button('Cancel rewrite', 'Cancel', () => form.remove()));
-        form.onsubmit = event => { event.preventDefault(); if (input.value.trim()) requestRewrite(input.value.trim()); form.remove(); }; panel.append(form); input.focus();
+        form.onsubmit = event => { event.preventDefault(); if (input.value.trim()) requestRewrite(input.value.trim()); form.remove(); }; openForm(form, 'Rewrite instruction'); input.focus();
       } else requestRewrite(value);
     }); parent.append(chooser);
   }

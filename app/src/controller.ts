@@ -16,6 +16,7 @@ import './features/index';
 // round2-sidebar: shortcut copy comes from the shared display map.
 import { shortcutText } from './lib/shortcuts.js';
 import { createMenu } from './chrome/menu.js';
+import { createPopup } from './lib/ui/dropdown.js';
 import { createPanels } from './chrome/panels.js';
 import { createLibrary } from './chrome/library.js';
 import { createLayers } from './chrome/layers.js';
@@ -144,9 +145,11 @@ const TOOL_KEYS = { v: 'select', n: 'note', h: 'title', c: 'todo', r: 'readme', 
 const TOOL_NAMES = { note: 'Note', title: 'Heading', todo: 'Checklist', readme: 'Read me', link: 'Link' };
 const CORE_TOOLS = ['select', 'note', 'title', 'todo', 'doc', 'deck', 'draw-ink', 'draw-shape', 'media'];
 const toolHomes = new Map();
+const toolsPopup = createPopup({ trigger: $('toolsFold'), menu: $('toolsPopover'), role: 'dialog', placement: 'right', bindTrigger: false, onToggle(open) { if (!open) foldTools(true); } });
 function foldTools(closed, focus = false) {
   const dock = $('tools'), popover = $('toolsPopover'), trigger = $('toolsFold');
   if (closed) {
+    if (toolsPopup.opened) { toolsPopup.close(focus, true); return; }
     const hadFocus = popover.contains(document.activeElement);
     for (const [button, home] of toolHomes) home.replaceWith(button);
     toolHomes.clear(); popover.replaceChildren(); popover.hidden = true;
@@ -183,7 +186,7 @@ function foldTools(closed, focus = false) {
   const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.type = 'button';
   customise.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg><span>Customise toolbar</span>';
   customise.onclick = () => { foldTools(true); dock.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
-  popover.append(customise); popover.hidden = false; popover.classList.toggle('instant', focus); dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
+  popover.append(customise); dock.classList.add('more-open'); toolsPopup.open(focus ? { type: 'keydown' } : undefined);
   if (focus) popover.querySelector('[data-tool]')?.focus({ preventScroll: true });
 }
 function pickTool(t) {

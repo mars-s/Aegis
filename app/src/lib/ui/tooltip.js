@@ -7,6 +7,7 @@ export function createTooltip(trigger, text = trigger.title) {
   function show() {
     clearTimeout(timer); const instant = isKeyboard() || performance.now() < warmUntil;
     timer = setTimeout(() => {
+      if (!trigger.isConnected || trigger.getAttribute('aria-expanded') === 'true') return;
       (trigger.closest('dialog[open]') ?? document.body).append(tip); tip.hidden = false; trigger.setAttribute('aria-describedby', tip.id);
       const r = trigger.getBoundingClientRect(), top = r.top - tip.offsetHeight - 6;
       tip.style.left = `${Math.max(8, Math.min(innerWidth - tip.offsetWidth - 8, r.left + r.width / 2 - tip.offsetWidth / 2))}px`;
@@ -17,5 +18,5 @@ export function createTooltip(trigger, text = trigger.title) {
   }
   trigger.addEventListener('pointerenter', show); trigger.addEventListener('pointerleave', close); trigger.addEventListener('focus', show); trigger.addEventListener('blur', close); trigger.addEventListener('pointerdown', close);
   const key = event => { if (event.key === 'Escape') close(); }; trigger.addEventListener('keydown', key);
-  return { destroy() { close(); tip.remove(); trigger.removeEventListener('pointerenter', show); trigger.removeEventListener('pointerleave', close); trigger.removeEventListener('focus', show); trigger.removeEventListener('blur', close); trigger.removeEventListener('pointerdown', close); trigger.removeEventListener('keydown', key); } };
+  return { close, destroy() { close(); tip.remove(); trigger.removeEventListener('pointerenter', show); trigger.removeEventListener('pointerleave', close); trigger.removeEventListener('focus', show); trigger.removeEventListener('blur', close); trigger.removeEventListener('pointerdown', close); trigger.removeEventListener('keydown', key); } };
 }

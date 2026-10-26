@@ -1,5 +1,6 @@
 import { createPopup } from './dropdown.js';
 import './rows.css';
+import { createTooltip } from './tooltip.js';
 
 // Action menus and radio choices share the value picker's theme and input handling.
 // R4 polish: declare the live item factory used by generated-window menus.
@@ -7,7 +8,7 @@ import './rows.css';
 /** @param {{ trigger?: HTMLElement, menu?: HTMLElement, items?: MenuItem[] | (() => MenuItem[]), label?: string, heading?: string, portal?: boolean, onToggle?: (open: boolean) => void, bindTrigger?: boolean }} [options] */
 export function createMenu({ trigger, menu = document.createElement('div'), items = [], label, heading, portal = true, onToggle = () => {}, bindTrigger = true } = {}) {
   menu.classList.add('aegis-action-menu');
-  if (label) menu.setAttribute('aria-label', label);
+  menu.setAttribute('aria-label', label || heading || 'Actions');
   let pressed = null;
   menu.addEventListener('pointerdown', event => { pressed = event.target.closest('button[role^="menuitem"]'); });
   menu.addEventListener('pointercancel', () => { pressed = null; });
@@ -67,5 +68,6 @@ export function rowMenuButton(name) {
   const button = document.createElement('button'); button.type = 'button'; button.className = 'row-more icon-btn';
   button.setAttribute('aria-label', `More actions for ${name}`); button.title = `More actions for ${name}`; button.setAttribute('aria-haspopup', 'menu'); button.setAttribute('aria-expanded', 'false');
   button.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".75"/><circle cx="8" cy="8" r=".75"/><circle cx="13" cy="8" r=".75"/></svg>';
+  button.classList.add('aegis-tooltip-trigger'); button.uiTooltip = createTooltip(button);
   return button;
 }

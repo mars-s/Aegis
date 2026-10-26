@@ -49,7 +49,9 @@ container.append(size);
 
 `createMenu` accepts a live `items` factory or array. `checked` defaults to a radio state; `checkType: 'checkbox'` gives an independent checked action. Separators come from section changes. Shortcut chips remain outside accessible item names. Titles and headings are text, never HTML.
 
-Menus expose `open(event, point)`, `close(restoreFocus)`, `setTrigger`, `setItems` and `destroy`. Select buttons expose `.value`, `.setOptions` and `.dropdown`. Programmatic `.value` updates do not emit change. A selection calls `onChange` and emits one bubbling `change` event. Options accept `{ value, label, disabled, group, groupDescription, description }`.
+Menus expose `open(event, point)`, `close(restoreFocus)`, `setTrigger`, `setItems` and `destroy`. `createCombobox` provides an editable input with a filtered listbox, active-descendant arrow navigation, custom values and the same portal lifecycle. The document font field uses it instead of a native datalist. `bindDisclosure` gives existing live `<details>` content the shared popup lifecycle. More tools uses `placement: right`, with coordinates relative to its transformed rail.
+
+Select buttons expose `.value`, `.setOptions` and `.dropdown`. Programmatic `.value` updates do not emit change. A selection calls `onChange` and emits one bubbling `change` event. Options accept `{ value, label, disabled, group, groupDescription, description }`.
 
 `createPopup({ trigger, menu, role: 'dialog', portal: true })` handles mixed controls such as font, colour, tilt and selection popovers. Menus and listboxes have arrows, Home, End, type-ahead, Enter and Space. Mixed controls keep native Tab order and input arrow behaviour. Escape closes only the active popup and restores its trigger. Outside pointer presses dismiss without moving focus away from the clicked control. Closing popups become inert immediately. Positioning flips, clamps and scrolls within the viewport, follows trigger resize and ancestor scrolling, and sets the transform origin at the trigger. Portals enter the current modal's top layer.
 

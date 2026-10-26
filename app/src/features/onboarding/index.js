@@ -1,7 +1,8 @@
+import { createDialog } from '../../lib/ui/dialog.js';
 import './onboarding.css';
 import { shortcutText } from '../../lib/shortcuts.js';
 export function createOnboarding({ mobile, panels, openComposer, closeComposer }) {
-  const dialog = document.createElement('dialog'); dialog.className = 'onboarding'; dialog.setAttribute('aria-label', 'Welcome to Aegis');
+  const dialog = createDialog({ className: 'onboarding', label: 'Welcome to Aegis' });
   const highlight = document.createElement('div'); highlight.className = 'tour-highlight'; highlight.hidden = true;
   const card = document.createElement('section'); card.className = 'tour-card'; dialog.append(highlight, card); document.body.append(dialog);
   const steps = [

@@ -21,7 +21,7 @@ export function enhanceDialog(dialog, { label, initialFocus, dismissible = true 
     if (!isKeyboard() && !reduceMotion()) animation = dialog.animate([
       { opacity: 0, transform: 'translateY(4px) scale(.98)' },
       { opacity: 1, transform: 'translateY(0) scale(1)' },
-    ], { duration: 180, easing: getComputedStyle(dialog).getPropertyValue('--ease-out').trim() });
+    ], { duration: parseFloat(getComputedStyle(dialog).getPropertyValue('--motion-dialog')) || 180, easing: getComputedStyle(dialog).getPropertyValue('--ease-out').trim() });
     const target = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
     target?.focus({ preventScroll: true });
   };

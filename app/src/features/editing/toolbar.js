@@ -36,7 +36,8 @@ export function selectionToolbar(bar, changed) {
   function button(label, action, { inline = false, group = 'Actions', shortcut = '', icon = label, text = false } = {}) {
     const el = document.createElement('button'); el.type = 'button'; el.title = label; el.setAttribute('aria-label', label);
     if (inline) { el.className = 'selection-action'; el.innerHTML = selectionIcon(icon); if (text) { const caption = document.createElement('span'); caption.textContent = label; el.append(caption); } scroll.insertBefore(el, more); }
-    else { el.className = 'selection-menu-action'; const name = document.createElement('span'), hint = document.createElement('span'); name.textContent = label; hint.textContent = shortcut; hint.className = 'selection-value'; el.append(name, hint); section(group).append(el); }
+    else { el.className = 'selection-menu-action'; const name = document.createElement('span'), hint = document.createElement('kbd'); name.textContent = label; hint.textContent = shortcut; hint.className = 'selection-value'; el.append(name, hint); section(group).append(el); }
+    if (label === 'Delete') el.classList.add('aegis-menu-destructive');
     el.onclick = action; return el;
   }
   function input(label, value, action, type = 'text', group = 'Card') {

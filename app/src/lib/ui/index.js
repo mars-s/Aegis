@@ -1,4 +1,4 @@
-export { createPopup, createDropdown } from './dropdown.js';
+export { createPopup, createDropdown, createCombobox, bindDisclosure } from './dropdown.js';
 export { createMenu, rowMenuButton } from './menu.js';
 export { createDialog, enhanceDialog } from './dialog.js';
 export { confirmAction } from './confirm.js';

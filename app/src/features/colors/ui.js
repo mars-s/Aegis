@@ -1,3 +1,4 @@
+import { createMenu } from '../../lib/ui/menu.js';
 import { createPopup } from '../../lib/ui/dropdown.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { registerRenderer } from '../../canvas/engine.js';
@@ -57,15 +58,15 @@ export function colourEditor({ hex = '#ff9ec4', name, autoName = true, at = null
   if (save) button('Save to board colours', () => save({ hex: colour, name: label }), pop);
   button('Done', () => closeEditor(), pop);
   document.body.append(pop);
-  const r = at || { right: innerWidth / 2, top: 100 };
-  pop.style.left = Math.max(8, Math.min(innerWidth - 280, r.right + 12)) + 'px';
-  pop.style.top = Math.max(8, Math.min(innerHeight - pop.offsetHeight - 8, r.top)) + 'px';
-  const outside = e => { if (!pop.contains(e.target)) closeEditor(); };
-  const key = e => { if (e.key === 'Escape') { e.stopImmediatePropagation(); closeEditor(); } };
+  const previous = document.activeElement;
+  const r = at || { right: innerWidth / 2 - 142, top: 100 };
   const boardId = board().id;
   const timer = setInterval(() => { if (board().id !== boardId) closeEditor(); }, 300);
-  closeEditor = () => { pop.remove(); clearInterval(timer); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', key, true); closeEditor = () => {}; };
-  queueMicrotask(() => document.addEventListener('pointerdown', outside, true)); document.addEventListener('keydown', key, true);
+  const popup = createPopup({ menu: pop, role: 'dialog', bindTrigger: false, onToggle(on) {
+    if (!on) { pop.remove(); clearInterval(timer); closeEditor = () => {}; if (previous?.isConnected) previous.focus({ preventScroll: true }); }
+  } });
+  closeEditor = () => popup.destroy();
+  popup.open(undefined, { x: r.right + 12, y: r.top });
   quickRows(); draw(); hexInput.focus();
 }
 export function openSwatch(c, api) {
@@ -118,10 +119,9 @@ export function mountColours(el, ctx) {
         event.preventDefault(); event.stopPropagation(); closeMenu(); menuBoard = board.id;
         const menu = node('div', 'palette-menu'); menu.setAttribute('role', 'menu'); menu.setAttribute('aria-label', 'Palette colour');
         document.body.append(menu);
-        const popup = createPopup({ trigger: dot, menu, onToggle(on) { if (!on) { menu.remove(); popup.destroy(); if (closeMenu === dismiss) closeMenu = () => {}; menuBoard = undefined; queueMicrotask(refresh); } } });
-        const dismiss = () => popup.destroy(); closeMenu = dismiss;
         const actions = [['Add to the board', () => createSwatch(ctx, undefined, p.hex, p.name, false)], ['Rename', () => edit(true)], ['Change colour…', () => edit()], ['Remove from board colours', () => remove.click()]];
-        for (const [label, action] of actions) { const item = button(label, () => { closeMenu(); action(); }, menu); item.setAttribute('role', 'menuitem'); }
+        const popup = createMenu({ trigger: dot, menu, bindTrigger: false, label: 'Palette colour', items: actions.map(([title, run]) => ({ title, run, destructive: title === 'Remove from board colours' })), onToggle(on) { if (!on) { menu.remove(); popup.destroy(); if (closeMenu === dismiss) closeMenu = () => {}; menuBoard = undefined; queueMicrotask(refresh); } } });
+        const dismiss = () => popup.destroy(); closeMenu = dismiss;
         popup.open(event, { x: event.clientX, y: event.clientY });
         menu.querySelector('button').focus();
       };
