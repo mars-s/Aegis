@@ -13,6 +13,9 @@ name = "aegis"
 version = "0.3.0"
 dependencies = [
  "dirs 5.0.1",
+ "objc2",
+ "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "tauri",

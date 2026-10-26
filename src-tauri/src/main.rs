@@ -10,6 +10,9 @@ use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_opener::OpenerExt;
 
+#[cfg(target_os = "macos")]
+mod native_refresh;
+
 struct Agent {
     child: Mutex<Option<Child>>,
     info: Mutex<Option<Value>>,
@@ -189,6 +192,16 @@ fn main() {
         .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text, save_download, print_page])
         .setup(|app| {
+            // Build from the usual window config, after setting WebKit's rendering preference.
+            let config = app.config().app.windows.iter().find(|window| window.label == "main")
+                .ok_or("missing main window configuration")?;
+            let window = tauri::WebviewWindowBuilder::from_config(app, config)?;
+            #[cfg(target_os = "macos")]
+            let window = match native_refresh::configuration() {
+                Some(configuration) => window.with_webview_configuration(configuration),
+                None => window,
+            };
+            window.build()?;
             if let Err(e) = start_agent(app.handle()) { eprintln!("aegis: {e}"); }
             Ok(())
         })
