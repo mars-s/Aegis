@@ -39,20 +39,24 @@ function previewContent(preview) {
   const root = element('span', `semantic-preview semantic-${preview.type}`);
   if (preview.type === 'plot') {
     root.dataset.plotKind = preview.kind;
+    let graphic;
     // Three named values take priority over marks that would crowd them out.
     if (preview.seriesCount <= 2) {
-      const graphic = plotGraphic(preview);
-      if (graphic) root.append(graphic);
+      graphic = plotGraphic(preview);
     }
     if (preview.seriesCount > 1) {
       root.classList.add('semantic-comparison');
+      if (graphic) root.append(graphic);
       for (const series of preview.series) {
         const row = element('span', 'semantic-series');
         row.append(element('span', '', series.name), element('span', '', `${series.value}${series.label ? ` · ${series.label}` : ''}`));
         row.title = `${series.name}: ${series.value} ${series.label}`; root.append(row);
       }
     } else {
-      const label = element('span', 'semantic-fact'); label.append(element('span', 'semantic-headline', preview.value), document.createTextNode(` ${preview.label}`)); root.append(label);
+      root.classList.add('semantic-single');
+      root.append(element('span', 'semantic-headline', preview.value));
+      if (graphic) root.append(graphic);
+      root.append(element('span', 'semantic-fact', preview.label));
     }
   } else if (preview.type === 'stats') {
     for (const tile of preview.tiles) { const metric = element('span', 'semantic-stat'); metric.append(element('span', 'semantic-metric', tile.value), element('span', 'semantic-fact', tile.label)); root.append(metric); }
@@ -85,24 +89,32 @@ function plotGraphic(preview) {
     }).join('');
     return svg(96, 28, marks, preview.parts.map(p => `${p.label}: ${Math.round(p.value / total * 100)}%`).join(', '));
   }
-  if (!['line', 'area', 'bars'].includes(preview.kind)) return null;
+  if (!['line', 'area', 'bars', 'stacked'].includes(preview.kind) || preview.stack) return null;
+  const bars = ['bars', 'stacked'].includes(preview.kind), stacked = preview.kind === 'stacked';
   const series = preview.series, keys = [...new Set(series.flatMap(s => s.points.map(p => String(p.x))))];
   const number = x => preview.xKind === 'time' ? parseTime(String(x)) : Number(x);
   if (['time', 'linear'].includes(preview.xKind)) keys.sort((a, b) => number(a) - number(b));
   const values = series.flatMap(s => s.points.filter(p => Number.isFinite(p.y)).map(p => p.y));
   if (!values.length) return null;
-  const min = Math.min(...values, ...(preview.kind === 'bars' ? [0] : [])), max = Math.max(...values, ...(preview.kind === 'bars' ? [0] : [])), range = max - min || 1;
+  const totals = keys.map(key => series.map(s => s.points.find(p => String(p.x) === key)?.y).filter(Number.isFinite));
+  const lows = stacked ? totals.map(values => values.reduce((sum, v) => sum + Math.min(0, v), 0)) : values;
+  const highs = stacked ? totals.map(values => values.reduce((sum, v) => sum + Math.max(0, v), 0)) : values;
+  const min = Math.min(...lows, ...(bars ? [0] : [])), max = Math.max(...highs, ...(bars ? [0] : [])), range = max - min || 1;
   const y = value => 26 - (value - min) / range * 24;
   const x = key => {
-    if (preview.kind === 'bars') return 2 + (keys.indexOf(String(key)) + .5) / keys.length * 92;
+    if (bars) return 2 + (keys.indexOf(String(key)) + .5) / keys.length * 92;
     if (['time', 'linear'].includes(preview.xKind)) return 2 + (number(key) - number(keys[0])) / (number(keys.at(-1)) - number(keys[0]) || 1) * 92;
     return 2 + keys.indexOf(String(key)) / Math.max(1, keys.length - 1) * 92;
   };
   const marks = series.map((entry, i) => {
     const points = keys.map(key => entry.points.find(p => String(p.x) === key));
-    if (preview.kind === 'bars') {
-      const width = 80 / Math.max(1, keys.length) / Math.max(1, series.length);
-      return points.filter(p => p && Number.isFinite(p.y)).map(p => `<rect x="${x(p.x) - width * series.length / 2 + i * width}" y="${Math.min(y(0), y(p.y))}" width="${width}" height="${Math.abs(y(p.y) - y(0))}" fill="${seriesColor(i)}" stroke="none"/>`).join('');
+    if (bars) {
+      const width = 80 / Math.max(1, keys.length) / (stacked ? 1 : Math.max(1, series.length));
+      return points.filter(p => p && Number.isFinite(p.y)).map(p => {
+        const baseline = stacked ? series.slice(0, i).map(s => s.points.find(other => String(other.x) === String(p.x))?.y).filter(v => Number.isFinite(v) && (v < 0) === (p.y < 0)).reduce((sum, v) => sum + v, 0) : 0;
+        const left = stacked ? x(p.x) - width / 2 : x(p.x) - width * series.length / 2 + i * width;
+        return `<rect x="${left}" y="${Math.min(y(baseline), y(baseline + p.y))}" width="${width}" height="${Math.abs(y(baseline + p.y) - y(baseline))}" fill="${seriesColor(i)}" stroke="none"/>`;
+      }).join('');
     }
     let connected = false;
     const path = points.map(p => {
@@ -112,7 +124,7 @@ function plotGraphic(preview) {
     const dots = points.filter(p => p && Number.isFinite(p.y)).map(p => `<circle cx="${x(p.x)}" cy="${y(p.y)}" r="1" fill="${seriesColor(i)}" stroke="none"/>`).join('');
     return `<g stroke="${seriesColor(i)}"><path d="${path}"/>${dots}</g>`;
   }).join('');
-  return svg(96, 28, marks, `${preview.kind === 'bars' ? 'Bars' : 'Lines'}: ${series.map(s => s.name).join(', ')}`);
+  return svg(96, 28, marks, `${bars ? 'Bars' : 'Lines'}: ${series.map(s => s.name).join(', ')}`);
 }
 
 function diagramGraphic({ nodes, edges }) {

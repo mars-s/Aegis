@@ -45,10 +45,13 @@ body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary
 .semantic-preview { display: flex; gap: 6px; min-width: 0; }
 .semantic-preview .semantic-graphic { width: 96px; height: 28px; stroke: var(--data); stroke-width: 1; }
 .semantic-headline { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
-.semantic-copy:has(.semantic-plot) { gap: 2px; }
+.semantic-copy:has(.semantic-plot, .semantic-sheet) { gap: 2px; }
 .semantic-plot { flex-direction: column; gap: 2px; }
 .semantic-plot .semantic-fact { line-height: 20px; }
 .semantic-headline { white-space: nowrap; }
+.semantic-single { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 2px 6px; }
+.semantic-single .semantic-headline { grid-column: 1 / -1; line-height: 20px; }
+.semantic-single .semantic-fact { line-height: 14px; }
 .semantic-series { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; line-height: 14px; color: var(--ink-2); }
 .semantic-series > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .semantic-series > span:last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }

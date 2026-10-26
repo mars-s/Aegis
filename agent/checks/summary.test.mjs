@@ -44,12 +44,19 @@ test('comparison values use the detailed chart currency formatter', () => {
   assert.deepEqual(preview.series.map(s => s.value), [formatValue(70, y), formatValue(130, y)]);
 });
 
+test('ordered axes report their final point in chart order and retain a missing ending', () => {
+  const time = plot({ x: { kind: 'time' }, series: [{ name: 'Hours', points: [{ x: '2026-10-27', y: 9 }, { x: '2026-10-01', y: 2 }] }] });
+  assert.equal(cardSummary(time).preview.value, '9');
+  const linear = plot({ x: { kind: 'linear' }, series: [{ name: 'Hours', points: [{ x: 20, y: null }, { x: 1, y: 2 }] }] });
+  assert.equal(cardSummary(linear).preview.value, 'No data');
+});
+
 test('diagram models retain every real node and edge without inventing a sequence', () => {
   const nodes = ['Intake', 'Design', 'Data', 'Approve', 'Archive'].map(name => ({ id: name, name }));
   const edges = [['Intake', 'Design'], ['Intake', 'Data'], ['Design', 'Approve'], ['Data', 'Approve']].map(([from, to]) => ({ from, to }));
   const summary = cardSummary({ type: 'object', kind: 'diagram', data: { nodes, edges } });
   assert.deepEqual(summary.preview.nodes, nodes); assert.deepEqual(summary.preview.edges, edges);
-  assert.match(summary.facts[0], /5 step.*4 connection/);
+  assert.match(summary.facts[0], /5 node.*4 connection/);
 });
 
 test('sheet summaries and references retain units, typed figures and original date/text values', () => {

@@ -1,6 +1,6 @@
 import { documentWordCount, wordCountLabel } from './words.js';
 import { resolvePlot } from '../../objects/chart/source.js';
-import { formatValue, pointText, styleSpec, xText } from '../../objects/chart/chart.ts';
+import { formatValue, parseTime, pointText, styleSpec, xText } from '../../objects/chart/chart.ts';
 // Shared by the host's lightweight board list and the Library preview.
 export const plainLine = value => String(value ?? '').split('\n').find(line => line.trim())?.replace(/^\s*#{1,6}\s+/, '').replace(/[*_`]/g, '').trim().slice(0, 160) || '';
 export const cardTitle = card => plainLine(card.props?.layerName || card.heading || card.text || card.props?.name);
@@ -25,7 +25,7 @@ export function cardSummary(card, cards = []) {
     case 'html': facts = [plainLine(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i.exec(data.html || '')?.[1]?.replace(/<[^>]*>/g, '')), 'Interactive view']; break;
     case 'stats': facts = (data.tiles || []).slice(0, 2).map(tile => `${tile.label}: ${tile.value}`); break;
     case 'progress': facts = (data.goals || []).slice(0, 2).map(goal => `${goal.current}/${goal.target}${goal.unit ? ` ${goal.unit}` : ''} · ${goal.label}`); break;
-    case 'diagram': facts = [`${count(data.nodes?.length || 0, 'step')} · ${count(data.edges?.length || 0, 'connection')}`]; break;
+    case 'diagram': facts = [`${count(data.nodes?.length || 0, 'node')} · ${count(data.edges?.length || 0, 'connection')}`]; break;
     case 'todo': case 'list': case 'plan': {
       const items = card.items || data.items || data.steps || [];
       facts = [`${items.filter(item => item.done).length}/${count(items.length, 'item')} complete`, plainLine(items[0]?.text || items[0]?.title)]; break;
@@ -59,16 +59,19 @@ export function cellText(column, value) {
 }
 
 function plotPreview(data) {
-  const kind = styleSpec(data.style).kind;
+  const { kind, stack } = styleSpec(data.style);
   const all = data.series || [];
   const series = all.slice(0, 3).map((entry, i) => {
-    const points = entry.points || [], last = points.at(-1);
-    return { name: entry.name || `Series ${i + 1}`, points, value: last ? pointText(last, data.y) : 'No data', label: last ? xText(last.x, data.x?.kind) : '' };
+    const points = [...(entry.points || [])];
+    if (data.x?.kind === 'time') points.sort((a, b) => parseTime(String(a.x)) - parseTime(String(b.x)));
+    if (data.x?.kind === 'linear') points.sort((a, b) => Number(a.x) - Number(b.x));
+    const last = points.at(-1);
+    return { name: entry.name || `Series ${i + 1}`, points, value: last && Number.isFinite(last.y) ? pointText(last, data.y) : 'No data', label: last ? xText(last.x, data.x?.kind) : '' };
   });
   const parts = kind === 'donut' && all.length === 1 ? (all[0].points || []).filter(p => Number.isFinite(p.y) && p.y > 0) : [];
   const total = parts.reduce((sum, point) => sum + point.y, 0);
   const first = series[0];
-  return { type: 'plot', kind, xKind: data.x?.kind, series, seriesCount: all.length,
+  return { type: 'plot', kind, stack, xKind: data.x?.kind, series, seriesCount: all.length,
     parts: parts.map(p => ({ value: p.y, label: xText(p.x, data.x?.kind) })),
     value: kind === 'donut' && all.length === 1 ? formatValue(total, data.y) : first?.value || 'No data',
     label: kind === 'donut' && all.length === 1 ? count(parts.length, 'segment') : [first?.label, data.y?.label || first?.name].filter(Boolean).join(' · ') };
