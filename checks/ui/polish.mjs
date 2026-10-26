@@ -185,7 +185,7 @@ try {
   }
   await page.evaluate(() => document.getElementById('stage').dispatchEvent(new CustomEvent('layercontext', { detail: { x: 700, y: 300, ids: aegis.canvas.selection() } })));
   for (const [label, key] of [['Bring forward', 'stackForward'], ['Send backward', 'stackBack'], ['Bring to front', 'stackToFront'], ['Send to back', 'stackToBack']]) {
-    assert.equal(await page.getByRole('menuitem', { name: label, exact: true }).locator('kbd').textContent(), shortcutText(key));
+    assert.equal(await page.getByRole('menuitem', { name: label, exact: true }).locator('kbd').textContent(), shortcutText(key, await page.evaluate(() => /Mac|iPhone|iPad/.test(navigator.platform)) ? 'mac' : 'pc'));
   }
   await shot('r3-nav-restack-menu-1586'); await page.keyboard.press('Escape');
   console.log('PASS Cmd/Ctrl+brackets always open the same panels with or without selection; Option/Alt+brackets restack one step, Shift sends front/back; menus show shared keys');

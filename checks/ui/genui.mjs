@@ -96,7 +96,7 @@ try {
 
   const frame = async kind => {
     await page.evaluate(kind => aegis.canvas.frameIds([aegis.canvas.board.cards.find(c => c.kind === kind).id], 1, false, true), kind);
-    await page.locator(`.card.kind-${kind} .object`).waitFor({ state: 'visible' });
+    await page.locator(`.card.kind-${kind} .object`).first().waitFor({ state: 'visible' });
     // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
     await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
     // Narrow screens frame below the detail tier, where the semantic summary is the selectable surface.
@@ -545,11 +545,12 @@ try {
   await page.route('**/boards/*/batch', holdSave);
   await page.keyboard.press('Enter');
   await expanded.editor.locator('[data-saved]').filter({ hasText: 'Saving…' }).waitFor();
-  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: 'Saving…' }).waitFor();
+  // While editing, reference summaries cover the canvas windows; their status still updates underneath.
+  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: 'Saving…' }).waitFor({ state: 'attached' });
   await page.screenshot({ path: out(`r5-table-saving-${stamp}.png`) });
   releaseSave();
   await page.waitForFunction(() => document.querySelector('.object-editor [data-saved]').textContent === 'Saved');
-  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: /^\s*Saved\s*$/ }).waitFor();
+  await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: /^\s*Saved\s*$/ }).waitFor({ state: 'attached' });
   await page.unroute('**/boards/*/batch', holdSave);
   await page.screenshot({ path: out(`r5-table-saved-${stamp}.png`) });
   // PM5: settled success recedes only on the canvas, after the host confirms it.
@@ -564,11 +565,11 @@ try {
   await page.route('**/boards/*/batch', refuseSave);
   await page.keyboard.press('Enter');
   await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
-  await page.locator('.card.kind-table').getByRole('button', { name: 'Retry save', exact: true }).waitFor();
+  await page.locator('.card.kind-table button[aria-label="Retry save"]').waitFor({ state: 'attached' });
   assert.match(await expanded.editor.locator('[data-saved]').textContent(), /Not saved/);
   await page.waitForTimeout(1800);
   assert.equal(await page.locator('.card.kind-table [data-object-saved]').evaluate(el => getComputedStyle(el).opacity), '1', 'failure stays visible beyond the success timeout');
-  assert.equal(await page.locator('.card.kind-table').getByRole('button', { name: 'Retry save', exact: true }).isVisible(), true);
+  assert.equal(await page.locator('.card.kind-table button[aria-label="Retry save"]').count(), 1);
   await page.screenshot({ path: out(`r6-canvas-failure-persists-${stamp}.png`) });
   await page.screenshot({ path: out(`r5-table-retry-${stamp}.png`) });
   await page.unroute('**/boards/*/batch', refuseSave);
@@ -942,6 +943,8 @@ try {
   });
   await page.keyboard.press('Escape');
   expanded = await openEditor('callout', true);
+  // Opening frames the editor context with a short glide; compare views once the camera rests.
+  await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); setTimeout(() => done(a === JSON.stringify(aegis.canvas.view)), 500); }), null, { polling: 100 });
   const beforeKeys = await page.evaluate(() => JSON.stringify({ view: aegis.canvas.view, cards: aegis.canvas.board.cards.length, tool: aegis.canvas.tool }));
   await page.keyboard.press('Delete'); await page.keyboard.press('0'); await page.keyboard.press('n');
   assert.equal(await page.evaluate(() => JSON.stringify({ view: aegis.canvas.view, cards: aegis.canvas.board.cards.length, tool: aegis.canvas.tool })), beforeKeys, 'reading a focused view cannot delete a canvas card, fit the canvas or switch tools');
