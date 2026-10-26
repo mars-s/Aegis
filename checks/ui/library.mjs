@@ -173,7 +173,7 @@ try {
   const nameWidths = await page.locator('.tree-row').evaluateAll(rows => rows.map(row => ({ ratio: row.querySelector('.name').getBoundingClientRect().width / row.getBoundingClientRect().width, title: row.querySelector('.name').title, text: row.querySelector('.name').textContent, buttons: row.querySelectorAll('.row-more').length })));
   assert.ok(nameWidths.every(row => row.ratio >= .6 && row.title === row.text && row.buttons === 1), JSON.stringify(nameWidths));
   const more = row(project).locator('.row-more'); await more.focus();
-  assert.equal((await more.boundingBox()).width, 28); assert.equal((await more.boundingBox()).height, 28);
+  assert.equal((await more.boundingBox()).width, 32); assert.equal((await more.boundingBox()).height, 32);
   assert.equal(await more.evaluate(el => getComputedStyle(el).opacity), '1');
   await more.press('ArrowDown'); await uiMenu('Rename').waitFor(); await page.keyboard.press('Escape');
   assert.equal(await more.evaluate(el => document.activeElement === el), true);

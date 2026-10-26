@@ -122,7 +122,7 @@ try {
   await apply([{ op: 'update', id: 'canvasnote', set: { props: { layerName: 'A long research note with enough words to truncate in the sidebar' } } }]);
   const layer = page.locator('.layer-row[data-id="canvasnote"]'), rowMore = layer.locator('.row-more');
   const action = async name => { await rowMore.focus(); await rowMore.press('Enter'); await page.getByRole('menuitem', { name, exact: true }).click(); await settle(); };
-  verify('layers expose a single 28px More button', await rowMore.count() === 1 && (await rowMore.boundingBox()).width === 28 && (await rowMore.boundingBox()).height === 28);
+  verify('layers expose a single 32px More button', await rowMore.count() === 1 && (await rowMore.boundingBox()).width === 32 && (await rowMore.boundingBox()).height === 32);
   verify('long layer names have at least 60% of the row, ellipsis and a full title', await layer.evaluate(el => { const name = el.querySelector('.name'); return name.getBoundingClientRect().width / el.getBoundingClientRect().width >= .6 && getComputedStyle(name).textOverflow === 'ellipsis' && name.scrollWidth > name.clientWidth && name.title === name.textContent; }));
   if (!reproduce) {
     await action('Hide'); verify('row menu Hide saves and removes the canvas card', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.hidden && !document.querySelector('#world [data-id="canvasnote"]')));

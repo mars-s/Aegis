@@ -84,7 +84,7 @@ try {
         });
         assert.equal(geometry.toggle.x, 84, 'traffic lights have the first 80px'); assert.equal(geometry.toggle.height, 32);
         assert.ok(geometry.toggle.bottom <= 44 && geometry.tools.top >= geometry.toggle.bottom);
-        const buttonSize = 32, iconSize = 28;
+        const buttonSize = 32, iconSize = 32;
         assert.equal(geometry.close.width, buttonSize); assert.equal(geometry.close.height, buttonSize);
         assert.ok(Math.abs(geometry.close.y + buttonSize / 2 - geometry.title.y - geometry.title.height / 2) <= 1, 'close icon aligns with the title');
         assert.ok(geometry.icons.every(r => r.width === iconSize && r.height === iconSize));
