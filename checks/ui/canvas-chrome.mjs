@@ -34,7 +34,7 @@ try {
     const centre = locator => locator.evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     const moveTo = async locator => { const p = await centre(locator); await page.mouse.move(p.x, p.y); return p; };
     try {
-      await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
+      await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       // A fresh board per engine keeps persisted-link assertions independent.
@@ -43,6 +43,37 @@ try {
       const fixtures = demoBatch.filter(c => c.op === 'create' && ['document', 'sheet', 'deck', 'plot'].includes(c.ref)).map((c, i) => ({ ...c, newId: `chrome${c.ref}`, ref: undefined, x: i ? 900 : 400, y: i ? 180 + (i - 1) * 360 : 180, w: i ? 560 : 440, h: 300 }));
       await page.evaluate(commands => { aegis.apply(commands); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); }, fixtures);
       await card('chromedocument').waitFor(); await card('chromesheet').waitFor();
+      for (const theme of ['dark', 'light']) {
+        await page.emulateMedia({ colorScheme: theme });
+        await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
+        const contrasts = await page.evaluate(() => {
+          const rgba = value => { const n = value.match(/[\d.]+/g)?.map(Number) || []; return [n[0] || 0, n[1] || 0, n[2] || 0, n[3] ?? 1]; };
+          const over = (a, b) => [0, 1, 2].map(i => a[i] * a[3] + b[i] * (1 - a[3])).concat(1);
+          const lum = rgb => rgb.slice(0, 3).map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
+          return [...document.querySelectorAll('#world .card.window-card :is(.win-kind, .kind, .sheet-note, .footnote, .meta, .data-size)')].filter(el => el.textContent.trim() && el.getClientRects().length).map(el => {
+            let bg = [255, 255, 255, 1], opacity = 1;
+            const chain = []; for (let parent = el; parent; parent = parent.parentElement) chain.unshift(parent);
+            for (const parent of chain) { const style = getComputedStyle(parent); bg = over(rgba(style.backgroundColor), bg); opacity *= Number(style.opacity); }
+            const fg = over(rgba(getComputedStyle(el).color), bg), a = lum(fg), b = lum(bg);
+            return { text: el.textContent.slice(0, 60), ratio: (Math.max(a, b) + .05) / (Math.min(a, b) + .05), opacity };
+          });
+        });
+        assert.ok(contrasts.length >= 3); assert.ok(contrasts.every(c => c.ratio >= 4.5 && c.opacity === 1), `${theme}: ${JSON.stringify(contrasts)}`);
+        await shot(`full-contrast-${theme}`);
+      }
+      await page.emulateMedia({ colorScheme: 'dark' });
+      for (const edge of ['left', 'right']) {
+        const arrow = page.locator(edge === 'left' ? '#revealLeft' : '#revealRight');
+        for (const y of [64, 496, 928]) {
+          await page.mouse.move(793, y); await page.mouse.move(edge === 'left' ? 10 : 1576, y);
+          await page.waitForFunction(id => document.getElementById(id).classList.contains('show'), edge === 'left' ? 'revealLeft' : 'revealRight', { timeout: 1000 });
+          await page.mouse.move(edge === 'left' ? 60 : 1526, 496); await page.waitForTimeout(120);
+          assert.equal(await arrow.evaluate(el => el.classList.contains('show')), true, 'an approached arrow stays revealed');
+        }
+      }
+      assert.equal((await page.locator('#revealLeft').boundingBox()).y, (await page.locator('#revealRight').boundingBox()).y);
+      await page.mouse.move(793, 850);
+      console.log(`PASS ${engineName}: secondary canvas text has at least 4.5:1 contrast in both themes; matching full-height edge zones retain approached arrows`);
       for (const viewport of [{ width: 1586, height: 992 }, { width: 1440, height: 900 }, { width: 760, height: 800 }]) {
         await page.setViewportSize(viewport); await page.mouse.move(100, 20);
         await page.locator('#sideBtn').click(); await page.locator('#side.open').waitFor();
@@ -58,6 +89,9 @@ try {
         assert.ok(Math.abs(geometry.close.y + buttonSize / 2 - geometry.title.y - geometry.title.height / 2) <= 1, 'close icon aligns with the title');
         assert.ok(geometry.icons.every(r => r.width === iconSize && r.height === iconSize));
         assert.equal(geometry.adds.length, 3); assert.ok(geometry.adds.every(r => r.height === buttonSize && r.y === geometry.adds[0].y));
+        assert.equal(await page.locator('#side [data-panel=library] > footer.library-footer').count(), 1, 'Library creation stays outside the scrolling body');
+        assert.ok((await page.locator('#side [data-panel=layers]').boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
+        assert.ok((await page.locator('#side [data-panel=library]').boundingBox()).height >= 240);
         await page.keyboard.press('Tab'); await page.locator('#closeSide').focus(); assert.equal(await page.locator('#closeSide').evaluate(el => getComputedStyle(el).outlineColor), 'rgb(63, 141, 253)');
         if (viewport.width >= 1440) await shot(`sidebar-${viewport.width}`);
         await page.keyboard.press('Enter'); await page.locator('#side').waitFor({ state: 'hidden' });
@@ -68,6 +102,28 @@ try {
       await page.getByRole('button', { name: 'Close sheet', exact: true }).click();
       console.log(`PASS ${engineName}: title bar clears traffic lights and tools at 760/1440/1586px; sidebar header, folds and add actions align; 520px uses the Windows sheet`);
       await page.setViewportSize({ width: 1586, height: 992 });
+      await page.mouse.move(100, 20); await page.locator('#sideBtn').click();
+      const tree = page.getByRole('tree', { name: 'Windows', exact: true });
+      assert.equal(await tree.getByRole('treeitem').count(), 4);
+      assert.equal(await tree.locator('[role=treeitem][tabindex="0"]').count(), 1);
+      await tree.locator('[role=treeitem][tabindex="0"]').focus(); await page.keyboard.press('End');
+      const lastName = await tree.locator('[role=treeitem]').last().getAttribute('aria-label');
+      assert.equal(await page.evaluate(() => document.activeElement.getAttribute('aria-label')), lastName);
+      await page.keyboard.press('ArrowUp'); await page.keyboard.press('Enter');
+      await page.waitForFunction(() => document.activeElement?.getAttribute('aria-selected') === 'true');
+      assert.equal(await tree.locator('[role=treeitem][tabindex="0"]').count(), 1);
+      await page.keyboard.press('Home'); assert.equal(await tree.locator('[role=treeitem]').first().evaluate(el => el === document.activeElement), true);
+      await page.locator('#closeSide').click();
+      console.log(`PASS ${engineName}: Windows exposes named tree items, selected state, one roving row, arrow/Home/End navigation and Enter activation`);
+      for (const z of [1, .55, .2]) {
+        await page.evaluate(z => { aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 160, y: 220, z }); }, z);
+        await moveTo(card('chromedocument'));
+        const action = page.locator('.window-actions [data-window-action="chromedocument"]'); await action.waitFor();
+        const box = await action.boundingBox(); assert.ok(box.width >= 32 && box.height >= 32, `${z}: ${JSON.stringify(box)}`);
+        if (z === .55) { await shot('unscaled-window-action'); await action.click(); await page.locator('.docs-panel.is-open').waitFor(); await page.keyboard.press('Escape'); }
+      }
+      console.log(`PASS ${engineName}: Open actions remain at least 32px in screen space at 100%, 55% and 20%, and open the document`);
+      await page.evaluate(() => aegis.canvas.setView({ x: 0, y: 0, z: 1 }));
       await select('chromedocument'); await moveTo(card('chromedocument'));
       assert.equal(await page.locator('[data-connect-card]').count(), 0);
       assert.equal(await card('chromedocument').evaluate(el => getComputedStyle(el).outlineWidth), '1px');
@@ -125,9 +181,14 @@ try {
       console.log(`PASS ${engineName}: all 26 card types retain selection and resize controls without edge connectors`);
       const touch = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true, colorScheme: 'dark' });
       try {
-        await touch.addInitScript(() => localStorage.setItem('aegis:onboarded', '1')); await touch.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await touch.waitForFunction(() => window.aegis?.canvas?.board);
+        const boardId = await page.evaluate(() => aegis.canvas.board.id);
+        await touch.addInitScript(id => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:board', id); }, boardId); await touch.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await touch.waitForFunction(() => window.aegis?.canvas?.board);
         await touch.locator('#sideBtn').click(); await touch.locator('#side.open').waitFor();
         assert.ok(await touch.locator('#side :is(.side-head .icon-btn, .phead .fold, .adds button)').evaluateAll(nodes => nodes.filter(el => el.getClientRects().length).every(el => el.getBoundingClientRect().height >= 44)));
+        await touch.locator('#closeSide').click();
+        await touch.evaluate(() => { aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 50, y: 220, z: .55 }); });
+        const open = touch.locator('.window-actions [data-window-action="chromedocument"]'); await open.waitFor();
+        const hit = await open.boundingBox(); assert.ok(hit.width >= 44 && hit.height >= 44);
       } finally { await touch.close(); }
       assert.deepEqual(errors, []);
       console.log(`PASS ${engineName}: touch retains 44px sidebar targets; no browser exceptions`);

@@ -6,6 +6,8 @@
 .bar-left .icon-btn { width: 32px; height: 32px; border-radius: 6px; }
 .board-name { position: absolute; top: 6px; left: 50%; translate: -50% 0; height: 32px; max-width: 36vw; padding: 0 12px; border-radius: 999px; color: var(--muted); font-size: 14px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .board-name:hover, .board-name:focus-visible { color: var(--text); background: var(--hover); }
+.board-name::after { content: ''; display: inline-block; width: 6px; height: 6px; margin-left: 8px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: 0; }
+.board-name:hover::after, .board-name:focus-visible::after { opacity: 1; }
 .bar-right { position: absolute; top: 4px; right: 10px; display: flex; align-items: center; gap: 4px; opacity: .14; transition: opacity 150ms var(--ease-out); }
 .bar-right:hover, .bar-right:focus-within, .onboarding-open .bar-right { opacity: 1; }
 .icon-btn, .text-btn { position: relative; height: 30px; border-radius: 999px; color: var(--muted); transition: transform 120ms var(--ease-out); }
@@ -24,10 +26,10 @@ button:active { scale: .97; }
 .follow[aria-checked=true] .knob::after { transform: translateX(10px); background: var(--text); }
 .chip { height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--text); font-size: 12px; }
 
-/* Arrows have a 44px target and appear after 120ms within the 20px edge zone. */
+/* Matching 20px edge zones reveal centred arrows after 100ms. */
 .edge-arrow { position: fixed; top: 50%; margin-top: -22px; z-index: 17; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; opacity: 0; pointer-events: none; transition: opacity 150ms var(--ease-out), transform 150ms var(--ease-out); }
-.edge-arrow-left { top: 54px; margin-top: 0; left: 6px; transform: translateX(-4px); }
-.edge-arrow-right { right: 2px; transform: translateX(4px); }
+.edge-arrow-left { left: 4px; transform: translateX(-4px); }
+.edge-arrow-right { right: 4px; transform: translateX(4px); }
 .edge-arrow svg { width: 28px; height: 28px; padding: 6px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .edge-arrow.show, .edge-arrow:focus-visible { opacity: 1; pointer-events: auto; transform: none; }
 .edge-arrow:focus-visible { outline: none; }
