@@ -27,6 +27,10 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
     boardId, view: { ...canvas.view }, width: stage.clientWidth, height: stage.clientHeight, scroll: captureScroll(stage),
   };
   const selection = [...ctx.selection()];
+  // Focus returns to the control that opened the editor when it still exists (an Open action or toolbar button).
+  const previousFocus = current?.previousFocus ?? document.activeElement;
+  const opener = previousFocus?.matches?.('[data-window-action], #selectionBar [aria-label="Open"], .win-open, .deck-open, .canvas-open') ? previousFocus : null;
+  const openerAction = opener?.dataset.windowAction ? `.window-actions [data-window-action="${opener.dataset.windowAction}"]` : opener?.matches('#selectionBar [aria-label="Open"]') ? '#selectionBar [aria-label="Open"]' : null;
   current?.close({ keyboard: true, restoreFocus: false });
   canvas.setView(canvas.view);
   const el = document.createElement('aside');
@@ -44,15 +48,19 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
     if (canvas.board.id !== boardId) return;
     const restoredSelection = selection.filter(id => canvas.board.cards.some(c => c.id === id));
     canvas.select(restoredSelection);
-    stage.focus({ preventScroll: true });
+    const invoker = opener?.isConnected ? opener : openerAction && document.querySelector(openerAction);
+    if (invoker && !invoker.closest('[hidden]')) invoker.focus({ preventScroll: true });
+    const held = invoker && document.activeElement === invoker;
+    if (!held) stage.focus({ preventScroll: true });
     const focusSource = () => requestAnimationFrame(() => {
-      if (canvas.board.id !== boardId || current || document.activeElement !== stage) return;
+      if (canvas.board.id !== boardId || current) return;
       const selected = canvas.selection();
       if (selected.length !== restoredSelection.length || selected.some((id, index) => id !== restoredSelection[index]) || ['x', 'y', 'z'].some(key => canvas.view[key] !== target[key])) return;
       for (const saved of bookmark.scroll) {
         const node = saved.path.reduce((el, index) => el?.children[index], canvas.mountedEl(saved.id));
         if (node) { node.scrollTop = saved.top; node.scrollLeft = saved.left; }
       }
+      if (held || document.activeElement !== stage) return;
       const source = canvas.mountedEl(card.id);
       if (source) { if (!source.hasAttribute('tabindex')) source.tabIndex = -1; source.focus({ preventScroll: true }); }
     });
@@ -72,6 +80,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
     el.classList.toggle('instant', keyboard);
     el.classList.remove('is-open');
     document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
+    // Clear the editor source first: it hides the window action strip that focus may return to.
     canvas.setEditorSource(null);
     if (current?.el === el) current = null;
     if (restoreFocus) returnToBoard();
@@ -109,7 +118,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
   el.classList.add('is-open');
   document.addEventListener('keydown', widthKeys, true);
   document.addEventListener('keydown', keys);
-  const shell = { el, body, close, bookmark, setSaved: text => { el.querySelector('[data-saved]').textContent = text; } };
+  const shell = { el, body, close, bookmark, previousFocus, setSaved: text => { el.querySelector('[data-saved]').textContent = text; } };
   current = shell;
   canvas.setEditorSource(card.id);
   const context = editorContext(canvas, card, el);
