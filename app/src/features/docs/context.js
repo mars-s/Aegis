@@ -52,7 +52,7 @@ export function editorContext(canvas, source, editor) {
   const nearby = document.createElement('div'); nearby.className = 'editor-context-neighbours'; nearby.setAttribute('aria-label', 'Open a neighbouring editor');
   layer.append(sourceHeader, evidence, nearby);
   const candidates = neighbours(canvas.board, source);
-  const references = candidates.filter(entry => referenceCard(entry.card)).slice(0, 2);
+  const references = candidates.filter(entry => referenceCard(entry.card));
   const initial = references.find(entry => entry.card.id === pinned.get(pinKey)) ?? references[0];
   let chosen = initial?.card.id;
   const switchEditor = id => {
@@ -73,7 +73,7 @@ export function editorContext(canvas, source, editor) {
   } else evidence.hidden = true;
   function dismiss() { dismissed = true; picker?.dropdown.close(); layer.hidden = true; }
   function refreshContent() {
-    if (canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) { dismiss(); return; }
+    if (canvas.board.id !== boardId || canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) { dismiss(); return; }
     const card = canvas.board.cards.find(c => c.id === source.id);
     sourceHeader.querySelector('strong').textContent = cardSummary(card).title;
     const selected = canvas.board.cards.find(c => c.id === chosen);

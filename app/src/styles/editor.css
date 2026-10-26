@@ -54,7 +54,8 @@
 .editor-context-open { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-context :is(button, input):focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
 .editor-context :is(button:hover, button:focus-visible) { background: var(--hover); color: var(--text); }
-#stage:has(.editor-context:not([hidden])) :is(#world > .card, #links, .semantic-summaries, .board-overview, .overview-back) { visibility: hidden; }
+#stage:has(.editor-context:not([hidden])) :is(#world > .card, #links, .semantic-summaries, .board-overview, .overview-back, .window-actions, .editing-outline) { visibility: hidden; }
+body:has(.editor-context:not([hidden])) #selectionBar { display: none !important; }
 body.motion-off .side-editor { transform: none; opacity: 0; transition: opacity 160ms linear; }
 body.motion-off .side-editor.is-open { opacity: 1; }
 body.motion-off .side-editor button { transition: none; transform: none; }

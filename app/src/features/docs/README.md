@@ -51,11 +51,15 @@ another shell fires that event on the previous one before replacing it.
 `close({ keyboard: true })` closes instantly. The shell provides Escape, Full
 width, the close button and body classes. The width action changes to Side panel when expanded and shows its Cmd+Shift+F or Ctrl+Shift+F shortcut with an accessible pressed state. It never traps focus. Optional
 `centreCardInLeft(card, ctx, keyboard)` delegates to the shell's shared context
-framing. Pointer and keyboard opens both frame the source with up to two linked
-or nearby windows in the space left by the measured editor and sidebar bounds.
-The overview summaries keep the source compact and the context readable, with
-24 px clearance. Width and viewport changes reframe that space. Camera motion
-can be interrupted and honours both motion preferences.
+framing. The remaining canvas has a 40px Editing header and one pinned reference,
+with 24px clearance from the measured editor and sidebar bounds. The keyboard
+switcher offers linked plots, sheets and datasets first, then nearby candidates.
+A plot uses a 320 by 180px live chart. A sheet or dataset uses a 280 by 160px table
+region with 12px labels. Row and Column choose its first cell. Board changes
+refresh the reference, including sheet-bound plots and replacement dataset assets.
+The chosen pin returns when the same editor reopens on that board in the session.
+Separate Open actions switch to a neighbouring editor. Width and viewport changes
+reframe the area. Camera motion can be interrupted and honours both motion preferences.
 Panning, clicking the canvas or adding and removing windows restores the ordinary
 canvas, so board selection and dragging content into the document remain available.
 

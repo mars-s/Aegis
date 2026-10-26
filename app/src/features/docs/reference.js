@@ -7,7 +7,7 @@ import { parseCsv } from '../../lib/board/dataset.js';
 export const referenceCard = card => card.kind === 'plot' || card.kind === 'sheet' || card.type === 'dataset';
 
 export function liveReference(root, canvas) {
-  let chart, key = '', version = 0, closed = false, loaded, asset;
+  let chart, key = '', version = 0, closed = false, dataset;
   const content = document.createElement('div'); root.append(content);
   const controls = document.createElement('div'); controls.className = 'editor-reference-region';
   const row = document.createElement('input'), column = document.createElement('input');
@@ -34,28 +34,25 @@ export function liveReference(root, canvas) {
     let columns, rows;
     if (card.kind === 'sheet') { columns = card.data.columns.map(c => c.label); rows = card.data.rows.map(r => r.cells); }
     else {
-      if (asset !== card.props.src) {
-        asset = card.props.src; loaded = null;
-        content.textContent = 'Loading reference…';
-        try {
-          const host = globalThis.aegisCtx.host;
-          const response = await fetch(host.assetUrl(asset));
+      if (dataset?.src !== card.props.src) {
+        const src = card.props.src;
+        key = ''; clear(); content.className = 'editor-reference-table'; content.textContent = 'Loading reference…';
+        const promise = fetch(globalThis.aegisCtx.host.assetUrl(src)).then(async response => {
           if (!response.ok) throw Error('Source unavailable');
-          const parsed = parseCsv(await response.text());
-          if (closed || request !== version) return;
-          loaded = parsed;
-        } catch {
-          if (!closed && request === version) { clear(); content.textContent = 'Could not load this reference. Open the dataset to try again.'; }
-          asset = null; return;
-        }
+          return parseCsv(await response.text());
+        });
+        dataset = { src, promise };
       }
-      if (!loaded) return;
-      ({ columns, rows } = loaded);
+      try { ({ columns, rows } = await dataset.promise); }
+      catch {
+        if (!closed && request === version) { key = ''; clear(); content.textContent = 'Could not load this reference. Open the dataset to try again.'; dataset = null; }
+        return;
+      }
     }
     if (closed || request !== version) return;
     content.className = 'editor-reference-table'; root.append(controls);
-    const start = Math.max(0, Math.min(rows.length - 1, (Number(row.value) || 1) - 1));
-    const first = Math.max(0, Math.min(columns.length - 1, (Number(column.value) || 1) - 1));
+    const start = Math.max(0, Math.min(rows.length - 1, Math.trunc(Number(row.value) || 1) - 1));
+    const first = Math.max(0, Math.min(columns.length - 1, Math.trunc(Number(column.value) || 1) - 1));
     row.value = String(start + 1); row.max = String(Math.max(1, rows.length));
     column.value = String(first + 1); column.max = String(columns.length);
     const next = JSON.stringify([columns, rows.slice(start, start + 4), start, first]);
