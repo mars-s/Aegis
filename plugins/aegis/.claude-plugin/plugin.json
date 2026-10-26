@@ -1,0 +1,7 @@
+{
+  "name": "aegis",
+  "version": "0.1.0",
+  "description": "Read sources and work together on local Aegis boards, cards, documents, slides and drawings.",
+  "license": "MIT",
+  "author": { "name": "Aegis" }
+}

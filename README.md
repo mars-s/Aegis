@@ -26,6 +26,17 @@ The UI checks start their own agent host on a temporary data folder and a Vite s
 
 The window loads `~/Library/Application Support/Aegis/ui/current` when one is installed, otherwise the UI bundled in the app. `POST /ui-update` on the host type-checks and builds `app/`, checks the build, then swaps it in beside the old one (three previous versions are kept). `POST /ui-update/rollback` puts the last one back. `AEGIS_SAFE=1` always loads the bundled UI.
 
+### Use your own Codex or Claude session
+
+Open **Settings > Integrations** to copy a Codex command or TOML configuration,
+a Claude Code command, a local Claude
+plugin launch command, or a standard MCP configuration for Claude Desktop and
+other clients. Keep Aegis open. The session can read imported PDFs and slides,
+view source images, draw on the board, make cards and write documents you can
+edit in Aegis. Changes appear live in both directions.
+
+See [Local MCP for Codex and Claude](docs/local-mcp.md) for tools, setup and limits.
+
 ## Layout
 
 | Path | What |

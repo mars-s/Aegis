@@ -409,14 +409,18 @@ async function agentBoardEvent(ev) {
   clearTimeout(libraryRefreshTimer); libraryRefreshTimer = setTimeout(() => library.refresh(), 200);
   // Round 2 agents: undo clears stale lines; all other changes use the one blue.
   if (ev.author.undoRequest) { canvas.clearAgentLine(); editing.history.flush(); }
-  else if (ev.touched?.length) { const who = agentState.get(ev.author.conversationId); canvas.ring(ev.touched, 'var(--data)', 4000, `${who ? agentUi.nameOf(who) : 'Agent'}: ${who?.title || who?.brief?.split('\n')[0]?.replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId), lineStyleOf(ev.author.conversationId)); }
+  else if (ev.touched?.length) {
+    const who = agentState.get(ev.author.conversationId);
+    const name = ev.author.kind === 'mcp' ? ev.author.name : who ? agentUi.nameOf(who) : 'Agent';
+    canvas.ring(ev.touched, 'var(--data)', 4000, `${name}: ${who?.title || who?.brief?.split('\n')[0]?.replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 60) || 'changed the board'}`, agentUi.origin(ev.author.conversationId), lineStyleOf(ev.author.conversationId));
+  }
 }
 // end item 10
 function listen() {
   const es = host.events();
   es.onmessage = async m => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'board' && ev.boardId === canvas.board?.id && ev.author?.kind === 'agent') {
+    if (ev.type === 'board' && ev.boardId === canvas.board?.id && ['agent', 'mcp'].includes(ev.author?.kind)) {
       // item 10: serialise board revisions without blocking streamed agent status messages.
       boardEvents = boardEvents.then(() => agentBoardEvent(ev)).catch(e => toast(`Could not update the board: ${e.message}`));
       // end item 10
@@ -550,7 +554,7 @@ await loadModels();
 listen();
 const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
 const onboarding = createOnboarding({ mobile, panels, openComposer, closeComposer });
-const settings = mountSettings({ canvas, replayTour: () => onboarding.welcome() });
+const settings = mountSettings({ canvas, host, toast, replayTour: () => onboarding.welcome() });
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.

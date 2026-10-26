@@ -45,6 +45,11 @@
     ],
     "resources": {
       "../agent/server.mjs": "agent/server.mjs",
+      "../agent/mcp.mjs": "agent/mcp.mjs",
+      "../agent/mcp-config.mjs": "agent/mcp-config.mjs",
+      "../agent/mcp-content.mjs": "agent/mcp-content.mjs",
+      "../plugins/aegis": "plugins/aegis",
+      "../app/src/features/docs/content.js": "app/src/features/docs/content.js",
       "../app/src/objects/kinds/html-sandbox.js": "app/src/objects/kinds/html-sandbox.js",
       "../app/src/objects/kinds/html-theme.js": "app/src/objects/kinds/html-theme.js",
       "../agent/status.mjs": "agent/status.mjs",

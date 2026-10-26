@@ -41,6 +41,22 @@ test('copying cards preserves task state, headings, links and rich documents wit
   assert.deepEqual(source, original);
 });
 
+test('a Markdown body edit replaces stale rich text and keeps source attachments', () => {
+  const rich = { type: 'doc', content: [paragraph('Old editor text')] };
+  const created = applyBatch(emptyBoard('docs'), { commands: [{ op: 'create', type: 'doc', props: {
+    doc: rich, body: 'Old editor text', pages: [{ src: 'asset:page' }], import: { name: 'Source.pdf' },
+  }, ref: 'doc' }] });
+  const result = applyBatch(created.board, { commands: [{ op: 'update', id: created.created.doc, set: { props: { body: 'New **Markdown**' } } }] });
+  assert.equal(result.ok, true);
+  const card = result.board.cards[0];
+  assert.equal(card.props.doc, undefined);
+  assert.equal(card.props.docTitleMigrated, true);
+  assert.match(plainText({ type: 'doc', content: cardContent(card) }), /New \*\*Markdown\*\*/);
+  assert.deepEqual(card.props.pages, [{ src: 'asset:page' }]);
+  assert.equal(card.props.import.name, 'Source.pdf');
+  assert.deepEqual(created.board.cards[0].props.doc, rich);
+});
+
 test('copied links and Spotify cards keep preview metadata and explicit edits', () => {
   const source = { type: 'link', url: 'https://example.com/research', props: { preview: { title: 'Research title', description: 'The preview summary' } } };
   const content = cardContent(source);

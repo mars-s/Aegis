@@ -85,7 +85,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
   document.addEventListener('pointerdown', dismissMenu);
   const bubble = document.createElement('div'); bubble.className = 'docs-bubble'; bubble.setAttribute('role', 'toolbar'); bubble.setAttribute('aria-label', 'Selection formatting');
   const $ = selector => panel.querySelector(selector);
-  let timer, version = 0, dirty = false, saving = false, closed = false, lastDoc, pendingSave = Promise.resolve();
+  let timer, version = 0, dirty = false, saving = false, closed = false, lastDoc, lastBody = card.props?.body, pendingSave = Promise.resolve();
   let minimumRev = ctx.canvas.board.rev;
   let editor;
   const setStatus = side.setSaved;
@@ -100,6 +100,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     const cmd = documentUpdate(card.id, doc); cmd.set.text = name;
     const snapshotJSON = JSON.stringify(doc);
     lastDoc = snapshotJSON;
+    lastBody = cmd.set.props.body;
     // Use the captured board id if the library changed boards before this save ran.
     pendingSave = pendingSave.catch(() => {}).then(async () => {
       if (ctx.canvas.board.id === boardId) { ctx.apply([cmd]); minimumRev = Math.max(minimumRev, ctx.canvas.board.rev); }
@@ -365,10 +366,10 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     const latest = ctx.canvas.board.cards.find(c => c.id === card.id);
     if (ctx.canvas.board.rev < minimumRev) return;
     if (!latest) { dirty = false; close(); return; }
-    if (!dirty && !saving && (JSON.stringify(latest.props?.doc) !== lastDoc || title.value !== latest.text)) {
+    if (!dirty && !saving && (JSON.stringify(latest.props?.doc) !== lastDoc || latest.props?.body !== lastBody || title.value !== latest.text)) {
       const content = loadContent(latest);
       editor.commands.setContent(content, { emitUpdate: false });
-      lastDoc = JSON.stringify(latest.props?.doc); title.value = latest.text;
+      lastDoc = JSON.stringify(latest.props?.doc); lastBody = latest.props?.body; title.value = latest.text;
       if (content !== latest.props?.doc && !latest.props?.docTitleMigrated) schedule();
       paint();
     }

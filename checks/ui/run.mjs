@@ -18,6 +18,8 @@ all.push('agent-drafts');
 all.push('ask-selection');
 // Office tools in the sheet and slide editors.
 all.push('office');
+// External MCP sessions share imported sources and editable documents with the production UI.
+all.push('mcp');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {
