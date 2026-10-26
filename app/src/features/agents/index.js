@@ -12,9 +12,11 @@ import { cardRect, freeAgentRect, intersects, WINDOW_WIDTH, COLLAPSED_HEIGHT } f
 import { displayRotation } from '../settings/preferences.js';
 // Round 3 navigation: first-use timing belongs to onboarding.
 import { createOrbHint } from '../onboarding/orb-hint.js';
+import { zoomTier } from '../overview/zoom.js';
 
 const STAR = '<span class="orb-mark" aria-hidden="true"><span class="orb-colours"></span><span class="orb-light"></span></span>';
 const shortTitle = a => (a.title || a.brief?.split('\n')[0] || 'Board assistant').replace(/^FAKE(?:TOOLS)?[\s\S]*/, 'Board assistant').slice(0, 42);
+const SUMMARY_HEIGHT = 112;
 
 function renderTurns(el, agent) {
   const turns = [...(agent?.turns ?? [])];
@@ -59,7 +61,8 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   // Round 3 navigation: keep this hookup separate from history and placement.
   const { discover, dismiss: dismissHint } = createOrbHint({ island, host });
   // Round 3 agents: camera framing reads cached geometry only when asked to Fit.
-  canvas.setAgentBounds(() => [...windows.values()].filter(w => !w.el.hidden && w.agent.boardId === canvas.board?.id).map(w => ({ x: w.x, y: w.y, w: w.el.offsetWidth / canvas.view.z, h: (w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight) / canvas.view.z })));
+  const summarised = () => zoomTier(canvas.view.z, stage.dataset.zoomTier) !== 'detail';
+  canvas.setAgentBounds(() => [...windows.values()].filter(w => !w.el.hidden && w.agent.boardId === canvas.board?.id).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH / canvas.view.z, h: (summarised() ? SUMMARY_HEIGHT : w.collapsed ? COLLAPSED_HEIGHT : w.screenHeight || COLLAPSED_HEIGHT) / canvas.view.z })));
   const current = () => newAgent ? null : all.find(a => a.id === selectedId) ?? all.find(a => !a.parent);
   const nameOf = a => a.title || `Agent ${all.filter(n => n.boardId === a.boardId).sort((a, b) => a.created - b.created || a.id.localeCompare(b.id)).findIndex(n => n.id === a.id) + 1}`;
   const morph = createIslandMorph(island);
@@ -212,9 +215,9 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const affected = cards.filter(c => w.touched?.has(c.id));
     const c = affected[0], at = canvas.centre();
     const anchor = anchorOverride ?? (c ? { x: c.x - WINDOW_WIDTH - 24, y: c.y } : { x: at.x - WINDOW_WIDTH / 2, y: at.y - 180 });
-    const z = canvas.view.z, width = (w.collapsed && z < .65 ? 44 : WINDOW_WIDTH) / z;
-    const height = (w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight) / z;
-    const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: (n.collapsed && z < .65 ? 44 : WINDOW_WIDTH) / z, h: (n.collapsed ? COLLAPSED_HEIGHT : n.el.offsetHeight) / z }));
+    const z = canvas.view.z, width = WINDOW_WIDTH / z;
+    const height = (summarised() ? SUMMARY_HEIGHT : w.collapsed ? COLLAPSED_HEIGHT : w.screenHeight || COLLAPSED_HEIGHT) / z;
+    const neighbours = [...windows.values()].filter(n => n !== w && !n.closed && n.agent.boardId === w.agent.boardId).map(n => ({ x: n.x, y: n.y, w: WINDOW_WIDTH / z, h: (summarised() ? SUMMARY_HEIGHT : n.collapsed ? COLLAPSED_HEIGHT : n.screenHeight || COLLAPSED_HEIGHT) / z }));
     const occupied = [...cardSpace, ...movingSpace, ...neighbours];
     // Once placed, a free window stays spatial even if a later camera move leaves it outside.
     const keep = w.placed && preferred && !occupied.some(c => intersects({ ...preferred, w: width, h: height }, c));
@@ -243,15 +246,19 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
   });
   function paint() {
     drafts.paint();
-    if (!windows.size) return;
-    const width = stage.clientWidth, height = stage.clientHeight, offscreen = [];
+    if (!windows.size) { stage.dispatchEvent(new CustomEvent('agentpaint', { detail: [] })); return; }
+    const { width, height } = canvas.viewportSize, offscreen = [], rectangles = [];
     for (const w of windows.values()) {
       const p = canvas.worldToScreen(w.x, w.y), z = canvas.view.z;
-      const badge = w.collapsed && z < .65;
-      w.el.classList.toggle('agent-badge', badge);
+      const summary = summarised();
+      w.el.classList.toggle('agent-semantic', summary);
+      w.summary.inert = !summary; w.summary.setAttribute('aria-hidden', String(!summary));
+      w.el.querySelector('.agent-window-strip').inert = summary;
+      w.el.querySelector('.agent-window-body').inert = summary;
       w.el.style.transform = `translate(${p.x}px, ${p.y}px)`;
       // Round 3 agents: only open spatial windows get a constant-size edge target.
-      const h = w.collapsed ? COLLAPSED_HEIGHT : w.el.offsetHeight, screenWidth = badge ? 44 : WINDOW_WIDTH;
+      const h = summary ? SUMMARY_HEIGHT : w.collapsed ? COLLAPSED_HEIGHT : w.screenHeight || COLLAPSED_HEIGHT, screenWidth = WINDOW_WIDTH;
+      if (!w.el.hidden) rectangles.push({ left: p.x, right: p.x + screenWidth, top: p.y, bottom: p.y + h });
       w.edge.hidden = w.el.hidden || (p.x + screenWidth > 0 && p.x < width && p.y + h > 0 && p.y < height);
       if (!w.edge.hidden) {
         const dx = p.x + screenWidth / 2 - width / 2, dy = p.y + h / 2 - height / 2;
@@ -259,6 +266,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       }
     }
     paintEdges(offscreen, width, height);
+    stage.dispatchEvent(new CustomEvent('agentpaint', { detail: rectangles }));
   }
 
   stage.addEventListener('canvaspaint', paint);
@@ -272,11 +280,17 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     w.edge.onpointerdown = e => e.stopPropagation();
     w.edge.onclick = e => recover(w, e);
     w.el.innerHTML = `<header class="agent-window-strip"><button type="button" class="agent-window-toggle" aria-expanded="false">${STAR}<span class="agent-window-title"></span><span class="agent-window-status" role="status"></span></button><button type="button" class="text-btn agent-close" aria-label="Close agent window">×</button></header><div class="agent-window-body"><ol class="agent-history" aria-label="Request changes"></ol><div class="agent-window-answer" role="log" aria-label="Agent conversation" tabindex="0"></div><form class="agent-follow"><input aria-label="Follow up with agent" placeholder="Follow up…"><button class="text-btn" type="submit">Send</button><button type="button" class="text-btn agent-stop">Stop</button></form></div>`;
+    w.summary = document.createElement('button'); w.summary.type = 'button'; w.summary.className = 'agent-zoom-summary';
+    w.summary.innerHTML = `${STAR}<span class="semantic-copy"><span class="semantic-kind">Agent</span><strong></strong><span class="semantic-fact agent-zoom-status"></span><span class="semantic-fact agent-zoom-turns"></span></span>`;
+    w.summary.onclick = event => {
+      if (w.dragged) return;
+      canvas.glideTo({ x: stage.clientWidth / 2 - w.x - 170, y: stage.clientHeight / 2 - w.y - 120, z: 1 }, event.detail === 0 ? 0 : 180);
+    };
+    w.el.append(w.summary);
     const toggle = w.el.querySelector('.agent-window-toggle'), body = w.el.querySelector('.agent-window-body');
     body.id = `agent-body-${a.id}`; toggle.setAttribute('aria-controls', body.id);
     function collapse(value) {
       w.collapsed = value; body.hidden = value; toggle.setAttribute('aria-expanded', String(!value));
-      w.el.classList.toggle('agent-badge', value && canvas.view.z < .65);
       w.el.classList.toggle('collapsed', value); place(w);
       if (!value) {
         const area = canvas.viewportRect(), z = canvas.view.z;
@@ -305,22 +319,23 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       try { await host.post(`/agents/${a.id}/message`, { content }); input.value = ''; } catch (err) { toast(err.message); }
     };
     const strip = w.el.querySelector('header'); let drag = null;
-    strip.addEventListener('pointerdown', e => {
+    const startDrag = e => {
       if (e.target.closest('.agent-close') || e.button !== 0) return;
       w.dragged = false; drag = { x: e.clientX, y: e.clientY, ox: w.x, oy: w.y };
-      (e.target.closest('.agent-window-toggle') ?? strip).setPointerCapture(e.pointerId);
-    });
-    strip.addEventListener('pointermove', e => {
+      (e.target.closest('.agent-window-toggle') ?? e.currentTarget).setPointerCapture(e.pointerId);
+    };
+    const moveDrag = e => {
       if (!drag || Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 4) return;
       w.dragged = true; w.moved = true; canvas.clearAgentLine();
       w.x = drag.ox + (e.clientX - drag.x) / canvas.view.z; w.y = drag.oy + (e.clientY - drag.y) / canvas.view.z; paint();
-    });
+    };
     const end = () => { if (drag) { drag = null; place(w, { x: w.x, y: w.y }, { x: w.x, y: w.y }); paint(); save(w); setTimeout(() => { w.dragged = false; }, 0); } };
-    strip.addEventListener('pointerup', end); strip.addEventListener('pointercancel', end);
+    for (const target of [strip, w.summary]) { target.addEventListener('pointerdown', startDrag); target.addEventListener('pointermove', moveDrag); target.addEventListener('pointerup', end); target.addEventListener('pointercancel', end); }
     overlay.append(w.el); edges.append(w.edge); windows.set(a.id, w); collapse(w.collapsed);
     orbVisibility.observe(w.el);
     // History disclosure changes geometry without an agent update or a camera paint.
     const size = new ResizeObserver(() => {
+      w.screenHeight = w.el.offsetHeight;
       if (!w.el.hidden && w.height !== w.el.offsetHeight / canvas.view.z) { place(w); paint(); }
     }); size.observe(w.el);
     return w;
@@ -398,6 +413,10 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
       w.el.querySelector('.agent-window-toggle').setAttribute('aria-label', `${nameOf(a)}: ${shortTitle(a)}`);
       w.el.querySelector('.agent-window-status').textContent = a.error || a.status || 'Considering your request and the board';
       w.el.querySelector('.agent-window-status').title = a.error || a.status || '';
+      w.summary.querySelector('strong').textContent = `${nameOf(a)} · ${shortTitle(a)}`;
+      w.summary.querySelector('.agent-zoom-status').textContent = a.error || a.status || 'Ready';
+      w.summary.querySelector('.agent-zoom-turns').textContent = `${a.turns?.length || 0} messages`;
+      w.summary.setAttribute('aria-label', `Frame ${nameOf(a)}: ${shortTitle(a)}`);
       renderTurns(w.el.querySelector('.agent-window-answer'), a);
       drafts.sync(a);
       renderHistory(w.el.querySelector('.agent-history'), a, undo);

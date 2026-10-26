@@ -34,11 +34,13 @@ all.push('canvas-chrome');
 all.push('data-trust');
 // Empty board actions, onboarding, Library home and far-zoom clusters.
 all.push('first-minute');
+// Readable summaries and shared zoom tiers in Chromium and WebKit.
+all.push('semantic-zoom');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_VITE_CACHE: mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
+  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
   const ok = r.status === 0;
   console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }

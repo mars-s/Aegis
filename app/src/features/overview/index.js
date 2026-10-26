@@ -1,37 +1,102 @@
 import { boardClusters } from './clusters.js';
+import { cardSummary } from '../../lib/board/summary.js';
+import { effectiveFlag } from '../editing/model.js';
+import { summarisedCard } from './zoom.js';
+import { summaryContent } from './summary.js';
 import './overview.css';
 
 export function mountOverview(canvas) {
   const stage = document.getElementById('stage');
-  const layer = document.createElement('div'); layer.className = 'board-overview'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Board clusters'); layer.hidden = true; stage.append(layer);
+  const layer = document.createElement('div'); layer.className = 'board-overview'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Board clusters'); stage.append(layer);
+  const summaries = document.createElement('div'); summaries.className = 'semantic-summaries'; summaries.setAttribute('role', 'group'); summaries.setAttribute('aria-label', 'Window summaries'); stage.append(summaries);
   const back = document.createElement('button'); back.type = 'button'; back.className = 'overview-back'; back.textContent = 'Back to where you were'; back.hidden = true; stage.append(back);
-  let boardId, clusters = [], working, bookmark, wasFar = false;
-  const buttons = new Map();
+  let boardId, clusters = [], cards = [], agents = [], working, bookmark, wasFar = false, revision = 0;
+  const buttons = new Map(), windows = new Map(), content = new Map();
+  function renderMembers(button) {
+    const list = button.querySelector('.overview-members'), ids = button.memberIds;
+    // Two spare rows on either side keep scrolling smooth without mounting thousands of entries.
+    const start = Math.min(Math.max(0, ids.length - 1), Math.max(0, Math.floor((button.memberScrollTop || 0) / 112) - 2)), end = Math.min(ids.length, start + 8);
+    if (list.dataset.start === String(start) && list.dataset.revision === String(revision)) return;
+    const spacer = height => { const node = document.createElement('span'); node.className = 'overview-spacer'; node.style.height = `${height}px`; return node; };
+    list.replaceChildren(spacer(start * 112), ...ids.slice(start, end).map(id => summaryContent(content.get(id))), spacer((ids.length - end) * 112));
+    list.dataset.start = String(start); list.dataset.revision = String(revision);
+  }
   function reset() {
     if (boardId !== canvas.board.id) {
       boardId = canvas.board.id; working = null; bookmark = null; wasFar = false; back.hidden = true;
     }
-    clusters = boardClusters(canvas.board);
+    cards = canvas.board.cards.filter(c => summarisedCard(c) && !effectiveFlag(canvas.board, c, 'hidden'));
+    content.clear();
+    for (const card of cards) content.set(card.id, cardSummary(card));
+    clusters = boardClusters(canvas.board); revision++;
     for (const [id, button] of buttons) if (!clusters.some(c => c.id === id)) { button.remove(); buttons.delete(id); }
-    paint();
+    // All visual writes happen in the canvas's existing animation frame, including board changes.
+    canvas.redraw();
   }
   function paint() {
-    const view = canvas.view, far = view.z < .2;
+    const view = canvas.view, tier = stage.dataset.zoomTier, far = tier === 'cluster';
+    // Read viewport geometry once, before changing any summary or cluster styles.
+    const { width, height } = canvas.viewportSize;
     if (!far && !wasFar && !bookmark) working = { ...view };
     if (far && !wasFar) bookmark = working ? { ...working } : null;
-    wasFar = far; layer.hidden = !far || !clusters.length;
+    wasFar = far;
+    if (layer.inert !== !far) { layer.inert = !far; layer.setAttribute('aria-hidden', String(!far)); }
+    if (summaries.inert !== (tier !== 'summary')) { summaries.inert = tier !== 'summary'; summaries.setAttribute('aria-hidden', String(tier !== 'summary')); }
     back.hidden = !bookmark;
+    // Keep outgoing nodes for the crossfade. Build and place only visible summaries.
+    if (tier === 'summary') {
+      const keep = new Set(), occupied = [...agents];
+      for (const card of cards) {
+        const x = card.x * view.z + view.x, y = card.y * view.z + view.y;
+        const w = Math.max(180, Math.min(360, card.w * .5)), h = Math.max(112, card.h * view.z);
+        if (x + w < 0 || y + h < 0 || x > width || y > height) continue;
+        // Fixed screen-space metrics avoid measuring text or flushing layout during a pinch.
+        let top = y;
+        for (const rect of occupied) if (x < rect.right + 8 && x + w > rect.left - 8 && top < rect.bottom + 8 && top + 112 > rect.top - 8) top = rect.bottom + 8;
+        occupied.push({ left: x, right: x + w, top, bottom: top + 112 });
+        keep.add(card.id);
+        let button = windows.get(card.id);
+        if (!button) {
+          button = document.createElement('button'); button.type = 'button'; button.className = 'semantic-window'; button.dataset.cardId = card.id;
+          button.onclick = event => { canvas.frameIds([card.id], 1, false, event.detail === 0); stage.focus({ preventScroll: true }); };
+          summaries.append(button); windows.set(card.id, button);
+        }
+        if (button.revision !== revision) {
+          button.replaceChildren(summaryContent(content.get(card.id))); button.revision = revision;
+          button.setAttribute('aria-label', `Frame ${content.get(card.id).title}`);
+          button.title = [content.get(card.id).title, ...content.get(card.id).facts].join('\n');
+        }
+        button.style.transform = `translate3d(${x}px, ${top}px, 0)`;
+        const size = `${w}px`;
+        if (button.style.width !== size) button.style.width = size;
+      }
+      for (const [id, button] of windows) if (!keep.has(id)) { button.remove(); windows.delete(id); }
+    }
     if (!far) return;
-    const occupied = [], width = stage.clientWidth, height = stage.clientHeight;
-    // Agent headers remain interactive even when their spatial windows are tiny.
-    const agents = [...document.querySelectorAll('.agent-window:not([hidden])')].map(el => el.getBoundingClientRect()).filter(r => r.width && r.height);
+    const occupied = [];
     for (const cluster of clusters) {
       const x = cluster.x * view.z + view.x, y = cluster.y * view.z + view.y;
-      const w = (cluster.right - cluster.x) * view.z, h = (cluster.bottom - cluster.y) * view.z;
+      const w = (cluster.right - cluster.x) * view.z;
       let button = buttons.get(cluster.id);
       if (!button) {
         button = document.createElement('button'); button.type = 'button'; button.className = 'overview-cluster'; button.dataset.cluster = cluster.id;
-        button.innerHTML = '<strong></strong><span></span>';
+        button.innerHTML = '<span class="overview-heading"><strong></strong><span></span></span><span class="overview-members"></span>';
+        button.querySelector('.overview-members').addEventListener('wheel', event => {
+          if (!event.ctrlKey && !event.metaKey) event.stopPropagation();
+        }, { passive: true });
+        let scrollFrame = 0;
+        button.querySelector('.overview-members').addEventListener('scroll', event => {
+          button.memberScrollTop = event.currentTarget.scrollTop;
+          if (!scrollFrame) scrollFrame = requestAnimationFrame(() => { scrollFrame = 0; renderMembers(button); });
+        }, { passive: true });
+        button.addEventListener('keydown', event => {
+          if (!['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault(); event.stopPropagation();
+          const list = button.querySelector('.overview-members');
+          if (event.key === 'Home') list.scrollTop = 0;
+          else if (event.key === 'End') list.scrollTop = button.memberIds.length * 112;
+          else list.scrollTop += (['ArrowUp', 'PageUp'].includes(event.key) ? -1 : 1) * (event.key.startsWith('Page') ? 224 : 112);
+        });
         button.onclick = event => {
           const current = clusters.find(c => c.id === button.dataset.cluster); if (!current) return;
           bookmark ??= { ...canvas.view }; back.hidden = false;
@@ -40,29 +105,37 @@ export function mountOverview(canvas) {
         };
         layer.append(button); buttons.set(cluster.id, button);
       }
+      if (button.revision !== revision) {
+        button.querySelector('.overview-heading strong').textContent = cluster.name;
+        button.querySelector('.overview-heading > span').textContent = `${cluster.count} ${cluster.count === 1 ? 'window' : 'windows'}`;
+        button.setAttribute('aria-label', `Frame ${cluster.name}, ${cluster.count} ${cluster.count === 1 ? 'window' : 'windows'}`);
+        button.memberIds = cluster.ids.filter(id => content.has(id));
+        button.querySelector('.overview-members').dataset.count = String(button.memberIds.length);
+        renderMembers(button);
+        button.revision = revision;
+      }
+      const h = (cluster.bottom - cluster.y) * view.z;
       button.hidden = x + w < 0 || y + h < 0 || x > width || y > height;
       if (button.hidden) continue;
-      button.querySelector('strong').textContent = cluster.name;
-      button.querySelector('span').textContent = `${cluster.count} ${cluster.count === 1 ? 'window' : 'windows'}`;
-      button.setAttribute('aria-label', `Frame ${cluster.name}, ${cluster.count} ${cluster.count === 1 ? 'window' : 'windows'}`);
-      const bw = Math.max(220, Math.min(320, w)), bh = Math.max(60, h + 38);
+      const bw = Math.min(width - 32, 320);
+      const frameHeight = Math.min(280, 64 + cluster.count * 92, height - 180);
       const left = Math.max(16, Math.min(width - bw - 16, x - Math.max(0, bw - w) / 2));
-      const frameHeight = Math.min(220, bh), preferred = Math.max(64, Math.min(height - frameHeight - 100, y - 38));
+      const preferred = Math.max(64, Math.min(height - frameHeight - 100, y - 38));
       const blocked = top => [...occupied, ...agents].some(r => left < r.right + 12 && left + bw > r.left - 12 && top < r.bottom + 12 && top + frameHeight > r.top - 12);
       let top = [0, -1, 1, -2, 2, -3, 3].map(i => preferred + i * (frameHeight + 16)).find(top => top >= 64 && top + frameHeight <= height - 100 && !blocked(top));
       if (top === undefined) { top = preferred; while (blocked(top)) top += frameHeight + 16; }
       // Crowded groups remain keyboard reachable in a scrolling stack.
-      Object.assign(button.style, { left: `${left}px`, top: `${top}px`, width: `${bw}px`, minHeight: `${Math.min(220, bh)}px` });
-      occupied.push({ left, right: left + bw, top, bottom: top + Math.min(220, bh) });
+      Object.assign(button.style, { transform: `translate3d(${left}px, ${top}px, 0)`, width: `${bw}px`, height: `${frameHeight}px` });
+      occupied.push({ left, right: left + bw, top, bottom: top + frameHeight });
     }
   }
   back.onclick = () => {
     if (!bookmark) return;
-    const target = bookmark; bookmark = null; working = target; wasFar = target.z < .2;
+    const target = bookmark; bookmark = null; working = target; wasFar = false;
     canvas.glideTo(target, 0); back.hidden = true; stage.focus({ preventScroll: true });
   };
-  layer.addEventListener('pointerdown', event => event.stopPropagation());
-  back.addEventListener('pointerdown', event => event.stopPropagation());
+  for (const overlay of [layer, summaries, back]) overlay.addEventListener('pointerdown', event => event.stopPropagation());
   stage.addEventListener('canvaspaint', paint); stage.addEventListener('boardchange', reset);
+  stage.addEventListener('agentpaint', event => { agents = event.detail; });
   reset();
 }

@@ -1,11 +1,42 @@
-.board-overview { position: absolute; inset: 0; z-index: 100004; pointer-events: none; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-.overview-cluster { position: absolute; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: transparent; color: var(--text); pointer-events: auto; text-align: left; }
-.overview-cluster strong { background: var(--canvas);  font-size: 14px; font-weight: 500; line-height: 20px; max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
-.overview-cluster span { background: var(--canvas);  flex: none; color: var(--muted); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }
-.overview-cluster:hover { border-color: var(--muted); background: var(--card); }
-.overview-cluster:active { background: var(--press); }
+.board-overview, .semantic-summaries { position: absolute; inset: 0; z-index: 100004; pointer-events: none; opacity: 0; transition: opacity 180ms var(--ease-out); }
+.board-overview, .semantic-summaries { overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+#stage[data-zoom-tier="cluster"] .board-overview, #stage[data-zoom-tier="summary"] .semantic-summaries { opacity: 1; }
+.card.semantic-detail { transition: opacity 180ms var(--ease-out); }
+#stage:is([data-zoom-tier="summary"], [data-zoom-tier="cluster"]) .card.semantic-detail { opacity: 0; pointer-events: none; }
+.semantic-window { position: absolute; left: 0; top: 0; height: 112px; overflow: hidden; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; pointer-events: none; }
+#stage[data-zoom-tier="summary"] .semantic-window, #stage[data-zoom-tier="cluster"] .overview-cluster { pointer-events: auto; }
+.semantic-content { display: flex; gap: 10px; padding: 12px; text-align: left; color: var(--text); transform: translateY(4px); transition: transform 180ms var(--ease-out); }
+#stage[data-zoom-tier="summary"] .semantic-window .semantic-content, #stage[data-zoom-tier="cluster"] .overview-members .semantic-content { transform: translateY(0); }
+.semantic-content svg { flex: none; width: 16px; height: 20px; fill: none; stroke: var(--data); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.semantic-copy { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; font: 400 12px/18px var(--font); }
+.semantic-kind { color: var(--muted); font-size: 12px; line-height: 18px; }
+.semantic-content strong { font-size: 14px; line-height: 20px; font-weight: 500; }
+.semantic-fact { color: var(--ink-2); font-size: 12px; line-height: 18px; }
+.semantic-content :is(strong, .semantic-fact) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.semantic-window:is(:hover, :focus-visible), .overview-cluster:is(:hover, :focus-visible) { border-color: var(--data); }
+.semantic-window:focus-visible, .overview-cluster:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+.overview-cluster { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); pointer-events: none; text-align: left; }
+.overview-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; width: 100%; }
+.overview-heading strong { font-size: 14px; font-weight: 500; line-height: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.overview-heading > span { flex: none; color: var(--muted); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.overview-members { display: block; flex: 1; min-height: 0; width: 100%; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.overview-members .semantic-content { box-sizing: border-box; height: 112px; padding: 10px 0; border-top: 1px solid var(--line); }
+.overview-spacer { display: block; }
 .overview-back { position: absolute; top: 66px; right: 24px; z-index: 100007; min-height: 44px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--text); font-size: 12px; }
 .overview-back:hover { background: var(--raised); }
 .overview-back:active { background: var(--press); }
-@media (max-width: 700px) { .overview-back { top: 52px; right: 12px; } }
 @media (max-width: 700px) { .overview-back { top: auto; bottom: 140px; right: 12px; } }
+@media (prefers-reduced-motion: reduce) { .board-overview, .semantic-summaries, .card.semantic-detail, .semantic-content { transition: none; } .semantic-content { transform: none; } }
+body.motion-off :is(.board-overview, .semantic-summaries, .card.semantic-detail, .semantic-content) { transition: none; }
+body.motion-off .semantic-content { transform: none; }
+
+.agent-window > :is(.agent-window-strip, .agent-window-body), .agent-zoom-summary { transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
+.agent-zoom-summary { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 10px; width: 340px; height: 112px; padding: 12px; border: 1px solid var(--line-strong); border-radius: var(--r-win); background: var(--card); color: var(--text); text-align: left; opacity: 0; transform: translateY(4px); pointer-events: none; }
+.agent-zoom-summary .orb-mark { flex: none; width: 16px; height: 20px; }
+.agent-zoom-summary strong { font-size: 14px; line-height: 20px; font-weight: 500; }
+.agent-zoom-summary :is(strong, .semantic-fact) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-semantic { z-index: 100006; overflow: visible; background: transparent; box-shadow: none; pointer-events: none; }
+.agent-semantic > :is(.agent-window-strip, .agent-window-body) { opacity: 0; pointer-events: none; transform: translateY(4px); }
+.agent-semantic .agent-zoom-summary { opacity: 1; transform: translateY(0); pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { .agent-window > :is(.agent-window-strip, .agent-window-body), .agent-zoom-summary { transition: none; transform: none; } }
+body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary) { transition: none; transform: none; }
