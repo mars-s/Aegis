@@ -12,6 +12,6 @@ export const summarisedCard = card => !['title', 'frame', 'coll', 'template-grou
 export function cardTier(card, z, previous = 'detail', tier = zoomTier(z, previous)) {
   if (tier === 'cluster') return 'cluster';
   const type = card.type === 'object' ? card.kind : card.type;
-  const minimum = { plot: 1, sheet: 1, table: 1, dataset: 1 }[type];
+  const minimum = { plot: 1, sheet: 1, table: 1, dataset: 12 / 11 }[type];
   return minimum ? z < minimum ? 'summary' : 'detail' : tier;
 }

@@ -62,3 +62,7 @@ body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary
 .semantic-copy .semantic-deck { position: absolute; right: 0; bottom: 0; }
 .semantic-diagram { flex-direction: column; gap: 4px; }
 .semantic-diagram .semantic-graphic { width: 160px; height: 18px; stroke: var(--muted); }
+/* Reference summaries also use this content renderer, inside their existing 112px footprint. */
+.editor-context-window .semantic-content { padding-block: 6px; }
+.editor-context-window .semantic-copy { gap: 3px; }
+.card.kind-sheet .sheet :is(.note, .rating .of) { font-size: 12px; }

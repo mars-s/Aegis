@@ -13,7 +13,9 @@ export function spatialLayout(cards, view, tier, area, obstacles = [], previous 
     const projected = projectCard(card, view);
     const summary = !card.screenSize && summarisedCard(card) && cardTier(card, view.z, previous.get(card.id)?.summary ? 'summary' : 'detail', tier) === 'summary';
     if (!summary) { rects.set(card.id, projected); continue; }
-    const size = summarySize(card), anchor = { ...projected, ...size, rotation: 0, summary: true };
+    const size = summarySize(card);
+    size.w = Math.min(size.w, Math.max(220, area.w));
+    const anchor = { ...projected, ...size, summary: true };
     // Off-screen work stays off screen when panning, and is never mounted by the overview.
     if (projected.x + Math.max(projected.w, size.w) < area.x || projected.y + Math.max(projected.h, size.h) < area.y || projected.x > area.x + area.w || projected.y > area.y + area.h) { rects.set(card.id, anchor); continue; }
     const clampX = x => Math.max(area.x, Math.min(area.x + area.w - size.w, x));

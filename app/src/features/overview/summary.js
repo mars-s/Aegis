@@ -15,6 +15,7 @@ const paths = {
 
 export function summaryContent(summary) {
   const content = document.createElement('span'); content.className = 'semantic-content';
+  if (summary.disclosure) content.title = summary.disclosure;
   content.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[summary.kind] || 'M4 3h16v18H4zM8 8h8M8 12h8M8 16h5'}"/></svg><span class="semantic-copy"><span class="semantic-kind"></span><strong></strong></span>`;
   const copy = content.querySelector('.semantic-copy');
   copy.querySelector('.semantic-kind').textContent = summary.kind;

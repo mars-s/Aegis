@@ -63,6 +63,7 @@ try {
       assert.match(await page.locator('.semantic-summaries').textContent(), /Protect two quiet blocks/);
       assert.match(await page.locator('.semantic-summaries .semantic-plot').textContent(), /2 Fri.*Hours/);
       const neutral = await page.locator('.semantic-content > svg').evaluateAll(nodes => nodes.every(n => { const probe = document.createElement('span'); probe.style.color = 'var(--muted)'; n.parentElement.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(n).stroke === expected; })); assert.ok(neutral);
+      await page.locator('#toast').waitFor({ state: 'hidden' });
       await page.screenshot({ path: join(output, `${name}-${width}-${theme}-fit.png`) });
       const docId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'doc').id);
       await page.locator(`.semantic-window[data-card-id="${docId}"]`).press('Enter'); await settle();
@@ -76,10 +77,31 @@ try {
       const transitions = [];
       for (const z of [.69, .71, .77, .85, .99, 1, 1.2, .77]) {
         await page.evaluate(z => aegis.canvas.setView({ x: 200, y: 100, z }), z); await settle();
-        const measured = await page.evaluate(() => ['plot', 'sheet'].map(kind => { const card = aegis.canvas.board.cards.find(c => c.kind === kind), el = document.querySelector(`.card[data-id="${card.id}"]`); return { kind, summary: aegis.canvas.representations.get(card.id).summary, inert: el.inert, labels: [...el.querySelectorAll('.tick, .sheet thead th')].map(n => parseFloat(getComputedStyle(n).fontSize) * aegis.canvas.view.z) }; }));
+        const measured = await page.evaluate(() => ['plot', 'sheet'].map(kind => { const card = aegis.canvas.board.cards.find(c => c.kind === kind), el = document.querySelector(`.card[data-id="${card.id}"]`); return { kind, summary: aegis.canvas.representations.get(card.id).summary, inert: el.inert, labels: [...el.querySelectorAll('.tick, .sheet thead th, .sheet .note')].map(n => parseFloat(getComputedStyle(n).fontSize) * aegis.canvas.view.z) }; }));
         for (const r of measured) { assert.equal(r.summary, z < 1); assert.equal(r.inert, z < 1); if (!r.summary) assert.ok(r.labels.length && r.labels.every(px => px >= 12 - .01), JSON.stringify(r)); }
         transitions.push({ z, measured, link: await verifyLink() });
       }
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      const motion = await page.evaluate(async () => {
+        const stage = document.getElementById('stage'), frames = [];
+        const check = () => {
+          const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`);
+          if (!path) return;
+          const endpoints = [link.a, link.b].map((id, i) => {
+            const model = aegis.canvas.representations.get(id);
+            const el = document.querySelector(model.summary ? `.semantic-window[data-card-id="${id}"]` : `.card[data-id="${id}"]`);
+            if (!el) return Infinity;
+            const r = el.getBoundingClientRect(), p = path.getPointAtLength(i ? path.getTotalLength() : 0);
+            return Math.min(Math.abs(p.x - r.left), Math.abs(p.x - r.right), Math.abs(p.y - r.top), Math.abs(p.y - r.bottom));
+          });
+          frames.push({ z: aegis.canvas.view.z, endpoints });
+        };
+        stage.addEventListener('canvaspaint', check);
+        await new Promise(resolve => aegis.canvas.glideTo({ x: 200, y: 100, z: 1.2 }, 420, resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve)); stage.removeEventListener('canvaspaint', check); return frames;
+      });
+      assert.ok(motion.length >= 5); assert.ok(motion.every(f => f.endpoints.every(d => d < .3)), JSON.stringify(motion));
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       // A deliberate collision must move the summaries and their connected endpoints together.
       await page.evaluate(() => { const cards = aegis.canvas.board.cards; aegis.apply(cards.slice(0, 3).map(c => ({ op: 'update', id: c.id, set: { x: 40, y: 40 } }))); }); await page.waitForTimeout(150);
       await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await settle();
@@ -88,7 +110,7 @@ try {
       // Fit reserves the actual expanded island, including its current conversation height.
       await page.locator('#askPill').click(); await page.waitForTimeout(300); await page.evaluate(() => aegis.canvas.fit()); await settle();
       const island = await measure(); verifyLayout(island); await page.screenshot({ path: join(output, `${name}-${width}-${theme}-island.png`) });
-      assert.deepEqual(errors, []); results.push({ engine: name, width, height, theme, fit, link, previews, focus, transitions, collision, island });
+      assert.deepEqual(errors, []); results.push({ engine: name, width, height, theme, fit, link, previews, focus, transitions, motion, collision, island });
       console.log(`PASS ${name} ${width}x${height} ${theme}: Fit, gaps, measured island, representations, links, keyboard, type previews, minimum detail text`);
       await page.close(); page = null;
     }

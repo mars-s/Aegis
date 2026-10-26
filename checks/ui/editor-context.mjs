@@ -77,7 +77,7 @@ try {
         const rect = el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
         return { editor: rect(document.querySelector('.side-editor')), stage: rect(document.getElementById('stage')),
           blockedLeft: Math.max(0, ...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el => el.getBoundingClientRect().right)),
-          windows: [...document.querySelectorAll('.editor-context-window')].map(el => ({ id: el.dataset.cardId, ...rect(el), titleSize: getComputedStyle(el.querySelector('strong')).fontSize, factSize: getComputedStyle(el.querySelector('.semantic-fact')).fontSize })),
+          windows: [...document.querySelectorAll('.editor-context-window')].map(el => ({ id: el.dataset.cardId, ...rect(el), titleSize: getComputedStyle(el.querySelector('strong')).fontSize, factSize: getComputedStyle(el.querySelector('.semantic-fact, .semantic-table th, .semantic-kind')).fontSize })),
           originals: [...document.querySelectorAll('.editor-context-window')].map(el => { const original = document.querySelector(`#world > .card[data-id="${el.dataset.cardId}"]`); return original ? getComputedStyle(original).visibility : 'unmounted'; }),
         };
       });

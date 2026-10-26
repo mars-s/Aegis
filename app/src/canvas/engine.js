@@ -35,9 +35,9 @@ function resolveCardDrop(cards, event) {
 }
 
 // Shared geometry for drawing links and their editing handles. Pins follow rotated cards.
-export function linkGeometry(link, a, b) {
+export function linkGeometry(link, a, b, rotation = displayRotation) {
   const centre = c => ({ x: c.x + c.w / 2, y: c.y + c.h / 2 });
-  const rotate = (p, c, sign = 1) => { const m = centre(c), t = displayRotation(c) * Math.PI / 180 * sign, x = p.x - m.x, y = p.y - m.y; return { x: m.x + x * Math.cos(t) - y * Math.sin(t), y: m.y + x * Math.sin(t) + y * Math.cos(t) }; };
+  const rotate = (p, c, sign = 1) => { const m = centre(c), t = rotation(c) * Math.PI / 180 * sign, x = p.x - m.x, y = p.y - m.y; return { x: m.x + x * Math.cos(t) - y * Math.sin(t), y: m.y + x * Math.sin(t) + y * Math.cos(t) }; };
   const edge = (c, pin, target) => {
     if (pin) return rotate({ x: c.x + pin.u * c.w, y: c.y + pin.v * c.h }, c);
     const m = centre(c), q = rotate(target, c, -1), dx = q.x - m.x, dy = q.y - m.y;
@@ -447,7 +447,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       const a = by.get(l.a), b = by.get(l.b); if (!a || !b || effectiveFlag(board, a, 'hidden') || effectiveFlag(board, b, 'hidden')) continue;
       const ra = representations.get(a.id), rb = representations.get(b.id), summary = ra?.summary || rb?.summary;
       if (stage.dataset.zoomTier === 'cluster') continue;
-      const geometry = summary ? linkGeometry({ ...l, pa: ra.summary ? null : l.pa, pb: rb.summary ? null : l.pb, bend: (l.bend ?? 0) * view.z }, { ...a, ...ra, rot: ra.summary ? 0 : displayRotation(a) }, { ...b, ...rb, rot: rb.summary ? 0 : displayRotation(b) }) : linkGeometry(l, a, b);
+      const geometry = summary ? linkGeometry({ ...l, pa: ra.summary ? null : l.pa, pb: rb.summary ? null : l.pb, bend: (l.bend ?? 0) * view.z }, { ...a, ...ra }, { ...b, ...rb }, c => c.summary ? 0 : displayRotation(c)) : linkGeometry(l, a, b);
       const g = summary ? geometry : Object.fromEntries(Object.entries(geometry).map(([key, value]) => [key, screen(value)]));
       const p = g.p0, q = g.p2, c = g.control, h = g.handle;
       const d = `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;

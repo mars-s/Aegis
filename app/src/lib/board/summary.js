@@ -33,14 +33,15 @@ export function cardSummary(card) {
   if (type === 'plot') {
     const points = (data.series?.[0]?.points || []).filter(p => Number.isFinite(p.y));
     const last = points.at(-1);
-    preview = { type: 'plot', values: points.map(p => p.y), value: last ? `${last.y}${data.y?.unit ? ` ${data.y.unit}` : ''}` : '', label: last ? `${last.x} · ${data.y?.label || data.series?.[0]?.name || ''}` : '' };
+    preview = { type: 'plot', values: points.map(p => p.y), value: data.headline?.value || (last ? `${last.y}${data.y?.unit ? ` ${data.y.unit}` : ''}` : ''), label: data.headline?.label || (last ? `${last.x} · ${data.y?.label || data.series?.[0]?.name || ''}` : '') };
   } else if (type === 'stats') preview = { type, tiles: (data.tiles || []).slice(0, 2) };
   else if (type === 'progress') preview = { type, goals: (data.goals || []).slice(0, 2) };
   else if (type === 'sheet' || type === 'table') preview = { type: 'sheet', columns: (data.columns || []).slice(0, 3).map(c => c.label), rows: (data.rows || []).slice(0, 2).map(row => row.cells?.slice(0, 3) || []) };
   else if (type === 'deck' || type === 'slides') preview = { type: 'deck', slide: props.slides?.[0] };
   else if (type === 'diagram') preview = { type, nodes: (data.nodes || []).slice(0, 4), edges: data.edges || [] };
   if (type === 'callout' || type === 'reply') facts = [plainLine(data.headline || data.text).split(/(?<=[.!?])\s/)[0]];
-  return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(preview ? { preview } : {}) };
+  const disclosure = ['callout', 'reply'].includes(type) ? plainLine(data.attribution) : '';
+  return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
 }
 export function boardSubtitle(board) {
   const cards = board?.cards ?? [];

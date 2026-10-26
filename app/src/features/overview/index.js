@@ -60,7 +60,7 @@ export function mountOverview(canvas) {
         if (button.revision !== revision) {
           button.replaceChildren(summaryContent(content.get(card.id))); button.revision = revision;
           button.setAttribute('aria-label', `Frame ${content.get(card.id).title}`);
-          button.title = [content.get(card.id).title, ...content.get(card.id).facts].join('\n');
+          button.title = [content.get(card.id).title, ...content.get(card.id).facts, content.get(card.id).disclosure].filter(Boolean).join('\n');
         }
         button.style.transform = `translate3d(${rect.x}px, ${rect.y}px, 0)`;
         button.style.width = `${rect.w}px`; button.style.height = `${rect.h}px`;
