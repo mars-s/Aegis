@@ -132,7 +132,14 @@ export function applyBatch(input, batch) {
             else if (k === 'rot') c.rot = clamp(num(v, c.rot ?? 0), -180, 180);
             else if (k === 'parent') { if (v) c.parent = str(v, 40); else delete c.parent; }
             // props merge: set.props = { a: 1 } changes only a; a null value removes that key.
-            else if (k === 'props') { const next = { ...(c.props ?? {}) }; for (const [pk, pv] of Object.entries(v ?? {})) { if (pv === null) delete next[pk]; else next[pk] = pv; } c.props = cleanProps(next, 'props'); }
+            else if (k === 'props') {
+              const next = { ...(c.props ?? {}) };
+              for (const [pk, pv] of Object.entries(v ?? {})) { if (pv === null) delete next[pk]; else next[pk] = pv; }
+              if (c.type === 'doc' && v && Object.hasOwn(v, 'body') && !Object.hasOwn(v, 'doc')) {
+                delete next.doc; next.docTitleMigrated = true;
+              }
+              c.props = cleanProps(next, 'props');
+            }
             else if (k === 'items') c.items = Array.isArray(v) ? v.slice(0, 200).map(i => ({ text: str(i?.text ?? i, 500), done: !!i?.done })) : c.items;
             else if ((k === 'heading' || k === 'badge') && !str(v)) delete c[k];
             else c[k] = typeof v === 'boolean' ? v : str(v, LIMIT[k] ?? 20000);

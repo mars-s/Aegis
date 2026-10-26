@@ -32,6 +32,9 @@ import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/s
 import '../app/src/lib/board/types/index.js';
 import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
 import { createUiUpdater } from './ui-update.mjs';
+import { handleMcpRequest } from './mcp.mjs';
+import { mcpConfiguration } from './mcp-config.mjs';
+import { fileURLToPath } from 'node:url';
 
 const DATA = process.env.AEGIS_DATA || join(homedir(), 'Library', 'Application Support', 'Aegis');
 const BOARDS = join(DATA, 'boards');
@@ -42,12 +45,13 @@ const PORT = Number(process.env.AEGIS_PORT || 4790);
 await mkdir(BOARDS, { recursive: true, mode: 0o700 });
 await mkdir(ASSETS, { recursive: true, mode: 0o700 });
 
-async function atomicJson(path, value) {
+async function atomicFile(path, contents) {
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const tmp = `${path}.${randomUUID()}.tmp`;
-  await writeFile(tmp, JSON.stringify(value), { mode: 0o600 });
+  await writeFile(tmp, contents, { mode: 0o600 });
   await rename(tmp, path);
 }
+const atomicJson = (path, value) => atomicFile(path, JSON.stringify(value));
 async function readJson(path, fallback) {
   try { return JSON.parse(await readFile(path, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return fallback; throw e; }
 }
@@ -86,7 +90,7 @@ async function commit(boardId, batch, author, expectedRev) {
   return withBoard(boardId, async () => {
     const board = await loadBoard(boardId);
     if (!board) return { ok: false, errors: [{ index: -1, reason: `no board ${boardId}`, hint: 'list boards first' }] };
-    if (expectedRev !== undefined && board.rev !== expectedRev) throw new Error('The board just changed. Try Undo again.');
+    if (expectedRev !== undefined && board.rev !== expectedRev) throw new Error(`The board changed (expected revision ${expectedRev}, current ${board.rev}). Read it again before editing.`);
     const loaded = performance.now();
     const result = applyBatch(board, batch);
     const applied = performance.now();
@@ -205,6 +209,27 @@ async function sendAsset(req, res, name) {
   res.writeHead(200, { ...headers, 'content-length': info.size });
   if (req.method === 'HEAD') return res.end();
   return pipeline(createReadStream(path), res).catch(() => {});
+}
+
+const mcpHost = {
+  loadBoard, listBoards, commit, library, changeLibrary,
+  createBoard: args => libraryAction('createBoard', args),
+  async readAsset(name) {
+    const match = ASSET_RE.exec(name);
+    if (!match || !MEDIA[match[1]]) throw new Error('Unknown asset type.');
+    const path = join(ASSETS, name);
+    const info = await stat(path);
+    if (info.size > 20 * 1024 ** 2) throw new Error('This file is over the 20 MB MCP limit. Read its extracted text or individual page images instead.');
+    return { bytes: await readFile(path), mimeType: MEDIA[match[1]] };
+  },
+};
+const mcpConnectionPath = join(DATA, 'mcp-connection.json');
+const pluginDir = fileURLToPath(new URL('../plugins/aegis/', import.meta.url));
+const mcpBridge = join(DATA, 'integrations', 'mcp', 'server.mjs');
+// Client configuration keeps working when the app bundle moves or is replaced.
+await atomicFile(mcpBridge, await readFile(join(pluginDir, 'server.mjs')));
+function mcpInfo() {
+  return mcpConfiguration({ data: DATA, bridge: mcpBridge, node: process.execPath, pluginDir, port: server.address().port });
 }
 
 // item 12 sandbox: token-authenticated registration, anonymous capability URLs.
@@ -859,7 +884,7 @@ async function body(req, limit = 5e6) {
 }
 // item 12 sandbox end
 const send = (res, status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(value)); };
-const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
+const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type, mcp-protocol-version', 'access-control-allow-methods': 'GET, POST, OPTIONS' };
 
 const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(CORS)) res.setHeader(k, v);
@@ -880,6 +905,13 @@ const server = http.createServer(async (req, res) => {
   if (!authorised(req) && !(url.pathname === '/events' && sseToken && sseToken.length === TOKEN.length && timingSafeEqual(Buffer.from(sseToken), Buffer.from(TOKEN)))) return send(res, 401, { error: 'unauthorised' });
   try {
     const p = url.pathname, m = req.method;
+    if (p === '/mcp') {
+      const origin = req.headers.origin;
+      const port = server.address().port;
+      if (origin && ![`http://127.0.0.1:${port}`, `http://localhost:${port}`].includes(origin)) return send(res, 403, { error: 'local app origin only' });
+      return await handleMcpRequest(req, res, mcpHost);
+    }
+    if (p === '/integrations/mcp' && m === 'GET') return send(res, 200, mcpInfo());
     // item 12 sandbox: registration stays behind the existing bearer-token check.
     if (p === '/sandbox' && m === 'POST') return send(res, 200, registerSandbox(await body(req, SANDBOX_LIMIT)));
     // item 12 sandbox end
@@ -947,10 +979,16 @@ const server = http.createServer(async (req, res) => {
   } catch (e) { send(res, e.status ?? 400, { error: e.message }); }
 });
 server.listen(PORT, '127.0.0.1', async () => {
+  await atomicJson(mcpConnectionPath, { version: 1, port: server.address().port, token: TOKEN, pid: process.pid });
   // The shell reads this line to learn the port, and whether an installed UI should replace the bundled one.
   console.log(JSON.stringify({ aegis: 'ready', port: server.address().port, ui: !!(await uiRoot()), token: process.env.AEGIS_PRINT_TOKEN ? TOKEN : undefined }));
 });
-async function shutdown() { server.close(); await harness.close(context).catch(() => {}); process.exit(0); }
+async function shutdown() {
+  server.close();
+  const connection = await readJson(mcpConnectionPath, null).catch(() => null);
+  if (connection?.pid === process.pid) await unlink(mcpConnectionPath).catch(() => {});
+  await harness.close(context).catch(() => {}); process.exit(0);
+}
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, shutdown);
 // The app holds our stdin open. When the app dies, even by force, stdin closes and the host follows it.
 if (process.env.AEGIS_PARENT_PIPE) { process.stdin.on('end', shutdown); process.stdin.on('error', shutdown); process.stdin.resume(); }
