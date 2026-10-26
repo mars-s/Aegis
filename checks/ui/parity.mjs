@@ -22,12 +22,27 @@ const waitSaved = async () => {await page.waitForFunction(()=>document.getElemen
 const log = (...a)=>console.log(...a);
 try {
   await page.goto(url); await page.waitForFunction(()=>window.aegis?.canvas?.board);
-  assert.equal(await page.getByText('Welcome to Aegis',{exact:true}).isVisible(),true);
+  await page.getByRole('dialog', { name: 'Welcome to Aegis', exact: true }).waitFor();
+  assert.equal(await page.locator('.tour-progress').textContent(), '1 of 3');
   await page.screenshot({path:out('parity-welcome.png')});
-  await page.getByRole('button',{name:'Start tour',exact:true}).click();
-  for(let i=1;i<=7;i++) {await page.getByRole('heading',{name:new RegExp(`^${i} of 7:`)}).waitFor(); if(i===5) await page.screenshot({path:out('parity-phone-tour.png')}); await page.keyboard.press('ArrowRight');}
-  assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false);
-  await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false); log('first run, seven tour steps, arrow navigation, once-only reload');
+  await page.getByLabel('Your first thought').fill('A sample thought for my next project.');
+  await page.getByRole('button', { name: 'Add thought', exact: true }).tap();
+  assert.equal(await page.locator('.tour-progress').textContent(), '2 of 3');
+  await page.screenshot({path:out('parity-phone-tour.png')});
+  await page.route('**/agents', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const body = route.request().postDataJSON();
+    assert.match(body.brief, /A sample thought for my next project/);
+    await route.continue({ postData: JSON.stringify({ ...body, brief: 'FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'A small next step', x: 400, y: 200 }]) }) });
+  });
+  await page.getByRole('button', { name: 'Ask for a plan', exact: true }).tap();
+  assert.equal(await page.locator('.tour-progress').textContent(), '3 of 3');
+  await page.getByRole('button', { name: 'See my plan', exact: true }).tap();
+  await page.unroute('**/agents');
+  await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running));
+  await page.evaluate(() => { document.querySelectorAll('.agent-window .agent-close').forEach(button => button.click()); aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }]); });
+  await waitSaved();
+  await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false); log('first run, three real task steps, phone touch controls and once-only reload');
   const hub = page.getByRole('navigation',{name:'Board hub'});
   await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator('.mobile-sheet .tree-row[data-board]').first().tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'});
   await hub.getByRole('button',{name:'Windows',exact:true}).tap(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
@@ -82,7 +97,7 @@ try {
   await page.mouse.dblclick(900,300); b=await waitSaved(); assert.equal(b.cards.length,count+1); assert.equal(b.cards.at(-1).color,'purple'); await page.evaluate(()=>{document.activeElement?.blur();aegis.canvas.glideTo({x:300,y:300,z:1});}); await page.waitForTimeout(60); assert.equal(await page.evaluate(()=>aegis.canvas.view.x),300);
   const purple=b.cards.at(-1); await page.evaluate(c=>{document.activeElement?.blur();aegis.canvas.setView({x:700-c.x,y:300-c.y,z:1});aegis.canvas.select([c.id]);},purple); await page.waitForTimeout(80);
   const box=await page.locator(`#world [data-id="${purple.id}"]`).boundingBox(); await page.mouse.move(box.x+20,box.y+box.height-15); await page.mouse.down(); await page.mouse.move(box.x+57,box.y+box.height+10,{steps:6}); await page.mouse.up(); b=await waitSaved(); const snapped=b.cards.find(c=>c.id===purple.id); assert.equal(Math.abs(snapped.x%24),0); assert.equal(Math.abs(snapped.y%24),0); log('grid snap saved at',snapped.x,snapped.y);
-  await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab',{name:'Toolbar',exact:true}).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.getByRole('tab',{name:'Panels',exact:true}).click(); await page.locator('[data-panel-visibility="keys"]').uncheck(); await page.getByRole('button',{name:'Reset layout',exact:true}).click(); await page.getByRole('tab',{name:'About',exact:true}).click(); await page.screenshot({path:out('parity-desktop-about.png')}); await page.getByRole('button',{name:'Replay welcome and tour',exact:true}).click(); await page.getByRole('button',{name:'Start tour',exact:true}).click(); for(let i=0;i<4;i++) await page.keyboard.press('ArrowRight'); await page.screenshot({path:out('parity-desktop-tour.png')}); await page.keyboard.press('ArrowLeft'); await page.getByRole('heading',{name:'4 of 7: Windows and library',exact:true}).waitFor(); await page.getByRole('button',{name:'Next',exact:true}).click(); await page.getByRole('button',{name:'Back',exact:true}).click(); await page.getByRole('button',{name:'Skip',exact:true}).click();
+  await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab',{name:'Toolbar',exact:true}).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('checkbox',{name:'Show readme',exact:true}).uncheck(); await page.getByRole('tab',{name:'Panels',exact:true}).click(); await page.locator('[data-panel-visibility="keys"]').uncheck(); await page.getByRole('button',{name:'Reset layout',exact:true}).click(); await page.getByRole('tab',{name:'About',exact:true}).click(); await page.screenshot({path:out('parity-desktop-about.png')}); await page.getByRole('button',{name:'Replay welcome and tour',exact:true}).click(); assert.equal(await page.locator('.tour-progress').textContent(), '1 of 3'); await page.screenshot({path:out('parity-desktop-tour.png')}); await page.getByRole('button',{name:'Skip',exact:true}).click();
   await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('#tools [data-tool="readme"]').isVisible(),false); await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab',{name:'General',exact:true}).click(); assert.equal(await page.getByLabel('Default note colour',{exact:true}).evaluate(el => el.value),'purple'); await page.locator('#closeSettings').click();
   log('focus library refresh, desktop restoration, six tabs, double-click preference, default colour, motion, tilt, grid, toolbar/panels, replay, persisted preferences');
   writeFileSync(out('parity-saved-board.json'),JSON.stringify(await waitSaved(),null,2));

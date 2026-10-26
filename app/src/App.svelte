@@ -75,7 +75,12 @@
   <div class="world" id="world"></div>
   <div class="marquee" id="marquee" hidden></div>
   <div class="empty" id="empty" hidden>
-    <p class="empty-sub">Drop files, or ask for something.</p>
+    <p class="empty-title">Make room for your next idea.</p>
+    <nav class="empty-actions" aria-label="Start on this board">
+      <button type="button" data-start="plan">Plan my week</button>
+      <button type="button" data-start="csv">Explore a CSV</button>
+      <button type="button" data-start="doc">Start a document</button>
+    </nav>
   </div>
 </main>
 

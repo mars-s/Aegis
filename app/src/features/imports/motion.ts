@@ -11,14 +11,6 @@ export function installImportMotion(ctx: Ctx) {
   addEventListener('keydown', () => { keyboard = true; }, true);
   addEventListener('pointerdown', () => { keyboard = false; }, true);
   addEventListener('drop', () => { keyboard = false; }, true);
-  const empty = document.getElementById('empty');
-  if (empty) {
-    // Original page-and-corner geometry, authored for Aegis. No external artwork.
-    const mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    mark.classList.add('empty-mark'); mark.setAttribute('viewBox', '0 0 64 64'); mark.setAttribute('aria-hidden', 'true');
-    mark.innerHTML = '<g class="empty-mark-back"><path d="M18 13h24a4 4 0 0 1 4 4v30"/></g><g class="empty-mark-page"><path d="M14 21a4 4 0 0 1 4-4h19l9 9v25H18a4 4 0 0 1-4-4Z"/><path d="M37 17v9h9M23 33h14M23 40h9"/></g>';
-    empty.prepend(mark);
-  }
   const toast = document.getElementById('toast');
   let toastAnimation: Animation | undefined;
   if (toast) new MutationObserver(records => {
