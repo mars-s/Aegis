@@ -19,8 +19,9 @@ export function normaliseDocument(card) {
   const props = card.props;
   if (card.type !== 'doc' || !props || props.docTitleMigrated) return;
   if (props.doc?.type === 'doc') {
-    props.doc = migrateTitle(props.doc, card.text);
-    props.body = plainText(props.doc).trim();
+    const original = props.doc;
+    props.doc = migrateTitle(original, card.text);
+    if (props.doc !== original || props.body === undefined) props.body = plainText(props.doc).trim();
   } else if (typeof props.body === 'string') {
     const heading = /^#\s+([^\r\n]+)(?:\r?\n|$)/.exec(props.body);
     if (heading?.[1].trim() === card.text.trim()) props.body = props.body.slice(heading[0].length).trimStart();

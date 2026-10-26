@@ -117,6 +117,9 @@ test('document normalisation uses the final batch title and leaves restored hist
   assert.deepEqual(restored.board.cards[0], legacy);
   const moved = applyBatch(restored.board, { commands: [{ op: 'move', id: legacy.id, x: 100, y: 200 }] });
   assert.deepEqual(moved.board.cards[0].props, legacy.props, 'moving old work does not rewrite its content');
+  const imported = applyBatch(emptyBoard('import'), { commands: [{ op: 'create', type: 'doc', text: 'Source.pdf', props: { doc, body: '# Final title\n\nKeep this' } }] });
+  assert.equal(imported.board.cards[0].props.body, '# Final title\n\nKeep this', 'unrelated headings retain the import Markdown');
+  assert.deepEqual(imported.board.cards[0].props.doc, doc);
 });
 
 test('Markdown keeps fenced code literal, renders links safely and preserves maths source', () => {
