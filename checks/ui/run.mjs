@@ -36,6 +36,8 @@ all.push('canvas-chrome');
 all.push('data-trust');
 // Empty board actions, onboarding, Library home and far-zoom clusters.
 all.push('first-minute');
+// Readable summaries and shared zoom tiers in Chromium and WebKit.
+all.push('semantic-zoom');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

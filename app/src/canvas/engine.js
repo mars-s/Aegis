@@ -8,6 +8,7 @@ import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
 // R4 orientation: names stay in screen space and reuse visible-card culling.
 import { createOrientation } from './orientation.js';
+import { zoomTier, summarisedCard } from '../features/overview/zoom.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
@@ -54,6 +55,7 @@ export function registerDragHandler(id, handler) { DRAG_HANDLERS.set(id, handler
 export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
+  let viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
   // PM5.6: omitted names use the same camera framing as Windows rows.
   const orientation = createOrientation(stage, () => view, () => schedule(), (id, keyboard) => frameIds([id], 1, false, keyboard));
   const guides = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -180,6 +182,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let crispTimer;
   function paint() {
     frame = 0;
+    viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
+    const tier = zoomTier(view.z, stage.dataset.zoomTier);
+    if (stage.dataset.zoomTier !== tier) stage.dataset.zoomTier = tier;
     const crisp = localStorage.getItem('aegis:crisp') === 'on' && view.z > 1.02;
     if (!crisp || Number(world.style.zoom) !== view.z) { world.style.zoom = ''; world.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.z})`; }
     else world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`;
@@ -245,7 +250,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
 
   function drawGrid() {
-    const dpr = devicePixelRatio || 1, w = stage.clientWidth, h = stage.clientHeight;
+    const dpr = devicePixelRatio || 1, w = viewportSize.width, h = viewportSize.height;
     if (grid.width !== w * dpr || grid.height !== h * dpr) { grid.width = w * dpr; grid.height = h * dpr; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
     let step = 58.4 * view.z; while (step < 26) step *= 2;
@@ -273,7 +278,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     return n;
   }
   function visibleRect() {
-    const a = screenToWorld(-MARGIN, -MARGIN), b = screenToWorld(stage.clientWidth + MARGIN, stage.clientHeight + MARGIN);
+    const a = screenToWorld(-MARGIN, -MARGIN), b = screenToWorld(viewportSize.width + MARGIN, viewportSize.height + MARGIN);
     return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
   }
   function mountVisible() {
@@ -304,6 +309,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (m.geo !== geo) { place(m.el, c); m.geo = geo; }
       if (m.z !== z) { m.el.style.zIndex = z; m.el.style.setProperty('--card-order', z); m.z = z; }
       const el = m.el;
+      const summary = tierIsSummary(c);
+      if (el.inert !== summary) el.inert = summary;
+      el.classList.toggle('semantic-detail', summarisedCard(c));
       el.classList.toggle('selected', selected.has(c.id));
       // PM 7: preserve the marker across virtual mounts and saved content renders.
       el.classList.toggle('editor-source', c.id === editorSource);
@@ -313,6 +321,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     });
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
+  function tierIsSummary(card) { return stage.dataset.zoomTier !== 'detail' && summarisedCard(card); }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot, c.parent]);
   const objectAppearance = c => c.type === 'object' ? JSON.stringify([c.color, c.props, c.parent]) : null;
@@ -745,6 +754,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     get board() { return board; },
     setFocus(ids) { focusIds = ids ? new Set(ids) : null; if (ids?.length) focusCard(ids.at(-1)); schedule(); },
     get view() { return view; },
+    get viewportSize() { return viewportSize; },
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
     // PM 7: shared editor open and close hook.
