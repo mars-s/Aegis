@@ -34,6 +34,7 @@ all.push('mcp');
 // Shared UI controls and theme captures from the shipped bundle.
 all.push('design-system');
 all.push('controls-polish');
+all.push('fit-finish');
 // Canvas chrome: link handles, sidebar placement and alignment.
 all.push('canvas-chrome');
 // Data viewer, deletion recovery, typography and sheet units.
