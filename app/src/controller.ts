@@ -154,31 +154,36 @@ function foldTools(closed, focus = false) {
     if (focus || hadFocus) trigger.focus({ preventScroll: true });
     return;
   }
-  const groups = new Map();
+  // Four groups by what you are about to do, so no heading sits over a single tool.
+  const SECTION = { write: 'Create', design: 'Create', basics: 'Create', media: 'Media', files: 'Media', draw: 'Draw', library: 'Board', editing: 'Board' };
+  const ORDER = ['Create', 'Media', 'Draw', 'Board'];
+  const groups = new Map(ORDER.map(name => {
+    const section = document.createElement('section'), heading = document.createElement('h3'), grid = document.createElement('div');
+    heading.textContent = name; grid.className = 'tools-grid'; section.append(heading, grid); popover.append(section);
+    return [name, grid];
+  }));
   for (const button of dock.querySelectorAll(':scope > [data-tool]:not([data-core])')) {
     if (button.hidden) continue;
     const feature = registry.tools.find(t => t.id === button.dataset.tool);
-    const group = feature?.group || 'Basics';
-    if (!groups.has(group)) {
-      const section = document.createElement('section'), heading = document.createElement('h3'), grid = document.createElement('div');
-      heading.textContent = group.charAt(0).toUpperCase() + group.slice(1); grid.className = 'tools-grid';
-      section.append(heading, grid); popover.append(section); groups.set(group, grid);
-    }
+    const group = SECTION[String(feature?.group || 'basics').toLowerCase()] ?? 'Board';
     // Restore the same nodes and ordering for the existing toolbar customiser and phone hub.
     const home = document.createComment('tool home'); button.before(home); toolHomes.set(button, home);
     button.dataset.customised = '1'; groups.get(group).append(button);
   }
   // fix1: notes use the island's existing action without adding another pill control.
-  const notesSection = document.createElement('section'), notesHeading = document.createElement('h3'), notesGrid = document.createElement('div');
-  notesHeading.textContent = 'Writing'; notesGrid.className = 'tools-grid';
   const notes = document.createElement('button'); notes.type = 'button'; notes.title = `Add as notes (${shortcutText('addNotes')})`;
   notes.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3M5.5 8h5M5.5 10.5h5"/></svg><span class="tools-label">Add as notes</span>';
   notes.onclick = () => { foldTools(true); $('composer').dispatchEvent(new Event('add-as-notes')); };
-  notesGrid.append(notes); notesSection.append(notesHeading, notesGrid); popover.append(notesSection);
+  groups.get('Create').append(notes);
   // end fix1
-  const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.textContent = 'Customise toolbar';
+  // Imports sit together at the end of Media.
+  const media = groups.get('Media');
+  for (const id of ['import-files', 'import-image']) { const b = media.querySelector(`[data-tool="${id}"]`); if (b) media.append(b); }
+  for (const [name, grid] of groups) if (!grid.children.length) grid.parentElement.remove(); else grid.parentElement.dataset.group = name.toLowerCase();
+  const customise = document.createElement('button'); customise.className = 'tools-customise'; customise.type = 'button';
+  customise.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h7M12.5 4.5h1M2.5 11.5h1M6.5 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/></svg><span>Customise toolbar</span>';
   customise.onclick = () => { foldTools(true); dock.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); };
-  popover.append(customise); popover.hidden = false; dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
+  popover.append(customise); popover.hidden = false; popover.classList.toggle('instant', focus); dock.classList.add('more-open'); trigger.setAttribute('aria-expanded', 'true');
   if (focus) popover.querySelector('[data-tool]')?.focus({ preventScroll: true });
 }
 function pickTool(t) {

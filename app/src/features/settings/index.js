@@ -69,7 +69,7 @@ export function mountSettings({ canvas, replayTour }) {
   const replay = document.createElement('button'); replay.className = 'pill'; replay.textContent = 'Replay welcome and tour'; replay.onclick = () => { dialog.close(); replayTour(); }; about.append(licences, data, replay);
   // The editing feature's Customise toolbar entry point still lands on its controls.
   document.getElementById('tools').addEventListener('contextmenu', () => select('toolbar'), true);
-  document.addEventListener('click', e => { if (e.target.textContent === 'Customise toolbar') select('toolbar'); }, true);
+  document.addEventListener('click', e => { if (e.target.closest?.('button')?.textContent.trim() === 'Customise toolbar') select('toolbar'); }, true);
   dialog.addEventListener('click', e => { if (e.target !== dialog) return; const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); });
   select('general');
   return { select };

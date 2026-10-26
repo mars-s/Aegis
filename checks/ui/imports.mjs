@@ -168,7 +168,7 @@ try {
   // The More tools Import button and the existing Import images tool share the route.
   await page.evaluate(() => aegis.canvas.select([]));
   await page.mouse.move(24, 450); await page.locator('#toolsFold').click();
-  assert.equal(await page.locator('#toolsPopover section').filter({ has: page.getByRole('heading', { name: 'Files', exact: true }) }).getByRole('button', { name: 'Import', exact: true }).count(), 1);
+  assert.equal(await page.locator('#toolsPopover section').filter({ has: page.getByRole('heading', { name: 'Media', exact: true }) }).getByRole('button', { name: 'Import', exact: true }).count(), 1);
   const picked = page.waitForEvent('filechooser');
   await page.getByRole('button', { name: 'Import', exact: true }).click();
   const picker = await picked; assert.match(await picker.element().getAttribute('accept'), /\.pdf.*\.pptx.*\.key/);
