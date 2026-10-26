@@ -43,13 +43,13 @@ JavaScript and `.wasm` as WebAssembly. No CDN or blob worker
 is needed. The imports check can run against the built host UI under the app's
 CSP with `AEGIS_IMPORTS_BUILT=1`.
 
-`motion.ts` adds an original 64-pixel page mark to the empty state, short toast
-enter/exit motion and import-only card arrival/removal motion. Card
+`motion.ts` adds short toast enter/exit motion and import-only card
+arrival/removal motion. The first-minute feature owns the quiet empty-board actions. Card
 removal motion requires an explicit pointer Delete action, so agent batches
 remain under the speed worker's control. Document and deck
 editors retain the existing shared shell's open/close motion. Keyboard actions
 are instant. Both reduced-motion settings disable travel. There is no polling
-or extra frame listener. The empty mark settles once instead of looping.
+or extra frame listener.
 
 ## Dependencies and licences
 

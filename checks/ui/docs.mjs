@@ -16,7 +16,7 @@ const ui = mkdtempSync(join(tmpdir(), 'aegis-docs-ui-'));
 for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
 // Vite must serve the bundled font through the dependency symlink in this snapshot.
-writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('defineConfig({', `defineConfig({ cacheDir: ${JSON.stringify(join(ui, '.vite'))},`).replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} },`));
+writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('defineConfig({', `defineConfig({ cacheDir: ${JSON.stringify(join(ui, '.vite'))},`).replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} },`));
 const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();

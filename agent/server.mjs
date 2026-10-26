@@ -1,3 +1,4 @@
+import { boardSubtitle } from '../app/src/lib/board/summary.js';
 // Aegis agent host: Pi Durable on 127.0.0.1, driving boards through the board commands.
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
@@ -81,7 +82,7 @@ async function loadBoard(id) { const board = await readJson(boardPath(id), null)
 async function listBoards() {
   const out = [];
   for (const f of await readdir(BOARDS).catch(() => [])) if (f.endsWith('.json')) {
-    const b = await readJson(join(BOARDS, f), null); if (b) out.push({ id: b.id, name: b.name, cards: b.cards.length, rev: b.rev, boardParent: b.parent ?? null });
+    const b = await readJson(join(BOARDS, f), null); if (b) out.push({ id: b.id, name: b.name, cards: b.cards.length, rev: b.rev, boardParent: b.parent ?? null, editedAt: b.editedAt ?? null, subtitle: boardSubtitle(b) });
   }
   return out;
 }
@@ -96,6 +97,7 @@ async function commit(boardId, batch, author, expectedRev) {
     const result = applyBatch(board, batch);
     const applied = performance.now();
     if (!result.ok) return { ok: false, rev: board.rev, errors: result.errors };
+    result.board.editedAt = Date.now();
     await atomicJson(boardPath(boardId), result.board);
     historyBoards.set(boardId, result.board);
     const saved = performance.now();
@@ -162,7 +164,7 @@ async function library() {
 const libraryAction = createLibraryActions({
   listBoards, loadBoard, withBoard, newBoard: emptyBoard, makeId: () => randomBytes(8).toString('hex'),
   readLibrary: () => readJson(libraryPath, emptyLibrary()), writeLibrary: lib => atomicJson(libraryPath, lib),
-  writeBoard: b => atomicJson(boardPath(b.id), b), removeBoard: id => unlink(boardPath(id)),
+  writeBoard: b => atomicJson(boardPath(b.id), { ...b, editedAt: Date.now() }), removeBoard: id => unlink(boardPath(id)),
   changed: () => broadcast({ type: 'library' }),
 });
 const changeLibrary = op => libraryAction(op.op === 'delete' && op.recursive === true ? 'delete' : 'change', op);
@@ -983,7 +985,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (bm && m === 'POST' && bm[2] === '/name') {
       const { name } = await body(req);
-      await withBoard(bm[1], async () => { const b = await loadBoard(bm[1]); if (b) { b.name = String(name || 'Untitled').slice(0, 120); await atomicJson(boardPath(bm[1]), b); } });
+      await withBoard(bm[1], async () => { const b = await loadBoard(bm[1]); if (b) { b.name = String(name || 'Untitled').slice(0, 120); b.editedAt = Date.now(); await atomicJson(boardPath(bm[1]), b); } });
       return send(res, 200, { ok: true });
     }
     if (p === '/library' && m === 'GET') return send(res, 200, await library());

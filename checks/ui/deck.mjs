@@ -4,7 +4,7 @@ import { assertSlideFits } from './deck-fit.mjs';
 import { demoBatch } from '../demo-batch.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
+import { realpathSync, mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
@@ -17,7 +17,7 @@ const ui = mkdtempSync(join(tmpdir(), 'aegis-deck-ui-'));
 for (const file of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'svelte.config.js', 'public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
 symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
 // The frozen sources use the worktree's installed fonts through this symlink.
-writeFileSync(join(ui, 'vite.deck.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([ui, repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} } } });`);
+writeFileSync(join(ui, 'vite.deck.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} } } });`);
 const vite = spawn('npx', ['vite', '--config', 'vite.deck.config.ts', '--port', String(5192 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('deck-vite.txt'), d));
 const ready = new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });

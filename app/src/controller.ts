@@ -26,6 +26,8 @@ import { mountSettings } from './features/settings/index.js';
 import { repairBatch } from './features/settings/preferences.js';
 import { createSaveQueue } from './features/settings/save.js';
 import { createOnboarding } from './features/onboarding/index.js';
+import { mountFirstMinute } from './features/first-minute/index.js';
+import { mountOverview } from './features/overview/index.js';
 import { installNativeDownloads } from './lib/native-files';
 // item 14: shared import hook, installed once the canvas context exists.
 import { importFiles } from './features/media/imports.js';
@@ -576,8 +578,17 @@ await openBoard(boards.some(b => b.id === saved) ? saved : boards[0].id);
 await loadModels();
 listen();
 const mobile = mountMobile({ pickTool, tools: registry.tools, showAgents });
-const onboarding = createOnboarding({ mobile, panels, openComposer, closeComposer });
-const settings = mountSettings({ canvas, host, toast, replayTour: () => onboarding.welcome() });
+const firstMinute = mountFirstMinute(ctx, {
+  ask(brief) {
+    if ($('send').disabled) return false;
+    openComposer(true); promptEl.value = brief; promptEl.dispatchEvent(new Event('input'));
+    forceNewAgent = true; composerViaKey = true; $('composer').requestSubmit(); return true;
+  },
+  document: () => registry.tools.find(t => t.id === 'doc')?.place(canvas.centre(), ctx),
+});
+mountOverview(canvas);
+const onboarding = createOnboarding({ ctx, ask: firstMinute.ask });
+const settings = mountSettings({ canvas, host, toast, replayTour: () => onboarding.welcome(), showShortcuts: () => onboarding.shortcuts() });
 window.aegis = { canvas, host, apply, editing };
 onboarding.firstRun();
 // Loaded from the host (an installed UI), say plainly if the native bridge is missing.

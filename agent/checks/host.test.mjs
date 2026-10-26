@@ -220,3 +220,17 @@ test('the document rewrite endpoint returns rewritten text and refuses an empty 
   assert.equal(r.status, 200); assert.equal(r.body.text, 'make this better (rewritten)');
   assert.equal((await call('POST', '/rewrite', { text: '  ' })).status, 400);
 });
+
+test('Library summaries follow content edits and rename, and ignore camera changes', async () => {
+  const { body: board } = await call('POST', '/boards', { name: 'Summary evidence' });
+  const created = (await call('GET', '/boards')).body.find(b => b.id === board.id);
+  assert.ok(created.editedAt > 0);
+  await call('POST', `/boards/${board.id}/batch`, { commands: [{ op: 'create', type: 'title', text: 'A calmer week', newId: 'summaryheading' }] });
+  const edited = (await call('GET', '/library')).body.boards.find(b => b.id === board.id);
+  assert.equal(edited.subtitle, 'A calmer week'); assert.ok(edited.editedAt >= created.editedAt);
+  await call('POST', `/boards/${board.id}/view`, { view: { x: 140, y: 200, z: .1 } });
+  assert.equal((await call('GET', '/boards')).body.find(b => b.id === board.id).editedAt, edited.editedAt);
+  await call('POST', `/boards/${board.id}/name`, { name: 'Found again' });
+  const renamed = (await call('GET', '/boards')).body.find(b => b.id === board.id);
+  assert.equal(renamed.name, 'Found again'); assert.ok(renamed.editedAt >= edited.editedAt);
+});

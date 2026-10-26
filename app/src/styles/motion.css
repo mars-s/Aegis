@@ -1,12 +1,4 @@
-/* item 15: original empty-state artwork, toast and imported-window motion. */
-.empty-mark { width: 64px; height: 64px; margin: 0 auto 14px; fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linejoin: round; stroke-linecap: round; }
-.empty-mark-back { opacity: .35; }
-.empty-mark-page { opacity: .75; }
-.empty:not([hidden]) .empty-mark-page { transform-origin: 32px 34px; animation: empty-page-settle 700ms var(--ease-out) both; }
-.empty:not([hidden]) .empty-mark-back { animation: empty-page-back 850ms var(--ease-out) both; }
-.empty .empty-sub { margin: 0; padding: 0 24px; font-size: 14px; line-height: 1.5; }
-@keyframes empty-page-settle { from { opacity: 0; transform: translateY(3px) rotate(-3deg); } to { opacity: .75; transform: none; } }
-@keyframes empty-page-back { from { opacity: 0; transform: translateY(2px); } to { opacity: .35; transform: none; } }
+/* Toast and imported-window motion. */
 .toast { max-width: min(640px, calc(100vw - 32px)); background: var(--raised); color: var(--text); border: 1px solid var(--line); font-size: 13px; line-height: 1.45; box-shadow: none; }
 .toast.toast-leaving[hidden] { display: block !important; pointer-events: none; }
 .import-progress { position: fixed; z-index: 90; left: 50%; bottom: 120px; transform: translateX(-50%); width: min(440px, calc(100vw - 32px)); border: 1px solid var(--line); border-radius: var(--r-win); background: var(--card); color: var(--muted); padding: 12px 16px 0; font-size: 13px; line-height: 1.5; overflow: hidden; }
@@ -14,9 +6,9 @@
 .import-progress-line { height: 2px; background: var(--line); margin: 0 -16px; }
 .import-progress-line i { display: block; height: 100%; background: var(--data); transform-origin: left; transition: transform 160ms var(--ease-out); }
 .import-window-exit { z-index: 40; pointer-events: none; overflow: hidden; }
-body.motion-off .empty-mark *, body.motion-off .import-progress-line i { animation: none !important; transition: none !important; }
+body.motion-off .import-progress-line i { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) {
-  .empty-mark *, .import-progress-line i { animation: none !important; transition: none !important; }
+  .import-progress-line i { animation: none !important; transition: none !important; }
 }
 /* end item 15 */
 

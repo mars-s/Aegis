@@ -92,11 +92,11 @@ try {
   await keyboardUse.close();
   const tourUse = await browser.newPage({ viewport: { width: 1586, height: 992 } });
   await tourUse.goto(freshUrl); await tourUse.waitForFunction(() => window.aegis?.canvas?.board);
-  await tourUse.getByRole('button', { name: 'Start tour', exact: true }).click();
-  for (let step = 1; step < 6; step++) await tourUse.keyboard.press('ArrowRight');
+  assert.match(await tourUse.locator('.tour-progress').textContent(), /1 of 3/);
+  assert.equal(await tourUse.getByLabel('Your first thought').inputValue(), 'I want a calmer week, with time for focused work and a proper break.');
   await tourUse.waitForTimeout(1400);
   assert.equal(await tourUse.locator('.agent-first-hint').isVisible(), false);
-  assert.equal(await tourUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null, 'the tour demonstrating Ask is not use or dismissal');
+  assert.equal(await tourUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), null);
   await tourUse.getByRole('button', { name: 'Skip', exact: true }).click();
   await tourUse.locator('.agent-first-hint.visible').waitFor();
   await tourUse.waitForTimeout(180);
@@ -104,7 +104,7 @@ try {
   await tourUse.keyboard.press('Meta+k');
   assert.equal(await tourUse.evaluate(() => localStorage.getItem('aegis:orb-hint-seen')), '1');
   await tourUse.close();
-  console.log('PASS welcome and later modals cannot spend the hint; Skip starts its 1.2s delay; eight visible seconds or Cmd+K marks it seen; reduced motion and phone work; reload remembers');
+  console.log('PASS welcome and later modals preserve the invitation; Skip starts its delay; use marks it seen; reduced motion and phone work');
   const prompt = page.locator('#prompt'), captureDialog = page.getByRole('dialog', { name: 'Quick capture', exact: true });
   const renderedShortcuts = await page.locator('[data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, format: el.dataset.shortcutFormat || 'display', text: el.textContent })));
   for (const item of renderedShortcuts) assert.equal(item.text, shortcutText(item.id, item.format), item.id);
@@ -226,20 +226,17 @@ try {
   await page.setViewportSize({ width: 1440, height: 992 });
   await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab', { name: 'About', exact: true }).click();
   await page.getByRole('button', { name: 'Replay welcome and tour', exact: true }).click();
-  await page.getByRole('button', { name: 'Start tour', exact: true }).click(); await page.keyboard.press('ArrowRight');
-  assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Cmd\+K/); assert.match(await page.locator('.tour-card p').textContent(), /Shift\+Ctrl\+K/);
+  assert.match(await page.locator('.tour-progress').textContent(), /1 of 3/);
   await page.keyboard.press('Meta+Shift+k'); assert.equal(await captureDialog.isVisible(), false, 'capture cannot steal the onboarding modal');
   await page.keyboard.press('Control+k'); assert.equal(await prompt.evaluate(el => document.activeElement === el), false, 'Ask cannot steal the onboarding modal');
-  await page.getByRole('button', { name: 'Back', exact: true }).click();
-  const tourIds = new Set();
-  for (let step = 1; step <= 7; step++) {
-    const shortcuts = await page.locator('.tour-card [data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, text: el.textContent, format: el.dataset.shortcutFormat })));
-    for (const item of shortcuts) { assert.equal(item.text, shortcutText(item.id, item.format)); tourIds.add(item.id); }
-    if (step < 7) await page.getByRole('button', { name: 'Next', exact: true }).click();
-  }
-  assert.deepEqual([...tourIds].sort(), ['ask', 'leftSidebar', 'quickCapture', 'rightSidebar', 'stackBack', 'stackForward']);
-  console.log('PASS every tour shortcut and all rendered hints/list shortcuts equal the shared shortcut map');
   await page.getByRole('button', { name: 'Skip', exact: true }).click();
+  await page.locator('#stage').focus(); await page.keyboard.press('?');
+  await page.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }).waitFor();
+  const helpShortcuts = await page.locator('.shortcuts-sheet [data-shortcut]').evaluateAll(nodes => nodes.map(el => ({ id: el.dataset.shortcut, text: el.textContent })));
+  assert.equal(helpShortcuts.length, Object.keys(SHORTCUTS).length);
+  for (const item of helpShortcuts) assert.equal(item.text, shortcutText(item.id));
+  await page.keyboard.press('Escape');
+  console.log('PASS the three-step welcome protects focus and ? opens the full shared shortcut reference');
   // Round 2 history: a real request spans two board batches and all four change types.
   const original = await saved();
   const movedId = original.cards[0].id, removedId = original.cards[1].id;

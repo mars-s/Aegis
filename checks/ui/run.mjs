@@ -32,6 +32,8 @@ all.push('design-system');
 all.push('canvas-chrome');
 // Data viewer, deletion recovery, typography and sheet units.
 all.push('data-trust');
+// Empty board actions, onboarding, Library home and far-zoom clusters.
+all.push('first-minute');
 const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {

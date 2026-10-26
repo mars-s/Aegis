@@ -8,7 +8,7 @@ import { registerDragHandler } from '../../canvas/engine.js';
 import { mountIntegrations } from './integrations.js';
 import './settings.css';
 
-export function mountSettings({ canvas, host, toast, replayTour }) {
+export function mountSettings({ canvas, host, toast, replayTour, showShortcuts }) {
   const capture = document.createElement('button'); capture.id = 'quickCapture'; capture.className = 'text-btn'; capture.textContent = '+ Idea'; capture.title = shortcutTitle('quickCapture');
   capture.onclick = () => { const dialog = document.querySelector('.editing-capture'); const input = dialog.querySelector('input'); input.value = ''; if (!dialog.open) dialog.showModal(); input.focus(); };
   document.getElementById('retrySave').after(capture);
@@ -69,6 +69,7 @@ export function mountSettings({ canvas, host, toast, replayTour }) {
   // end item 14
   const data = document.createElement('p'); data.textContent = 'Default data folder: ~/Library/Application Support/Aegis. Custom launches may use another folder.';
   const replay = document.createElement('button'); replay.className = 'pill'; replay.textContent = 'Replay welcome and tour'; replay.onclick = () => { dialog.close(); replayTour(); }; about.append(licences, data, replay);
+  const shortcuts = document.createElement('button'); shortcuts.className = 'pill'; shortcuts.textContent = 'Keyboard shortcuts'; shortcuts.onclick = () => { dialog.close(); showShortcuts(); }; about.append(shortcuts);
   // The editing feature's Customise toolbar entry point still lands on its controls.
   document.getElementById('tools').addEventListener('contextmenu', () => select('toolbar'), true);
   document.addEventListener('click', e => { if (e.target.closest?.('button')?.textContent.trim() === 'Customise toolbar') select('toolbar'); }, true);

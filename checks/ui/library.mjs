@@ -236,6 +236,13 @@ try {
   await page.screenshot({ path: out('library-canvas.png') }); check('Canvas placement, double-click navigation, child persistence, parent breadcrumb and live mini preview');
   // The Home view drills down, with geometry previews and Escape to return.
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('.library-home[open]').waitFor();
+  assert.equal(await page.getByRole('searchbox', { name: 'Search library', exact: true }).evaluate(el => el === document.activeElement), true);
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+  assert.deepEqual(await page.getByRole('menu', { name: 'New in library', exact: true }).getByRole('menuitem').allTextContents(), ['Board', 'Folder', 'Project']);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('.library-home').evaluate(el => el.open), true);
+  check('Home focuses search and keeps Board, Folder and Project in one keyboard-dismissable New menu');
+
   assert.ok(await row(otherProject).count()); assert.ok(await row(looseFolder).count()); assert.ok(await row(original).count());
   await page.locator(`.home-tile[data-item="${otherProject}"]`).click({ button: 'right' }); await uiMenu('Rename').click();
   const homeName = page.locator(`.home-tile[data-item="${otherProject}"] strong`);

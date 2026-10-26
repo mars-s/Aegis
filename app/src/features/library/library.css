@@ -61,3 +61,29 @@ body.panel-arranging, body.panel-arranging * { cursor: grabbing !important; user
 /* PM5.5: Library receives the space released by a filtered Windows section. */
 .side:has(> .pbox[data-panel=layers].is-filtered:not(.folded)) > .pbox[data-panel=library]:not(.folded) { flex: 1 1 0; min-height: 0; }
 .side:has(> .pbox[data-panel=layers].is-filtered:not(.folded)) > .pbox[data-panel=library]:not(.folded) > .pbody { flex: 1 1 auto; height: auto !important; max-height: none; }
+
+/* Library home keeps the board's composition, then gives it a readable content cue. */
+.library-home { padding: 28px max(32px, calc((100vw - 1320px) / 2)); --preview-window: #e2e5ea; --preview-line: #9ca5b1; scrollbar-color: var(--line-strong) transparent; scrollbar-width: thin; }
+:root[data-theme="dark"] .library-home { --preview-window: #252a30; --preview-line: #606a77; }
+.home-heading { margin: 42px 0 24px; }
+.home-heading h1 { margin: 0; font-size: 30px; font-weight: 500; letter-spacing: -.03em; }
+.home-new { position: relative; }
+.library-home [data-home-new] { display: inline-flex; align-items: center; gap: 16px; min-height: 40px; padding: 8px 16px; background: var(--text); color: var(--bg); border-radius: 8px; }
+.home-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.home-search-row { display: flex; align-items: center; gap: 24px; margin: 0 0 28px; }
+.home-search-row input { width: min(460px, 100%); min-height: 44px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--text); font: 14px var(--font); caret-color: var(--data); }
+.home-search-row input::placeholder { color: var(--muted); opacity: 1; }
+.home-search-row [role="status"] { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.home-tiles { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; }
+.library-home .home-tile { padding: 0 0 16px; gap: 0; border-radius: 12px; overflow: hidden; min-width: 0; }
+.library-home .home-tile:hover { border-color: var(--line-strong); background: var(--card); }
+.library-home .home-tile:active { background: var(--hover); }
+.home-preview { height: auto; aspect-ratio: 300 / 172; background: var(--canvas); border-radius: 0; border-bottom: 1px solid var(--line); }
+.home-preview svg { width: 100%; height: 100%; padding: 6px; }
+.home-tile strong { margin: 16px 16px 5px; font-size: 14px; font-weight: 550; max-width: calc(100% - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-subtitle { margin: 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; max-width: calc(100% - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.home-tile small { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 16px 0; color: var(--muted); font-size: 11px; width: calc(100% - 32px); }
+.home-container-kind { color: var(--muted); font-size: 12px; }
+.home-cover-button { top: 10px; right: 10px; }
+.home-empty { color: var(--muted); padding: 48px 0; font-size: 14px; }
+@media (max-width: 600px) { .library-home { padding: 16px; } .library-home header { gap: 8px; } .home-heading { margin-top: 28px; } .home-heading h1 { font-size: 24px; } .home-search-row { gap: 12px; } }

@@ -1,0 +1,11 @@
+.board-overview { position: absolute; inset: 0; z-index: 100004; pointer-events: none; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.overview-cluster { position: absolute; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 12px; background: transparent; color: var(--text); pointer-events: auto; text-align: left; }
+.overview-cluster strong { background: var(--canvas);  font-size: 14px; font-weight: 500; line-height: 20px; max-width: 210px; overflow: hidden; text-overflow: ellipsis; }
+.overview-cluster span { background: var(--canvas);  flex: none; color: var(--muted); font-size: 12px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.overview-cluster:hover { border-color: var(--muted); background: var(--card); }
+.overview-cluster:active { background: var(--press); }
+.overview-back { position: absolute; top: 66px; right: 24px; z-index: 100007; min-height: 44px; padding: 10px 16px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--card); color: var(--text); font-size: 12px; }
+.overview-back:hover { background: var(--raised); }
+.overview-back:active { background: var(--press); }
+@media (max-width: 700px) { .overview-back { top: 52px; right: 12px; } }
+@media (max-width: 700px) { .overview-back { top: auto; bottom: 140px; right: 12px; } }

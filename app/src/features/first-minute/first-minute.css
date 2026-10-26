@@ -1,0 +1,14 @@
+#empty { gap: 20px; padding-bottom: 72px; }
+#empty .empty-title { color: var(--text); font-size: 24px; font-weight: 450; line-height: 1.3; letter-spacing: -.025em; }
+.empty-actions { display: flex; justify-content: center; gap: 14px; pointer-events: auto; }
+.empty-actions button { min-height: 44px; padding: 8px 12px; border-radius: 8px; color: var(--muted); font-size: 13px; transition: color 120ms ease, background 120ms ease; }
+.empty-actions button:hover { color: var(--text); background: var(--hover); }
+.empty-actions button:active { background: var(--press); }
+.empty-actions button:focus-visible { color: var(--text); outline: 1.5px solid var(--focus); outline-offset: 2px; }
+@media (max-width: 600px) {
+  #empty { width: 100%; max-width: none; padding: 0 24px 60px; }
+  #empty .empty-title { font-size: 21px; }
+  .empty-actions { flex-direction: column; align-items: center; gap: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .empty-actions button { transition: none; } }
+body.motion-off .empty-actions button { transition: none; }

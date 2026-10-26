@@ -1,70 +1,104 @@
-import { createDialog } from '../../lib/ui/dialog.js';
 import './onboarding.css';
-import { shortcutText } from '../../lib/shortcuts.js';
-export function createOnboarding({ mobile, panels, openComposer, closeComposer }) {
+import { createDialog } from '../../lib/ui/dialog.js';
+import { SHORTCUTS, shortcutText } from '../../lib/shortcuts.js';
+
+export function createOnboarding({ ctx, ask }) {
   const dialog = createDialog({ className: 'onboarding', label: 'Welcome to Aegis' });
-  const highlight = document.createElement('div'); highlight.className = 'tour-highlight'; highlight.hidden = true;
-  const card = document.createElement('section'); card.className = 'tour-card'; dialog.append(highlight, card); document.body.append(dialog);
-  const steps = [
-    ['Tools', 'Pick a tool, then tap or click the board to add something.', '#tools', 'add'],
-    ['Quick capture', 'Press {quickCapture} to save an idea without leaving your work.', '#quickCapture', 'add'],
-    ['Unsorted', 'Captured ideas wait here. Choose one to put it on the board.', '[data-panel="unsorted"]', 'unsorted'],
-    ['Windows and library', 'Press {leftSidebar} for this board’s windows and the board switcher. Press {rightSidebar} for agent activity. Use {stackForward} or {stackBack} to move a selected window forward or backward.', '[data-panel="library"]', 'boards'],
-    ['Wireframe panel', 'Build screens with components, icons and templates.', '[data-panel="wireframe"]', 'wireframe'],
-    ['Agent composer', 'Press {ask} to Ask. Describe what you need, or choose Add as notes in Agent options to put your words on the board.', '#composer', 'agents'],
-    ['Settings', 'Set up your board, toolbar, panels and accounts here. You can replay this tour from About.', '#settingsBtn', null],
-  ];
-  let index = -1, restore = () => {}, previousFocus = null;
-  function finish() { document.body.classList.remove('onboarding-open'); restore(); mobile.close(); dialog.close(); localStorage.setItem('aegis:onboarded', '1'); previousFocus?.focus(); }
-  function button(text, action) { const b = document.createElement('button'); b.textContent = text; b.onclick = action; return b; }
-  function show() {
-    restore(); restore = () => {}; mobile.close(); card.replaceChildren();
-    const title = document.createElement('h2'), text = document.createElement('p'), nav = document.createElement('nav');
-    if (index < 0) {
-      highlight.hidden = true; dialog.classList.remove('touring'); title.textContent = 'Welcome to Aegis'; text.textContent = 'A place for ideas, boards and agents. Take a short tour, or start with an empty board.';
-      nav.append(button('Skip', finish), button('Start tour', () => { index = 0; show(); }));
-    } else {
-      dialog.classList.add('touring');
-      const [name, description, selector, sheet] = steps[index];
-      if (matchMedia('(max-width: 700px)').matches && sheet) mobile.open(sheet);
-      const phone = matchMedia('(max-width: 700px)').matches;
-      const target = document.querySelector(phone && index === 1 ? '[data-capture]' : selector);
-      if (target) {
-        const stepIndex = index;
-        const hidden = target.hidden, folded = target.classList.contains('folded'), parent = target.closest('.side');
-        // R4 sidebar: the tour temporarily reveals grouped panels and restores the disclosure.
-        const tools = target.closest('[data-panel="tools"]'), toolsFolded = tools?.classList.contains('folded');
-        if (toolsFolded) { tools.classList.remove('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'true'); }
-        const key = parent?.id === 'sideRight' ? 'right' : 'left', wasOpen = panels.isOpen(key);
-        const composerOpen = document.getElementById('composer').classList.contains('open');
-        if (index === 0 && !phone) document.body.classList.add('tour-tools');
-        if (parent) panels.setOpen(key, true, true);
-        if (index === 5) openComposer(true);
-        target.hidden = false; target.classList.remove('folded');
-        target.scrollIntoView({ block: 'nearest' });
-        restore = () => {
-          document.body.classList.remove('tour-tools');
-          target.hidden = hidden; target.classList.toggle('folded', folded);
-          if (toolsFolded) { tools.classList.add('folded'); tools.querySelector('.fold').setAttribute('aria-expanded', 'false'); }
-          if (parent) panels.setOpen(key, wasOpen, true);
-          if (stepIndex === 5 && !composerOpen) closeComposer(true);
-        };
-      }
-      const r = (matchMedia('(max-width: 700px)').matches && sheet && index !== 1 ? document.querySelector('.mobile-sheet') : target)?.getBoundingClientRect();
-      highlight.hidden = !r || !r.width || !r.height;
-      if (r) Object.assign(highlight.style, { left: `${Math.max(4, r.left - 4)}px`, top: `${Math.max(4, r.top - 4)}px`, width: `${Math.min(innerWidth - 8, r.width + 8)}px`, height: `${Math.min(innerHeight - 8, r.height + 8)}px` });
-      title.textContent = `${index + 1} of ${steps.length}: ${name}`; text.innerHTML = description.replace(/\{(\w+)\}/g, (_, id) => `<span data-shortcut="${id}" data-shortcut-format="text">${shortcutText(id, 'text')}</span>`);
-      nav.append(button('Skip', finish), button('Back', () => { index--; show(); }), button(index === steps.length - 1 ? 'Finish' : 'Next', next));
-    }
-    card.append(title, text, nav); nav.lastElementChild.focus();
+  const card = document.createElement('section'); card.className = 'tour-card'; dialog.append(card); document.body.append(dialog);
+  let step = 0, previousFocus, thought = '', boardId, before = new Set();
+  const stage = document.getElementById('stage');
+  function button(text, action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.onclick = action; return b; }
+  function finish() {
+    document.body.classList.remove('onboarding-open'); dialog.close();
+    localStorage.setItem('aegis:onboarded', '1');
+    if (previousFocus?.isConnected && !previousFocus.closest('[hidden]')) previousFocus.focus({ preventScroll: true });
+    else stage.focus({ preventScroll: true });
   }
-  function next() { if (index === steps.length - 1) finish(); else { index++; show(); } }
-  dialog.addEventListener('cancel', e => { e.preventDefault(); finish(); });
-  addEventListener('keydown', e => {
+  function results() { return ctx.canvas.board.id === boardId ? ctx.canvas.board.cards.filter(c => !before.has(c.id)) : []; }
+  function show(focus = true) {
+    card.replaceChildren(); dialog.classList.toggle('touring', step > 0);
+    const header = document.createElement('header'), progress = document.createElement('span'); progress.className = 'tour-progress'; progress.textContent = `${step + 1} of 3`;
+    header.append(progress, button('Skip', finish));
+    const title = document.createElement('h2'), text = document.createElement('p'), nav = document.createElement('nav');
+    card.append(header, title, text);
+    if (step === 0) {
+      title.textContent = 'A thought becomes a plan.';
+      text.textContent = 'Start with something on your mind. Aegis can turn it into windows you can edit.';
+      const label = document.createElement('label'); label.textContent = 'Your first thought';
+      const input = document.createElement('textarea'); input.rows = 3; input.setAttribute('aria-label', 'Your first thought');
+      input.value = thought || 'I want a calmer week, with time for focused work and a proper break.';
+      input.oninput = () => { thought = input.value; add.disabled = !input.value.trim(); };
+      label.append(input); card.append(label);
+      const add = button('Add thought', () => {
+        thought = input.value.trim(); if (!thought) return;
+        const at = ctx.canvas.centre(); boardId = ctx.canvas.board.id;
+        ctx.apply([{ op: 'create', type: 'note', text: thought, x: Math.round(at.x - 160), y: Math.round(at.y - 100), ref: 'thought' }], created => {
+          ctx.canvas.select([created.thought]);
+          step = 1; dialog.close(); dialog.show(); show();
+        });
+      }); nav.append(add);
+    } else if (step === 1) {
+      title.textContent = 'Give your thought a next step.';
+      text.textContent = 'Ask Aegis for a short plan and a checklist. They will appear beside your thought.';
+      nav.append(button('Ask for a plan', () => {
+        before = new Set(ctx.canvas.board.cards.map(c => c.id));
+        if (!ask(`Turn this thought into a practical plan: ${thought}\n\nCreate a short editable document and a checklist on this board. Use suggestions, not claims about my life. Keep the original thought.`)) return;
+        step = 2; show();
+      }));
+    } else {
+      const made = results();
+      title.textContent = made.length ? 'Your plan has a place.' : 'Watch your plan take shape.';
+      text.textContent = made.length ? 'These are real windows. Open one to make it yours, or ask Aegis to change it.' : 'Aegis is working on the board. You can keep using the canvas while it works. If it needs a sign-in or more detail, open Ask.';
+      text.setAttribute('role', 'status');
+      nav.append(button(made.length ? 'See my plan' : 'Open Ask', () => {
+        if (made.length) { ctx.canvas.frameIds(made.map(c => c.id), 1, false, true); finish(); }
+        else { document.getElementById('askPill').click(); }
+      }));
+      nav.append(button('Done', finish));
+    }
+    card.append(nav);
+    if (focus) nav.firstElementChild?.focus({ preventScroll: true });
+  }
+  stage.addEventListener('boardchange', () => {
     if (!dialog.open) return;
-    if (['ArrowRight', 'ArrowLeft', 'Escape'].includes(e.key)) { e.preventDefault(); e.stopImmediatePropagation(); if (e.key === 'Escape') finish(); else if (e.key === 'ArrowRight') next(); else if (index >= 0) { index--; show(); } }
+    if (boardId && ctx.canvas.board.id !== boardId) return finish();
+    if (step === 2 && results().length && card.querySelector('nav button')?.textContent !== 'See my plan') show(false);
+  });
+  dialog.addEventListener('cancel', event => { event.preventDefault(); finish(); });
+  addEventListener('keydown', event => {
+    const modal = document.querySelector('dialog:modal');
+    if (modal && modal !== dialog) return;
+    if (dialog.open && event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); finish(); }
   }, true);
-  addEventListener('resize', () => { if (dialog.open) show(); });
-  function welcome() { document.body.classList.add('onboarding-open'); previousFocus = document.activeElement; index = -1; localStorage.setItem('aegis:onboarded', '1'); dialog.showModal(); show(); }
-  return { welcome, firstRun() { if (!localStorage.getItem('aegis:onboarded')) welcome(); } };
+  const help = createShortcuts();
+  function welcome() {
+    if (dialog.open) return;
+    document.body.classList.add('onboarding-open'); previousFocus = document.activeElement;
+    step = 0; thought = ''; boardId = null;
+    localStorage.setItem('aegis:onboarded', '1'); dialog.showModal(); show();
+  }
+  return { welcome, shortcuts: help.show, firstRun() { if (!localStorage.getItem('aegis:onboarded')) welcome(); } };
+}
+
+function createShortcuts() {
+  const dialog = createDialog({ className: 'shortcuts-sheet' }); dialog.setAttribute('aria-labelledby', 'shortcuts-title');
+  const header = document.createElement('header'), title = document.createElement('h2'), close = document.createElement('button');
+  title.id = 'shortcuts-title'; title.textContent = 'Keyboard shortcuts'; close.textContent = 'Done'; close.type = 'button';
+  header.append(title, close); dialog.append(header);
+  const list = document.createElement('dl');
+  for (const [id, item] of Object.entries(SHORTCUTS)) {
+    const term = document.createElement('dt'), keys = document.createElement('dd');
+    term.textContent = item.label; keys.textContent = shortcutText(id); keys.dataset.shortcut = id; list.append(term, keys);
+  }
+  const term = document.createElement('dt'), keys = document.createElement('dd'); term.textContent = 'Keyboard shortcuts'; keys.textContent = '?'; list.append(term, keys);
+  dialog.append(list); document.body.append(dialog);
+  let previous;
+  const finish = () => { dialog.close(); previous?.isConnected && previous.focus({ preventScroll: true }); };
+  close.onclick = finish; dialog.addEventListener('cancel', event => { event.preventDefault(); finish(); });
+  const show = () => { if (dialog.open) return; previous = document.activeElement; dialog.showModal(); close.focus(); };
+  addEventListener('keydown', event => {
+    if (event.key !== '?' || event.metaKey || event.ctrlKey || event.altKey || event.target.closest?.('input, textarea, select, [contenteditable]') || document.querySelector('dialog[open]')) return;
+    event.preventDefault(); event.stopImmediatePropagation(); show();
+  }, true);
+  return { show };
 }

@@ -79,15 +79,16 @@ try {
     new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node instanceof HTMLElement && node.dataset.id) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true });
   });
   assert.equal((await cards()).length, 0);
-  assert.equal(await page.locator('#empty .empty-mark').count(), 1);
+  assert.equal(await page.locator('#empty .empty-actions button').count(), 3);
+  assert.equal(await page.locator('#empty .empty-mark').count(), 0);
   await screenshots('empty');
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  assert.equal(await page.locator('.empty-mark-page').evaluate(el => getComputedStyle(el).animationName), 'none');
+  assert.equal(await page.locator('.empty-actions button').first().evaluate(el => getComputedStyle(el).transitionDuration), '0s');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.evaluate(() => document.body.classList.add('motion-off'));
-  assert.equal(await page.locator('.empty-mark-page').evaluate(el => getComputedStyle(el).animationName), 'none');
+  assert.equal(await page.locator('.empty-actions button').first().evaluate(el => getComputedStyle(el).transitionDuration), '0s');
   await page.evaluate(() => document.body.classList.remove('motion-off'));
-  console.log('PASS original empty-board mark at 1440, 1586 and 390, with both reduced-motion settings');
+  console.log('PASS quiet empty-board actions at 1440, 1586 and 390, with both reduced-motion settings');
 
   // WKWebView versions supported by the app can lack these newer JS built-ins.
   await page.evaluate(() => { delete Promise.withResolvers; delete Promise.try; delete Math.sumPrecise; delete Uint8Array.fromBase64; });

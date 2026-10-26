@@ -22,12 +22,27 @@ const waitSaved = async () => {await page.waitForFunction(()=>document.getElemen
 const log = (...a)=>console.log(...a);
 try {
   await page.goto(url); await page.waitForFunction(()=>window.aegis?.canvas?.board);
-  assert.equal(await page.getByText('Welcome to Aegis',{exact:true}).isVisible(),true);
+  await page.getByRole('dialog', { name: 'Welcome to Aegis', exact: true }).waitFor();
+  assert.equal(await page.locator('.tour-progress').textContent(), '1 of 3');
   await page.screenshot({path:out('parity-welcome.png')});
-  await page.getByRole('button',{name:'Start tour',exact:true}).click();
-  for(let i=1;i<=7;i++) {await page.getByRole('heading',{name:new RegExp(`^${i} of 7:`)}).waitFor(); if(i===5) await page.screenshot({path:out('parity-phone-tour.png')}); await page.keyboard.press('ArrowRight');}
-  assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false);
-  await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false); log('first run, seven tour steps, arrow navigation, once-only reload');
+  await page.getByLabel('Your first thought').fill('A sample thought for my next project.');
+  await page.getByRole('button', { name: 'Add thought', exact: true }).tap();
+  assert.equal(await page.locator('.tour-progress').textContent(), '2 of 3');
+  await page.screenshot({path:out('parity-phone-tour.png')});
+  await page.route('**/agents', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    const body = route.request().postDataJSON();
+    assert.match(body.brief, /A sample thought for my next project/);
+    await route.continue({ postData: JSON.stringify({ ...body, brief: 'FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'A small next step', x: 400, y: 200 }]) }) });
+  });
+  await page.getByRole('button', { name: 'Ask for a plan', exact: true }).tap();
+  assert.equal(await page.locator('.tour-progress').textContent(), '3 of 3');
+  await page.getByRole('button', { name: 'See my plan', exact: true }).tap();
+  await page.unroute('**/agents');
+  await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running));
+  await page.evaluate(() => { document.querySelectorAll('.agent-window .agent-close').forEach(button => button.click()); aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }]); });
+  await waitSaved();
+  await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('.onboarding').evaluate(el=>el.open),false); log('first run, three real task steps, phone touch controls and once-only reload');
   const hub = page.getByRole('navigation',{name:'Board hub'});
   await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator('.mobile-sheet .tree-row[data-board]').first().tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'});
   await hub.getByRole('button',{name:'Windows',exact:true}).tap(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();

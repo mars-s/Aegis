@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { readFileSync, realpathSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 // item 14: local PDF fonts, CMaps and decoders for development and the packaged UI.
 import { pdfResources } from './src/features/imports/pdf-resources.ts';
 
@@ -14,9 +15,9 @@ export default defineConfig({
   plugins: [svelte(), pdfResources()],
   define: { __AEGIS_VERSION__: JSON.stringify(nativeVersion()) },
   base: './',
-  cacheDir: process.env.AEGIS_VITE_CACHE || '.vite',
+  // Worktrees share dependencies, but keep optimisation output inside their own checkout.
+  cacheDir: process.env.AEGIS_VITE_CACHE || '.vite-cache',
   clearScreen: false,
-  // UI checks isolate dependency optimisation when worktrees share node_modules.
-  server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [new URL('.', import.meta.url).pathname, realpathSync(new URL('./node_modules', import.meta.url))] } },
+  server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), realpathSync(fileURLToPath(new URL('./node_modules', import.meta.url)))] } },
   build: { outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
 });
