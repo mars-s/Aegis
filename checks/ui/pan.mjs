@@ -80,7 +80,10 @@ try {
   await frame('pannote', true);
   await pan(page.locator('.rotation-handle'), 'rotation handle');
   await frame('pannote', true);
-  await pan(page.locator('[data-connect-card="pannote"]').first(), 'connector handle');
+  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await pan(page.locator('.card[data-id="pannote"]'), 'Space overrides Connect gesture');
+  await page.keyboard.press('Escape');
   await frame('pannote');
   await pan(page.locator('.card[data-id="pannote"] .body'), 'middle mouse over note', 'middle');
   await frame('pangenui');

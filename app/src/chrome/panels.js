@@ -19,9 +19,9 @@ export function createPanels({ side, onChange }) {
     if (e.pointerType !== 'mouse' || e.buttons) return;
     for (const key of ['left', 'right']) {
       const distance = key === 'left' ? e.clientX : innerWidth - e.clientX;
-      const inZone = key === 'left' ? e.clientY >= 48 && e.clientY <= 104 : e.clientY < innerHeight - 96;
-      if (distance < 20 && inZone && !hoverTimers[key] && !state.open[key] && !arrows[key].classList.contains('show')) hoverTimers[key] = setTimeout(() => { arrows[key].classList.add('show'); hoverTimers[key] = 0; }, 120);
-      if (distance > 96 || !inZone) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); }
+      if (distance <= 20 && !hoverTimers[key] && !state.open[key] && !arrows[key].classList.contains('show')) hoverTimers[key] = setTimeout(() => { arrows[key].classList.add('show'); hoverTimers[key] = 0; }, 100);
+      if (distance > 20 && !arrows[key].classList.contains('show')) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; }
+      if (distance > 96) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); }
     }
   });
   addEventListener('blur', () => { for (const key of ['left', 'right']) { clearTimeout(hoverTimers[key]); hoverTimers[key] = 0; arrows[key].classList.remove('show'); } });

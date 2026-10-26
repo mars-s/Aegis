@@ -191,5 +191,5 @@ registerPanel({ id: 'draw', title: 'Drawing', mount(el, context) {
     if (e.key === '[' || e.key === ']') { e.preventDefault(); const [a, b] = PEN_RANGE[state.pen]; state.sizes[state.pen] = Math.max(a, Math.min(b, state.sizes[state.pen] + (e.key === '[' ? -1 : 1))); save(); refresh(true); }
   }, true);
   refresh();
-  return () => { observer.disconnect(); cancelAnimationFrame(frame); inspector.remove(); live.remove(); vectorLayer.remove(); linkLayer.remove(); ring.remove(); };
+  return () => { observer.disconnect(); cancelAnimationFrame(frame); connectors.dispose(); inspector.remove(); live.remove(); vectorLayer.remove(); linkLayer.remove(); ring.remove(); };
 } });

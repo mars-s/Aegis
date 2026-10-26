@@ -27,7 +27,9 @@ const labelOf = c => c.props?.layerName ?? (c.type === 'object' ? (c.kind === 'r
 
 export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate }) {
   const list = el.querySelector('.layer-list'), menu = createMenu();
+  list.setAttribute('role', 'tree'); list.setAttribute('aria-label', 'Windows'); list.setAttribute('aria-multiselectable', 'true');
   let selection = new Set(), lastSig = '', frame = 0;
+  let activeId = null;
   const folded = new Set();
   let lastBoard;
   // PM4.5: keep search inside the Windows disclosure, above its scrolling rows.
@@ -40,7 +42,7 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
 
   function render() {
     frame = 0; const board = getBoard(); if (!board) return;
-    if (lastBoard !== board.id) { folded.clear(); filter.value = ''; lastBoard = board.id; }
+    if (lastBoard !== board.id) { folded.clear(); filter.value = ''; activeId = null; lastBoard = board.id; }
     filter.hidden = board.cards.length <= 8;
     if (filter.hidden) filter.value = '';
     const query = filter.value.trim().toLocaleLowerCase();
@@ -54,7 +56,8 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     for (const c of cards) { const parent = parents.get(c.id); if (!byParent.has(parent)) byParent.set(parent, []); byParent.get(parent).push(c); }
     const sig = query + JSON.stringify(cards.map(c => [c.id, c.type, c.kind, labelOf(c), c.badge ?? '', parents.get(c.id), c.group, c.props])) + [...selection].join() + [...folded].join();
     if (sig === lastSig) return; lastSig = sig;
-    const focused = list.contains(document.activeElement) ? document.activeElement.closest('.layer-row')?.dataset.id : null;
+    const focusedRow = list.contains(document.activeElement) ? document.activeElement.closest('[role=treeitem]') : null;
+    const focused = focusedRow?.dataset.id, focusAction = document.activeElement?.matches('.row-more') ? '.row-more' : document.activeElement?.matches('.layer-fold') ? '.layer-fold' : null;
     menu.close(); list.textContent = '';
     const frag = document.createDocumentFragment();
     const seen = new Set(), groups = new Set();
@@ -63,11 +66,13 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       if (seen.has(c.id)) return; seen.add(c.id);
       const children = c.type === 'coll' ? (c.props?.kids ?? []).map(id => (byParent.get(c.id) ?? []).find(k => k.id === id)).filter(Boolean) : byParent.get(c.id) ?? [];
       const row = document.createElement('div');
-      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : '') + (c.props?.hidden ? ' is-hidden' : ''); row.draggable = true; row.dataset.id = c.id; row.dataset.parent = parentOf(c) ?? ''; row.dataset.depth = String(depth); row.style.setProperty('--d', String(depth)); row.tabIndex = 0;
+      row.className = 'layer-row' + (selection.has(c.id) ? ' on' : '') + (c.props?.hidden ? ' is-hidden' : ''); row.draggable = true; row.dataset.id = c.id; row.dataset.parent = parentOf(c) ?? ''; row.dataset.depth = String(depth); row.style.setProperty('--d', String(depth)); row.tabIndex = -1;
+      row.setAttribute('role', 'treeitem'); row.setAttribute('aria-label', labelOf(c)); row.setAttribute('aria-selected', String(selection.has(c.id))); row.setAttribute('aria-level', String(depth + 1));
       row.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true">${ICON[c.type === 'object' ? c.kind : c.type] ?? ICON.note}</svg><span class="name"></span>`;
       row.querySelector('.name').textContent = labelOf(c); row.querySelector('.name').title = labelOf(c);
       if (c.heading || c.type === 'title' || c.kind === 'reply') row.classList.add('strong');
       if (children.length) {
+        row.setAttribute('aria-expanded', String(!folded.has(c.id)));
         const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'layer-fold';
         toggle.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${folded.has(c.id) ? 'm6 4 4 4-4 4' : 'm4 6 4 4 4-4'}"/></svg>`;
         toggle.setAttribute('aria-label', `${folded.has(c.id) ? 'Expand' : 'Collapse'} ${labelOf(c)}`); toggle.setAttribute('aria-expanded', String(!folded.has(c.id)));
@@ -99,7 +104,17 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
       };
       more.onclick = show;
       more.onkeydown = event => { if (['ArrowDown', 'ArrowUp'].includes(event.key)) show(event); };
-      row.onkeydown = event => { if (event.target === row && ['Enter', ' '].includes(event.key)) { event.preventDefault(); onPick(c.id, event.shiftKey || event.metaKey || event.ctrlKey); } };
+      row.onkeydown = event => {
+        if (event.target !== row) return;
+        if (['Enter', ' '].includes(event.key)) { event.preventDefault(); event.stopPropagation(); onPick(c.id, event.shiftKey || event.metaKey || event.ctrlKey); }
+        if (['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault(); event.stopPropagation(); const rows = [...list.querySelectorAll('[role=treeitem]')], index = rows.indexOf(row);
+          const next = event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+          rows[next]?.focus();
+        }
+        if (event.key === 'ArrowRight' && children.length) { event.preventDefault(); event.stopPropagation(); if (folded.has(c.id)) { folded.delete(c.id); schedule(); } else list.querySelector(`.layer-row[data-parent="${c.id}"]`)?.focus(); }
+        if (event.key === 'ArrowLeft') { event.preventDefault(); event.stopPropagation(); if (children.length && !folded.has(c.id)) { folded.add(c.id); schedule(); } else list.querySelector(`.layer-row[data-id="${parentOf(c)}"]`)?.focus(); }
+      };
       row.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); if (!selection.has(c.id)) onPick(c.id, false); document.getElementById('stage').dispatchEvent(new CustomEvent('layercontext', { detail: { x: e.clientX, y: e.clientY, ids: selection.has(c.id) ? [...selection] : [c.id] } })); };
       row.onmouseenter = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.add('layer-hover');
       row.onmouseleave = () => document.querySelector(`#world [data-id="${c.id}"]`)?.classList.remove('layer-hover');
@@ -111,7 +126,12 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
         if (groups.has(c.group)) continue; groups.add(c.group);
         const members = cards.filter(k => k.group === c.group && !parentOf(k));
         const header = document.createElement('div'); header.className = 'layer-group'; header.textContent = `${folded.has(c.group) ? '▸' : '▾'} ${c.props?.groupName || 'Group'} (${members.length})`;
+        header.dataset.id = c.group; header.tabIndex = -1; header.setAttribute('role', 'treeitem'); header.setAttribute('aria-label', c.props?.groupName || 'Group'); header.setAttribute('aria-expanded', String(!folded.has(c.group))); header.setAttribute('aria-level', '1'); header.setAttribute('aria-selected', String(members.every(member => selection.has(member.id))));
         header.onclick = () => { folded.has(c.group) ? folded.delete(c.group) : folded.add(c.group); schedule(); };
+        header.onkeydown = event => {
+          if (['Enter', ' ', 'ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); if (['Enter', ' '].includes(event.key)) header.click(); else { event.key === 'ArrowLeft' ? folded.add(c.group) : folded.delete(c.group); schedule(); } }
+          if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); const rows = [...list.querySelectorAll('[role=treeitem]')], index = rows.indexOf(header); rows[event.key === 'Home' ? 0 : event.key === 'End' ? rows.length - 1 : Math.max(0, Math.min(rows.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus(); }
+        };
         header.ondblclick = () => { const input = document.createElement('input'); input.value = c.props?.groupName || 'Group'; input.setAttribute('aria-label', 'Group name'); header.replaceChildren(input); input.focus(); input.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter') input.blur(); }; input.onblur = () => onUpdate?.(members.map(m => ({ op: 'update', id: m.id, set: { props: { groupName: input.value.trim() || 'Group' } } }))); };
         frag.append(header); if (query || !folded.has(c.group)) members.forEach(member => append(member, 1));
       } else append(c);
@@ -126,11 +146,19 @@ export function createLayers({ el, count, getBoard, onPick, onOrder, onUpdate })
     }
     if (!board.cards.length) { const p = document.createElement('p'); p.className = 'muted small pad'; p.textContent = 'Nothing on this board yet.'; frag.appendChild(p); }
     list.appendChild(frag);
-    if (focused) [...list.querySelectorAll('.layer-row')].find(row => row.dataset.id === focused)?.querySelector('.row-more')?.focus({ preventScroll: true });
+    const rows = [...list.querySelectorAll('[role=treeitem]')];
+    const active = rows.find(row => row.dataset.id === activeId) || rows.find(row => selection.has(row.dataset.id)) || rows[0];
+    rove(active);
+    if (focused) { const row = rows.find(row => row.dataset.id === focused) || active; (focusAction ? row?.querySelector(focusAction) : row)?.focus({ preventScroll: true }); }
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
+  function rove(active) {
+    activeId = active?.dataset.id || null;
+    for (const row of list.querySelectorAll('[role=treeitem]')) { row.tabIndex = row === active ? 0 : -1; for (const button of row.querySelectorAll('button')) button.tabIndex = row === active ? 0 : -1; }
+  }
+  list.addEventListener('focusin', event => { const row = event.target.closest('[role=treeitem]'); if (row) rove(row); });
 
-  list.addEventListener('click', e => { const row = e.target.closest('.layer-row'); if (row && !e.target.closest('button, input')) onPick(row.dataset.id, e.shiftKey || e.metaKey || e.ctrlKey); });
+  list.addEventListener('click', e => { const row = e.target.closest('.layer-row'); if (row && !e.target.closest('button, input')) { row.focus({ preventScroll: true }); onPick(row.dataset.id, e.shiftKey || e.metaKey || e.ctrlKey); } });
   let dragId = null;
   list.addEventListener('dragstart', e => { const row = e.target.closest('.layer-row'); if (!row) return; dragId = row.dataset.id; e.dataTransfer.setData('application/x-aegis-layer', dragId); e.dataTransfer.effectAllowed = 'move'; });
   const clear = () => list.querySelectorAll('.above, .below').forEach(x => x.classList.remove('above', 'below'));

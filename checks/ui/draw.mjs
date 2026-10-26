@@ -98,11 +98,21 @@ try {
   await page.mouse.click(900, 220); await page.mouse.click(1000, 300);
   await persist(() => aegis.canvas.board.cards.filter(c => c.type === 'stamp' && c.props.emoji === '🌱').length === 2);
   await page.keyboard.press('Escape');
-  // Connect two cards by the edge knobs, then edit and reconnect through the SVG layer.
+  // Connect through More, then edit and reconnect through the existing SVG controls.
   const shapeIds = (await board()).cards.filter(c => c.type === 'shape' && c.props.shape !== 'line').map(c => c.id);
   await page.evaluate(id => aegis.canvas.select([id]), shapeIds[0]); await pause();
-  let knob = await page.locator(`[data-connect-card="${shapeIds[0]}"][data-u="1"]`).boundingBox();
-  await drag([knob.x + 6, knob.y + 6], [870, 520]);
+  assert.equal(await page.locator('[data-connect-card]').count(), 0);
+  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await page.mouse.move(870, 520);
+  await page.locator(`[data-connect-target="${shapeIds[1]}"]`).waitFor();
+  await page.screenshot({ path: out('draw-connect-preview.png') });
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('[data-connect-preview]').count(), 0);
+  assert.equal((await board()).links.length, 0);
+  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await drag([500, 520], [870, 520]);
   await persist(() => aegis.canvas.board.links.length === 1);
   assert.ok(await page.locator('[data-connect-bend]').count());
   await choose(controls.getByLabel('Connector line', { exact: true }), 'dashed');
@@ -110,7 +120,7 @@ try {
   await controls.getByLabel('Connector colour', { exact: true }).fill('#cd3971');
   await controls.getByLabel('Connector label', { exact: true }).fill('Next <step>'); await controls.getByLabel('Connector label', { exact: true }).press('Tab');
   await persist(() => aegis.canvas.board.links[0]?.label === 'Next <step>');
-  knob = await page.locator('[data-connect-bend]').boundingBox();
+  let knob = await page.locator('[data-connect-bend]').boundingBox();
   await drag([knob.x + 6, knob.y + 6], [720, 600]);
   await persist(() => Math.abs(aegis.canvas.board.links[0]?.bend || 0) > 80);
   await page.screenshot({ path: out('draw-connectors.png') });

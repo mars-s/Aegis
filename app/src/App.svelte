@@ -8,9 +8,11 @@
 </script>
 
 <header class="bar" data-tauri-drag-region>
+  <div class="bar-left">
+    <button class="icon-btn" id="sideBtn" title={shortcutTitle("sidebar")} aria-controls="side" aria-pressed="false" aria-label="Toggle windows and library"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
+  </div>
   <button class="board-name" id="boardName" aria-controls="side" aria-expanded="false" title="Windows and library">Untitled</button>
   <div class="bar-right">
-    <button class="icon-btn" id="sideBtn" title={shortcutTitle("sidebar")} aria-pressed="false" aria-label="Toggle windows and library"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M6 3v10" stroke="currentColor" stroke-width="1.3"/></svg></button>
     <span class="save-state" id="saveState" role="status" aria-live="polite">saved</span>
     <button id="retrySave" hidden>Retry</button>
     <span class="status" id="status" aria-live="polite"></span>
@@ -25,7 +27,7 @@
 <button class="edge-arrow edge-arrow-left" id="revealLeft" type="button" aria-controls="side" aria-expanded="false" aria-label="Show windows and library" title={shortcutTitle("leftSidebar")}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3.5 4.5 4.5L6 12.5"/></svg></button>
 <button class="edge-arrow edge-arrow-right" id="revealRight" type="button" aria-controls="sideRight" aria-expanded="false" aria-label="Show agent activity and panels" title={shortcutTitle("rightSidebar")}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m10 3.5-4.5 4.5 4.5 4.5"/></svg></button>
 <aside class="side" id="side" aria-label="Windows and library" hidden inert>
-  <div class="side-head"><span>Windows and library</span><button class="icon-btn" id="closeSide" aria-label="Hide windows and library">×</button></div>
+  <div class="side-head"><span>Windows and library</span><button class="icon-btn" id="closeSide" aria-label="Hide windows and library"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 4.5 7 7m0-7-7 7"/></svg></button></div>
   <nav class="board-crumbs" id="boardCrumbs" aria-label="Board breadcrumbs"></nav>
   <!-- Round 3 navigation: current windows take the first, flexible section. -->
   <section class="pbox" data-panel="layers">
@@ -37,8 +39,8 @@
     <div class="phead"><span>Library</span><button class="fold" aria-label="Fold Library"><svg viewBox="0 0 10 10"><path d="M2 5h6"/><path class="v" d="M5 2v6"/></svg></button></div>
     <div class="pbody">
       <div class="tree" role="tree"></div>
-      <div class="adds"><button data-add="board">+ Board</button><button data-add="folder">+ Folder</button><button data-add="project">+ Project</button></div>
     </div>
+    <footer class="adds library-footer" aria-label="Create in library"><button data-add="board">+ Board</button><button data-add="folder">+ Folder</button><button data-add="project">+ Project</button></footer>
     <div class="resize-handle" title="Drag to resize"></div>
   </section>
   <section class="pbox" data-panel="keys">

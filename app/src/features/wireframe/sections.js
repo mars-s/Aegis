@@ -16,7 +16,7 @@ export function mountSectionBehaviour(ctx) {
   }
   function down(e) {
     const el = e.target.closest('.card.section');
-    if (!el || e.button !== 0 || e.shiftKey || space || ctx.canvas.tool || ctx.canvas.selection().includes(el.dataset.id) || e.target.closest('.wf-section-name, .resize, [data-connect-card]')) return;
+    if (!el || e.button !== 0 || e.shiftKey || space || ctx.canvas.tool || stage.classList.contains('connecting') || ctx.canvas.selection().includes(el.dataset.id) || e.target.closest('.wf-section-name, .resize')) return;
     const card = ctx.canvas.board.cards.find(c => c.id === el.dataset.id);
     if (!card || effectiveFlag(ctx.canvas.board, card, 'locked')) return;
     e.preventDefault(); e.stopImmediatePropagation();

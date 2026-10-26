@@ -105,7 +105,8 @@ try {
   await screenshots('pdf', pdf.id);
   assert.ok(workerRequests.some(request => request.status === 200 && /javascript/.test(request.type)));
   assert.ok(await page.evaluate(() => typeof Promise.withResolvers === 'function' && typeof Math.sumPrecise === 'function'));
-  await page.locator(`.card[data-id="${pdf.id}"] .win-open`).click();
+  await page.evaluate(id => aegis.canvas.select([id]), pdf.id);
+  await page.locator(`.window-actions [data-window-action="${pdf.id}"]`).click();
   await page.locator('.docs-panel').waitFor();
   assert.equal(await page.locator('.docs-panel').evaluate(el => getComputedStyle(el).transitionDuration), '0.26s');
   assert.equal(await page.locator('.docs-panel img[data-asset-src]').count(), 2);
@@ -136,7 +137,8 @@ try {
     await assertSlideFits(pptxCard.locator('.deck-main > .deck-fit'), { label: `Imported PPTX ${w} by ${h}`, pictures: 2 });
     await assertSlideFits(pptxCard.locator('.deck-thumb > .deck-fit').first(), { label: 'Imported PPTX thumbnail', pictures: 2 });
   }
-  await page.locator(`.card[data-id="${pptx.id}"] .deck-open`).click();
+  await page.evaluate(id => aegis.canvas.select([id]), pptx.id);
+  await page.locator(`.window-actions [data-window-action="${pptx.id}"]`).click();
   await page.locator('.deck-panel').waitFor();
   assert.equal(await page.locator('.deck-panel .deck-slide-wrap').count(), 2);
   await assertSlideFits(page.locator('.deck-panel .deck-slide-wrap > .deck-fit').first(), { label: 'Imported PPTX editor', pictures: 2 });

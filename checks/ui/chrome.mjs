@@ -15,7 +15,7 @@ export async function checkChrome(browser, url) {
   const idle = async () => {
     await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); });
     await page.mouse.move(720, 650);
-    await page.waitForFunction(() => ['#tools', '.bar-right'].every(selector => {
+    await page.waitForFunction(() => ['#tools', '.bar-left', '.bar-right'].every(selector => {
       const style = getComputedStyle(document.querySelector(selector));
       return Number(style.opacity) < .01 && style.pointerEvents === 'none';
     }));
@@ -43,11 +43,11 @@ export async function checkChrome(browser, url) {
     await page.mouse.move(720, 650); await page.waitForTimeout(700);
     assert.ok(await page.locator('#tools').evaluate(el => Number(getComputedStyle(el).opacity) > .99), 'rail stays for the absence grace period');
     await idle();
-    await page.mouse.move(1150, 40); await revealed('.bar-right');
+    await page.mouse.move(1150, 40); await revealed('.bar-right'); await revealed('.bar-left');
     await page.mouse.move(720, 650); await idle();
     await page.mouse.move(1400, 450); await revealed('.bar-right');
     await idle(); await page.keyboard.press('Tab');
-    await revealed('#tools'); await revealed('.bar-right');
+    await revealed('#tools'); await revealed('.bar-right'); await revealed('.bar-left');
     assert.equal(await page.locator('#tools').evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'keyboard reveal is instant');
     await page.locator('#settingsBtn').focus(); await page.waitForTimeout(1500); await revealed('.bar-right');
     await page.keyboard.press('Enter'); await page.mouse.move(720, 650); await page.waitForTimeout(1500);
@@ -85,7 +85,7 @@ export async function checkChrome(browser, url) {
     const assertQuiet = async id => {
       await page.waitForFunction(id => document.querySelector(`.card[data-id="${id}"]`)?.classList.contains('editor-source'), id);
       assert.equal(await page.locator(`#world [data-id="${id}"] .resize`).isVisible(), false);
-      assert.equal(await page.locator(`[data-connect-card="${id}"]`).evaluateAll(nodes => nodes.some(el => getComputedStyle(el).display !== 'none')), false, 'source connector handles are quiet too');
+      assert.equal(await page.locator('[data-connect-card]').count(), 0, 'card edge connectors stay absent');
       for (const selector of ['.editing-outline', '.rotation-handle', '.selection-resize', '#selectionBar']) assert.equal(await page.locator(selector).isVisible(), false, selector);
       const marker = await page.locator(`#world [data-id="${id}"]`).evaluate(el => {
         const style = getComputedStyle(el); return { width: style.outlineWidth, colour: style.outlineColor, data: style.getPropertyValue('--data').trim() };
@@ -106,7 +106,7 @@ export async function checkChrome(browser, url) {
     await page.locator('#selectionBar').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.rotation-handle').isVisible(), true);
     assert.equal(await page.locator('.selection-resize').isVisible(), true);
-    assert.ok(await page.locator('[data-connect-card="chromedoc"]').first().isVisible());
+    assert.equal(await page.locator('[data-connect-card]').count(), 0);
     assert.equal(await page.locator('.card.editor-source').count(), 0);
     assert.equal(await page.locator('#selectionBar').getByRole('button', { name: 'Open', exact: true }).evaluate(el => el === document.activeElement), true, 'Escape restores Open focus');
     await shot('document-return-1440');
@@ -132,7 +132,7 @@ export async function checkChrome(browser, url) {
       await touch.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
       await touch.goto(url); await touch.waitForFunction(() => window.aegis?.canvas?.board);
       await touch.waitForTimeout(1500);
-      assert.equal(await touch.evaluate(() => matchMedia('(pointer: coarse)').matches && ['#tools', '.bar-right'].every(selector => {
+      assert.equal(await touch.evaluate(() => matchMedia('(pointer: coarse)').matches && ['#tools', '.bar-left', '.bar-right'].every(selector => {
         const style = getComputedStyle(document.querySelector(selector)); return style.opacity === '1' && style.pointerEvents === 'auto';
       })), true, 'touch desktop chrome stays visible without pointer approach');
       assert.ok((await touch.locator('#tools > [data-tool=select]').boundingBox()).height >= 44);

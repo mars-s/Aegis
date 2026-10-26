@@ -10,6 +10,7 @@ import './styles/editor.css';
 import './styles/motion.css';
 // end item 15
 import './styles/buttons.css';
+import './styles/sidebar.css';
 import { mountDropdowns } from './lib/ui/dropdown.js';
 
 mountDropdowns();
