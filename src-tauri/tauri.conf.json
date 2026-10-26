@@ -60,6 +60,8 @@
       "../agent/node_modules": "agent/node_modules",
       "../agent/library.mjs": "agent/library.mjs",
       "../app/src/lib/board": "app/src/lib/board",
+      "../app/src/objects/chart/source.js": "app/src/objects/chart/source.js",
+      "../app/src/objects/chart/chart.ts": "app/src/objects/chart/chart.ts",
       "../agent/ui-update.mjs": "agent/ui-update.mjs",
       "../agent/skills": "agent/skills"
     }

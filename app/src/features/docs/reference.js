@@ -3,6 +3,7 @@ import Chart from '../../objects/chart/Chart.svelte';
 import { styleSpec } from '../../objects/chart/chart.ts';
 import { resolvePlot } from '../../objects/chart/source.js';
 import { parseCsv } from '../../lib/board/dataset.js';
+import { columnLabel, cellText } from '../../lib/board/summary.js';
 
 export const referenceCard = card => card.kind === 'plot' || card.kind === 'sheet' || card.type === 'dataset';
 
@@ -32,7 +33,7 @@ export function liveReference(root, canvas) {
       return;
     }
     let columns, rows;
-    if (card.kind === 'sheet') { columns = card.data.columns.map(c => c.label); rows = card.data.rows.map(r => r.cells); }
+    if (card.kind === 'sheet') { columns = card.data.columns.map(columnLabel); rows = card.data.rows.map(r => card.data.columns.map((c, i) => cellText(c, r.cells[i]))); }
     else {
       if (dataset?.src !== card.props.src) {
         const src = card.props.src;

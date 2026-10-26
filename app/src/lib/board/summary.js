@@ -1,4 +1,6 @@
 import { documentWordCount, wordCountLabel } from './words.js';
+import { resolvePlot } from '../../objects/chart/source.js';
+import { formatValue, pointText, styleSpec, xText } from '../../objects/chart/chart.ts';
 // Shared by the host's lightweight board list and the Library preview.
 export const plainLine = value => String(value ?? '').split('\n').find(line => line.trim())?.replace(/^\s*#{1,6}\s+/, '').replace(/[*_`]/g, '').trim().slice(0, 160) || '';
 export const cardTitle = card => plainLine(card.props?.layerName || card.heading || card.text || card.props?.name);
@@ -8,10 +10,10 @@ const heading = text => plainLine(/^\s*#{1,6}\s+(.+)$/m.exec(text || '')?.[1] ||
 const names = { doc: 'Document', note: 'Note', todo: 'Checklist', deck: 'Deck', slides: 'Deck', dataset: 'Dataset', html: 'Custom UI', plot: 'Plot', sheet: 'Sheet' };
 
 // Data only. Cache these when the board changes, never parse content during a zoom gesture.
-export function cardSummary(card) {
+export function cardSummary(card, cards = []) {
   const type = card.type === 'object' ? card.kind : card.type;
   const kind = names[type] || `${type?.[0]?.toUpperCase() || ''}${type?.slice(1) || 'Window'}`;
-  const data = card.data || {}, props = card.props || {};
+  const data = type === 'plot' ? resolvePlot(card.data || {}, cards) : card.data || {}, props = card.props || {};
   const title = cardTitle(card) || kind;
   let facts = [], preview;
   switch (type) {
@@ -32,19 +34,44 @@ export function cardSummary(card) {
     default: facts = [plainLine(card.heading ? card.text : String(card.text || '').split('\n').slice(1).join('\n')), words(card.text)];
   }
   if (type === 'plot') {
-    const points = (data.series?.[0]?.points || []).filter(p => Number.isFinite(p.y));
-    const last = points.at(-1);
-    preview = { type: 'plot', values: points.map(p => p.y), value: data.headline?.value || (last ? `${last.y}${data.y?.unit ? ` ${data.y.unit}` : ''}` : ''), label: data.headline?.label || (last ? `${last.x} · ${data.y?.label || data.series?.[0]?.name || ''}` : '') };
+    preview = plotPreview(data);
   } else if (type === 'stats') preview = { type, tiles: (data.tiles || []).slice(0, 2) };
   else if (type === 'progress') preview = { type, goals: (data.goals || []).slice(0, 2) };
-  else if (type === 'sheet' || type === 'table') preview = { type: 'sheet', columns: (data.columns || []).slice(0, 3).map(c => c.label), rows: (data.rows || []).slice(0, 2).map(row => row.cells?.slice(0, 3) || []) };
+  else if (type === 'sheet' || type === 'table') preview = { type: 'sheet', columns: (data.columns || []).slice(0, 3).map(columnLabel), rows: (data.rows || []).slice(0, 2).map(row => (data.columns || []).slice(0, 3).map((column, i) => cellText(column, row.cells?.[i] ?? ''))) };
   else if (type === 'deck' || type === 'slides') preview = { type: 'deck', slide: props.slides?.[0] };
-  else if (type === 'diagram') preview = { type, nodes: (data.nodes || []).slice(0, 4), edges: data.edges || [] };
+  else if (type === 'diagram') preview = { type, nodes: data.nodes || [], edges: data.edges || [] };
   if (type === 'callout' || type === 'reply') facts = [plainLine(data.headline || data.text).split(/(?<=[.!?])\s/)[0]];
   const disclosure = ['callout', 'reply'].includes(type) ? plainLine(data.attribution) : '';
   // Documents share one word count with the editor footer (lib/board/words.js); it is a secondary detail, not a visible fact.
   const wordCount = type === 'doc' ? wordCountLabel(documentWordCount(card)) : undefined;
   return { title, kind, facts: facts.filter(Boolean).slice(0, 2), ...(wordCount ? { wordCount } : {}), ...(preview ? { preview } : {}), ...(disclosure ? { disclosure } : {}) };
+}
+
+// Match the sheet editor's header and the typed sheet's figures. Dates and text stay verbatim.
+export const columnLabel = column => `${column.label}${column.unit ? ` (${column.unit})` : ''}`;
+export function cellText(column, value) {
+  const text = String(value ?? '');
+  if (!['number', 'money', 'percent', 'duration'].includes(column.kind) || !text.trim()) return text;
+  const number = Number(text.replace(/[,\s]/gu, ''));
+  if (!Number.isFinite(number)) return text;
+  const format = column.kind === 'duration' && column.unit ? 'number' : column.kind;
+  return formatValue(number, { format, currency: column.currency });
+}
+
+function plotPreview(data) {
+  const kind = styleSpec(data.style).kind;
+  const all = data.series || [];
+  const series = all.slice(0, 3).map((entry, i) => {
+    const points = entry.points || [], last = points.at(-1);
+    return { name: entry.name || `Series ${i + 1}`, points, value: last ? pointText(last, data.y) : 'No data', label: last ? xText(last.x, data.x?.kind) : '' };
+  });
+  const parts = kind === 'donut' && all.length === 1 ? (all[0].points || []).filter(p => Number.isFinite(p.y) && p.y > 0) : [];
+  const total = parts.reduce((sum, point) => sum + point.y, 0);
+  const first = series[0];
+  return { type: 'plot', kind, xKind: data.x?.kind, series, seriesCount: all.length,
+    parts: parts.map(p => ({ value: p.y, label: xText(p.x, data.x?.kind) })),
+    value: kind === 'donut' && all.length === 1 ? formatValue(total, data.y) : first?.value || 'No data',
+    label: kind === 'donut' && all.length === 1 ? count(parts.length, 'segment') : [first?.label, data.y?.label || first?.name].filter(Boolean).join(' · ') };
 }
 export function boardSubtitle(board) {
   const cards = board?.cards ?? [];

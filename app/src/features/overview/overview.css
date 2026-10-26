@@ -45,7 +45,13 @@ body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary
 .semantic-preview { display: flex; gap: 6px; min-width: 0; }
 .semantic-preview .semantic-graphic { width: 96px; height: 28px; stroke: var(--data); stroke-width: 1; }
 .semantic-headline { color: var(--text); font-size: 18px; font-variant-numeric: tabular-nums; }
-.semantic-plot { align-items: center; }
+.semantic-copy:has(.semantic-plot) { gap: 2px; }
+.semantic-plot { flex-direction: column; gap: 2px; }
+.semantic-plot .semantic-fact { line-height: 20px; }
+.semantic-headline { white-space: nowrap; }
+.semantic-series { display: flex; justify-content: space-between; gap: 4px; font-size: 12px; line-height: 14px; color: var(--ink-2); }
+.semantic-series > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.semantic-series > span:last-child { flex-shrink: 0; font-variant-numeric: tabular-nums; }
 .semantic-stats { gap: 16px; }
 .semantic-stat { display: flex; flex-direction: column; }
 .semantic-metric { font-size: 24px; line-height: 28px; font-variant-numeric: tabular-nums; }
@@ -61,7 +67,8 @@ body.motion-off :is(.agent-window-strip, .agent-window-body, .agent-zoom-summary
 .semantic-copy:has(.semantic-deck) { position: relative; padding-right: 88px; min-height: 100px; }
 .semantic-copy .semantic-deck { position: absolute; right: 0; bottom: 0; }
 .semantic-diagram { flex-direction: column; gap: 4px; }
-.semantic-diagram .semantic-graphic { width: 160px; height: 18px; stroke: var(--muted); }
+.semantic-diagram .semantic-graphic { width: 188px; height: 40px; stroke: var(--muted); }
+.semantic-diagram text { font: 12px var(--font); fill: var(--text); stroke: none; }
 /* Reference summaries also use this content renderer, inside their existing 112px footprint. */
 .editor-context-window .semantic-content { padding-block: 6px; }
 .editor-context-window .semantic-copy { gap: 3px; }

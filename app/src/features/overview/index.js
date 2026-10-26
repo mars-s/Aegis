@@ -27,7 +27,7 @@ export function mountOverview(canvas) {
     }
     cards = canvas.board.cards.filter(c => summarisedCard(c) && !effectiveFlag(canvas.board, c, 'hidden'));
     content.clear();
-    for (const card of cards) content.set(card.id, cardSummary(card));
+    for (const card of cards) content.set(card.id, cardSummary(card, canvas.board.cards));
     clusters = boardClusters(canvas.board); revision++;
     for (const [id, button] of buttons) if (!clusters.some(c => c.id === id)) { button.remove(); buttons.delete(id); }
     // All visual writes happen in the canvas's existing animation frame, including board changes.
