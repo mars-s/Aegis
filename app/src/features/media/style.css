@@ -16,11 +16,28 @@
 .image-caption { padding: 6px 10px; font-size: 12px; background: var(--card); }
 .image-actions { position: absolute; bottom: 5px; left: 5px; opacity: 0; background: var(--card); border-radius: 5px; transition: opacity .12s; }
 .card.image:hover .image-actions, .card.image.selected .image-actions, .image-actions:focus-within { opacity: 1; }
-.crop-frame { position: relative; width: fit-content; max-width: 100%; margin: auto; overflow: hidden; line-height: 0; }
-.crop-frame > img { display: block; max-width: 100%; max-height: 65vh; width: auto; user-select: none; }
-.crop-box { position: absolute; box-sizing: border-box; border: 2px solid #fff; box-shadow: 0 0 0 2000px #0007; cursor: move; touch-action: none; }
-.crop-handle { position: absolute; width: 14px; height: 14px; background: white; border: 1px solid #333; border-radius: 2px; }
-.crop-handle.nw { left: -7px; top: -7px; cursor: nwse-resize; }.crop-handle.ne { right: -7px; top: -7px; cursor: nesw-resize; }.crop-handle.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }.crop-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
+.crop-preview { padding: 16px; }
+.crop-frame { position: relative; width: fit-content; max-width: 100%; margin: auto; line-height: 0; }
+.crop-frame > img { display: block; max-width: 100%; max-height: 50vh; width: auto; user-select: none; }
+.crop-shade { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.crop-shade > div { position: absolute; box-shadow: 0 0 0 2000px #0007; }
+.crop-dialog .crop-frame > button { position: absolute; box-sizing: border-box; min-height: 0; padding: 0; background: transparent; border-radius: 0; box-shadow: none; touch-action: none; transition: none; }
+.crop-dialog .crop-frame > .crop-box { border: 2px solid #fff; cursor: move; }
+.crop-dialog .crop-frame > .crop-handle { width: 28px; height: 28px; margin: -14px 0 0 -14px; border: 0; }
+.crop-handle::after { content: ''; position: absolute; inset: 8px; background: #fff; border: 1px solid #333; border-radius: 2px; }
+.crop-handle.nw, .crop-handle.se { cursor: nwse-resize; }
+.crop-handle.ne, .crop-handle.sw { cursor: nesw-resize; }
+.crop-dialog .crop-frame > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.crop-dialog .crop-frame > .crop-handle:active { transform: none; }
+.crop-help, .crop-status { margin: 8px 0; font-size: var(--text-label); line-height: 1.5; color: var(--muted); }
+.crop-status { font-variant-numeric: tabular-nums; }
+.crop-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.crop-field { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-label); }
+.crop-fields .aegis-stepper { grid-template-columns: 32px minmax(48px, 1fr) 32px; width: 100%; min-width: 0; }
+.crop-fields .aegis-stepper > input { width: 100%; padding: 0; font: var(--text-label)/1 var(--font); appearance: textfield; }
+.crop-fields input::-webkit-inner-spin-button, .crop-fields input::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.crop-dialog > .media-actions { justify-content: flex-end; padding: 8px 0 0; }
+@media (max-width: 600px) { .crop-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .card.link, .card.spotify { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 .card.link .media-head, .card.spotify .media-head { flex-shrink: 0; padding: 7px 10px; display: flex; gap: 6px; align-items: center; font-size: 13px; min-height: 28px; }
 .link-favicon { width: 16px; height: 16px; object-fit: contain; }

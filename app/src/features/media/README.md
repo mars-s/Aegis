@@ -7,7 +7,7 @@ Inventory coverage: M1 to M10 and M12. M11 is a disabled transcription button wi
 - M3: per-board background, default reset, and separate light/dark app background, dots, panels and accent preferences in Settings. Text contrast follows custom panel/accent colours.
 - M4: image picker, image paste/drop, original animation files up to 12 MB, still-image resizing, captions and existing mixed-media imports. Large PNG/SVG encodings fall back to JPEG at the six-million-character data URL threshold.
 - M5: local pixel sampling produces up to five distinct swatches. Extracted swatches display main, second, accent, shadow and pop as their initial names and retain the extraction role in props.role. Custom names can replace those labels.
-- M6: a full-image crop editor, four corner handles, movement, reset, cancel, Escape and Enter. Only props.crop and display height change.
+- M6: a full-image crop editor with a named crop area, four named corner handles, and shared X, Y, Width and Height steppers. Arrow keys move or resize by one original-image pixel, or ten with Shift. Controls have 2px focus outlines, unclipped 28px handle targets and live geometry announcements. Tab visits the area, corners, fields, Reset, Cancel and Done. Enter applies from the area, corners or fields; action buttons keep their named action. Escape cancels. Crops stay within the image with a minimum of 8% per dimension, rounded up to a whole pixel. Only props.crop and display height change, and one-pixel crops are retained.
 - M7: editable links, title/description/image/favicon previews, URL drop, existing URL paste and host opening. A loading status is visible until the preview finishes. Failed previews retain the link and offer retry. Escape removes an empty, untitled link card and retains a typed draft.
 - M8: Spotify URL/URI detection, saved preview metadata and the Spotify player. Select a card before interacting with the iframe.
 - M9: real MediaRecorder audio, countdown, waveform, pause/resume/stop, asset upload, playback, scrubbing and replacement.
@@ -50,6 +50,8 @@ PLAYWRIGHT=/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.m
 ```
 
 The browser script uses a throwaway host with AEGIS_FAKE_MODEL=1, temporary AEGIS_DATA and Vite port 5183. The script snapshots all UI source files first so other feature ports cannot trigger HMR during the run. Chromium provides test camera/microphone streams. It records real MediaRecorder files and verifies playback, saved board JSON, palette/background isolation, crop persistence, device persistence, file fallback and a real preview of https://ogp.me/. Physical devices and the packaged macOS app still need a native smoke test.
+
+`node checks/ui/run.mjs crop-a11y` builds the production UI and checks keyboard-only cropping in Chromium and WebKit, in both themes at 1440×900 and 1586×992. It verifies pixel steps, numeric entry, Tab order, focus restoration, bounds, live geometry, saved board data, reload, cancellation and pointer/stepper synchronisation. Screenshots, build output and `crop-a11y.json` go to `AEGIS_CHECK_OUT`.
 
 Screenshots and saved board evidence are under /tmp/aegis-check-media/. Unrelated feature work can temporarily stop the full application from loading while its imported files are still being written.
 

@@ -17,5 +17,5 @@ export function createStepper({ label, value = '', min = -Infinity, max = Infini
     const button = document.createElement('button'); button.type = 'button'; button.className = 'aegis-button aegis-button--quiet'; button.setAttribute('aria-label', `${name} ${label.toLowerCase()}`);
     button.innerHTML = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg>`; button.onclick = () => move(direction); el.append(button); if (direction < 0) el.append(input);
   }
-  return { el, input };
+  return { el, input, setValue(value) { current = String(value ?? ''); input.value = current; } };
 }
