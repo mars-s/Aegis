@@ -100,7 +100,7 @@ try {
   verify('font picker arrows reach a matching choice', await page.evaluate(() => document.activeElement.tagName === 'BUTTON' && document.activeElement.textContent.includes('serif')));
   await page.keyboard.press('Escape');
   verify('font picker Escape closes and restores its trigger', !await searchFonts.isVisible() && await fonts.evaluate(el => document.activeElement === el));
-  await fonts.click(); await searchFonts.fill('system-ui'); await searchFonts.press('ArrowDown'); await page.keyboard.press('Space'); await settle();
+  await fonts.click(); await searchFonts.fill('System'); await searchFonts.press('ArrowDown'); await page.keyboard.press('Space'); await settle();
   verify('font menu Space commits the focused choice', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.font === 'system-ui') && !await searchFonts.isVisible());
 
   await page.keyboard.press('Escape');
