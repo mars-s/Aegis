@@ -36,7 +36,7 @@ export function createMenu({ trigger, menu = document.createElement('div'), item
       button.setAttribute('role', item.checked === undefined ? 'menuitem' : item.checkType === 'checkbox' ? 'menuitemcheckbox' : 'menuitemradio');
       if (item.checked !== undefined) button.setAttribute('aria-checked', String(item.checked));
       button.textContent = item.title; button.dataset.label = item.title; button.disabled = !!item.disabled;
-      if (item.ariaLabel) button.setAttribute('aria-label', item.ariaLabel);
+      button.setAttribute('aria-label', item.ariaLabel || item.title);
       // Round 3 navigation: menu shortcuts use the same copy as the reference and tour.
       if (item.shortcut) { const key = document.createElement('kbd'); key.className = 'aegis-menu-shortcut'; key.setAttribute('aria-hidden', 'true'); key.textContent = item.shortcut; button.append(key); }
       if (item.checked !== undefined) button.insertAdjacentHTML('beforeend', item.checkType === 'checkbox'
