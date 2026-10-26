@@ -152,7 +152,8 @@ try {
     }
     await page.keyboard.press('Escape');
     assert.equal(await editor.count(), 0, 'Escape removes the editor immediately');
-    await page.waitForFunction(kind => document.activeElement?.closest('.card')?.classList.contains(`kind-${kind}`), kind);
+    // Focus returns to the invoking Open action for this window (or the window itself if the action is gone).
+    await page.waitForFunction(kind => { const a = document.activeElement; const id = a?.dataset.windowAction; return a?.closest('.card')?.classList.contains(`kind-${kind}`) || (id && document.querySelector(`.card[data-id="${id}"]`)?.classList.contains(`kind-${kind}`)); }, kind);
     checkedOpen.add(kind);
   };
   for (const kind of Object.keys(samples)) {
