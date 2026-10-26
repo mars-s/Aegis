@@ -56,8 +56,13 @@ export function mountNavigation(ctx, { exportBoard }) {
     const panel = document.querySelector('[data-panel="unsorted"]');
     panel?.dispatchEvent(new CustomEvent('panelreveal', { bubbles: true }));
     const side = panel?.closest('aside');
-    if (side?.hidden || side?.inert) document.getElementById(side.id === 'sideRight' ? 'agentsBtn' : 'boardName').click();
+    if (document.body.classList.contains('phone')) document.querySelector('#mobileHub [data-sheet="unsorted"]')?.click();
+    else if (side?.hidden || side?.inert) document.getElementById(side.id === 'sideRight' ? 'agentsBtn' : 'boardName').click();
     requestAnimationFrame(() => highlightTray(ids));
+  }
+  function focusCanvas() {
+    if (document.querySelector('.mobile-sheet:not([hidden]) #mobileTitle')?.textContent === 'Unsorted') document.querySelector('.mobile-sheet header button')?.click();
+    stage.focus({ preventScroll: true });
   }
   put.onclick = () => {
     if (!result || result.boardId !== canvas.board.id) return dismissConfirmation();
@@ -68,7 +73,7 @@ export function mountNavigation(ctx, { exportBoard }) {
     result.ids = cloned.ids;
     apply([{ op: 'board_set', set: { tray: canvas.board.tray.filter(c => !result.trayIds.includes(c.id)) } }, ...cloned.commands, { op: 'layout', ids: cloned.ids, shape: 'grid', cols, x: at.x - cols * 148, y: at.y - 100 }], () => {
       canvas.frameIds(result.ids, 1, false, true); canvas.glow(result.ids);
-      message.textContent = `On the board · ${describe(items)}`; put.hidden = true; expireConfirmation(); stage.focus({ preventScroll: true });
+      message.textContent = `On the board · ${describe(items)}`; put.hidden = true; expireConfirmation(); focusCanvas();
     });
   };
   confirmation.querySelector('[data-undo]').onclick = () => {
@@ -76,7 +81,7 @@ export function mountNavigation(ctx, { exportBoard }) {
     const commands = [{ op: 'board_set', set: { tray: (canvas.board.tray ?? []).filter(c => !result.trayIds.includes(c.id)) } }];
     const ids = result.ids.filter(id => canvas.board.cards.some(c => c.id === id));
     if (ids.length) commands.push({ op: 'delete', ids });
-    apply(commands); dismissConfirmation(); stage.focus({ preventScroll: true });
+    apply(commands); dismissConfirmation(); focusCanvas();
   };
   stage.addEventListener('boardchange', () => { if (result && canvas.board.id !== result.boardId) dismissConfirmation(); });
   const describe = cards => ['note', 'link', 'todo'].map(type => {

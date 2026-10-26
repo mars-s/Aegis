@@ -140,14 +140,14 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     }, { instant, crossfade: old !== next });
     if (next === 'done') doneTimer = setTimeout(() => { if (island.dataset.state === 'done') state('idle'); }, 8000);
   }
-  function open(instant = false, focus = true) {
+  function open(instant = false, focus = true, frame = true) {
     dismissHint();
     // The phone's Agents sheet temporarily borrows the composer. Keep its menu with it.
     const inSheet = !island.contains(composer);
     island.hidden = inSheet;
     if (inSheet) composer.append($('orbMenu'));
     renderOrb(); state(current() ? 'conversation' : 'typing', instant);
-    framedIds = pinned.length ? [...pinned] : canvas.selection().length ? canvas.selection() : requestResult(current())?.ids ?? [];
+    framedIds = frame ? pinned.length ? [...pinned] : canvas.selection().length ? canvas.selection() : requestResult(current())?.ids ?? [] : [];
     if (framedIds.length) frameAboveIsland(canvas, island, framedIds, instant);
     if (focus) prompt.focus({ preventScroll: true });
   }
@@ -172,7 +172,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     hoverSuppressed = false;
     leaveTimer = setTimeout(() => { if (island.dataset.state === 'hover') state('idle'); }, 160);
   });
-  orb.addEventListener('focus', () => { if (!restoringFocus && island.dataset.state !== 'done') open(true); });
+  orb.addEventListener('focus', () => { if (!restoringFocus && island.dataset.state !== 'done') open(true, true, false); });
   stage.addEventListener('pointerdown', () => { if (expanded()) close(); }, true);
   composer.addEventListener('open-composer', () => open(true));
   document.addEventListener('capture-to-agent', e => {

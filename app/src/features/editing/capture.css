@@ -51,5 +51,5 @@ body.motion-off .editing-capture[data-entry] { animation: none; }
   .editing-capture footer { padding: 12px; }
   .capture-keys { flex: 1 0 100%; padding: 0 10px; }
   .capture-actions { width: 100%; justify-content: flex-end; }
-  .capture-confirmation { bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .capture-confirmation { top: calc(56px + env(safe-area-inset-top)); bottom: auto; }
 }

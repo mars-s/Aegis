@@ -74,7 +74,13 @@ for (const name of ['chromium', 'webkit']) {
     check(await dialog.getAttribute('data-entry') === 'pointer', `${name}: Idea button uses pointer entry`);
     await page.keyboard.press('Escape');
     await page.keyboard.press('Meta+Shift+k');
-    await input.fill('FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'Sent from capture', x: 420, y: 180 }]));
+    const changedIds = await page.evaluate(() => aegis.canvas.board.cards.filter(c => c.type === 'note').map(c => c.id));
+    await input.fill('FAKE ' + JSON.stringify([
+      { op: 'create', type: 'note', text: 'Sent from capture', x: 420, y: 180 },
+      { op: 'create', type: 'note', text: 'A second result', x: 740, y: 180 },
+      { op: 'create', type: 'note', text: 'A third result', x: 1060, y: 180 },
+      ...changedIds.map((id, i) => ({ op: 'update', id, set: { text: `Updated thought ${i + 1}` } })),
+    ]));
     await input.press('Meta+Enter');
     await page.locator('#askPill.working').waitFor();
     const thinking = await sample();
@@ -87,7 +93,7 @@ for (const name of ['chromium', 'webkit']) {
     await page.locator('#agentIsland[data-state="done"]').waitFor({ timeout: 20000 });
     check(await page.locator('#agentIsland .orb-mark.resolved').count() > 0, `${name}: completion resolves the mark`);
     check(await page.evaluate(() => aegis.canvas.board.cards.some(c => c.text === 'Sent from capture')), `${name}: Cmd Return sends capture through the agent`);
-    check((await page.locator('#orbStatus').textContent()).includes('Created 1 window'), `${name}: completion names the result`);
+    check((await page.locator('#orbStatus').textContent()).includes('Created 3 windows · Updated 2'), `${name}: completion names created and updated windows`);
     check(await page.locator('.island-result-undo').isVisible(), `${name}: completion offers Undo`);
     await page.locator('#askPill').click();
     check(await page.locator('.card.glow').count() > 0, `${name}: clicking the result highlights its work`);
