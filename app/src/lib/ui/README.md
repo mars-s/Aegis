@@ -80,7 +80,7 @@ For Svelte, create these controllers inside an action and return `{ destroy: con
 
 Shared consumers include canvas and library context menus, generated-window actions, the selection More and formatting popovers, island options and model choices, Settings and Customise toolbar, zoom and tools menus, all document/sheet/slide ribbon choices, media caption/crop/link dialogs, colour and icon pickers, project cover menus, confirmations and onboarding. Quick capture inherits the common native dialog material without changing its feature code. Full-screen gallery inspection, presentation and mobile navigation retain their content layouts.
 
-Run `npm run check`, `npm --prefix app run build` and the production `checks/ui/design-system.mjs` journey. The journey uses temporary `AEGIS_DATA`, `AEGIS_UI=app/dist` and the fake model, opens real controls in both themes and records screenshots and a JSON inventory. Run the full UI suite with `AEGIS_PORT_OFFSET=2700` and `PLAYWRIGHT` pointing to the installed Playwright module. No verification reads real Aegis user data.
+Run `npm run check`, `npm --prefix app run build` and the production `checks/ui/design-system.mjs` journey. The journey uses temporary `AEGIS_DATA`, `AEGIS_UI=app/dist` and the fake model, opens real controls in both themes and records screenshots and a JSON inventory. Run the full UI suite with `AEGIS_PORT_OFFSET=2700` and `PLAYWRIGHT` pointing to the installed Playwright module. For the same production journey in WebKit, run `AEGIS_BROWSER=webkit node checks/ui/design-system.mjs` with the same Playwright and output environment variables. No verification reads real Aegis user data.
 
 ## Critic follow-up
 

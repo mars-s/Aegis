@@ -1,5 +1,5 @@
 // Production controls, real host and temporary data. Screenshots are the review inventory.
-import { chromium } from './playwright.mjs';
+import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
 import { spawn, spawnSync } from 'node:child_process';
@@ -19,7 +19,7 @@ const port = await new Promise((resolve, reject) => {
   host.stdout.on('data', bytes => { const m = /"port":(\d+)/.exec(String(bytes)); if (m) resolve(m[1]); });
   host.once('exit', code => reject(Error(`Host exited ${code}`)));
 });
-const browser = await chromium.launch();
+const browser = await (process.env.AEGIS_BROWSER === 'webkit' ? webkit : chromium).launch();
 const captures = [], errors = [];
 let page;
 try {
