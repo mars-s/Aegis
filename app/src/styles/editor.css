@@ -40,8 +40,14 @@
 .editor-context-reference { top: 64px; }
 .editor-reference-tools { display: flex; align-items: center; height: 40px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .editor-reference-tools .aegis-dropdown { width: 100%; min-width: 0; font-size: 12px; }
-.editor-reference-chart { width: 320px; height: 180px; padding: 8px; box-sizing: border-box; }
-.editor-reference-chart .chart-legend { display: none; }
+.editor-reference-chart { width: 320px; min-height: 180px; padding: 8px; box-sizing: border-box; }
+.editor-reference-chart .plot-body { gap: 8px; }
+.editor-reference-chart .chart-legend { font-size: 12px; line-height: 16px; gap: 4px 12px; }
+.editor-reference-chart .chart-legend .name { white-space: normal; overflow: visible; }
+.editor-reference-empty { margin: 0; padding: 16px 12px; color: var(--muted); font: 12px/18px var(--font); }
+.editor-context-restore { position: absolute; z-index: 100007; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--muted); font: 12px var(--font); cursor: pointer; }
+.editor-context-restore:hover { background: var(--hover); color: var(--text); }
+.editor-context-restore:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .editor-reference-chart .mark { animation: none !important; }
 .editor-reference-table { width: 280px; height: 160px; overflow: hidden; }
 .editor-reference-table table { width: 100%; table-layout: fixed; border-collapse: collapse; font: 12px/1.4 var(--font); font-variant-numeric: tabular-nums; }

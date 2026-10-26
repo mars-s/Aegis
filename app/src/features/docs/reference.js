@@ -68,5 +68,5 @@ export function liveReference(root, canvas) {
     }
     content.append(table);
   }
-  return { update, destroy() { closed = true; version++; clear(); } };
+  return { update, clear() { version++; key = ''; clear(); controls.remove(); }, destroy() { closed = true; version++; clear(); } };
 }
