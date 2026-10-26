@@ -49,7 +49,8 @@ try {
       await (await chooser).setFiles({ name: 'fictional-sample.csv', mimeType: 'text/csv', buffer: Buffer.from('Day,Focus hours\nMonday,3\nTuesday,4\nWednesday,2\n') });
       await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'dataset'));
       assert.equal(await page.locator('#empty').isVisible(), false);
-      assert.equal((await api(`/boards/${board.id}`)).cards[0].props.rows, 3);
+      await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.type === 'dataset' && c.props.rows === 3));
+      assert.equal((await api(`/boards/${board.id}`)).cards.find(c => c.type === 'dataset').props.rows, 3);
       check(`${engineName} ${viewport.width}: CSV action imports through the picker and removes the empty state`);
       await page.evaluate(() => aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }]));
       await page.locator('#empty').waitFor({ state: 'visible' });
@@ -104,6 +105,10 @@ try {
       await page.screenshot({ path: out(`first-minute-onboard-1-${engineName}-${viewport.width}.png`) });
       await page.getByRole('button', { name: 'Add thought', exact: true }).click();
       assert.match(await page.locator('.tour-progress').textContent(), /2 of 3/);
+      await page.mouse.move(viewport.width - 30, 20); await page.locator('#settingsBtn').click();
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('.onboarding').evaluate(el => el.open), true, 'Settings owns Escape while the guide is nonmodal');
+
       assert.ok(await page.evaluate(() => aegis.canvas.board.cards.some(c => c.type === 'note' && c.text === 'Make space for reading this week.')));
       await page.screenshot({ path: out(`first-minute-onboard-2-${engineName}-${viewport.width}.png`) });
       await page.getByRole('button', { name: 'Ask for a plan', exact: true }).click();
@@ -178,7 +183,10 @@ try {
     await page.getByRole('menu', { name: 'New in library', exact: true }).getByRole('menuitem', { name: kind, exact: true }).click();
     if (kind !== 'Board') {
       const field = page.locator('.home-tile strong[contenteditable="plaintext-only"]');
+      const element = await field.elementHandle();
       await field.fill(name); await field.press('Enter');
+      await page.waitForFunction(el => !el.isConnected, element); await element.dispose();
+      await page.waitForFunction(async name => (await aegis.host.get('/library')).nodes.some(n => n.name === name), name);
       await page.waitForFunction(() => !document.querySelector('.home-tile strong[contenteditable="plaintext-only"]'));
     }
   };
@@ -193,6 +201,17 @@ try {
   const newBoardId = await page.evaluate(() => aegis.canvas.board.id);
   assert.equal((await api('/library')).boards.find(b => b.id === newBoardId).parent, folder.id);
   check('Library New creates and names projects and folders, and opens a new board in its folder');
+  if (await page.locator('#boardName').getAttribute('aria-expanded') !== 'true') await page.locator('#boardName').click();
+  await page.getByRole('button', { name: 'Home', exact: true }).click();
+  await page.locator(`.home-tile[data-into="${project.id}"]`).click();
+  await page.locator(`.home-tile[data-into="${folder.id}"]`).click();
+  await page.getByRole('searchbox', { name: 'Search library' }).fill('No matching item');
+  await newItem('Project', 'Another studio');
+  assert.equal((await api('/library')).nodes.find(n => n.name === 'Another studio').parent, null);
+  assert.equal(await page.locator('.home-heading h1').textContent(), 'All projects');
+  assert.equal(await page.getByRole('searchbox', { name: 'Search library' }).inputValue(), '');
+  check('New Project from a filtered folder returns to the root and reveals the new project for naming');
+
   await page.close(); await browser.close(); browser = null;
   writeFileSync(out('first-minute-results.json'), JSON.stringify({ checks, metrics, data }, null, 2));
   console.log('ALL', checks.length, 'CHECKS PASSED', JSON.stringify(metrics));

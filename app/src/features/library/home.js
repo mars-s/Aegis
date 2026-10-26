@@ -66,7 +66,7 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
     }
     dialog.innerHTML = `<header><button data-action="back" ${at ? '' : 'disabled'}>Back</button><nav aria-label="Library breadcrumbs"><button data-into="">All projects</button>${chain.map(n => `<span>/</span><button data-into="${esc(n.id)}">${esc(n.name)}</button>`).join('')}</nav><button data-action="close">Back to board</button></header><div class="home-heading"><h1>${esc(here?.name ?? 'All projects')}</h1><div class="home-new"><button data-home-new aria-label="New" aria-haspopup="menu">New <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6 3.5 3.5L11.5 6"/></svg></button></div></div><div class="home-search-row"><input type="search" data-home-search aria-label="Search library" placeholder="Find a board, a thought, a project…" autocomplete="off"><span data-home-count role="status"></span></div><div class="home-tiles"></div><p class="home-empty" hidden></p><input type="file" accept="image/*" data-cover-file aria-label="Choose a project cover" hidden>`;
     const search = dialog.querySelector('[data-home-search]'); search.value = query;
-    newMenu = createMenu({ trigger: dialog.querySelector('[data-home-new]'), portal: false, label: 'New in library', items: ['board', 'folder', 'project'].map(kind => ({ title: kind[0].toUpperCase() + kind.slice(1), async run() { const result = await create(kind, kind === 'project' ? null : at); if (!result) return; if (kind === 'board') close(); else { render(); editName(result.created); } } })) });
+    newMenu = createMenu({ trigger: dialog.querySelector('[data-home-new]'), portal: false, label: 'New in library', items: ['board', 'folder', 'project'].map(kind => ({ title: kind[0].toUpperCase() + kind.slice(1), async run() { const result = await create(kind, kind === 'project' ? null : at); if (!result) return; if (kind === 'board') close(); else { query = ''; if (kind === 'project') at = null; render(); editName(result.created); } } })) });
     function tiles() {
       observer?.disconnect(); jobs = []; coverMenus.forEach(menu => menu.destroy()); coverMenus.clear();
       const needle = query.trim().toLocaleLowerCase();
@@ -131,12 +131,13 @@ export function createHome({ getData, load, open, create, menu, scope, onClose, 
     const tile = [...dialog.querySelectorAll('[data-item]')].find(el => el.dataset.item === id), field = tile?.querySelector('strong');
     if (!field || editing) return;
     const before = field.textContent; editing = true; field.contentEditable = 'plaintext-only'; field.focus(); getSelection()?.selectAllChildren(field);
+    dialog.querySelector('[data-home-new]').disabled = true;
     let done = false;
     const finish = async keep => {
-      if (done) return; done = true; field.onblur = null; field.contentEditable = 'false'; editing = false;
+      if (done) return; done = true; field.onblur = null; field.contentEditable = 'false';
       const value = field.textContent.trim();
-      if (keep && value && value !== before) await rename(id, value);
-      await render();
+      try { if (keep && value && value !== before) await rename(id, value); }
+      finally { editing = false; render(); }
     };
     field.onkeydown = e => { e.stopPropagation(); if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); finish(e.key === 'Enter'); } };
     field.onblur = () => finish(true);

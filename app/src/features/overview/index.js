@@ -23,6 +23,8 @@ export function mountOverview(canvas) {
     back.hidden = !bookmark;
     if (!far) return;
     const occupied = [], width = stage.clientWidth, height = stage.clientHeight;
+    // Agent headers remain interactive even when their spatial windows are tiny.
+    const agents = [...document.querySelectorAll('.agent-window:not([hidden])')].map(el => el.getBoundingClientRect()).filter(r => r.width && r.height);
     for (const cluster of clusters) {
       const x = cluster.x * view.z + view.x, y = cluster.y * view.z + view.y;
       const w = (cluster.right - cluster.x) * view.z, h = (cluster.bottom - cluster.y) * view.z;
@@ -45,8 +47,10 @@ export function mountOverview(canvas) {
       button.setAttribute('aria-label', `Frame ${cluster.name}, ${cluster.count} ${cluster.count === 1 ? 'window' : 'windows'}`);
       const bw = Math.max(220, Math.min(320, w)), bh = Math.max(60, h + 38);
       const left = Math.max(16, Math.min(width - bw - 16, x - Math.max(0, bw - w) / 2));
-      let top = Math.max(64, Math.min(height - bh - 100, y - 38));
-      while (occupied.some(r => left < r.right + 8 && left + bw > r.left - 8 && top < r.bottom + 8 && top + bh > r.top - 8)) top += 68;
+      const frameHeight = Math.min(220, bh), preferred = Math.max(64, Math.min(height - frameHeight - 100, y - 38));
+      const blocked = top => [...occupied, ...agents].some(r => left < r.right + 12 && left + bw > r.left - 12 && top < r.bottom + 12 && top + frameHeight > r.top - 12);
+      let top = [0, -1, 1, -2, 2, -3, 3].map(i => preferred + i * (frameHeight + 16)).find(top => top >= 64 && top + frameHeight <= height - 100 && !blocked(top));
+      if (top === undefined) { top = preferred; while (blocked(top)) top += frameHeight + 16; }
       // Crowded groups remain keyboard reachable in a scrolling stack.
       Object.assign(button.style, { left: `${left}px`, top: `${top}px`, width: `${bw}px`, minHeight: `${Math.min(220, bh)}px` });
       occupied.push({ left, right: left + bw, top, bottom: top + Math.min(220, bh) });

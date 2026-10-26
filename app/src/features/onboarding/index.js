@@ -65,6 +65,8 @@ export function createOnboarding({ ctx, ask }) {
   });
   dialog.addEventListener('cancel', event => { event.preventDefault(); finish(); });
   addEventListener('keydown', event => {
+    const modal = document.querySelector('dialog:modal');
+    if (modal && modal !== dialog) return;
     if (dialog.open && event.key === 'Escape') { event.preventDefault(); event.stopImmediatePropagation(); finish(); }
   }, true);
   const help = createShortcuts();
