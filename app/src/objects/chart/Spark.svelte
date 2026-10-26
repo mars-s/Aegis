@@ -1,7 +1,7 @@
 <!-- From Zephium (zephium-browser/Zephium @ 0eaad6d, frame/src/shared/ui/data/Chart/Spark.svelte), MPL-2.0. Changes for Aegis: local imports. -->
 <script lang="ts">
   import type { ChartSpec } from "./chart";
-  import { band, barPath, linear, monotone, runs, type Point } from "./geometry";
+  import { band, barPath, linear, linePath, runs, type Point } from "./geometry";
   import type { Plan } from "./plan";
   /** A trend in a row: no axes, no readout, filling its box. */
   let {
@@ -27,7 +27,7 @@
         value === null ? null : { x: x(index), y: y(value) },
       ),
     )
-      .map((piece) => monotone(piece))
+      .map((piece) => linePath(piece, spec.smooth))
       .join(""),
   );
   const bars = $derived.by(() => {
@@ -89,7 +89,7 @@
 
   .line {
     fill: none;
-    stroke-width: 1.4;
+    stroke-width: 1.5;
     vector-effect: non-scaling-stroke;
     stroke-linecap: round;
     stroke-linejoin: round;

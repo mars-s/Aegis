@@ -29,7 +29,7 @@
     spec: ChartSpec;
     /** Names the chart for assistive technology and captions the values table. */
     title: string;
-    /** A spark's or a tile's height; without it they fill their container. */
+    /** Override the plot height, including fixed-size references. */
     height?: number;
     /**
      * `full` reads every value; `overview` keeps the headline and the marks, with no
@@ -117,7 +117,7 @@
   const headline = $derived(spec.headline);
   const rowHeight = $derived(compact ? 20 : Math.max(24, 10 + spec.series.length * 12));
   const plotHeight = $derived.by(() => {
-    if (tile && height) return height;
+    if (height) return height;
     if (spec.kind === "heat")
       return (
         (compact ? 0 : 24) +

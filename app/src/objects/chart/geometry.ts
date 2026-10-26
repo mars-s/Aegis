@@ -82,6 +82,11 @@ export function monotone(points: readonly Point[]): string {
   return path;
 }
 
+/** Straight by default; smoothing is an explicit saved choice. */
+export function linePath(points: readonly Point[], smooth = false): string {
+  return smooth ? monotone(points) : points.map((p, i) => `${i ? 'L' : 'M'}${round(p.x)},${round(p.y)}`).join('');
+}
+
 /** Runs of consecutive defined points: a null is a gap the line does not cross. */
 export function runs<T>(items: readonly (T | null)[]): T[][] {
   const out: T[][] = [];
@@ -97,10 +102,10 @@ export function runs<T>(items: readonly (T | null)[]): T[][] {
 }
 
 /** The filled region between a curve and its floor (a line, or the curve beneath a stack). */
-export function areaPath(top: readonly Point[], floor: readonly Point[]): string {
+export function areaPath(top: readonly Point[], floor: readonly Point[], smooth = false): string {
   if (!top.length) return "";
-  const upper = monotone(top);
-  const lower = monotone([...floor].reverse()).replace(/^M/u, "L");
+  const upper = linePath(top, smooth);
+  const lower = linePath([...floor].reverse(), smooth).replace(/^M/u, "L");
   return `${upper}${lower}Z`;
 }
 

@@ -1,11 +1,13 @@
 import { cardSummary } from '../../lib/board/summary.js';
-import { summaryContent } from '../overview/summary.js';
+import { createDropdown } from '../../lib/ui/dropdown.js';
+import { liveReference, referenceCard } from './reference.js';
 import { summarisedCard } from '../overview/zoom.js';
 import { effectiveFlag } from '../editing/model.js';
 import { reduceMotion } from '../../lib/ui/interaction.js';
 import '../overview/overview.css';
 
-const GAP = 24, HEIGHT = 112;
+const GAP = 24;
+const pinned = new Map();
 const centre = card => ({ x: card.x + card.w / 2, y: card.y + card.h / 2 });
 const layoutBounds = el => {
   const rect = el.getBoundingClientRect();
@@ -29,24 +31,7 @@ function neighbours(board, source) {
   const origin = centre(source), distance = c => { const p = centre(c); return Math.hypot(p.x - origin.x, p.y - origin.y); };
   return board.cards.filter(c => c.id !== source.id && summarisedCard(c) && !effectiveFlag(board, c, 'hidden'))
     .sort((a, b) => Number(linked.has(b.id)) - Number(linked.has(a.id)) || distance(a) - distance(b))
-    .slice(0, 2).map(card => ({ card, relation: linked.has(card.id) ? 'Linked' : 'Nearby' }));
-}
-
-// Fixed screen-size summaries keep both the source and its evidence readable.
-// Move a colliding summary the shortest distance, retaining the spatial order.
-function placeSummaries(points, area, width) {
-  const placed = [], clamp = (n, max) => Math.max(0, Math.min(max, n));
-  for (const point of points) {
-    const x = clamp(point.x - width / 2, area.w - width), y = clamp(point.y - HEIGHT / 2, area.h - HEIGHT);
-    const xs = [x, 0, area.w - width, ...placed.flatMap(p => [p.x - width - 12, p.x + width + 12])];
-    const ys = [y, 0, area.h - HEIGHT, ...placed.flatMap(p => [p.y - HEIGHT - 12, p.y + HEIGHT + 12])];
-    const choices = xs.flatMap(x => ys.map(y => ({ x, y }))).filter(p => p.x >= 0 && p.y >= 0 && p.x + width <= area.w && p.y + HEIGHT <= area.h
-      && placed.every(q => p.x + width + 12 <= q.x || q.x + width + 12 <= p.x || p.y + HEIGHT + 12 <= q.y || q.y + HEIGHT + 12 <= p.y));
-    choices.sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y));
-    if (!choices.length) break;
-    placed.push(choices[0]);
-  }
-  return placed;
+    .map(card => ({ card, relation: linked.has(card.id) ? 'Linked' : 'Nearby' }));
 }
 
 export function editorContext(canvas, source, editor) {
@@ -54,31 +39,61 @@ export function editorContext(canvas, source, editor) {
   const layer = document.createElement('div'); layer.className = 'editor-context'; layer.setAttribute('role', 'group'); layer.setAttribute('aria-label', 'Editor context');
   stage.append(layer);
   const cardIds = new Set(canvas.board.cards.map(c => c.id));
-  let entries = [], area, frame = 0, destroyed = false, dismissed = false;
-  function dismiss() { dismissed = true; layer.hidden = true; }
+  const pinKey = `${boardId}:${source.id}`;
+  let area, frame = 0, destroyed = false, dismissed = false, reference, picker;
+  const sourceHeader = document.createElement('button'); sourceHeader.type = 'button';
+  sourceHeader.className = 'editor-context-window editor-context-source'; sourceHeader.dataset.cardId = source.id;
+  sourceHeader.innerHTML = '<span>Editing</span><strong></strong><span class="editor-context-count"></span>';
+  sourceHeader.onclick = () => editor.querySelector('input, [contenteditable], [tabindex="0"]')?.focus({ preventScroll: true });
+  const evidence = document.createElement('section'); evidence.className = 'editor-context-window editor-context-reference';
+  const tools = document.createElement('div'); tools.className = 'editor-reference-tools';
+  const preview = document.createElement('div');
+  const open = document.createElement('button'); open.type = 'button'; open.className = 'editor-reference-open'; open.textContent = 'Open reference';
+  const nearby = document.createElement('div'); nearby.className = 'editor-context-neighbours'; nearby.setAttribute('aria-label', 'Open a neighbouring editor');
+  layer.append(sourceHeader, evidence, nearby);
+  const candidates = neighbours(canvas.board, source);
+  const references = candidates.filter(entry => referenceCard(entry.card));
+  const initial = references.find(entry => entry.card.id === pinned.get(pinKey)) ?? references[0];
+  let chosen = initial?.card.id;
+  const switchEditor = id => {
+    canvas.select([id]); window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: true } }));
+  };
+  for (const entry of candidates.slice(0, 2)) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'editor-context-open'; button.dataset.cardId = entry.card.id;
+    button.textContent = `Open ${cardSummary(entry.card).title}`; button.onclick = () => switchEditor(entry.card.id); nearby.append(button);
+  }
+  if (initial) {
+    picker = createDropdown({ label: 'Pinned reference', value: chosen,
+      options: references.map(({ card, relation }) => [card.id, `${relation}: ${cardSummary(card).title}`]),
+      onChange(id) { chosen = id; pinned.set(pinKey, id); refreshContent(); layout(); },
+    });
+    tools.append(picker); evidence.append(tools, preview, open);
+    reference = liveReference(preview, canvas);
+    open.onclick = () => switchEditor(chosen);
+  } else evidence.hidden = true;
+  function dismiss() { dismissed = true; picker?.dropdown.close(); layer.hidden = true; }
   function refreshContent() {
-    if (canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) {
-      dismiss(); return;
-    }
-    for (const entry of entries) {
-      const card = canvas.board.cards.find(c => c.id === entry.card.id);
-      if (!card) continue;
-      entry.card = card;
-      const summary = cardSummary(card);
-      // The document being edited shows the same word count as the editor footer.
-      if (entry.relation === 'Editing' && summary.wordCount) summary.facts = [summary.facts[0], summary.wordCount].filter(Boolean);
-      const content = summaryContent(summary);
-      content.querySelector('.semantic-kind').textContent = `${summary.kind} · ${entry.relation}`;
-      entry.button.replaceChildren(content);
-      entry.button.setAttribute('aria-label', `${entry.relation}: ${summary.title}`);
+    if (canvas.board.id !== boardId || canvas.board.cards.length !== cardIds.size || canvas.board.cards.some(c => !cardIds.has(c.id))) { dismiss(); return; }
+    const card = canvas.board.cards.find(c => c.id === source.id);
+    const summary = cardSummary(card);
+    sourceHeader.querySelector('strong').textContent = summary.title;
+    // Documents show the same shared word count as the editor footer.
+    sourceHeader.querySelector('.editor-context-count').textContent = summary.wordCount || '';
+    const selected = canvas.board.cards.find(c => c.id === chosen);
+    if (selected) {
+      evidence.dataset.cardId = selected.id;
+      open.setAttribute('aria-label', `Open reference: ${cardSummary(selected).title}`);
+      void reference.update(selected);
     }
   }
-  function paint() {
-    const view = canvas.view;
-    for (const entry of entries) {
-      const p = centre(entry.card);
-      entry.button.style.transform = `translate3d(${p.x * view.z + view.x + entry.dx - area.x}px, ${p.y * view.z + view.y + entry.dy - area.y}px, 0)`;
-    }
+  function layout() {
+    if (!area) return;
+    const selected = canvas.board.cards.find(c => c.id === chosen);
+    const width = selected?.kind === 'plot' ? 322 : 282;
+    evidence.hidden = !selected || area.w < width || area.h < 336;
+    sourceHeader.style.width = `${Math.min(322, area.w)}px`;
+    evidence.style.width = `${width}px`;
+    nearby.style.top = `${evidence.hidden ? 64 : (selected.kind === 'plot' ? 328 : 340)}px`;
   }
   function fit() {
     frame = 0;
@@ -86,34 +101,12 @@ export function editorContext(canvas, source, editor) {
     const next = remainingArea(stage, editor);
     if (area && ['x', 'y', 'w', 'h'].every(key => Math.abs(next[key] - area[key]) < .1)) return;
     area = next;
-    if (area.w < 180 || area.h < HEIGHT) { layer.hidden = true; entries = []; return; }
-    layer.hidden = false;
-    const card = canvas.board.cards.find(c => c.id === source.id);
-    if (!card) return;
-    const candidates = [{ card, relation: 'Editing' }, ...neighbours(canvas.board, card)];
-    candidates.splice(Math.max(1, Math.floor((area.h + 12) / (HEIGHT + 12))));
-    const x0 = Math.min(...candidates.map(e => e.card.x)), y0 = Math.min(...candidates.map(e => e.card.y));
-    const x1 = Math.max(...candidates.map(e => e.card.x + e.card.w)), y1 = Math.max(...candidates.map(e => e.card.y + e.card.h));
-    const z = Math.max(.05, Math.min(1, area.w / Math.max(1, x1 - x0), area.h / Math.max(1, y1 - y0)));
-    const target = { x: area.x + area.w / 2 - (x0 + x1) / 2 * z, y: area.y + area.h / 2 - (y0 + y1) / 2 * z, z };
-    const width = Math.min(280, area.w);
-    const points = candidates.map(({ card }) => { const p = centre(card); return { x: p.x * z + target.x - area.x, y: p.y * z + target.y - area.y }; });
-    const positions = placeSummaries(points, area, width);
-    entries = candidates.slice(0, positions.length).map((entry, i) => {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'editor-context-window'; button.dataset.cardId = entry.card.id;
-      if (!i) button.classList.add('editor-context-source');
-      button.style.width = `${width}px`;
-      button.onclick = () => {
-        if (!i) editor.querySelector('input, [contenteditable], [tabindex="0"]')?.focus({ preventScroll: true });
-        else { canvas.select([entry.card.id]); window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: entry.card.id, keyboard: true } })); }
-      };
-      button.onpointerdown = event => event.stopPropagation();
-      return { ...entry, button, dx: positions[i].x - points[i].x, dy: positions[i].y - points[i].y };
-    });
-    layer.replaceChildren(...entries.map(e => e.button));
+    layer.hidden = area.w < 180 || area.h < 104;
+    if (layer.hidden) { picker?.dropdown.close(); return; }
     Object.assign(layer.style, { left: `${area.x}px`, top: `${area.y}px`, width: `${area.w}px`, height: `${area.h}px` });
-    refreshContent(); paint();
-    canvas.glideTo(target, reduceMotion() ? 0 : 380);
+    layout(); refreshContent();
+    const p = centre(source), z = Math.min(1, area.w / source.w, area.h / source.h);
+    canvas.glideTo({ x: area.x + area.w / 2 - p.x * z, y: area.y + area.h / 2 - p.y * z, z }, reduceMotion() ? 0 : 380);
   }
   const schedule = () => { if (!frame) frame = requestAnimationFrame(fit); };
   const sizes = new ResizeObserver(schedule); sizes.observe(editor); sizes.observe(stage);
@@ -126,7 +119,8 @@ export function editorContext(canvas, source, editor) {
   };
   document.addEventListener('pointerdown', boardPointer, true);
   stage.addEventListener('wheel', dismiss, { passive: true });
-  stage.addEventListener('canvaspaint', paint); stage.addEventListener('boardchange', refreshContent);
+  layer.addEventListener('pointerdown', event => event.stopPropagation());
+  stage.addEventListener('boardchange', refreshContent);
   fit();
   return {
     frame: fit,
@@ -134,7 +128,8 @@ export function editorContext(canvas, source, editor) {
       destroyed = true; cancelAnimationFrame(frame); sizes.disconnect(); chrome.disconnect();
       document.removeEventListener('transitionend', drawerSettled);
       document.removeEventListener('pointerdown', boardPointer, true); stage.removeEventListener('wheel', dismiss);
-      stage.removeEventListener('canvaspaint', paint); stage.removeEventListener('boardchange', refreshContent);
+      stage.removeEventListener('boardchange', refreshContent);
+      picker?.dropdown.destroy(); reference?.destroy();
       layer.remove();
     },
   };

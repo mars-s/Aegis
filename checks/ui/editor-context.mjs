@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
-const output = join(repo, '.scratch/editor-context'); mkdirSync(output, { recursive: true });
+const output = join(repo, '.scratch/live-references/editor-context'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-editor-context-')), token = `editor-context-${process.pid}`;
@@ -70,23 +70,24 @@ try {
       await page.waitForFunction(() => {
         const stage = document.getElementById('stage').getBoundingClientRect(), editor = document.querySelector('.side-editor').getBoundingClientRect();
         const left = Math.max(stage.left, ...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el => el.getBoundingClientRect().right));
-        const windows = [...document.querySelectorAll('.editor-context-window')];
+        const windows = [...document.querySelectorAll('.editor-context-window:not([hidden])')];
         return windows.length && windows.every(el => { const r = el.getBoundingClientRect(); return r.left >= left + 24 - .1 && r.right <= editor.left - 24 + .1 && r.top >= stage.top + 24 - .1 && r.bottom <= stage.bottom - 24 + .1; });
       });
       const result = await page.evaluate(() => {
         const rect = el => { const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
         return { editor: rect(document.querySelector('.side-editor')), stage: rect(document.getElementById('stage')),
           blockedLeft: Math.max(0, ...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el => el.getBoundingClientRect().right)),
-          windows: [...document.querySelectorAll('.editor-context-window')].map(el => ({ id: el.dataset.cardId, ...rect(el), titleSize: getComputedStyle(el.querySelector('strong')).fontSize, factSize: getComputedStyle(el.querySelector('.semantic-fact, .semantic-table th, .semantic-kind')).fontSize })),
-          originals: [...document.querySelectorAll('.editor-context-window')].map(el => { const original = document.querySelector(`#world > .card[data-id="${el.dataset.cardId}"]`); return original ? getComputedStyle(original).visibility : 'unmounted'; }),
+          windows: [...document.querySelectorAll('.editor-context-window:not([hidden])')].map(el => ({ id: el.dataset.cardId, ...rect(el), titleSize: getComputedStyle(el.querySelector('strong') || el.querySelector('button') || el).fontSize, factSize: getComputedStyle(el.querySelector('span') || el).fontSize })),
+          originals: [...document.querySelectorAll('.editor-context-window:not([hidden])')].map(el => { const original = document.querySelector(`#world > .card[data-id="${el.dataset.cardId}"]`); return original ? getComputedStyle(original).visibility : 'unmounted'; }),
         };
       });
       assert.ok(result.windows.length >= 1 && result.windows.length <= 3);
-      if (expected) assert.deepEqual(result.windows.map(w => w.id), expected);
+      if (expected) assert.deepEqual(await page.locator('.editor-context-open').evaluateAll(items => items.map(el => el.dataset.cardId)), expected.slice(1));
+      assert.equal(result.windows[0].height, 40, 'Editing marker is one 40px header');
       for (const w of result.windows) {
         assert.ok(w.left >= result.blockedLeft + 24 - .1 && w.right <= result.editor.left - 24 + .1, `${name}: horizontal clearance for ${w.id}`);
         assert.ok(w.top >= result.stage.top + 24 - .1 && w.bottom <= result.stage.bottom - 24 + .1, `${name}: vertical clearance for ${w.id}`);
-        assert.ok(parseFloat(w.titleSize) >= 13 && parseFloat(w.factSize) >= 12);
+        assert.ok(parseFloat(w.titleSize) >= (w.id === result.windows[0].id ? 13 : 12) && parseFloat(w.factSize) >= 12);
       }
       for (let i = 0; i < result.windows.length; i++) for (const b of result.windows.slice(i + 1)) {
         const a = result.windows[i]; assert.ok(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `${name}: summaries do not overlap`);
@@ -120,7 +121,7 @@ try {
     console.log(`PASS ${engineName}: focus returns to the window action and selection Open after clearing the editor source`);
 
     const original = await prepare('contextsheet'); await open('contextsheet');
-    await page.locator('.editor-context-window[data-card-id="contextdoc"]').click();
+    await page.locator('.editor-context-open[data-card-id="contextdoc"]').click();
     await page.locator('.docs-panel').waitFor(); await page.waitForTimeout(500);
     await close(original);
     console.log(`PASS ${engineName}: opening a neighbouring editor preserves the original camera and selection bookmark`);
@@ -201,6 +202,92 @@ try {
     await close(before);
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['addedreference'] }], resolve)));
 
+    const chartData = { style: 'line', basis: 'Release evidence', x: { kind: 'category', label: 'Task' }, y: { format: 'number', label: 'Hours' },
+      source: { cardId: 'contextsheet', xColumn: 0, yColumns: [1] }, series: [{ name: 'Hours', points: [{ x: 'Review', y: 4 }, { x: 'Publish', y: 2 }] }] };
+    await page.evaluate(data => new Promise(resolve => aegis.apply([
+      { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot', text: 'Hours by task', x: 1700, y: 400, data },
+      { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot2', text: 'Hours comparison', x: 2500, y: 400, data },
+      { op: 'connect', a: 'contextsheet', b: 'liveplot' },
+      { op: 'connect', a: 'contextdoc', b: 'liveplot' },
+    ], resolve)), chartData);
+    before = await prepare('contextsheet'); await open('contextsheet');
+    const line = page.locator('.editor-reference-chart .line'); await line.waitFor();
+    const oldPath = await line.getAttribute('d');
+    assert.deepEqual(await page.locator('.editor-reference-chart').evaluate(el => [el.offsetWidth, el.offsetHeight]), [320, 180]);
+    await page.locator('.sheet-grid td[data-r="1"][data-c="1"]').dblclick();
+    await page.getByLabel('Cell value', { exact: true }).fill('8'); await page.getByLabel('Cell value', { exact: true }).press('Enter');
+    await page.waitForFunction(old => document.querySelector('.editor-reference-chart .line')?.getAttribute('d') !== old, oldPath);
+    await page.waitForFunction(() => document.querySelector('.side-editor [data-saved]')?.textContent === 'Saved');
+    assert.equal(await page.locator('.sheet-editor').count(), 1, 'live evidence does not replace the editor');
+    assert.equal(await page.locator('.editor-context-reference:not([hidden])').count(), 1);
+    assert.ok(await page.locator('.editor-reference-chart text.tick').evaluateAll(labels => labels.every(el => parseFloat(getComputedStyle(el).fontSize) >= 12)));
+    await shot('sheet-live-chart');
+    const picker = page.getByRole('combobox', { name: 'Pinned reference', exact: true });
+    await picker.focus(); await page.keyboard.press('Enter');
+    const choices = page.getByRole('listbox', { name: 'Pinned reference options', exact: true });
+    assert.equal(await choices.getByRole('option').count(), 3, 'all chart and dataset candidates are offered');
+    await choices.locator('[data-value="liveplot2"]').focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours comparison.'));
+    assert.equal(await page.locator('.editor-context-reference').getAttribute('data-card-id'), 'liveplot2');
+    await picker.focus(); await page.keyboard.press('Enter');
+    await choices.locator('[data-value="liveplot"]').focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours by task.'));
+    await picker.focus(); await page.keyboard.press('Enter');
+    await page.keyboard.press('Escape'); assert.equal(await picker.getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.locator('.sheet-editor').count(), 1, 'Escape dismisses the switcher first');
+    await close(before);
+
+    before = await prepare('contextdoc'); await open('contextdoc');
+    await picker.focus(); await page.keyboard.press('Enter');
+    assert.equal(await choices.getByRole('option').count(), 4, 'the switcher includes every eligible reference');
+    const sheetIndex = await choices.getByRole('option').evaluateAll(items => items.findIndex(el => el.dataset.value === 'contextsheet'));
+    for (let i = 0; i < sheetIndex; i++) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await page.locator('.editor-reference-table table').waitFor();
+    assert.equal(await page.locator('.docs-panel').count(), 1, 'choosing a pin keeps the current editor');
+    assert.deepEqual(await page.locator('.editor-reference-table').evaluate(el => [el.offsetWidth, el.offsetHeight]), [280, 160]);
+    assert.equal(await page.locator('.editor-reference-table td').nth(1).textContent(), '8');
+    await page.getByLabel('Reference first row', { exact: true }).fill('2'); await page.getByLabel('Reference first row', { exact: true }).press('Tab');
+    await page.waitForFunction(() => document.querySelector('.editor-reference-table td')?.textContent === 'Publish');
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'object_set', id: 'contextsheet', path: ['rows', 1, 'cells', 1], value: '5' }], resolve)));
+    await page.waitForFunction(() => document.querySelectorAll('.editor-reference-table td')[1]?.textContent === '5');
+    await shot('selected-table-region');
+    await page.setViewportSize({ width: 1586, height: 992 }); await page.waitForTimeout(500);
+    assert.equal(await page.locator('.editor-reference-table td').first().textContent(), 'Publish', 'pin and region survive resizing');
+    await page.evaluate(() => document.documentElement.dataset.theme = 'light'); await shot('reference-light');
+    await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+    await close({ ...before, view: { ...before.view, x: before.view.x + 73, y: before.view.y + 46 } });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // The same pin returns when the document is reopened.
+    before = await prepare('contextdoc'); await open('contextdoc'); await page.locator('.editor-reference-table table').waitFor(); await close(before);
+
+    // A board update during a CSV read must not strand the pinned dataset in Loading.
+    let releaseAsset, assetRequested;
+    const requested = new Promise(resolve => { assetRequested = resolve; });
+    const heldAsset = new Promise(resolve => { releaseAsset = resolve; });
+    const assetUrl = await page.evaluate(id => aegis.host.assetUrl(aegis.canvas.board.cards.find(c => c.id === id).props.src), dataset);
+    await page.route(assetUrl, async route => { assetRequested(); await heldAsset; await route.continue(); });
+    before = await prepare('contextdoc'); await open('contextdoc');
+    await picker.focus(); await page.keyboard.press('Enter');
+    await choices.locator(`[data-value="${dataset}"]`).focus(); await page.keyboard.press('Enter');
+    await requested;
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'update', id: 'nearnote', set: { text: 'Compare the latest evidence.' } }], resolve)));
+    releaseAsset();
+    await page.locator('.editor-reference-table table').waitFor();
+    assert.equal(await page.locator('.editor-reference-table td').first().textContent(), 'Review');
+    assert.deepEqual(await page.locator('.editor-reference-table').evaluate(el => [el.offsetWidth, el.offsetHeight]), [280, 160]);
+    assert.ok(await page.locator('.editor-reference-table :is(th, td)').evaluateAll(cells => cells.every(el => getComputedStyle(el).fontSize === '12px')));
+    await shot('pinned-dataset'); await page.unroute(assetUrl);
+    await page.evaluate(async id => {
+      const saved = await aegis.host.upload(new File(['task,hours\nReview,9\nPublish,6\n'], 'updated.csv', { type: 'text/csv' }));
+      const source = aegis.canvas.board.cards.find(c => c.id === id);
+      await new Promise(resolve => aegis.apply([{ op: 'update', id, set: { props: { ...source.props, src: saved.url } } }], resolve));
+    }, dataset);
+    await page.waitForFunction(() => document.querySelectorAll('.editor-reference-table td')[1]?.textContent === '9');
+    await close(before);
+    await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['liveplot', 'liveplot2'] }], resolve)));
+    console.log(`PASS ${engineName}: live sheet edits, one pinned chart, all keyboard choices, selected table region, live table and dataset updates, concurrent CSV read, persistent pin and light theme`);
+
     // Font choices exclude loaded maths fonts and fonts already used by cards.
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'update', id: 'nearnote', set: { props: { font: 'KaTeX_AMS' } } }], resolve)));
     before = await prepare('contextdoc'); await open('contextdoc');
@@ -263,7 +350,7 @@ try {
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'restore', cards: [structuredClone(aegis.canvas.board.cards.find(c => c.id === 'contextdoc'))], links: [] }], resolve)));
     before = await prepare('contextdoc'); await open('contextdoc'); await composition('source-alone', ['contextdoc']); await close({ ...before, selection: ['contextdoc'] });
-    assert.deepEqual(errors, []); console.log(`PASS ${engineName}: ${platform} shortcut hints, 11px capped hint column and no browser exceptions`);
+    assert.deepEqual(errors, []); console.log(`PASS ${engineName}: ${platform} shortcut hints, 12px capped hint column and no browser exceptions`);
     await browser.close(); browser = null;
   }
   writeFileSync(join(output, 'metrics.json'), JSON.stringify({ metrics, captures }, null, 2));

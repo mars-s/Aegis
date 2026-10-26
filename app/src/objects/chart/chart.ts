@@ -34,6 +34,8 @@ export type ChartY = {
 };
 export type ChartSpec = {
   kind: ChartKind;
+  /** Use a monotone curve instead of straight segments. */
+  smooth?: boolean;
   series: readonly ChartSeries[];
   x?: ChartX;
   y?: ChartY;
