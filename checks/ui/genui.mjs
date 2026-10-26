@@ -110,11 +110,12 @@ try {
   };
   const checkedOpen = new Set();
   const assertOpen = async (kind, card, width = 1440) => {
-    const open = card.getByRole('button', { name: `Open Sample ${kind}`, exact: true });
-    if (!await open.count()) {
+    if (!await card.locator('.win-open').count()) {
       assert.equal(await card.getByRole('button', { name: /^Open(?: |$)/ }).count(), 0, `${kind} has no Open affordance`);
       checkedOpen.add(kind); return;
     }
+    await card.hover();
+    const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
     await editor.waitFor({ state: 'visible', timeout: 3000 });
@@ -311,7 +312,8 @@ try {
   console.log('pass genui: timeline ticks, stats, table, progress and stage values saved');
 
   const openEditor = async (kind, keyboard = false) => {
-    const card = await frame(kind), open = card.getByRole('button', { name: `Open Sample ${kind}`, exact: true });
+    const card = await frame(kind); await card.hover();
+    const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
     if (keyboard) await open.press('Enter'); else await open.click();
     const editor = page.locator('.side-editor.object-editor.is-open');
     await editor.waitFor({ state: 'visible' });
@@ -883,7 +885,7 @@ try {
   const contractSnapshot = JSON.parse(contractState);
   assert.equal(contractSnapshot.controls.length, 3, 'password and file inputs never enter saved control state');
   assert.deepEqual(contractSnapshot.controls[2].selected, [1, 2], 'multiple selected options are captured');
-  await contractCard.getByRole('button', { name: 'Open State contract', exact: true }).click();
+  await contractCard.hover(); await page.locator('.window-actions').getByRole('button', { name: 'Open State contract', exact: true }).click();
   const openContract = page.frameLocator('.side-editor iframe');
   await openContract.locator('#note').waitFor();
   assert.equal(await openContract.locator('#note').inputValue(), 'Keep the evidence.');

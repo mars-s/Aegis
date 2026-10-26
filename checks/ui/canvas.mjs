@@ -141,11 +141,12 @@ try {
   await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); }); await settle();
   const tool = page.locator('[data-tool="canvas"]'); if (!await tool.isVisible()) { await page.mouse.move(24, 480); await page.locator('#toolsFold').click(); } await tool.click(); await page.locator('#stage').click({ position: { x: 1300, y: 780 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
-  verify('canvas door has an accessible open button', await page.locator('.canvas-card button[aria-label^="Open"]').count() === 1);
+  await page.locator('.canvas-card').hover();
+  verify('canvas door has an accessible open button', await page.locator('.window-actions').getByRole('button', { name: 'Open canvas', exact: true }).count() === 1);
   if (reproduce) { await page.screenshot({ path: out(`canvas-reproduction-${Date.now()}.png`) }); }
   else {
     const child = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'canvas').props.board);
-    await page.locator('.canvas-card button[aria-label^="Open"]').click(); await page.waitForFunction(id => aegis.canvas.board.id === id, child); verify('canvas door opens its own board', true);
+    await page.locator('.window-actions').getByRole('button', { name: 'Open canvas', exact: true }).click(); await page.waitForFunction(id => aegis.canvas.board.id === id, child); verify('canvas door opens its own board', true);
     await page.locator('#boardCrumbs button').last().click(); await page.waitForFunction(id => aegis.canvas.board.id === id, parent);
   }
   const project = await api('/library', { op: 'create', kind: 'project', name: 'Delete test project' }); await settle();

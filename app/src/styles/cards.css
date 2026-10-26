@@ -34,6 +34,7 @@
 .window-actions button:hover { background: var(--hover); color: var(--text); }
 .window-actions button:focus-visible { outline: 1.5px solid var(--data); outline-offset: -2px; color: var(--text); }
 .stage.panning .window-actions, .stage.pan-ready .window-actions { visibility: hidden; pointer-events: none; }
+.stage:has(#world > .card.editor-source) .window-actions { visibility: hidden; pointer-events: none; }
 @media (hover: none), (pointer: coarse) { .window-actions button { min-width: 44px; height: 44px; } }
 @media (hover: none), (pointer: coarse) {
   .stage .card :is(.win-strip, .deck-title-strip, .web-head), .stage .card:is(.audio, .video, .link, .spotify) .media-head { height: 48px; min-height: 48px; }

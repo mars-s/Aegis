@@ -5,21 +5,22 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom }) 
   function redraw() {
     if (stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
     const focused = document.activeElement?.closest('#world > .card')?.dataset.id;
-    const id = strip.contains(document.activeElement) ? currentId : hovered || focused || getSelection().at(-1);
+    const id = hovered || (strip.contains(document.activeElement) ? currentId : focused || getSelection().at(-1));
     const card = id && mountedEl(id);
-    const actions = card && !card.classList.contains('editor-source') ? [...card.querySelectorAll('.win-open, .deck-open, .canvas-open')] : [];
+    const actions = card ? [...card.querySelectorAll('.win-open, .deck-open, .canvas-open')] : [];
     if (!actions.length) { strip.hidden = true; return; }
     const rect = card.getBoundingClientRect();
     if (rect.right < 0 || rect.left > innerWidth || rect.bottom < 44 || rect.top > innerHeight) { strip.hidden = true; return; }
-    if (id !== currentId || actions.some((button, i) => button !== sources[i]) || actions.length !== sources.length) {
+    if (id !== currentId || actions.length !== sources.length) {
       strip.replaceChildren(); currentId = id; sources = actions;
-      for (const source of actions) {
+      for (const [index, source] of actions.entries()) {
         const button = document.createElement('button'); button.type = 'button'; button.textContent = source.textContent.trim() || 'Open'; button.setAttribute('aria-label', source.getAttribute('aria-label') || button.textContent); button.dataset.windowAction = id;
-        button.onclick = event => source.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: event.detail })); strip.append(button);
+        button.onclick = event => sources[index]?.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: event.detail })); strip.append(button);
       }
     }
+    sources = actions;
     strip.setAttribute('aria-label', `${card.querySelector('.win-name, .deck-name, h3, .canvas-title')?.textContent || 'Window'} actions`);
-    [...strip.children].forEach((button, i) => { button.disabled = actions[i].disabled; });
+    [...strip.children].forEach((button, i) => { button.disabled = actions[i].disabled; button.setAttribute('aria-label', actions[i].getAttribute('aria-label') || button.textContent); });
     strip.hidden = false;
     const width = strip.offsetWidth, height = strip.offsetHeight, zoom = getZoom();
     const left = zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
