@@ -85,15 +85,23 @@ try {
   log('Palette right-click menu adds, renames, recolours and removes while preserving cards');
   await page.locator('#settingsBtn').click();
   const appearance = page.locator('[data-colour-settings]');
-  await appearance.getByLabel('App board background', { exact: true }).fill('#eeeeee'); await appearance.getByLabel('App board background', { exact: true }).dispatchEvent('input');
-  await appearance.getByLabel('Panels', { exact: true }).fill('#202020'); await appearance.getByLabel('Panels', { exact: true }).dispatchEvent('input');
+  if (await page.locator('.settings-appearance > summary').count()) await page.locator('.settings-appearance > summary').click();
+  // Settings colours use the shared colour editor (a button with a Hex field), not native colour inputs.
+  const setColour = async (label, hex) => {
+    await appearance.getByRole('button', { name: label, exact: true }).click();
+    const editor = page.getByRole('dialog', { name: 'Colour editor', exact: true });
+    await editor.getByRole('textbox', { name: 'Hex', exact: true }).fill(hex); await editor.getByRole('textbox', { name: 'Hex', exact: true }).press('Enter');
+    if (await editor.isVisible()) await page.keyboard.press('Escape');
+  };
+  await setColour('App board background', '#eeeeee');
+  await setColour('Panels', '#202020');
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--text')), '#ffffff');
   assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('stage')).backgroundColor), 'rgb(243, 248, 255)');
   await page.screenshot({ path: out('media-appearance.png') });
   await appearance.getByRole('button', { name: 'Reset colours for this mode', exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--canvas')), '');
   await page.locator('#theme [data-v="dark"]').click();
-  await appearance.getByLabel('Grid dots', { exact: true }).fill('#333344'); await appearance.getByLabel('Grid dots', { exact: true }).dispatchEvent('input');
+  await setColour('Grid dots', '#333344');
   await page.locator('#theme [data-v="light"]').click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--dot')), '');
   await page.locator('#closeSettings').click();
