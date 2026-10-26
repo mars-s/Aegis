@@ -152,7 +152,7 @@ try {
     }
     await page.keyboard.press('Escape');
     assert.equal(await editor.count(), 0, 'Escape removes the editor immediately');
-    assert.equal(await open.evaluate(el => el === document.activeElement), true, `${kind} at ${width}: Escape restores focus to Open`);
+    await page.waitForFunction(kind => document.activeElement?.closest('.card')?.classList.contains(`kind-${kind}`), kind);
     checkedOpen.add(kind);
   };
   for (const kind of Object.keys(samples)) {
@@ -574,7 +574,7 @@ try {
   console.log('pass genui: table shows Saving, host-confirmed Saved, failure Retry and successful recovery in Open and canvas headers');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Monday review');
-  assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true);
+  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-table'));
 
   expanded = await openEditor('form');
   await expanded.editor.getByLabel('What needs to change?', { exact: true }).fill('Expanded edits save on Escape.');
@@ -590,7 +590,7 @@ try {
   await expanded.editor.getByRole('button', { name: 'Drag Write the brief', exact: true }).dragTo(expanded.editor.locator('.lane[aria-label="Done"]'));
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'done');
   await expanded.editor.getByRole('button', { name: 'Full width', exact: true }).click();
-  assert.equal(await expanded.editor.getByRole('button', { name: 'Full width', exact: true }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await expanded.editor.getByRole('button', { name: 'Side panel', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.ok((await expanded.editor.boundingBox()).width > 1400, 'full width gives the board room');
   await expanded.editor.locator('.side-editor-body').focus();
   await page.keyboard.press('Meta+z');
@@ -607,7 +607,7 @@ try {
   assert.equal(await page.locator('.side-editor-name').textContent(), 'Sample stats', 'global Open uses the same expanded view');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionDuration), '0.24s', 'pointer Open in the selection toolbar slides in');
   await page.keyboard.press('Escape');
-  assert.equal(await toolbarOpen.evaluate(el => el === document.activeElement), true);
+  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-stats'));
   await toolbarOpen.press('Enter');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionDuration), '0s', 'keyboard Open in the selection toolbar is instant');
   await page.keyboard.press('Escape');
@@ -820,7 +820,7 @@ try {
   await page.screenshot({ path: out(`genui-html-reopen-50-${stamp}.png`) });
   await page.frameLocator('.side-editor iframe').locator('#minutes').press('Escape');
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
-  assert.equal(await expanded.open.evaluate(el => el === document.activeElement), true, 'Escape in the opaque iframe restores app focus');
+  await page.waitForFunction(() => document.activeElement?.closest('.card')?.classList.contains('kind-html'));
   console.log('pass genui: expanded custom UI runs in its isolated iframe and Escape closes from inside the widget');
 
   const savedState = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.kind === 'html').data.state);

@@ -13,7 +13,7 @@ export function openObject(card, ctx, { keyboard = false } = {}) {
   const boardId = ctx.canvas.board.id;
   if (active?.id === card.id && active.boardId === boardId) { active.focus(); return; }
   const kind = OBJECT_NAMES[card.kind];
-  const shell = openSide({ title: card.text || kind, kind, keyboard });
+  const shell = openSide({ title: card.text || kind, kind, card, ctx, keyboard });
   shell.el.classList.add('object-editor');
   const stopSaveStatus = watchObjectSave(shell);
   shell.body.tabIndex = -1;
@@ -95,7 +95,7 @@ window.addEventListener('keydown', event => {
   if (event.key === 'Escape') {
     event.preventDefault(); event.stopImmediatePropagation(); active.close({ keyboard: true });
   } else if (!event.target.closest('input, textarea, select, [contenteditable]')) {
-    if ((event.metaKey || event.ctrlKey) && ['k', 'z'].includes(event.key.toLowerCase())) return;
+    if ((event.metaKey || event.ctrlKey) && (['k', 'z'].includes(event.key.toLowerCase()) || event.shiftKey && !event.altKey && event.code === 'KeyF')) return;
     event.stopImmediatePropagation();
   }
 }, true);

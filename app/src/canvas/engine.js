@@ -170,6 +170,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   function schedule(all = false) { dirtyAll ||= all; if (!frame) frame = requestAnimationFrame(paint); }
   function screenToWorld(sx, sy) { return { x: (sx - view.x) / view.z, y: (sy - view.y) / view.z }; }
   function setView(v, save = true) {
+    cancelAnimationFrame(anim); anim = 0;
     view = { x: v.x, y: v.y, z: Math.min(MAX_Z, Math.max(MIN_Z, v.z)) };
     schedule(); if (save) saveViewSoon();
   }
@@ -451,6 +452,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     mounted.get(id)?.el.classList.add('window-focus');
   }
   stage.addEventListener('pointerdown', e => {
+    cancelAnimationFrame(anim); anim = 0;
     stage.classList.remove('instant-focus');
     const el = e.target.closest('.card');
     if (el && e.button === 0) focusCard(el.dataset.id);
@@ -632,13 +634,13 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
 
   // ---------- camera ----------
   let anim = 0;
-  function glideTo(target, ms = 420) {
+  function glideTo(target, ms = 420, onComplete = () => {}) {
     cancelAnimationFrame(anim);
-    if (!ms || preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); return; }
+    if (!ms || preference('motion', 'on') === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches) { setView(target); onComplete(); return; }
     const from = { ...view }, t0 = performance.now(); const ease = t => 1 - Math.pow(1 - t, 3);
     const step = now => { const t = Math.min(1, (now - t0) / ms), k = ease(t);
       setView({ x: from.x + (target.x - from.x) * k, y: from.y + (target.y - from.y) * k, z: from.z + (target.z - from.z) * k }, t === 1);
-      if (t < 1) anim = requestAnimationFrame(step); };
+      if (t < 1) anim = requestAnimationFrame(step); else onComplete(); };
     anim = requestAnimationFrame(step);
   }
   // Round 3 agents: spatial windows join Fit and agent-result framing only.

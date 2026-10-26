@@ -100,7 +100,7 @@ try {
   const centred = await page.evaluate(() => { const c = aegis.canvas.board.cards.find(c => c.id === 'doc00001'); return aegis.canvas.worldToScreen(c.x + c.w / 2, c.y + c.h / 2); });
   assert.ok(Math.abs(centred.x - 400) < 1, 'Pointer open centres the card in the left half');
   await page.screenshot({ path: out('editors-document-half.png') });
-  await page.getByRole('button', { name: 'Full page', exact: true }).click();
+  await page.getByRole('button', { name: 'Full width', exact: true }).click();
   assert.equal((await page.locator('.docs-panel').boundingBox()).width, 1584);
   assert.equal(await page.locator('body.editor-wide.docs-full').count(), 1);
   assert.deepEqual(await stageBounds(), stage);

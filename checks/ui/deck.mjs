@@ -31,7 +31,7 @@ const saved = () => page.waitForFunction(() => document.querySelector('.deck-pan
 const selected = index => page.waitForFunction(i => document.querySelector(`.deck-film-item[data-i="${i}"]`)?.getAttribute('aria-selected') === 'true', index);
 const weekdayLabels = demoBatch.find(command => command.ref === 'deck').props.slides.find(slide => slide.layout === 'chart').chart.labels;
 const slides = [
-  { id: 's1', layout: 'title', title: 'A calmer, sharper me', sub: 'What twelve weeks of sleep data says about my best days', body: '' },
+  { id: 's1', layout: 'title', background: 'sci-fi-wave', title: 'A calmer, sharper me', sub: 'What twelve weeks of sleep data says about my best days', body: '' },
   { id: 's2', layout: 'chart', title: 'Focus hours per day', sub: 'Dashed line: my 3 hour target', body: '', chart: { values: [2, 4, 3, 2, 3], labels: weekdayLabels, target: 3, unit: 'hours', label: 'Fictional daily focus hours' } },
   { id: 's3', layout: 'three', title: 'What helps', sub: 'My best focus days had all three', body: 'In bed by 11\nNo late coffee\nSame wake time' },
   { id: 's4', layout: 'text', title: 'The next four weeks', sub: 'Small changes to try', body: 'In bed by 11 pm on weeknights.\nNo caffeine after 2 pm.\nSame wake time on weekends.' },
@@ -148,7 +148,7 @@ try {
   await page.getByRole('tab', { name: 'Go to slide 2', exact: true }).click(); await selected(1);
   await assertSlideFits(panel.locator('.deck-slide-wrap[data-i="1"] > .deck-fit'), { label: 'Short full-width editor', points: 5, viewport: stage });
   await page.screenshot({ path: out(`deck-fit-editor-short-${stamp}.png`) });
-  await page.getByRole('button', { name: 'Full width', exact: true }).click();
+  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await page.setViewportSize({ width: 1600, height: 1050 });
   writeFileSync(out(`deck-fit-evidence-${stamp}.json`), JSON.stringify(fitEvidence, null, 2));
   console.log('PASS shared slide fit preserves all chart points and 16:9 in editor and filmstrip at desktop and phone sizes');
@@ -167,7 +167,7 @@ try {
   await page.keyboard.press('Delete'); await saved();
   stored = (await board()).cards.find(c => c.id === 'decktest'); assert.equal(stored.props.slides.length, 4); assert.ok(!stored.props.slides.some(s => s.id === added));
   await page.getByRole('button', { name: 'Full width', exact: true }).click(); assert.equal(await page.locator('body.editor-wide').count(), 1);
-  await page.getByRole('button', { name: 'Full width', exact: true }).click();
+  await page.getByRole('button', { name: 'Side panel', exact: true }).click();
   await page.keyboard.press('Escape'); assert.equal(await panel.count(), 0);
   assert.equal(await page.locator('body.editor-open').count(), 0);
   console.log('PASS add, Alt+Up/Down reorder, Delete, full width and Escape persist through board commands');

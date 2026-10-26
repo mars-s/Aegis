@@ -22,6 +22,8 @@ all.push('agent-drafts');
 all.push('ask-selection');
 // Office tools in the sheet and slide editors.
 all.push('office');
+// Editor camera bookmarks and explicit slide backgrounds in both browser engines.
+all.push('editor-return');
 // CSV import and plain-composer data analysis.
 all.push('data-import');
 // External MCP sessions share imported sources and editable documents with the production UI.
@@ -38,7 +40,7 @@ const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_VITE_CACHE: mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
+  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
   const ok = r.status === 0;
   console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }

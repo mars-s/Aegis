@@ -17,7 +17,7 @@ const KIND_LABEL = { text: 'Text', number: 'Number', money: 'Currency', percent:
 export function openSheet(card, ctx, { keyboard = false } = {}) {
   if (!isSheet(card)) return;
   if (active?.id === card.id && active.boardId === ctx.canvas.board.id) { active.focus(); return; }
-  const side = openSide({ title: card.text || 'Untitled sheet', kind: 'Sheet', keyboard });
+  const side = openSide({ title: card.text || 'Untitled sheet', kind: 'Sheet', card, ctx, keyboard });
   side.el.classList.add('sheet-editor');
   const boardId = ctx.canvas.board.id;
   let data = structuredClone(card.data), snapshot = JSON.stringify(data), minimumRev = ctx.canvas.board.rev;

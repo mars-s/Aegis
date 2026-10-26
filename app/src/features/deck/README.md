@@ -4,7 +4,7 @@
 
 Each slide has a stable `id`, a `layout`, `title`, `sub` and `body`. The layouts are:
 
-- `title`: large title and subtitle above thin ridge lines.
+- `title`: large title and subtitle. New slides use `background: "plain"`, labelled Typography. Choose Sci-fi wave in the background menu, or set `background: "sci-fi-wave"`, to draw decorative thin ridge lines. The wave is not chart data. Saved slides without a background keep their original wave. New slides added through agent updates default to Typography, and edits that omit an existing background preserve it.
 - `chart`: title and subtitle above `chart: { values: number[], target?: number, label?: string, unit?: string }`. The label describes the chart for assistive technology. Zero is a valid target. The axis shows the optional unit without rescaling values. Tick steps use 1, 2, 2.5 or 5 times a power of ten, with whole-number ticks for integer data.
 - `three`: title and subtitle beside three overlapping circles. The first three lines of `body` label the circles.
 - `text`: title, subtitle and plain body text.
@@ -18,7 +18,7 @@ Slides scroll vertically with a soft snap at their top. The bottom filmstrip fol
 
 Alt+Up and Alt+Down reorder the active slide. Delete or Backspace on a focused thumbnail removes it. Visible move and delete buttons also work by pointer and touch. Arrow keys, Home and End navigate the filmstrip. Esc closes. Removing every slide leaves an empty deck with Add slide available.
 
-`openDeckPanel` in `editor.js` is the temporary panel adapter. Replace it with the shared `features/docs/side.js` panel at merge. It owns the `.side-editor*` frame, `body.editor-open` and `body.editor-wide`, focus return, camera centring, 260 ms open and 200 ms close motion. Keyboard opens and closes are instant. Reduced motion and `body.motion-off` use a 160 ms crossfade with no travel.
+`openDeckPanel` in `editor.js` uses the shared `features/docs/side.js` panel. The shared shell owns the `.side-editor*` frame, `body.editor-open` and `body.editor-wide`, focus return, camera centring, 260 ms open and 200 ms close motion. Keyboard opens and closes are instant. Reduced motion and `body.motion-off` use a 160 ms crossfade with no travel.
 
 The canvas preview, thumbnails and editor render the same native 960 by 540 slide. Each frame centres and scales the entire slide to fit both available dimensions, with the card colour filling any spare space. Imported slides use the same fit. A ResizeObserver updates the scale on frame resize, including corner-grip resizing and editor width changes, without reacting to canvas pan or zoom. Observers disconnect on card removal, editor close and slide rerender.
 
