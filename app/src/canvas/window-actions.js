@@ -31,7 +31,17 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom, re
     const width = strip.offsetWidth, height = strip.offsetHeight, zoom = getZoom();
     const left = !rect.summary && zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
     const top = rect.summary ? rect.top - height - 24 : zoom < .9 ? rect.top - height - 8 : rect.top + 2;
-    Object.assign(strip.style, { left: `${Math.max(8, Math.min(innerWidth - width - 8, left))}px`, top: `${Math.max(48, Math.min(innerHeight - height - 8, top))}px` });
+    let x = Math.max(8, Math.min(innerWidth - width - 8, left)), y = Math.max(48, Math.min(innerHeight - height - 8, top));
+    // Off-screen agent cues (agents/edges.js) sit in the window frame; step the strip clear of any it would cover.
+    for (const cue of document.querySelectorAll('.agent-edges .agent-edge:not([hidden])')) {
+      const r = cue.getBoundingClientRect();
+      if (x < r.right + 4 && x + width > r.left - 4 && y < r.bottom + 4 && y + height > r.top - 4) {
+        if (r.left < innerWidth / 2 && r.width < innerWidth / 3 && r.top > 100 && r.bottom < innerHeight - 100) x = r.right + 4;
+        else if (r.left >= innerWidth / 2 && r.top > 100 && r.bottom < innerHeight - 100) x = r.left - width - 4;
+        else y = r.top < innerHeight / 2 ? r.bottom + 4 : r.top - height - 4;
+      }
+    }
+    Object.assign(strip.style, { left: `${x}px`, top: `${y}px` });
   }
   function approach(event) {
     if (strip.contains(event.target)) { clearTimeout(leaveTimer); leaveTimer = 0; return; }

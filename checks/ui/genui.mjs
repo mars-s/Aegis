@@ -95,16 +95,24 @@ try {
   await page.screenshot({ path: out(`genui-overview-${stamp}.png`) });
 
   const frame = async kind => {
-    await page.evaluate(kind => aegis.canvas.frameIds([aegis.canvas.board.cards.find(c => c.kind === kind).id], 1, false, true), kind);
-    await page.locator(`.card.kind-${kind} .object`).first().waitFor({ state: 'visible' });
+    const sampleId = await page.evaluate(kind => aegis.canvas.board.cards.find(c => c.kind === kind && c.text === `Sample ${kind}`)?.id ?? aegis.canvas.board.cards.find(c => c.kind === kind).id, kind);
+    // An editor that just closed glides the camera home; let that finish so it cannot carry the view away from this frame.
+    await page.waitForFunction(() => !document.querySelector('.side-editor') && new Promise(done => { const a = JSON.stringify(aegis.canvas.view); setTimeout(() => done(a === JSON.stringify(aegis.canvas.view)), 300); }), null, { polling: 100 });
+    await page.evaluate(id => aegis.canvas.frameIds([id], 1, false, true), sampleId);
+    await page.locator(`.card[data-id="${sampleId}"] .object`).waitFor({ state: 'visible' });
     // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
     await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
     // Narrow screens frame below the detail tier, where the semantic summary is the selectable surface.
     // Sheets and tables stay summarised below 100%, so use the window's own tier, not the stage's.
-    if (!await page.locator(`.card.kind-${kind}`).first().evaluate(el => el.classList.contains('semantic-hidden'))) await page.locator(`.card.kind-${kind} .win-strip h3`).click();
-    else await page.evaluate(kind => aegis.canvas.select([aegis.canvas.board.cards.find(c => c.kind === kind).id]), kind);
+    // Select the sample through a real pointer press on its title when shown in detail (retrying if a live widget re-mounts), else via the model.
+    // A revised widget re-mounts; wait until the window is attached and painted again before pointing at it.
+    await page.waitForFunction(id => { const c = document.querySelector(`#world > .card[data-id="${id}"]`); return c && c.querySelector('.win-strip h3') && c.getBoundingClientRect().width > 0; }, sampleId);
+    const title = page.locator(`.card[data-id="${sampleId}"] .win-strip h3`);
+    if (!await page.locator(`.card[data-id="${sampleId}"]`).evaluate(el => el.classList.contains('semantic-hidden'))) {
+      for (let attempt = 0; attempt < 3; attempt++) { try { await title.click({ timeout: 5000 }); break; } catch (error) { if (attempt === 2) throw error; } }
+    } else await page.evaluate(id => aegis.canvas.select([id]), sampleId);
     await page.waitForTimeout(500);
-    return page.locator(`.card.kind-${kind}`);
+    return page.locator(`.card[data-id="${sampleId}"]`);
   };
   const contentText = {
     stats: 'Tasks completed', timeline: 'Agree on the brief', kanban: 'Write the brief',
@@ -560,10 +568,11 @@ try {
   assert.equal(await expanded.editor.locator('[data-saved]').textContent(), 'Saved', 'the editor keeps its confirmation');
   await page.screenshot({ path: out(`r6-canvas-saved-faded-${stamp}.png`) });
   assert.equal(await expanded.editor.getByRole('gridcell', { name: 'Day, row 2', exact: true }).evaluate(cell => cell === document.activeElement), true);
-  await expandedDay.press('Enter');
-  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Retry table draft');
+  // Refuse saves before editing, so no earlier save can land the draft first.
   const refuseSave = route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Forced save failure' }) });
   await page.route('**/boards/*/batch', refuseSave);
+  await expandedDay.press('Enter');
+  await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Retry table draft');
   await page.keyboard.press('Enter');
   await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).waitFor();
   await page.locator('.card.kind-table button[aria-label="Retry save"]').waitFor({ state: 'attached' });
