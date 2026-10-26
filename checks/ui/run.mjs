@@ -24,6 +24,8 @@ all.push('ask-selection');
 all.push('office');
 // Editor camera bookmarks and explicit slide backgrounds in both browser engines.
 all.push('editor-return');
+// Active-slide workspace and painted chart/diagram text in the shipped bundle.
+all.push('deck-studio');
 // CSV import and plain-composer data analysis.
 all.push('data-import');
 // External MCP sessions share imported sources and editable documents with the production UI.
