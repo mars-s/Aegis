@@ -284,7 +284,7 @@ try {
         verify('arrow keys move to another omitted name', target === await choices.nth(1).textContent());
         await page.keyboard.press('Enter');
         const after = await page.evaluate(() => ({ ...aegis.canvas.view })); await page.waitForTimeout(60);
-        verify('keyboard name choice frames its window instantly', after.z > .2 && JSON.stringify(after) === await page.evaluate(() => JSON.stringify(aegis.canvas.view)) && await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return Math.abs((c.y + c.h / 2) * v.z + v.y - (innerHeight / 2 - 36)) < 1; }, target));
+        verify('keyboard name choice frames its window instantly', after.z > .2 && JSON.stringify(after) === await page.evaluate(() => JSON.stringify(aegis.canvas.view)) && await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return Math.abs((c.y + c.h / 2) * v.z + v.y - (aegis.canvas.availableArea.y + aegis.canvas.availableArea.h / 2)) < 1; }, target));
       } else {
         await more.click(); await namesMenu.waitFor({ state: 'visible' });
         const target = await choices.first().textContent();
@@ -292,7 +292,7 @@ try {
         await page.waitForFunction(() => aegis.canvas.view.z > .05 && aegis.canvas.view.z < 1);
         verify(`${width}px pointer name choice starts a camera glide`, await page.evaluate(() => aegis.canvas.view.z > .05 && aegis.canvas.view.z < 1));
         await page.waitForTimeout(450);
-        verify(`${width}px camera reaches the chosen window`, await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return v.z > .2 && c.x * v.z + v.x >= 0 && c.y * v.z + v.y >= 0 && (c.x + c.w) * v.z + v.x <= innerWidth && (c.y + c.h) * v.z + v.y <= innerHeight && Math.abs((c.y + c.h / 2) * v.z + v.y - (innerHeight / 2 - 36)) < 1; }, target));
+        verify(`${width}px camera reaches the chosen window`, await page.evaluate(name => { const c = aegis.canvas.board.cards.find(c => c.heading === name), v = aegis.canvas.view; return v.z > .2 && c.x * v.z + v.x >= 0 && c.y * v.z + v.y >= 0 && (c.x + c.w) * v.z + v.x <= innerWidth && (c.y + c.h) * v.z + v.y <= innerHeight && Math.abs((c.y + c.h / 2) * v.z + v.y - (aegis.canvas.availableArea.y + aegis.canvas.availableArea.h / 2)) < 1; }, target));
       }
       verify(`${width}px framing dismisses far zoom controls`, !await orientation.isVisible() && !await namesMenu.isVisible());
       await page.emulateMedia({ reducedMotion: 'reduce' });

@@ -677,7 +677,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   }
 
   function frameIds(ids, maxZ = 1, includeAgents = false, instant = false) {
-    const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...(includeAgents ? agentBounds() : [])]; if (!cards.length) return;
+    const agents = includeAgents ? agentBounds().map((c, i) => ({ ...c, id: `agent-fit-${i}`, screenSize: { w: c.w * view.z, h: c.h * view.z } })) : [];
+    const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...agents]; if (!cards.length) return;
     const area = frameArea();
     const target = fitSpatial(cards, area, maxZ);
     glideTo(target, instant ? 0 : 420);

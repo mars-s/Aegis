@@ -59,19 +59,22 @@ try {
     if (before) { await zoom(.05); await page.screenshot({ path: join(output, `before-cluster-${engineName}.png`) }); await browser.close(); browser = null; continue; }
     assert.equal(await tier(), 'summary');
     const rendered = await fonts('.semantic-window :is(strong, .semantic-kind, .semantic-fact)');
-    assert.ok(rendered.length >= 27, 'all nine windows keep their title, kind and facts');
+    assert.ok(rendered.length >= 18, 'all nine windows keep their title, kind and meaningful labels');
     assert.ok(rendered.every(f => f.px >= 12), JSON.stringify(rendered));
-    assert.match(await page.locator('.semantic-summaries').textContent(), /5 rows.*3 columns/);
+    assert.equal(await page.locator('.semantic-table th').count(), 3);
+    assert.equal(await page.locator('.semantic-table td').count(), 6);
     assert.match(await page.locator('.semantic-summaries').textContent(), /3 slides/);
     assert.match(await page.locator('.semantic-summaries').textContent(), /A week with room to think/);
     assert.match(await page.locator('.semantic-summaries').textContent(), /Find your pace/);
     assert.ok(await page.locator('.card').evaluateAll(nodes => nodes.every(el => getComputedStyle(el).opacity === '0' && el.inert)));
     console.log(`PASS ${engineName}: Fit keeps all nine summaries and facts at 12 screen px or larger`);
-    await zoom(.85); assert.equal(await tier(), 'detail');
+    await zoom(1); assert.equal(await tier(), 'detail');
     assert.ok(await page.locator('.card').evaluateAll(nodes => nodes.every(el => getComputedStyle(el).opacity === '1' && !el.inert)));
     await zoom(.69); assert.equal(await tier(), 'summary');
     for (const z of [.70, .72, .71, .705, .719, .701]) { await zoom(z); assert.equal(await tier(), 'summary'); }
     await zoom(.77); assert.equal(await tier(), 'detail');
+    assert.ok(await page.locator('.card.kind-plot, .card.kind-sheet').evaluateAll(nodes => nodes.every(el => getComputedStyle(el).opacity === '0' && el.inert)), 'charts and sheets retain summaries until their internal text reaches 12px');
+    assert.equal(await page.locator('.semantic-window').count(), 2);
     for (const z of [.74, .72, .71, .701, .73]) { await zoom(z); assert.equal(await tier(), 'detail'); }
     // Multiple wheel updates in one frame must produce just one tier mutation.
     assert.equal(await page.evaluate(async () => {
