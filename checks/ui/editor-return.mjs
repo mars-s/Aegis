@@ -71,7 +71,7 @@ try {
         await page.waitForFunction(({ before, source }) => {
           const view = aegis.canvas.view;
           return ['x', 'y', 'z'].every(key => view[key] === before.view[key])
-            && (!source || document.activeElement?.closest('.card')?.dataset.id === source);
+            && (!source || (document.activeElement?.closest('.card')?.dataset.id ?? document.activeElement?.closest('.semantic-window')?.dataset.cardId) === source);
         }, { before, source });
         assert.deepEqual((await snapshot()).selection, before.selection);
         assert.deepEqual((await snapshot()).view, before.view);

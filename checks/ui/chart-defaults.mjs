@@ -42,7 +42,8 @@ try {
       assert.equal(/[CSQ]/.test(result.path), smooth); assert.equal(result.stroke, '1.5px'); assert.equal(result.vector, 'non-scaling-stroke');
       assert.ok(Math.abs(result.radius - 2.5) < .02, JSON.stringify(result)); assert.ok(result.label >= 11.99, JSON.stringify(result));
     };
-    for (const z of [.77, 1, 3]) {
+    // Below 100% a plot is shown as its semantic summary (features/overview/zoom.js), so detail is measured from 100%.
+    for (const z of [1, 1.5, 3]) {
       await page.evaluate(z => { aegis.canvas.setView({ x: 10, y: 0, z }); aegis.canvas.select(['plotchart']); }, z);
       await page.locator('#world [data-id="plotchart"] .cartesian svg .dot').first().waitFor(); await page.waitForTimeout(550);
       const result = await measure('#world [data-id="plotchart"] .cartesian svg'); check(result); metrics.push({ engine: name, z, ...result });
@@ -66,7 +67,7 @@ try {
     await page.screenshot({ path: join(output, `${name}-straight-deck.png`) });
     await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-chart').waitFor(); await page.waitForTimeout(100); check(await measure('.deck-present .deck-chart'));
     await page.screenshot({ path: join(output, `${name}-straight-presentation.png`) });
-    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 77%, 100%, 300%, 1.5px stroke, 2.5px points, 12px labels, saved explicit smoothing and source transfer into deck/presentation`);
+    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 100%, 150%, 300%, 1.5px stroke, 2.5px points, 12px labels, saved explicit smoothing and source transfer into deck/presentation`);
     await browser.close(); browser = null;
   }
   writeFileSync(join(output, 'metrics.json'), JSON.stringify(metrics, null, 2));

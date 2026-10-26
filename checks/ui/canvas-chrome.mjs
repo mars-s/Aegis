@@ -136,7 +136,8 @@ try {
       await page.locator('#selectionBar .selection-more > summary').focus(); await page.keyboard.press('Enter');
       await page.getByRole('button', { name: 'Connect', exact: true }).focus(); await page.keyboard.press('Enter');
       await moveTo(card('chromesheet')); await page.locator('[data-connect-target="chromesheet"]').waitFor();
-      assert.equal(await page.locator('[data-connect-preview]').evaluate(el => getComputedStyle(el).stroke), 'rgb(63, 141, 253)');
+      // Blue is reserved for data and agents; the connection preview is a neutral line.
+      assert.equal(await page.locator('[data-connect-preview]').evaluate(el => getComputedStyle(el).stroke), await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() && getComputedStyle(Object.assign(document.body.appendChild(document.createElement('i')), { style: 'color: var(--muted)' })).color));
       await shot('connect-preview'); await page.keyboard.press('Escape');
       assert.equal(await page.locator('[data-connect-preview]').count(), 0); assert.equal(await page.locator('[data-connect-target]').count(), 0);
       assert.equal(await page.evaluate(() => aegis.canvas.board.links.length), 0);
