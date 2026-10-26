@@ -61,7 +61,7 @@ try {
       pass(`${engineName}: Open reads all 500 source rows, with a bounded DOM and sticky header`);
       const targetColumn = expected.columns.at(-1);
       await page.getByRole('searchbox', { name: 'Find column' }).fill(targetColumn);
-      assert.equal(await page.getByRole('combobox', { name: 'Go to column' }).inputValue(), String(expected.columns.length - 1));
+      assert.equal(await page.getByRole('combobox', { name: 'Go to column' }).evaluate(el => el.value), String(expected.columns.length - 1));
       assert.ok(await page.locator('.data-viewport').evaluate(el => el.scrollLeft) > 0);
       await page.locator('.data-profile summary').click();
       assert.match(await page.locator('[data-profile-content]').textContent(), /Gaps/);
@@ -126,19 +126,28 @@ try {
       await page.keyboard.press('Meta+z'); assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['trustweb']);
       pass(`${engineName}: Backspace, Delete, keyboard Undo, multi-selection and five-second expiry`);
 
+      await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; }); await page.waitForTimeout(50);
       const colours = await page.evaluate(() => {
-        const root = document.documentElement; root.dataset.theme = 'dark';
-        return new Promise(resolve => setTimeout(() => resolve({ bg: document.querySelector('input[aria-label="App board background"]').value, panel: document.querySelector('input[aria-label="Panels"]').value, canvas: getComputedStyle(root).getPropertyValue('--canvas').trim(), card: getComputedStyle(root).getPropertyValue('--card').trim() }), 50));
+        const root = document.documentElement;
+        return { bg: document.querySelector('button[aria-label="App board background"]').value, panel: document.querySelector('button[aria-label="Panels"]').value, canvas: getComputedStyle(root).getPropertyValue('--canvas').trim(), card: getComputedStyle(root).getPropertyValue('--card').trim() };
       });
       const hex = value => /^#[a-f\d]{3}$/i.test(value) ? '#' + [...value.slice(1)].map(c => c + c).join('') : value;
       assert.equal(colours.bg, hex(colours.canvas)); assert.equal(colours.panel, hex(colours.card));
-      await page.evaluate(() => { document.querySelector('input[aria-label="App board background"]').value = '#123456'; document.querySelector('input[aria-label="App board background"]').dispatchEvent(new Event('input')); });
+      await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
+      const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
+      await settings.getByRole('tab', { name: 'General', exact: true }).click();
+      await settings.locator('.settings-appearance > summary').click();
+      await settings.getByRole('button', { name: 'App board background', exact: true }).click();
+      const colourEditor = page.getByRole('dialog', { name: 'Colour editor', exact: true });
+      await colourEditor.getByLabel('Hex', { exact: true }).fill('#123456');
+      await colourEditor.getByRole('button', { name: 'Done', exact: true }).click();
       assert.equal(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim()), '#123456');
-      await page.locator('[data-colour-settings] button').evaluate(el => el.click());
-      assert.equal(await page.getByLabel('App board background', { exact: true }).inputValue(), '#000000');
+      await settings.getByRole('button', { name: 'Reset colours for this mode', exact: true }).click();
+      assert.equal(await settings.getByLabel('App board background', { exact: true }).evaluate(el => el.value), '#000000');
       await page.evaluate(() => { document.documentElement.dataset.theme = 'light'; }); await page.waitForTimeout(50);
-      assert.equal(await page.getByLabel('App board background', { exact: true }).inputValue(), '#f5f5f7');
+      assert.equal(await settings.getByLabel('App board background', { exact: true }).evaluate(el => el.value), '#f5f5f7');
       await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+      await settings.getByRole('button', { name: 'Done', exact: true }).click();
       pass(`${engineName}: colour values follow live tokens, overrides, resets and theme changes`);
 
       // The real host records the final document shape; mounting/opening creates no later batch.

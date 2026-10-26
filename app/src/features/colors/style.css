@@ -17,19 +17,13 @@
 .palette-row button:first-child::before { content: ''; display: inline-block; width: 15px; height: 15px; background: var(--palette-colour); border: 1px solid var(--line); vertical-align: middle; margin-right: 5px; border-radius: 3px; }
 .board-colours button, .colour-pop button { background-color: var(--hover); color: var(--text); padding: 5px 7px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
 
-/* PM4.8: one circular edge, with a native colour input over the sample. */
-.settings-colour { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
-.settings-colour-swatch { display: block; width: 24px; height: 24px; flex: 0 0 24px; aspect-ratio: 1; }
-.colour-settings input[type=color] { display: block; box-sizing: border-box; width: 24px; height: 24px; min-width: 24px; min-height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: 50%; overflow: hidden; background: none; cursor: pointer; }
-.colour-settings input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
-.colour-settings input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
-.colour-settings input[type=color]::-moz-color-swatch { border: 0; border-radius: 50%; }
-.colour-settings input[type=color]:focus-visible { outline: 1.5px solid var(--text); outline-offset: 3px; }
+.settings-colour { display: flex; align-items: center; gap: 10px; min-height: 44px; }
 .settings-colour-name { flex: 1; }
-.settings-colour output { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.aegis-colour-picker.aegis-colour-picker { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 8px; font: var(--text-label)/1.4 var(--font); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.aegis-colour-sample { flex: none; width: 20px; height: 20px; border: 1px solid var(--line-strong); border-radius: 50%; }
 
 .colour-quick .colour-swatch { width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; aspect-ratio: 1; flex: 0 0 32px; border-radius: 50%; }
-.colour-swatch[aria-pressed=true] { outline: 1.5px solid #fff; outline-offset: 2px; }
+.colour-swatch[aria-pressed=true] { outline: 1.5px solid var(--focus); outline-offset: 2px; }
 .palette-row button:first-child::before { border-radius: 50%; aspect-ratio: 1; flex-shrink: 0; }
 @media (hover: none), (pointer: coarse) { .colour-quick .colour-swatch { width: 44px; height: 44px; min-width: 44px; min-height: 44px; flex-basis: 44px; } }
 
