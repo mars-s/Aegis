@@ -1,6 +1,6 @@
 /* Canvas and cards: the table, the windows on it and typed object cards. */
 /* canvas */
-.stage { position: fixed; inset: 0; overflow: hidden; outline: none; touch-action: none; }
+.stage { position: fixed; inset: 0; overflow: clip; outline: none; touch-action: none; }
 /* PM4 pan priority: the parent receives drags over sandbox frames while Space is held. */
 .stage.pan-ready, .stage.pan-ready * { cursor: grab !important; }
 .stage.panning, .stage.panning * { cursor: grabbing !important; }

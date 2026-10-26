@@ -116,10 +116,14 @@ export function editorContext(canvas, source, editor) {
   const schedule = () => { if (!frame) frame = requestAnimationFrame(fit); };
   const sizes = new ResizeObserver(schedule); sizes.observe(editor); sizes.observe(stage);
   const chrome = new MutationObserver(schedule); chrome.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  const drawerSettled = event => { if (event.target.matches('.tools, .side')) schedule(); };
+  const drawerSettled = event => { if (event.target.matches('.tools, .side, .side-editor')) schedule(); };
   document.addEventListener('transitionend', drawerSettled);
   // Manual board work takes over from the composed references, including drag and drop.
-  stage.addEventListener('pointerdown', dismiss); stage.addEventListener('wheel', dismiss, { passive: true });
+  const boardPointer = event => {
+    if (stage.contains(event.target) && (!layer.contains(event.target) || event.button !== 0 || stage.classList.contains('pan-ready'))) dismiss();
+  };
+  document.addEventListener('pointerdown', boardPointer, true);
+  stage.addEventListener('wheel', dismiss, { passive: true });
   stage.addEventListener('canvaspaint', paint); stage.addEventListener('boardchange', refreshContent);
   fit();
   return {
@@ -127,7 +131,7 @@ export function editorContext(canvas, source, editor) {
     destroy() {
       destroyed = true; cancelAnimationFrame(frame); sizes.disconnect(); chrome.disconnect();
       document.removeEventListener('transitionend', drawerSettled);
-      stage.removeEventListener('pointerdown', dismiss); stage.removeEventListener('wheel', dismiss);
+      document.removeEventListener('pointerdown', boardPointer, true); stage.removeEventListener('wheel', dismiss);
       stage.removeEventListener('canvaspaint', paint); stage.removeEventListener('boardchange', refreshContent);
       layer.remove();
     },

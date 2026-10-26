@@ -33,6 +33,7 @@ const metrics = [], captures = [];
 let browser, page;
 try {
   for (const [engineName, engine, platform] of [['chromium', chromium, 'MacIntel'], ['webkit', webkit, 'Win32']]) {
+    if (process.env.AEGIS_BROWSER && process.env.AEGIS_BROWSER !== engineName) continue;
     browser = await engine.launch();
     page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' }); page.setDefaultTimeout(12000);
     const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -63,6 +64,7 @@ try {
       assert.deepEqual(await snapshot(), before, 'closing restores the original camera and selection');
       await page.locator('.side-editor').waitFor({ state: 'detached' });
       assert.equal(await page.locator('.editor-context').count(), 0);
+      assert.deepEqual(await page.locator('#stage').evaluate(el => [el.scrollLeft, el.scrollTop]), [0, 0], 'focus cannot scroll the stage');
     };
     async function composition(name, expected) {
       await page.waitForFunction(() => {
@@ -148,6 +150,18 @@ try {
     const interrupted = await snapshot(); await page.waitForTimeout(430); assert.deepEqual((await snapshot()).view, interrupted.view, 'opening remains interrupted');
     assert.equal(await page.locator('.editor-context').isVisible(), false, 'manual navigation restores the ordinary canvas windows');
     await close(before);
+    for (const gesture of ['space', 'middle']) {
+      before = await prepare('contextdoc'); await open('contextdoc');
+      await page.locator('#stage').focus();
+      if (gesture === 'space') await page.keyboard.down('Space');
+      await page.mouse.move(600, 700);
+      await page.mouse.down({ button: gesture === 'middle' ? 'middle' : 'left' });
+      await page.mouse.move(640, 730, { steps: 4 });
+      await page.mouse.up({ button: gesture === 'middle' ? 'middle' : 'left' });
+      if (gesture === 'space') await page.keyboard.up('Space');
+      assert.equal(await page.locator('.editor-context').isVisible(), false, `${gesture} pan restores ordinary windows`);
+      await close(before);
+    }
     for (const mode of ['reduce', 'off']) {
       await page.emulateMedia({ reducedMotion: mode === 'reduce' ? 'reduce' : 'no-preference' });
       await page.evaluate(mode => document.body.classList.toggle('motion-off', mode === 'off'), mode);
@@ -254,6 +268,14 @@ try {
   }
   writeFileSync(join(output, 'metrics.json'), JSON.stringify({ metrics, captures }, null, 2));
 } catch (error) {
-  if (page && !page.isClosed()) await page.screenshot({ path: join(output, 'failure.png') });
+  if (page && !page.isClosed()) {
+    await page.screenshot({ path: join(output, 'failure.png') });
+    writeFileSync(join(output, 'failure.json'), JSON.stringify(await page.evaluate(() => ({
+      view: aegis.canvas.view,
+      elements: [...document.querySelectorAll('#stage, .side-editor, .editor-context, .editor-context-window, .tools, .side')].map(el => ({
+        className: el.className, rect: el.getBoundingClientRect().toJSON(), transform: getComputedStyle(el).transform,
+      })),
+    })), null, 2));
+  }
   throw error;
 } finally { await browser?.close(); host.kill(); rmSync(data, { recursive: true, force: true }); }

@@ -70,7 +70,7 @@ try {
       const waitReturn = async (before, source) => {
         await page.waitForFunction(({ before, source }) => {
           const view = aegis.canvas.view;
-          return ['x', 'y', 'z'].every(key => Math.abs(view[key] - before.view[key]) < .001)
+          return ['x', 'y', 'z'].every(key => view[key] === before.view[key])
             && (!source || document.activeElement?.closest('.card')?.dataset.id === source);
         }, { before, source });
         assert.deepEqual((await snapshot()).selection, before.selection);
@@ -204,9 +204,9 @@ try {
 
       // Deletion prunes stale selected ids. A board switch must never replay the old bookmark.
       before = await prepare('returnsheet'); await open('returnsheet', true);
-      await page.evaluate(() => aegisCtx.apply([{ op: 'delete', ids: ['returnsheet'] }]));
-      await waitReturn({ ...before, selection: ['returnnote'] }, null);
+      await page.evaluate(() => new Promise(resolve => aegisCtx.apply([{ op: 'delete', ids: ['returnsheet'] }], resolve)));
       await page.locator('.side-editor').waitFor({ state: 'detached' });
+      await waitReturn({ ...before, selection: ['returnnote'] }, null);
       await prepare('returndoc'); await open('returndoc'); await page.waitForTimeout(420);
       const other = await page.evaluate(async () => {
         const board = await aegis.host.post('/boards', { name: 'Another board' });
