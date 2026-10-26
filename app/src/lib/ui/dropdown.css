@@ -65,3 +65,10 @@ body.phone .aegis-dropdown, body.phone .aegis-surface.aegis-dropdown-menu button
 .aegis-combobox { min-height: var(--control-height); padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--inset); color: var(--text); font: var(--text-body)/1.4 var(--font); }
 
 .aegis-surface [aria-checked=true] > svg { color: var(--data); }
+
+.aegis-submenu-arrow { margin-left: auto; color: var(--muted); }
+.selection-submenu > summary { display: flex; justify-content: space-between; align-items: center; min-height: var(--menu-row-height); padding: 7px 10px; border-radius: var(--radius-control); cursor: pointer; }
+.selection-submenu > summary:hover { background: var(--hover); }
+.selection-submenu > summary svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.aegis-surface.selection-overflow { width: 240px; }
+.selection-actions + .selection-actions { border: 0 !important; margin: 0 !important; padding: 0 !important; }

@@ -95,6 +95,8 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
   }
   function key(event) {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); return; }
+    if (event.key === 'ArrowLeft' && parent) { event.preventDefault(); close(true); return; }
+    if (event.key === 'ArrowRight' && document.activeElement.getAttribute('aria-haspopup') === 'menu') { event.preventDefault(); document.activeElement.click(); return; }
     if (event.key === 'Tab') { if (role !== 'dialog') close(true); return; }
     const navigation = event.target.closest('[role=menu]') ?? menu;
     if (role === 'dialog' && navigation === menu) return;
@@ -203,6 +205,7 @@ export function mountDropdowns() {
     }
     if (active && (['Escape', 'Tab'].includes(e.key) || active.menu.contains(e.target) || active.trigger?.contains(e.target))) {
       if (e.target.matches('input, textarea, [contenteditable]') && !['Escape', 'Tab'].includes(e.key)) return;
+      if (active.menu.getAttribute('role') === 'dialog' && !['Escape', 'Tab'].includes(e.key) && !e.target.closest('[role=menu]')) return;
       e.stopImmediatePropagation(); active.key(e);
     }
     else if (e.target.closest?.('.aegis-dropdown')?.dropdownKey && !e.metaKey && !e.ctrlKey && e.key !== 'Tab') { e.stopImmediatePropagation(); e.target.closest('.aegis-dropdown').dropdownKey(e); }

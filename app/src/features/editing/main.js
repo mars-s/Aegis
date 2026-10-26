@@ -199,8 +199,7 @@ export function mountEditing(ctx) {
             const height = text[0].props?.lh ?? lineHeightDefault(text[0].type);
             const setHeight = v => { const value = Number(v); if (!Number.isFinite(value)) return; format('lh', value); for (const control of bar.querySelectorAll('[data-line-height]')) control.value = String(value); };
             const lineHeight = stepper('Line height', height, setHeight, { min: .8, max: 3, step: .05 }); lineHeight.dataset.lineHeight = '1'; lineHeight.oninput = () => { const v = Number(lineHeight.value); if (v >= .8 && v <= 3) setHeight(v); };
-            const slider = input('Line height slider', height, setHeight, 'range', 'Typography'); slider.min = '.8'; slider.max = '3'; slider.step = '.05'; slider.dataset.lineHeight = '1'; slider.oninput = slider.onchange;
-            select('Spacing', [['', 'Custom'], ['compact', 'Compact'], ['normal', 'Normal'], ['open', 'Open']], '', v => { if (v === 'normal') apply(textCards().map(c => ({ op: 'update', id: c.id, set: { props: { lh: null } } }))); else if (v) format('lh', { compact: 1.1, open: 1.8 }[v]); });
+            button('Use default line height', () => apply(textCards().map(c => ({ op: 'update', id: c.id, set: { props: { lh: null } } }))), { group: 'Typography' });
             stepper('Letter spacing', text[0].props?.ls || 0, v => format('ls', Number(v)), { min: -10, max: 50, step: .5 });
             select('Display case', [['', 'As typed'], ['upper', 'Uppercase'], ['lower', 'Lowercase'], ['title', 'Title case']], text[0].props?.tcase || '', v => format('tcase', v || null));
           }
@@ -221,7 +220,7 @@ export function mountEditing(ctx) {
           if (cards.some(c => c.group)) button('Ungroup', () => group(true), { group: 'Arrange', shortcut: shortcutText('ungroup') });
           if (single && !textInline && !media) button('Open', () => openCard(cards[0]), { inline: true, text: true });
           if (media) { button('Replace', () => replaceMedia(cards[0]), { inline: true, text: true }); button('Download', () => downloadMedia(cards[0]), { inline: true }); }
-          for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Card').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
+          for (const control of selectionControls) if (!control.when || control.when(ctx)) { const host = document.createElement('div'); host.dataset.selectionControl = control.id; toolbar.section('Actions').append(host); const cleanup = control.mount(host, ctx); if (cleanup) cleanups.push(cleanup); }
           button('Duplicate', duplicate, { inline: !single || !textInline && !media, shortcut: shortcutText('duplicate') }); button('Delete', remove, { inline: !single || !textInline && !media, shortcut: shortcutText('remove') });
           for (const [label, direction, key] of [['Bring to front', 'front', 'stackToFront'], ['Bring forward', 'forward', 'stackForward'], ['Send backward', 'backward', 'stackBack'], ['Send to back', 'back', 'stackToBack']]) button(label, () => stack(direction), { group: 'Arrange', shortcut: shortcutText(key) });
           button('Lock', () => apply(editableCards().map(c => ({ op: 'update', id: c.id, set: { props: { locked: true } } }))), { group: 'Arrange' });

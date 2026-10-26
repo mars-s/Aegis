@@ -7,7 +7,9 @@ export function createMenu() {
   return {
     el,
     show(x, y, items, event, trigger = document.activeElement) {
-      menu.close(false, true); menu.setTrigger(trigger);
+      menu.close(false, true);
+      // Tool actions outlive the palette; Escape returns to its persistent trigger.
+      menu.setTrigger(trigger?.closest?.('#toolsPopover') ? document.getElementById('toolsFold') : trigger);
       menu.setItems([...items].sort((a, b) => (a.section ?? '').localeCompare(b.section ?? '')));
       menu.open(event, { x, y });
     },

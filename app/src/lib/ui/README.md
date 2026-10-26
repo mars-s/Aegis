@@ -47,7 +47,7 @@ const size = createDropdown({
 container.append(size);
 ```
 
-`createMenu` accepts a live `items` factory or array. `checked` defaults to a radio state; `checkType: 'checkbox'` gives an independent checked action. Separators come from section changes. Shortcut chips remain outside accessible item names. Titles and headings are text, never HTML.
+`createMenu` accepts a live `items` factory or array. `checked` defaults to a radio state; `checkType: 'checkbox'` gives an independent checked action. Separators come from section changes. Shortcut chips remain outside accessible item names. Items may supply nested `items` for a submenu. Right and Left open and leave submenus; Escape returns to their trigger. Card context menus choose one platform-specific shortcut representation. Titles and headings are text, never HTML.
 
 Menus expose `open(event, point)`, `close(restoreFocus)`, `setTrigger`, `setItems` and `destroy`. `createCombobox` provides an editable input with a filtered listbox, active-descendant arrow navigation, custom values and the same portal lifecycle. The document font field uses it instead of a native datalist. `bindDisclosure` gives existing live `<details>` content the shared popup lifecycle. More tools uses `placement: right`, with coordinates relative to its transformed rail.
 
@@ -81,3 +81,11 @@ For Svelte, create these controllers inside an action and return `{ destroy: con
 Shared consumers include canvas and library context menus, generated-window actions, the selection More and formatting popovers, island options and model choices, Settings and Customise toolbar, zoom and tools menus, all document/sheet/slide ribbon choices, media caption/crop/link dialogs, colour and icon pickers, project cover menus, confirmations and onboarding. Quick capture inherits the common native dialog material without changing its feature code. Full-screen gallery inspection, presentation and mobile navigation retain their content layouts.
 
 Run `npm run check`, `npm --prefix app run build` and the production `checks/ui/design-system.mjs` journey. The journey uses temporary `AEGIS_DATA`, `AEGIS_UI=app/dist` and the fake model, opens real controls in both themes and records screenshots and a JSON inventory. Run the full UI suite with `AEGIS_PORT_OFFSET=2700` and `PLAYWRIGHT` pointing to the installed Playwright module. No verification reads real Aegis user data.
+
+## Critic follow-up
+
+The selection More menu keeps its first level short. Typography lives in Format, geometry in Arrange, metadata in Details and files in Export. Line height has one numeric stepper and a reset action. Feature controls have an Actions section for additions such as Connect.
+
+Card context menus are assembled in `controller.ts` with Open or Edit, Copy, Duplicate, Arrange, Lock and Delete in that order. Group requires multiple selected objects. Ungroup requires an existing group. Arrange owns stacking and extra feature actions.
+
+The document ribbon uses one 40 px row for style, emphasis, lists, Insert, Rewrite and Format. Format contains font, colour, spacing, script and table controls. Normal writing starts at 18 px with a 28 px line height and the placeholder says “Start writing…”.

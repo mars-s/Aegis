@@ -47,3 +47,5 @@ export const SHORTCUT_LIST = Object.freeze(['ask', 'askSlash', 'quickCapture', '
 export const shortcutText = (id, format = 'display') => SHORTCUTS[id][format];
 export const shortcutTitle = (id, label = SHORTCUTS[id].label) => `${label} (${shortcutText(id, 'text')})`;
 export const TOOL_SHORTCUTS = Object.freeze(['select', 'note', 'title', 'todo', 'readme', 'link', 'media']);
+
+export const menuShortcut = id => shortcutText(id, /Mac|iPhone|iPad/.test(navigator.platform) ? 'mac' : 'pc');

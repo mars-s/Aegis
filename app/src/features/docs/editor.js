@@ -316,13 +316,27 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     }); parent.append(chooser);
   }
   const ai = group(); ai.classList.add('ribbon-ai'); rewriteMenu(ai); rewriteMenu(bubble);
-  // The table group trails the ribbon so its appearance never shifts the other groups.
-  ribbon.append(tableTools);
+  function commandPopover(label, content, className) {
+    const details = document.createElement('details'); details.className = className;
+    const summary = document.createElement('summary'); summary.textContent = label; summary.setAttribute('aria-label', `${label} document`);
+    const body = document.createElement('div'); body.className = 'docs-command-menu'; body.append(...content);
+    details.append(summary, body); colourPopups.push(bindDisclosure(details, { label: `${label} document controls` })); return details;
+  }
+  const advanced = document.createElement('div'); advanced.className = 'ribbon-group';
+  for (const control of [...markGroup.children]) if (!['Bold', 'Italic'].includes(control.getAttribute('aria-label'))) advanced.append(control);
+  advanced.append(align);
+  const clear = insertGroup.querySelector('[aria-label="Clear formatting"]'); advanced.append(clear, more);
+  for (const control of insertGroup.querySelectorAll('button')) {
+    const name = document.createElement('span'); name.textContent = control.getAttribute('aria-label'); control.append(name);
+  }
+  const insert = commandPopover('Insert', [insertGroup], 'docs-insert');
+  const format = commandPopover('Format', [typeGroup, advanced, tableTools, history], 'docs-format');
+  ribbon.replaceChildren(styleGroup, markGroup, paraGroup, insert, ai, format);
   function paint() {
     if (!editor || editor.isDestroyed || !tableTools) return;
     const attrs = editor.getAttributes('textStyle');
     if (document.activeElement !== fonts) fonts.value = attrs.fontFamily || 'Inter Variable';
-    if (document.activeElement !== size) size.value = String(parseFloat(attrs.fontSize) || 19.5);
+    if (document.activeElement !== size) size.value = String(parseFloat(attrs.fontSize) || 18);
     blocks.value = editor.isActive('heading') ? ['title', 'heading', 'sub'][editor.getAttributes('heading').level - 1] : editor.isActive('blockquote') ? 'quote' : editor.isActive('codeBlock') ? 'code' : editor.getAttributes('paragraph').kind || 'body';
     align.value = editor.getAttributes('paragraph').textAlign || editor.getAttributes('heading').textAlign || 'left';
     for (const [el, mark] of toggles) el.setAttribute('aria-pressed', String(editor.isActive(mark)));

@@ -7,7 +7,7 @@ export function enhanceDialog(dialog, { label, initialFocus, dismissible = true 
   if (controllers.has(dialog)) return controllers.get(dialog);
   dialog.classList.add('aegis-dialog');
   if (label) dialog.setAttribute('aria-label', label);
-  let previous, animation;
+  let animation;
   function name() {
     if (dialog.hasAttribute('aria-label') || dialog.hasAttribute('aria-labelledby')) return;
     const heading = dialog.querySelector('h1, h2, h3');
@@ -16,7 +16,7 @@ export function enhanceDialog(dialog, { label, initialFocus, dismissible = true 
   const nativeShow = dialog.showModal.bind(dialog);
   dialog.showModal = () => {
     if (dialog.open) return;
-    name(); previous = document.activeElement; animation?.cancel();
+    name(); animation?.cancel();
     nativeShow();
     if (!isKeyboard() && !reduceMotion()) animation = dialog.animate([
       { opacity: 0, transform: 'translateY(4px) scale(.98)' },
@@ -25,7 +25,7 @@ export function enhanceDialog(dialog, { label, initialFocus, dismissible = true 
     const target = typeof initialFocus === 'function' ? initialFocus() : initialFocus;
     target?.focus({ preventScroll: true });
   };
-  const close = () => { animation?.cancel(); if (previous?.isConnected) previous.focus({ preventScroll: true }); };
+  const close = () => { animation?.cancel(); };
   const pointer = event => {
     if (!dismissible || event.target !== dialog) return;
     const r = dialog.getBoundingClientRect();

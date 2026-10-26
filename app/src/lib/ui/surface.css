@@ -19,7 +19,8 @@
 .aegis-dialog .sheet-sec h3 { margin: 0 0 var(--space-2); color: var(--muted); font-size: var(--text-label); font-weight: 500; }
 .aegis-dialog.media-dialog { width: min(720px, calc(100vw - 32px)); }
 .aegis-dialog.library-home { inset: 0; width: 100vw; height: 100dvh; max-width: none; max-height: none; margin: 0; padding: 32px; border: 0; border-radius: 0; background: var(--bg); box-shadow: none; }
-.aegis-dialog.onboarding { width: min(440px, calc(100vw - 32px)); }
+.aegis-dialog.onboarding { inset: 0; width: 100%; height: 100%; max-height: none; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.aegis-dialog.onboarding .tour-card { background: var(--ui-surface); border: 1px solid var(--ui-edge); border-radius: var(--radius-dialog); box-shadow: var(--ui-shadow); }
 .aegis-dialog.aegis-confirm { width: min(400px, calc(100vw - 32px)); }
 .aegis-dialog.aegis-confirm h2 { margin: 0; }
 .aegis-dialog.aegis-confirm p { margin: var(--space-2) 0 0; color: var(--muted); text-wrap: pretty; }
