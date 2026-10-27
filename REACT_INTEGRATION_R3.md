@@ -44,3 +44,15 @@ The first control attempt was stopped after a hook-order mistake. Its failed evi
 Applied the current complete crop-controls proposal, superseding the separate stepper and tab-order diffs. Unfocused fields display current geometry, consecutive arrow changes use the current crop, pointer steppers retain input focus, and WebKit has the legacy explicit tab stops. Nested media cancellation stops at its own dialogue. Media and Settings devices use the existing controlled ValuePicker; colour controls report real HSV values and retain pointer opener focus.
 
 The complete original production crop-a11y suite passes 1770/1770 across all eight browser/width/theme fixtures. Strict React types, targeted lint and whitespace pass. Controls-polish gets past nested colour dismissal and reaches later shared sidebar control sizing; Fit-finish reaches document header text sizing. Further composition/facade changes are deliberately a separate unit while a WebKit live-update issue is investigated.
+
+## Fresh reported branches
+
+Merged data 96609c4 as c8d45af, documents f8b6f85 as 4af4d43, objects 68b6064 as 345f371, and scene eab41a5 as b237abb. Each complete npm run check passes and each unit was pushed. Documents merge resolves the shared editor check by keeping the data owner's first mounted column-A cell and the real Open label. Its check began during conflict resolution, so its metadata is retained as transitional evidence and a clean-head final gate is still required. Host reports no code change and verified e4048f9, already inherited.
+
+The experimental no-store and stream-identity transport changes both failed the original WebKit fixture and were discarded. They are absent from the branch. Their failed evidence remains under integration-r3, without a recovery claim.
+
+## Document and reference composition
+
+Applied the current document integration and Chrome proposals, adapting the scene seam to retain the reported navigation callback and SceneTool. Card copy uses the real document resolver through the single scene scheduler and preserves source positions. All registered editors receive the existing references component. Available-area changes refit only until manual navigation; returned focus retains a real invoking control, with source-card fallback for stage/body programmatic opens. Shared Underline hints use the existing formatter and orb.
+
+Production shared-editor-confirm docs passes 122/122. Shared-editor editors passes 51/51, editor-context passes 1037/1037 across Chromium and WebKit. The first document run used stale built scene exports and is excluded; the clean rebuilt repeat passes. Editor-return passes all Chromium 71 assertions, then retains the unrelated WebKit initial agent-update timeout at :54. This is not full return-suite parity. Overview advances to 3619 passing calls before :189's glide sample count. Spatial interaction advances to 89 passing calls, with legend/recovery/import-notice failures; spatial memory advances to 217, with Show references recovery missing in all fixtures. These remain genuine follow-ups.

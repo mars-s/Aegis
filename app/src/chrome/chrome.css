@@ -873,3 +873,6 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
   min-height: 44px;
   height: 44px;
 }
+
+.aegis-chrome .selection-menu-action { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+.aegis-chrome .selection-value { flex: 0 1 96px; max-width: 96px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--font); }

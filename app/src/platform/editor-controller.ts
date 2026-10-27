@@ -4,11 +4,12 @@ import { fitBounds, fromBounds, rotatedBounds } from '@aegis/scene/geometry';
 import type { Composition, FeatureContext } from '../composition.js';
 import type { Workspace } from '../workspace/index.js';
 
-interface Bookmark { readonly board: BoardId; readonly camera: CameraState; readonly viewport: Rect; readonly selection: readonly CardId[] }
+interface Bookmark { readonly board: BoardId; readonly camera: CameraState; readonly viewport: Rect; readonly selection: readonly CardId[]; readonly invoker: HTMLElement | null; readonly invokerSelector: string | null }
 const bodyKind = (card: Card | null) => card?.type === 'object' ? `object:${card.kind}` : card?.type;
 
 export function createEditorController(args: { readonly workspace: Workspace; readonly engine: () => CanvasEngine | null; readonly composition: Composition; readonly cameraChanged: () => void }) {
   const { workspace } = args;
+  let framed: { readonly id: CardId; readonly area: Rect } | null = null, frameRelease: (() => void) | null = null;
   let bookmark: Bookmark | null = null, returning: (() => void) | null = null;
   let interaction: 'pointer' | 'keyboard' = 'keyboard', inputVersion = 0, selectionVersion = 0, instantMotion = true;
   const instant = (): boolean => instantMotion;
@@ -22,7 +23,16 @@ export function createEditorController(args: { readonly workspace: Workspace; re
   }
   function frame(card: Card, keyboard: boolean): void {
     const engine = args.engine(); if (!engine) return;
+    if (!frameRelease) frameRelease = engine.registerFrameParticipant({ read() {
+      const opened = workspace.ui.getSnapshot().editor;
+      if (!framed || !opened || opened.view === 'full' || opened.id !== framed.id || engine.busy()) return;
+      const area = engine.availableArea(), previous = framed.area;
+      if (area.x === previous.x && area.y === previous.y && area.width === previous.width && area.height === previous.height) return;
+      framed = { id: opened.id, area };
+      engine.afterInput(() => { const current = workspace.ui.getSnapshot().editor, source = workspace.record(opened.id).getSnapshot(); if (framed && current?.id === opened.id && source) frame(source, true); });
+    } });
     const viewport = engine.viewport(), available = engine.availableArea();
+    framed = { id: card.id, area: available };
     const area = { x: available.x + 24, y: available.y + 24, width: Math.max(1, Math.min(available.width, viewport.width / 2 - available.x - 24) - 48), height: Math.max(1, available.height - 48) };
     const camera = fitBounds(fromBounds(rotatedBounds({ x: card.x, y: card.y, width: card.w, height: card.h }, card.rot ?? 0)), area, 1);
     engine.navigate({ kind: 'restore', camera, motion: keyboard ? 'instant' : 'glide' }); args.cameraChanged();
@@ -37,7 +47,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       if (opened && !flush()) return false;
       instantMotion = reduced(keyboard);
       returning?.(); returning = null;
-      if (engine && !bookmark) bookmark = { board: workspace.metadata.getSnapshot().id, camera: engine.camera(), viewport: engine.viewport(), selection: [...workspace.selection.getSnapshot()] };
+      if (engine && !bookmark) bookmark = { board: workspace.metadata.getSnapshot().id, camera: engine.camera(), viewport: engine.viewport(), selection: [...workspace.selection.getSnapshot()], invoker: document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement.id !== 'stage' ? document.activeElement : null, invokerSelector: document.activeElement instanceof Element && document.activeElement.closest('#selectionBar') ? '#selectionBar [aria-label="Open"]' : document.activeElement instanceof Element && document.activeElement.matches('.win-open') ? `.card[data-id="${CSS.escape(id)}"] .win-open` : null };
       if (opened) engine?.pin(opened.id, 'editor', false);
       engine?.pin(id, 'editor', true);
       workspace.act({ kind: 'edit', id, view: full ? 'full' : 'side' });
@@ -51,7 +61,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       instantMotion = reduced(interaction === 'keyboard');
       workspace.act({ kind: 'edit-close' });
       const engine = args.engine(), previous = bookmark;
-      bookmark = null;
+      bookmark = null; framed = null;
       engine?.pin(opened.id, 'editor', false);
       returning?.(); returning = null;
       if (!engine || !previous || previous.board !== workspace.metadata.getSnapshot().id) return true;
@@ -68,7 +78,8 @@ export function createEditorController(args: { readonly workspace: Workspace; re
         if (camera.x !== target.x || camera.y !== target.y || camera.zoom !== target.zoom) return;
         engine.afterInput(() => {
           if (inputVersion !== input || selectionVersion !== selection || workspace.ui.getSnapshot().editor || workspace.metadata.getSnapshot().id !== previous.board) return;
-          document.querySelector<HTMLElement>(`.card[data-id="${CSS.escape(opened.id)}"]`)?.focus({ preventScroll: true });
+          const invoker = previous.invoker?.isConnected ? previous.invoker : previous.invokerSelector ? document.querySelector<HTMLElement>(previous.invokerSelector) : null;
+          (invoker ?? document.querySelector<HTMLElement>(`.card[data-id="${CSS.escape(opened.id)}"]`))?.focus({ preventScroll: true });
         });
       };
       returning = engine.registerFrameParticipant({ read: () => {
@@ -87,10 +98,10 @@ export function createEditorController(args: { readonly workspace: Workspace; re
     },
   };
   const install = (): (() => void) => {
-    const pointer = (): void => { interaction = 'pointer'; inputVersion++; };
-    const key = (): void => { interaction = 'keyboard'; inputVersion++; };
+    const pointer = (event: PointerEvent): void => { interaction = 'pointer'; inputVersion++; if (event.target instanceof Element && event.target.closest('#stage')) framed = null; };
+    const key = (event: KeyboardEvent): void => { interaction = 'keyboard'; inputVersion++; if (event.code === 'Space' || event.key === '0') framed = null; };
     const wheel = (): void => {
-      inputVersion++;
+      inputVersion++; framed = null;
       if (!returning) return;
       returning(); returning = null;
       const engine = args.engine();
@@ -103,7 +114,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       const opened = workspace.ui.getSnapshot().editor;
       if (opened && !workspace.record(opened.id).getSnapshot()) context.closeEditor();
     });
-    return () => { window.removeEventListener('pointerdown', pointer, true); window.removeEventListener('keydown', key, true); window.removeEventListener('wheel', wheel, true); selection(); scene(); returning?.(); returning = null; };
+    return () => { window.removeEventListener('pointerdown', pointer, true); window.removeEventListener('keydown', key, true); window.removeEventListener('wheel', wheel, true); selection(); scene(); returning?.(); returning = null; frameRelease?.(); frameRelease = null; framed = null; };
   };
   return { context, flush, install, instant };
 }
