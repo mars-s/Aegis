@@ -13,6 +13,11 @@ body:has(.react-stage.panning) :is(.agent-window, .editing-outline) * { cursor: 
 .react-stage.pan-ready iframe,
 .react-stage.panning iframe { pointer-events: none !important; }
 .react-stage .scene-card[hidden] { display: none; }
+.react-stage .card.glow::after { content: ''; position: absolute; inset: 0; border: 1px solid #3f8dfd; border-radius: inherit; pointer-events: none; animation: scene-card-touch 1.2s ease-out forwards; }
+@keyframes scene-card-touch { from { opacity: .8; } to { opacity: 0; } }
+.react-stage .agent-line.spent { opacity: .3; transition: opacity 600ms ease-out; }
+body.motion-off .react-stage .card.glow::after { animation: none; opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .react-stage .card.glow::after { animation: none; opacity: .8; } .react-stage .agent-line.spent { transition: none; } }
 .react-stage .scene-card .resize { position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
 .react-stage .scene-card.locked .resize,
 .react-stage .scene-card.title .resize { display: none; }

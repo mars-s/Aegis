@@ -17,7 +17,7 @@ export class AgentLine {
     this.element.setAttribute('class', 'agent-line');
     this.element.setAttribute('width', '1'); this.element.setAttribute('height', '1');
     this.element.setAttribute('aria-hidden', 'true');
-    this.element.style.position = 'absolute'; this.element.style.left = '0'; this.element.style.top = '0'; this.element.style.pointerEvents = 'none';
+    this.element.style.position = 'absolute'; this.element.style.left = '0'; this.element.style.top = '0'; this.element.style.pointerEvents = 'none'; this.element.style.overflow = 'visible'; this.element.style.zIndex = '-1';
     this.element.style.setProperty('--agent-colour', 'rgb(63 141 253)');
     world.append(this.element);
   }
@@ -37,7 +37,7 @@ export class AgentLine {
       this.element.append(element); return element;
     };
     const path = (d: string, length: number, className = ''): void => {
-      const element = add('path', { d, class: className });
+      const element = add('path', { d, class: className, fill: 'none', stroke: '#3f8dfd', 'stroke-width': 1.5, 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' });
       element.style.strokeLinecap = 'round';
       element.style.strokeDasharray = style === 'dashed' ? '6 5' : style === 'dotted' ? '1 5' : 'none';
       if (reduced) return;
@@ -47,14 +47,15 @@ export class AgentLine {
       this.animations.set(element, animation);
       animation.onfinish = () => { if (this.animations.get(element) !== animation) return; this.animations.delete(element); if (style === 'solid') element.style.strokeDasharray = 'none'; animation.cancel(); };
     };
-    add('circle', { class: 'origin', cx: origin?.x ?? start, cy: origin?.y ?? top - 24, r: 3.5 });
+    add('circle', { class: 'origin', cx: origin?.x ?? start, cy: origin?.y ?? top - 24, r: 3.5, fill: '#3f8dfd' });
     if (origin) path(`M${origin.x} ${origin.y}V${top - 24}H${start}`, Math.abs(origin.y - top + 24) + Math.abs(origin.x - start));
-    add('text', { x: start + 10, y: top - 20 }).textContent = label;
+    const title = add('text', { x: start + 10, y: top - 20, fill: '#a6abb4', stroke: '#000', 'stroke-width': 5, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    title.style.font = '12px var(--font, Inter, sans-serif)'; title.textContent = label;
     path(`M${start} ${top - 24}V${top - 12}L${start + 12} ${top}H${Math.max(...stations)}`, 12 + Math.hypot(12, 12) + Math.abs(Math.max(...stations) - start - 12), 'trunk');
     cards.forEach((node, index) => {
       const x = stations[index]; if (x === undefined) return;
       path(`M${x} ${top}V${node.card.y}`, Math.abs(node.card.y - top), 'drop');
-      add('circle', { class: 'station', cx: x, cy: node.card.y, r: 4.5 });
+      add('circle', { class: 'station', cx: x, cy: node.card.y, r: 4.5, fill: '#fff', stroke: '#3f8dfd', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' });
     });
     this.expiry = setTimeout(() => { this.expiry = null; this.element.classList.add('spent'); }, Math.max(0, ms));
   }

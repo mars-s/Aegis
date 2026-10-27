@@ -145,6 +145,9 @@ describe('real scene attachment', () => {
       });
       expect(await p.locator('.agent-line .origin').getAttribute('cx')).toBe('25');
       expect(await p.locator('.agent-line .origin').getAttribute('cy')).toBe('40');
+      expect(await p.locator('.agent-line path, .agent-line .station').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke))).toEqual(['rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)']);
+      expect(await p.locator('.agent-line .origin').evaluate(node => getComputedStyle(node).fill)).toBe('rgb(63, 141, 253)');
+      expect(await p.locator('.card.glow').evaluate(node => getComputedStyle(node, '::after').borderTopColor)).toBe('rgb(63, 141, 253)');
       expect(await p.locator('.card.glow').count()).toBe(1);
       await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 100, y: 80 }], 'local'));
       await idle(p);
