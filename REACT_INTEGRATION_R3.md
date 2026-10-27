@@ -20,3 +20,11 @@ Accepted the deck double-click/modal requests and object native-control/grid/nes
 Production editor-keys: office 13/13 and deck-studio 989/989 pass. Deck advances through double-click to its separate Open context-menu label at :180, 245 passing assertions. Editors passes sheet workflows then fails shared width at :94, 25 pass/1 fail. Strict React TypeScript, changed-file lint and whitespace checks pass.
 
 Creative report head 4b69fe0 merged as 502bd5d; creative-merge-check passes the full gate.
+
+## Editor shell and camera return
+
+Accepted the shared inset, transform, presence and title-subscription requests. Open editors remove the fixed-popup containing transform; presence updates before paint; title updates subscribe only to card content. The original document width checks now pass. Editors reaches maths at :140 and design-system reaches Text colour at :123, both document-owned selectors.
+
+Camera diagnostics retained in return-diagnostic and return-diagnostic-focus prove two independent failures: background Escape queued an empty scene selection after bookmark restoration; WebKit closed before the scene refreshed its resized viewport. Background editor Escape now claims that key before scene selection commands. The return participant recomputes its target after scheduled viewport reads, then returns focus only after completion. A real wheel cancels the return even over interactive content. No frame enters React state.
+
+The unchanged production editor-return suite now passes 141/141 assertions across Chromium and WebKit, including resize, wheel interruption, reduced motion, source deletion and board replacement. Strict types, changed-file lint and whitespace pass.
