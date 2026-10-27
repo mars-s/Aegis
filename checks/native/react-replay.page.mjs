@@ -56,6 +56,12 @@ async function measure() {
   await facade.canvas.loadAsync(mixedBoard());
   facade.canvas.select([]);
   facade.canvas.setView(mixedBoard().view);
+  const engine = facade.canvas.engine;
+  const warmDeadline = performance.now() + 30000;
+  while (engine.inspect().queuedMounts || engine.inspect().releasingLeases || engine.inspect().pendingFrames) {
+    check(performance.now() < warmDeadline, 'Scene bodies did not finish mounting before measurement');
+    await wait(20);
+  }
   if (document.fonts) await document.fonts.ready;
   await wait(config.warmupMs);
   await facade.flush();
@@ -65,7 +71,6 @@ async function measure() {
   const rect = stage.getBoundingClientRect();
   const clientX = rect.left + rect.width / 2, clientY = rect.top + rect.height / 2;
   check(rect.width >= 1000 && rect.height >= 600, 'Native window is too small for the standard workload');
-  const engine = facade.canvas.engine;
   const before = engine.inspect();
   const initialCamera = { ...engine.camera() };
   let hidden = document.hidden;
