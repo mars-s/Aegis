@@ -54,6 +54,7 @@ async function verifySummaryTruth(name, width, theme) {
   assert.equal(await donut.locator('.slice').count(), 3);
   assert.deepEqual(await donut.locator('.chart-legend .share').allTextContents(), ['70%', '20%', '10%']);
   assert.equal(await donut.locator('.line, .bar').count(), 0);
+  await card('truthbars').locator('.bar').first().waitFor();
   assert.equal(await card('truthbars').locator('.bar').count(), 2);
   assert.equal(await card('truthbars').locator('.line').count(), 0);
   const multi = card('truthmulti');
@@ -62,11 +63,13 @@ async function verifySummaryTruth(name, width, theme) {
   assert.ok(values[0].includes(moneyText[0]), JSON.stringify(values));
   assert.ok(values[1].includes(moneyText[1]), JSON.stringify(values));
   assert.match(await multi.locator('.values').textContent(), /Revenue.*Support cost/);
+  await card('truthmany').locator('.line').first().waitFor();
   assert.equal(await card('truthmany').locator('.line').count(), 5, 'all five real series remain in the chart');
   assert.match(await card('truthmany').textContent(), /Measure 5/);
   const topology = await readDiagramTopology(card('truthbranch'));
   assert.deepEqual(topology.names, ['Data', 'Approve', 'Intake', 'Design']);
   assert.deepEqual(topology.edges, [[2, 3], [2, 0], [3, 1], [0, 1]], 'real branching edges retain their topology');
+  await card('truthcomplex').locator('.node').first().waitFor();
   assert.equal(await card('truthcomplex').locator('.node').count(), 6);
   assert.equal(await card('truthcomplex').locator('.flow').count(), 3);
   assert.deepEqual((await card('truthsheet').locator('.sheet thead tr:last-child th:not(.rn)').allTextContents()).map(text => text.trim()), ['Day', 'Focus (h)', 'Revenue']);
