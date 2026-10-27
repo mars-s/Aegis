@@ -365,10 +365,17 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     tier = representationMode(camera.zoom, visible.length);
     representations = []; placements = [];
     for (const node of visible) {
-      const kind = pool.isPinned(node.card.id) ? 'detail' : tier;
+      const kind = pool.isPinned(node.card.id) || selected.size === 1 && selected.has(node.card.id) ? 'detail' : tier;
       const bounds = boundsFor(node);
       representations.push({ id: node.card.id, kind, bounds: project(bounds, camera), rotation: rotationFor(node), text: node.text });
       if (kind === 'detail' && canLease(node.card)) placements.push({ node, ...bounds, rotation: rotationFor(node), selected: selected.has(node.card.id) });
+    }
+    // A single formatting target stays live at its saved geometry, even offscreen.
+    // Multi-selection never turns the whole board into mounted bodies.
+    const formattingId = selected.size === 1 ? selected.values().next().value : undefined;
+    const formattingNode = formattingId ? graph.nodes.get(formattingId) : undefined;
+    if (formattingNode && !formattingNode.hidden && canLease(formattingNode.card) && !placements.some(placement => placement.node === formattingNode)) {
+      placements.push({ node: formattingNode, ...boundsFor(formattingNode), rotation: rotationFor(formattingNode), selected: true });
     }
     // Selected bodies have first admission when a dense view exceeds warm capacity.
     placements.sort((a, b) => Number(b.selected) - Number(a.selected) || a.node.rank - b.node.rank);

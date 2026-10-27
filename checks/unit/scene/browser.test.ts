@@ -85,6 +85,33 @@ describe('real scene attachment', () => {
     } finally { await alternate?.close(); }
   });
 
+  test.each(['chromium', 'webkit'] as const)('retains one selected formatting body at real offscreen geometry in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness;
+        harness.select(['note-9']);
+        harness.engine.navigate({ kind: 'restore', camera: { x: -10000, y: -10000, zoom: .2 }, motion: 'instant' });
+      });
+      await p.locator('[data-body="note-9"]').waitFor({ state: 'attached' });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => ({ hidden: el.hidden, inert: el.inert, left: el.getBoundingClientRect().left, text: el.textContent }))).toMatchObject({ hidden: false, inert: false, text: 'Note 9' });
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el.getBoundingClientRect().right)).toBeLessThan(0);
+      await p.evaluate(() => { window.sceneHarness.select([]); });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el.hidden)).toBe(true);
+      await p.evaluate(() => {
+        window.sceneHarness.replace(5000);
+        window.sceneHarness.select(window.sceneHarness.board().cards.map(card => card.id));
+        window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: -100000, y: -100000, zoom: .05 }, motion: 'instant' });
+      });
+      await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(32);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
     for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
       const p = await page();
