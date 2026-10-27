@@ -43,7 +43,11 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       const card = workspace.record(id).getSnapshot();
       if (!card || !args.composition.editors.some(editor => editor.kind === bodyKind(card))) return false;
       const engine = args.engine(), opened = workspace.ui.getSnapshot().editor;
-      if (opened?.id === id) { workspace.act({ kind: 'edit', id, view: full ? 'full' : 'side' }); return true; }
+      if (opened?.id === id) {
+        workspace.act({ kind: 'edit', id, view: full ? 'full' : 'side' });
+        if (!full) frame(card, keyboard);
+        return true;
+      }
       if (opened && !flush()) return false;
       instantMotion = reduced(keyboard);
       returning?.(); returning = null;
