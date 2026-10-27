@@ -12,7 +12,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   readonly composition: Composition;
   readonly attached: (engine: CanvasEngine | null) => void;
   readonly cameraChanged: () => void;
-  readonly availableArea: Source<Rect>;
+  readonly availableArea?: Source<Rect>;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
@@ -24,7 +24,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
-    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, availableArea,
+    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, ...(availableArea ? { availableArea } : {}),
       canLease: card => {
         const kind: CardBodyKind = card.type === "object" ? `object:${card.kind}` : card.type;
         return availableBodies.current.has(kind);
