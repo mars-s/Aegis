@@ -1,6 +1,15 @@
 import type { FeatureContext } from "../../composition.js";
 import type { Clip } from "./operations.js";
 import { ClipSchema, cloneCommands, makeClip } from "./operations.js";
+import { deleteSelection } from "./delete-operations.js";
+function storeClip(clip: Clip): boolean {
+  try { localStorage.setItem("aegis:clip", JSON.stringify(clip)); return true; }
+  catch { return false; }
+}
+async function writeSystemClip(clip: Clip): Promise<void> {
+  try { await navigator.clipboard.writeText(clip.text); }
+  catch { /* The complete board clip remains available locally. */ }
+}
 export async function copySelection(
   context: FeatureContext,
 ): Promise<Clip | null> {
@@ -8,17 +17,18 @@ export async function copySelection(
     ids = context.workspace.selection.getSnapshot();
   if (!ids.length) return null;
   const clip = makeClip(board, ids);
-  try {
-    localStorage.setItem("aegis:clip", JSON.stringify(clip));
-  } catch {
-    /* The system clipboard can still carry the selected text. */
-  }
-  try {
-    await navigator.clipboard.writeText(clip.text);
-  } catch {
-    /* A local board copy remains available without clipboard permission. */
-  }
+  storeClip(clip);
+  await writeSystemClip(clip);
   return clip;
+}
+export function cutSelection(context: FeatureContext): boolean {
+  if (!context.workspace.selection.getSnapshot().length || !context.closeEditor()) return false;
+  const board = context.workspace.scene.snapshot(), ids = context.workspace.selection.getSnapshot();
+  if (!ids.length) return false;
+  const clip = makeClip(board, ids);
+  if (!storeClip(clip)) return false;
+  void writeSystemClip(clip);
+  return deleteSelection(context) !== null;
 }
 export function readClip(): Clip | null {
   try {

@@ -11,6 +11,7 @@ import {
 import type { Arrange } from "./operations.js";
 import {
   copySelection,
+  cutSelection,
   duplicateSelection,
   pasteSelection,
 } from "./clipboard.js";
@@ -80,6 +81,7 @@ export function collectSelection(context: FeatureContext) {
 }
 export const editingMenus: readonly ActionRegistration[] = [
   ...navigationActions,
+  { id: "cut", label: "Cut", shortcut: "mod+x", run: context => { cutSelection(context); } },
   {
     id: "copy",
     label: "Copy",
