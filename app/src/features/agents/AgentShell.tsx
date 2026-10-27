@@ -17,7 +17,6 @@ import type { SettingsTab } from '../settings/Settings.js';
 import type { SettingsService } from '../settings/service.js';
 import { createPreferenceStore } from '../settings/preferences-store.js';
 import { Onboarding, Shortcuts } from '../onboarding/Onboarding.js';
-import type { ShortcutReference } from '../onboarding/Onboarding.js';
 import { shortcutReferences } from '../onboarding/shortcuts.js';
 
 export interface AgentShellControls {
@@ -36,7 +35,6 @@ export interface AgentShellProps {
   readonly service: AgentService;
   readonly settingsService: SettingsService;
   readonly schedule: AgentFrameSchedule;
-  readonly shortcuts: readonly ShortcutReference[];
   readonly importCsv: (file: File, boardId: BoardId) => Promise<void>;
   readonly attached: (controls: AgentShellControls | null) => void;
   readonly settingsSlots?: { readonly board?: ReactNode; readonly toolbar?: ReactNode; readonly panels?: ReactNode; readonly appearance?: ReactNode };

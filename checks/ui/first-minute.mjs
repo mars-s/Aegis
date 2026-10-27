@@ -113,7 +113,7 @@ try {
       assert.equal(await page.locator('.onboarding').isVisible(), false);
       check(`${engineName} ${viewport.width}: three-step task saves a thought, asks through the composer and frames the real result`);
       await page.evaluate(async () => {
-        const board = await aegis.host.post('/boards', { name: 'Named clusters' }); aegis.canvas.setBoard(board);
+        const board = await aegis.host.post('/boards', { name: 'Named clusters' }); if (typeof aegis.flush === 'function') await aegis.flush(); aegis.canvas.setBoard(board);
         aegis.apply([
           { op: 'create', type: 'title', newId: 'discover', text: 'Discover', x: 0, y: 0 },
           { op: 'create', type: 'doc', newId: 'insights', text: 'Interview notes', x: 0, y: 100 },
@@ -125,7 +125,8 @@ try {
         aegis.canvas.setView({ x: 420, y: 320, z: .05 });
       });
       await page.evaluate(() => aegis.canvas.setView({ x: 30, y: 150, z: .05 }));
-      await page.waitForFunction(() => document.querySelectorAll('#world > .card').length === 4);
+      await page.waitForFunction(() => document.querySelectorAll('#world > .card[data-id]').length === 4);
+      assert.ok(await page.locator('#world > .card:not([data-id])').evaluateAll(nodes => nodes.every(el => el.hidden && el.inert)), 'spare scene shells remain hidden, inert and without a window identity');
       assert.equal(await page.locator('.card[data-id="privatework"], .card[data-id="privategroup"]').count(), 0);
       assert.equal(await page.locator('.card[data-id="discover"] .body').textContent(), 'Discover');
       assert.equal(await page.locator('.card[data-id="decide"] .body').textContent(), 'Decide');
