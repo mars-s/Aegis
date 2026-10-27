@@ -603,16 +603,15 @@ export function Chrome({
       const selection = context.workspace.selection.getSnapshot(),
         ids = id && !selection.includes(id) ? [id] : selection;
       if (id) context.workspace.act({ kind: "select", ids });
+      const card = id ? context.workspace.record(id).getSnapshot() : null;
+      const hasEditor = card && composition.editors.some(editor => editor.kind === (card.type === 'object' ? `object:${card.kind}` : card.type));
+      const inlineEdit = id ? document.querySelector<HTMLElement>(`.card[data-id="${CSS.escape(id)}"] [contenteditable]:not([contenteditable="false"])`) : null;
+      const editActions = id && hasEditor ? [{ title: 'Open', run: () => { context.openEditor(id); } }] : inlineEdit ? [{ title: 'Edit', run: () => { engine.afterInput(() => { if (inlineEdit.isConnected) inlineEdit.focus({ preventScroll: true }); }); } }] : [];
       menu.setTrigger(stage ?? document.body);
       menu.setItems(
         id
           ? [
-              {
-                title: "Open",
-                run: () => {
-                  context.openEditor(id);
-                },
-              },
+              ...editActions,
               {
                 title: "Copy",
                 run: () => {
@@ -698,7 +697,7 @@ export function Chrome({
       stage.removeEventListener("contextmenu", open);
       menu.destroy();
     };
-  }, [context, engine, notify, exportBoard]);
+  }, [context, engine, composition, notify, exportBoard]);
   const board = useBoard(context.workspace);
   let panelLayout = layout;
   if (captureReveal) {

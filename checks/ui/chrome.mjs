@@ -5,6 +5,7 @@ import { out } from './out.mjs';
 export async function checkChrome(browser, url) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 992 } });
   const stamp = Date.now();
+  const documentPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open .docs-panel' : '.docs-panel.is-open';
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
@@ -81,12 +82,12 @@ export async function checkChrome(browser, url) {
     await revealed('#tools'); await page.locator('#selectionBar:not([hidden])').waitFor();
     assert.equal(await page.locator('.rotation-handle').isVisible(), true);
     await page.locator('#selectionBar').getByRole('button', { name: 'Open', exact: true }).click();
-    await page.locator('.docs-panel.is-open').waitFor();
+    await page.locator(documentPanel).waitFor();
     const assertQuiet = async id => {
-      await page.waitForFunction(() => {
-        const saved = document.querySelector('.docs-panel.is-open [data-saved]');
+      await page.waitForFunction(selector => {
+        const saved = document.querySelector(selector);
         return !saved || saved.textContent === 'Saved';
-      });
+      }, `${documentPanel} [data-saved]`);
       await page.evaluate(() => new Promise(requestAnimationFrame));
       // A save replaces the preview before its connector overlay catches up on the next paint.
       await page.waitForFunction(id => {

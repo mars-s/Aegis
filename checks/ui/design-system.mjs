@@ -85,6 +85,10 @@ try {
     await select(['designnote']); await note.click({ button: 'right', position: { x: 2, y: 80 } });
     await shot('card-context', page.locator('.ctx-menu:not([hidden])'));
     assert.deepEqual(await page.locator('.ctx-menu:not([hidden]) > button').evaluateAll(nodes => nodes.map(el => el.dataset.label)), ['Edit', 'Copy', 'Duplicate', 'Arrange', 'Lock', 'Delete']);
+    await page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    await page.waitForFunction(() => document.activeElement?.closest('.card')?.dataset.id === 'designnote' && document.activeElement?.getAttribute('contenteditable') !== null);
+    assert.equal(await note.locator('.body').evaluate(el => el === document.activeElement), true, 'Edit focuses the actual inline text');
+    await note.click({ button: 'right', position: { x: 2, y: 80 } });
     await page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: 'Arrange', exact: true }).click(); await shot('card-arrange', page.getByRole('menu', { name: 'Arrange', exact: true }));
     assert.equal(await page.getByRole('menuitem', { name: 'Group', exact: true }).count(), 0, 'a single object cannot group itself');
     assert.equal(await page.getByRole('menuitem', { name: 'Ungroup', exact: true }).count(), 0, 'ungroup needs an existing group'); await dismiss(); await dismiss();

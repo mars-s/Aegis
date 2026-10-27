@@ -104,3 +104,13 @@ The complete production deck suite passes 257/257, including B click placement, 
 Accepted the exact selectForDrag/expandDrag attachment proposal, retaining document-drop and camera callbacks. The policies run on gesture start and reuse the owned wireframe helpers. Original wireframe advances from five to 22 passing assertions, through group/frame carry, before its colour helper attempts to fill the real controlled picker button at :89/:29. No selector or assertion was changed in this unit. Snapping, guides and atomic drop parenting remain scene follow-ups.
 
 The full CreativeConnections consumer remains deferred under the existing integration-connection-contract.md ruling: its participant rebuilds SVG hit paths for every link during busy camera frames. The requested bounded cached picker/selected-link consumer is feature work that must preserve the single scene scheduler. Link placement is already registered separately.
+
+## Final legacy recovery and context actions
+
+Merged the final reported legacy head 5084cd0 as dd3cd45 after its worker recorded two consecutive 44/44 runs at that exact head. Its final diff refreshes existing legacy mounts before publication and restores WebKit slide-picture containment. Integration's legacy-merge-check passes the full root gate: 262 unit tests, 242 host tests, strict types, lint and dependency checks, with the unchanged 24-finding safe-type ratchet. Svelte retains zero errors and seven warnings.
+
+Context actions now follow the actual editing capability. Registered full editors offer Open; inline text offers Edit and focuses the real contenteditable. Unsupported cards no longer offer a no-op Open. The added focus check preserves every original assertion and expected value. The AST audit records all 47 original assertion calls unchanged, with one additional static assertion.
+
+The Chrome check discovers the actual React document panel while retaining the legacy selector and all saved/source-furniture assertions. React design-system reaches 90 passing calls before the document Text colour control at :127 in both Chromium and WebKit. React polish reaches the quiet-source lifecycle at chrome.mjs:93; deck passes 257/257. Legacy design-system passes 288/288, including a separate WebKit run, and polish passes 384/384. Complete final matrices follow at a clean committed source.
+
+The final context unit passes the complete root npm run check in context-final-check, including all 262 unit and 242 host tests, strict types, lint, dependencies and the unchanged safe-type gate. No original UI assertion was removed or relaxed.
