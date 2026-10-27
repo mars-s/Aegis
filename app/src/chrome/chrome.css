@@ -895,3 +895,9 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
 .aegis-chrome .bar-right:has(#showChip:not([hidden])) { opacity: 1; pointer-events: auto; transform: none; }
 
 #world > .card.selected:not(.editor-source, .coll, .template-group) { outline: 1px solid var(--muted); outline-offset: 0; }
+
+#toast[hidden]:not(.toast-leaving) { display: none !important; }
+.react-stage .card :is(.win-strip, .deck-title-strip) { height: 36px; min-height: 36px; padding: 0 4px 0 16px; gap: 4px; background: var(--strip); box-shadow: none; border-bottom: 1px solid var(--line); font: 400 13px/20px var(--font); letter-spacing: 0; }
+@media (hover: none), (pointer: coarse) { .react-stage .card :is(.win-strip, .deck-title-strip) { height: 48px; min-height: 48px; } }
+
+#toast.toast-leaving[hidden] { display: flex !important; pointer-events: none; }

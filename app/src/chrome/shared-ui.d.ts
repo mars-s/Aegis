@@ -77,4 +77,4 @@ declare module "*lib/ui/confirm.js" {
   }): Promise<boolean>;
 }
 
-declare module "*lib/shortcuts.js" { export function menuShortcut(id: string): string; }
+declare module "*lib/shortcuts.js" { export function menuShortcut(id: string): string; export function shortcutTitle(id: string, label?: string): string; }

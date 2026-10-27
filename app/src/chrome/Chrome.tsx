@@ -39,6 +39,7 @@ import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
 import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
+import { MobileTools } from "./MobileTools.js";
 import "./chrome.css";
 
 function setZoom(
@@ -73,6 +74,7 @@ export interface ChromeProps {
   readonly customiseToolbar?: () => void;
   readonly barContent?: ReactNode;
   readonly rightContent?: ReactNode;
+  readonly wireframeSheet?: (close: () => void) => ReactNode;
 }
 
 export function Chrome({
@@ -87,6 +89,7 @@ export function Chrome({
   customiseToolbar,
   barContent,
   rightContent,
+  wireframeSheet,
 }: ChromeProps) {
   const metadata = useWorkspaceMetadata(context.workspace),
     save = useSaveState(context.workspace),
@@ -850,15 +853,7 @@ export function Chrome({
               <p>Library is unavailable.</p>
             ),
           layers: (close) => <Layers context={context} notify={notify} onPick={close} />,
-          add: () => (
-            <div className="tools-grid">
-              {actions.map((action) => (
-                <button key={action.id} onClick={() => action.run(context)}>
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ),
+          add: (close) => <MobileTools actions={actions.filter(action => dockIds.includes(action.id))} context={context} close={close} {...(wireframeSheet ? { wireframe: wireframeSheet } : {})} />,
           unsorted: () => {
             const panel = composition.panels.find(
               (item) => item.id === "unsorted",

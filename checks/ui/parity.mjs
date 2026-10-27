@@ -46,7 +46,7 @@ try {
   const hub = page.getByRole('navigation',{name:'Board hub'});
   await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator('.mobile-sheet .tree-row[data-board]').first().tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'});
   await hub.getByRole('button',{name:'Windows',exact:true}).tap(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
-  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); await page.locator('.mobile-veil').tap({position:{x:20,y:100}});
+  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); if (process.env.AEGIS_UI_IMPL === 'react') await page.touchscreen.tap(20,100); else await page.locator('.mobile-veil').tap({position:{x:20,y:100}});
   await hub.getByRole('button',{name:'Add',exact:true}).tap();
   for(const name of ['Basics','Wireframe','Colours']) assert.equal(await page.getByRole('heading',{name,exact:true}).isVisible(),true);
   await page.screenshot({path:out('parity-phone-add.png')});

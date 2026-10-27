@@ -11,6 +11,7 @@ import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
 import { Chrome, ToolbarPreferences, PanelPreferences } from './chrome/index.js';
 import { CanvasLibrary } from './chrome/CanvasDoor.js';
+import { Notifications } from './chrome/Notifications.js';
 import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
 import { createMenu } from './lib/ui/menu.js';
@@ -248,7 +249,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     <CaptureViews context={context} />
     {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
-    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
+    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} wireframeSheet={close => <WireframePanel context={context} onPlace={request => { chromeEngine.tool(placementTool(chromeEngine, workspace, request)); close(); }} onClose={close} />} /> : null}
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
@@ -258,7 +259,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     </aside> : null}
     {ui.editor ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
-    <div id="toast" hidden={!notice} className={notice ? 'toast react-toast' : undefined} role="status">{notice}{notice ? <button type="button" onClick={() => setNotice(null)}>Dismiss</button> : null}</div>
+    <Notifications message={notice} dismiss={() => setNotice(null)} />
   </DocumentProvider></CreativeProvider></CanvasLibrary.Provider>;
 }
 
