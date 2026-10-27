@@ -54,6 +54,27 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('Cmd-click selects a group member before the next frame in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&wireframe=1');
+      await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.batch(['note-1', 'note-2'].map(id => ({ op: 'update', id, set: { group: 'click-group' } })), 'local');
+      });
+      await idle(p);
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!box) throw new Error('Missing grouped card');
+      await p.evaluate(() => { window.requestAnimationFrame = () => 0; });
+      await p.keyboard.down('Meta'); await p.mouse.click(box.x + 12, box.y + 110); await p.keyboard.up('Meta');
+      expect(await p.evaluate(() => window.sceneHarness.selection())).toEqual(['note-2']);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('Option-drag retains originals through preview, copy and cancellation in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
