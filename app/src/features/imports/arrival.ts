@@ -17,7 +17,7 @@ export function createImportArrival(workspace: FeatureWorkspace) {
     document.addEventListener('drop', pointer, true);
     const deletion = (event: MouseEvent) => {
       if (!event.detail || !(event.target instanceof Element)) return;
-      const button = event.target.closest('.ctx-menu [role="menuitem"], #selectionBar button');
+      const button = event.target.closest('.ctx-menu [role="menuitem"], #selectionBar button, .aegis-confirm button');
       if (!button || (button.getAttribute('aria-label') || button.textContent?.trim()) !== 'Delete') return;
       for (const id of workspace.selection.getSnapshot()) deletes.add(id);
       setTimeout(() => deletes.clear(), 0);
