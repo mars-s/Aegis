@@ -1,6 +1,6 @@
 # React port foundation status
 
-Branch: codex/react-port. No PR. Legacy Svelte remains the default.
+Status: blocked at the unchanged React canvas/pan acceptance gate in step 4. Verified foundation and frozen worker contracts are committed. Branch: codex/react-port. No PR. Legacy Svelte remains the default.
 
 The original baseline and tooling commits are retained. The amended legacy-limit gate is implemented and pushed. Only the integration owner reduces scripts/safe-types-legacy.json. Deleting chart.ts reduced the manifest from 54 findings to 51. All new and ported source is clean.
 
@@ -35,4 +35,10 @@ Standing order 18 supersedes adaptive zoom. Cards retain true geometry and conte
 
 The React 5,000-note wheel replay in headless Chromium 148.0.7778.96 at 1440x900, DPR 1, recorded 241 scene frames. Positive frame intervals: p50 8.3 ms, p95 9.0 ms, maximum 16.734 ms. Callback CPU: p50 0.7 ms, p95 1.7 ms, maximum 2.0 ms. The supplied main intervals were 9.3 / 21.3 / 13,800 ms; untouched foundation intervals were 8.7 / 33.5 / 13,318.8 ms. Raw samples and histograms are in evidence/react/artifacts/react-benchmark.json. This is a development build and headless timing, not native 120 Hz proof.
 
-The unchanged canvas/pan suites against both implementations remain the next acceptance gate. They also exercise later feature UIs that this foundation brief forbids porting. No assertion will be skipped to conceal a missing feature. The final verdict will be recorded after that gate.
+The final unchanged canvas/pan run passed 2/2 on legacy and 0/2 on React at implementation commit dbed30e2bbddfea0bb84166b823982178089b1e7. React canvas fails at canvas.mjs:44 because #selectionBar and rotation chrome are absent. React pan fails at pan.mjs:48 because the Space-pan hit target reports cursor auto instead of grab. That cursor defect remains open; later assertions also need document/generated/group/agent and selection chrome that this brief forbids porting.
+
+No canvas/pan assertion or selector was changed. Both logs and command records are preserved in evidence/legacy-final and evidence/react-final. The focused proof is not a substitute for these failing suites. Following the brief's explicit stop rule, no feature UI was added to conceal the gate failure. The branch does not meet all foundation acceptance criteria. Wave 3 workers can consume the frozen contracts, but React must remain opt-in until parity is complete.
+
+Initial integration failures remain in evidence, including the note's repeated unchanged input events (fixed at the editor boundary), measurement/read-phase fixture alignment, strict compiler diagnostics, and the production HTML hook order (fixed to pre). The final passing checks are step3/check-release.log, react/vertical-static.log and react-production/vertical.log. Old failed logs have not been overwritten.
+
+Open limits: 51 pre-existing ratchet findings remain for later owners; no native React presentation or 120 Hz calibration was performed; full feature editor sessions, continuous tools, obstacle routing and semantic host services are unfinished. The historical PNG export issue was not investigated in this foundation. The separate legacy static-zoom work was not merged here.
