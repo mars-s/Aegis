@@ -1,0 +1,5 @@
+{
+  "extends": "../../../tsconfig.react.json",
+  "include": ["./**/*.ts", "./**/*.tsx", "../../cards/deck/**/*.tsx"],
+  "exclude": ["./**/*.test.ts", "./**/*.test.tsx"]
+}
