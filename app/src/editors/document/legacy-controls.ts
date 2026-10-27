@@ -3,9 +3,9 @@ declare module "*lib/ui/dropdown.js" {
   export interface Popup {
     readonly menu: HTMLElement;
     readonly opened: boolean;
-    readonly open: (event?: Event) => void;
-    readonly close: (focus?: boolean) => void;
-    readonly destroy: () => void;
+    open(event?: Event): void;
+    close(focus?: boolean, instant?: boolean): void;
+    destroy(): void;
   }
   export type DropdownOption = readonly [string, string];
   export interface Dropdown extends HTMLButtonElement {
