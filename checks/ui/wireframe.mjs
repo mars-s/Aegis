@@ -1,3 +1,4 @@
+import {viteModule} from '../support/ui-snapshot.ts';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
@@ -13,7 +14,7 @@ const data = mkdtempSync(join(tmpdir(), 'aegis-wireframe-'));
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((r, reject) => { const timer = setTimeout(() => reject(Error('host startup timeout')), 20000); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) { clearTimeout(timer); r(m[1]); } }); });
-writeFileSync(out('wireframe-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5184 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
+writeFileSync(out('wireframe-vite.mjs'), `import { createServer } from ${JSON.stringify(viteModule(repo))}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo, realpathSync(repo)])} }, host: '127.0.0.1', port: ${5184 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
 const vite = spawn(process.execPath, [out('wireframe-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));

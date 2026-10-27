@@ -1,9 +1,10 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, cpSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
@@ -14,9 +15,7 @@ const host = spawn(process.execPath, ['--no-warnings','server.mjs'], { cwd: repo
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((accept, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) accept(m[1]); }); host.once('exit', reject); });
 // Freeze all UI sources for the run, so concurrent feature ports cannot interrupt capture with HMR.
-const ui = mkdtempSync(join(tmpdir(), 'aegis-media-ui-'));
-for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
+const ui = createUiSnapshot(repo, 'aegis-media-ui-');
 console.log('Testing complete UI snapshot: ' + ui);
 const vite = spawn('npx', ['vite','--port',String(5183 + PORT_OFFSET),'--strictPort'], { cwd: ui });
 await new Promise((accept, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) accept(); }); vite.once('exit', reject); });
@@ -330,4 +329,4 @@ try {
   await page.screenshot({ path: out('media-dark.png') });
   assert.deepEqual(errors, []); log('PASS. Persistent data: ' + data);
 } catch (error) { await page.screenshot({ path: out('media-fail.png') }); console.error(error); console.error('Page errors:', errors); console.error('UI board:', await page.evaluate(() => JSON.stringify(window.aegis?.canvas?.board))); process.exitCode = 1; }
-finally { await browser.close(); host.kill(); vite.kill(); }
+finally { await browser.close(); host.kill(); vite.kill(); disposeUiSnapshot(ui); }

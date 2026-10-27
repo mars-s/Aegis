@@ -50,22 +50,7 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../agent/server.mjs": "agent/server.mjs",
-      "../agent/mcp.mjs": "agent/mcp.mjs",
-      "../agent/mcp-config.mjs": "agent/mcp-config.mjs",
-      "../agent/mcp-content.mjs": "agent/mcp-content.mjs",
-      "../plugins/aegis": "plugins/aegis",
-      "../agent/status.mjs": "agent/status.mjs",
-      "../agent/package.json": "agent/package.json",
-      "../agent/node_modules": "agent/node_modules",
-      "../agent/library.mjs": "agent/library.mjs",
-      "../agent/ui-update.mjs": "agent/ui-update.mjs",
-      "../agent/skills": "agent/skills",
-      "../packages/domain/dist": "packages/domain/dist",
-      "../packages/domain/package.json": "packages/domain/package.json",
-      "../packages/protocol/dist": "packages/protocol/dist",
-      "../packages/protocol/package.json": "packages/protocol/package.json",
-      "../agent/dist": "agent/dist"
+      "../runtime": "runtime"
     }
   }
 }

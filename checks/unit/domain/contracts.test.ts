@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {z} from 'zod/v4';
 import {inspectSource} from '../../../scripts/check-safe-types.js';
 import {BoardSchema,CardIdSchema,LegacyBoardSchema,preserve} from '@aegis/domain/schema';
-import {emptyBoard} from '@aegis/domain/commands';
+import {applyBatch,emptyBoard} from '@aegis/domain/commands';
 import {agentJsonSchemas,jsonSchema} from '@aegis/domain/objects';
 import {decodeStoredBoard,decodeLegacyStoredBoard,encodeStoredBoard,decodeStoredLibrary,encodeStoredLibrary} from '@aegis/protocol/storage';
 import {decodeBoardList,decodeBatchResponse,decodeHostEvent,decodeOkResponse} from '@aegis/protocol/http';
@@ -53,4 +53,13 @@ test('SSE framing is independent of chunks and handles comments and CRLF',()=>{
   expect(decoder.push('"library"}\r\n\r\ndata: first\ndata: second\n')).toEqual(['{"type":"library"}']);
   expect(decoder.push('\n: ping\n\n')).toEqual(['first\nsecond']);
   decoder.push('data: incomplete');decoder.reset();expect(decoder.push('\n\n')).toEqual([]);
+});
+
+test('malformed reserved presentation props are refused atomically',()=>{
+  const board=emptyBoard('reserved-props');
+  const result=applyBatch(board,{commands:[{op:'create',type:'note',props:{fixedHeight:'invalid'}}]});
+  expect(result.ok).toBe(false);
+  expect(result.board).toBe(board);
+  expect(result.errors[0]?.reason).toContain('fixedHeight');
+  expect(BoardSchema.safeParse(result.board).success).toBe(true);
 });

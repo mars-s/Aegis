@@ -184,6 +184,12 @@ test('a UI update installs beside the old one, swaps in, refuses a broken build 
   const bad = await call('POST', '/ui-update', { from: broken });
   assert.equal(bad.body.ok, false); assert.match(bad.body.out, /missing assets\/app.js/);
   assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>two</);
+  const future = await good('future');
+  await writeFile(join(future, 'index.html'), '<!doctype html><meta name="aegis-ui-protocol" content="999"><script type="module" src="./assets/app.js"></script>');
+  const incompatible = await call('POST', '/ui-update', { from: future });
+  assert.equal(incompatible.body.ok, false);
+  assert.match(incompatible.body.out, /unsupported UI protocol 999/);
+  assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>two</);
   await call('POST', '/ui-update/rollback');
   assert.match(await (await fetch(base + '/ui/index.html')).text(), /<title>one</);
 });

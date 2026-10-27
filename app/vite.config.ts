@@ -18,6 +18,6 @@ export default defineConfig({
   // Worktrees share dependencies, but keep optimisation output inside their own checkout.
   cacheDir: process.env.AEGIS_VITE_CACHE || '.vite-cache',
   clearScreen: false,
-  server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), realpathSync(fileURLToPath(new URL('./node_modules', import.meta.url)))] } },
+  server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), realpathSync(fileURLToPath(new URL('./node_modules', import.meta.url))), fileURLToPath(new URL('../packages', import.meta.url)), realpathSync(fileURLToPath(new URL('../node_modules', import.meta.url)))] } },
   build: { outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
 });

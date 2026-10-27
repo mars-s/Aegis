@@ -1,9 +1,10 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { assertSlideFits } from './deck-fit.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { mkdtempSync, appendFileSync, writeFileSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -13,7 +14,7 @@ const token = `imports-${process.pid}`, stamp = Date.now(), built = process.env.
 const data = mkdtempSync(join(tmpdir(), 'aegis-imports-'));
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => appendFileSync(out(`imports-host-${stamp}.txt`), d));
-let vite, browser, page;
+let vite, browser, page, snapshotUi;
 const errors = [], workerRequests = [];
 const fixture = name => ({ name, bytes: readFileSync(join(repo, 'checks/fixtures', name)).toString('base64') });
 const cards = () => page.evaluate(() => aegis.canvas.board.cards);
@@ -53,11 +54,9 @@ async function screenshots(name, id) {
 try {
   const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', code => reject(new Error(`Host exited ${code}`))); });
   if (!built) {
-    const ui = mkdtempSync(join(tmpdir(), 'aegis-imports-ui-'));
-    for (const file of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'svelte.config.js', 'public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-    symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
+    const ui = snapshotUi = createUiSnapshot(repo, 'aegis-imports-ui-');
     // macOS resolves worker entries through /private/var while tmpdir() returns /var.
-    writeFileSync(join(ui, 'vite.imports.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config.ts'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} } } });`);
+    writeFileSync(join(ui, 'vite.imports.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config.ts'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([join(ui, '..'), realpathSync(join(ui, '..'))])} } } });`);
     vite = spawn('npx', ['vite', '--config', 'vite.imports.config.ts', '--port', String(vitePort), '--strictPort'], { cwd: ui, stdio: 'pipe' });
     vite.stderr.on('data', d => appendFileSync(out(`imports-vite-${stamp}.txt`), d));
     await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error(`Vite exited ${code}`))); });
@@ -318,4 +317,4 @@ try {
   if (page) console.error('Last toast:', await page.locator('#toast').textContent().catch(() => 'unavailable'));
   if (page) console.error('Import progress:', await page.locator('.import-progress').allTextContents(), 'workers:', workerRequests);
   console.error(error); console.error(errors); process.exitCode = 1;
-} finally { await browser?.close(); host.kill(); vite?.kill(); }
+} finally { await browser?.close(); host.kill(); vite?.kill(); if(snapshotUi) disposeUiSnapshot(snapshotUi); }

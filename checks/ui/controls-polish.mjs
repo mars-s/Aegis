@@ -108,6 +108,7 @@ try {
         await rowMore.click(); const context = page.locator('.ctx-menu:not([hidden])');
         await shot('context'); assert.equal((await rect(context)).radius, '10px');
         const action = context.getByRole('menuitem').first(); await action.hover(); await page.mouse.down(); await page.waitForTimeout(160);
+        await action.evaluate(el => Promise.allSettled(el.getAnimations().map(animation => animation.finished)));
         assert.equal(await action.evaluate(el => getComputedStyle(el).transform), 'matrix(0.97, 0, 0, 0.97, 0, 0)');
         await page.mouse.move(1000, 800); await page.mouse.up(); await dismiss();
         await page.keyboard.press('Tab'); await rowMore.focus();

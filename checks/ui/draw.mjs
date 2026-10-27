@@ -1,3 +1,4 @@
+import {viteModule} from '../support/ui-snapshot.ts';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium, webkit } from './playwright.mjs';
@@ -16,7 +17,7 @@ host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise((resolve, reject) => { host.on('error', reject); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); });
 let vite;
 if (!built) {
-  writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
+  writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(viteModule(repo))}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo, realpathSync(repo)])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
   vite = spawn(process.execPath, [out('draw-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
   vite.stderr.on('data', d => process.stderr.write('[vite] ' + d));
   await new Promise((resolve, reject) => { vite.on('exit', code => reject(new Error('Vite exited ' + code))); vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); });

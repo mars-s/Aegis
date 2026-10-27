@@ -1,54 +1,32 @@
 # React port foundation status
 
-Status: blocked at foundation step 1. Branch: `codex/react-port`. No PR.
+Branch: codex/react-port. No PR. Legacy Svelte remains the default.
 
-Step 0 passed and was committed separately as `b635afe`. See `REACT_PORT_BASELINE.md` for all 44 suite results, the 236 host checks and the fresh 5,000-note benchmark.
+The original baseline and tooling commits are retained. The amended legacy-limit gate is implemented and pushed. Only the integration owner reduces scripts/safe-types-legacy.json. Deleting chart.ts reduced the manifest from 54 findings to 51. All new and ported source is clean.
 
-Step 1 adds root npm workspaces, one lockfile, local nested dependency installs, TypeScript 7.0.2, Oxlint 1.89.0, Vitest 5.0.5, Oxc 0.95.0, strict compiler defaults and React 19.3.1 dependencies. The package folders contain metadata and ownership READMEs only. They have no production exports. The legacy Svelte checker retains its existing TypeScript 5.9.3 dependency during this partial migration. React Compiler is not enabled.
+## Verified domain and runtime unit
 
-The Oxc gate scans all tracked and unignored authored TS, TSX, MTS and CTS files, including declaration shims. It rejects explicit any, casts other than as const, non-null and definite assignment assertions, compiler suppression directives, invalid syntax, forbidden package dependencies, private and cross-owner imports, unchecked dynamic imports and extra scene frame owners. Negative fixtures live as strings in the gate test, so invalid source is never accepted by the production gate. No legacy exclusion or boundary-cast exception was added.
+The shared domain and protocol are strict TypeScript with built public ESM exports. Production/test callers and native resources use them. The old board JS, shared chart model, sandbox/theme builders and document/link-preview implementations were removed after caller migration. Zod is the schema source, including agent JSON Schema export with unrepresentable values rejected.
 
-## Verified work
+The root uses one lockfile. A clean root npm ci is sufficient. UI snapshots copy the real workspace dependency layout rather than assuming a nested Vite install. Their original behaviour assertions remain. The controls-polish check now awaits the actual transition before its unchanged exact matrix assertion.
 
-| Command | Result |
-| --- | --- |
-| `npm ci --no-audit --no-fund` | Passed from the single root lockfile, 371 packages installed |
-| `npm ls --workspaces --depth=0` | Passed |
-| `npm run check:types` | Passed with TypeScript 7.0.2 |
-| `npm run check:lint` | Passed |
-| `npm run check:unit` | 58 passed |
-| `node --test agent/checks/*.test.mjs` | 236 passed, matching baseline |
-| `npm --workspace @aegis/app run check` | Passed with the existing legacy checker |
-| `npm --workspace @aegis/app run build` | Passed, frontend build only |
-| `npm run check` | Failed at the gate with 54 pre-existing findings |
+Verification evidence is in /Users/avi/.codex/orchestrate/aegis-react/evidence/step2:
 
-The full legacy UI matrix passed on the untouched base. It was not repeated after the root dependency installation. No domain code was ported, so this is not the post-domain parity result requested for step 2.
+- npm run check: dependency integrity, AST/import gate, strict source and package-consumer checking, Oxlint, unit tests, all 236 host tests and Svelte checking passed. The added malformed-reserved-prop fixture is included in check-final.log.
+- All 44 legacy suites have passing integration results. The full run passed 43/44. controls-polish initially observed an unfinished animation by one millionth; its settlement fix passed the one-suite rerun. Both runs and ui-ledger.json remain available.
+- The staged runtime launched outside the checkout with fresh data and outbound network denied, then created, saved and reloaded a note.
+- A release Aegis.app built under /tmp/aegis-wt/react/native-build-target. Its actual bundled host/plugin passed MCP document save/readback with disposable data. No installed application was touched.
 
-## Blocker
+Native compilation used an isolated frontend output and external Tauri config so it could not race app/dist writes from the browser suites. This is host/runtime and native bundle proof, not a new 120 Hz measurement or deployment.
 
-The brief requires each step to be verified before the next. The design requires the gate to scan authored TypeScript throughout the repository. The base has 50 unsafe syntax constructs, including the controller's whole-file suppression, plus four Node imports in a build-only PDF helper stored under app/src. These cannot pass the new gate unchanged. They overlap the later domain, entry-point, chart, document and creative slices.
+## Compatibility decisions
 
-Fixing this requires a coordinated change to the wave order or ownership so those sources can be migrated or the build helper can be moved before step 1 becomes green. Skipping files, changing their extensions to evade the gate or permitting their unsafe constructs would weaken the requirement. The gate remains strict and npm run check remains visibly red. Following the brief's stop rule, steps 2 to 5 were not started.
+The actual flat Board/Card, op commands and existing file/wire layout are retained. Workspace and scene own their projections and indexes. The closed catalogue replaces mutable built-in registration; every original kind, size and guide remains.
 
-| Existing source | Findings |
-| --- | --- |
-| `app/src/controller.ts` | 1 |
-| `app/src/features/docs/index.ts` | 2 |
-| `app/src/features/imports/pdf-resources.ts` | 4 |
-| `app/src/features/registry.ts` | 2 |
-| `app/src/lib/host.ts` | 6 |
-| `app/src/lib/native-files.ts` | 4 |
-| `app/src/main.ts` | 1 |
-| `app/src/objects/chart/chart.ts` | 3 |
-| `app/src/objects/chart/geometry.ts` | 19 |
-| `app/src/objects/chart/plan.ts` | 6 |
-| `app/src/objects/kinds/diagram.ts` | 5 |
-| `app/src/objects/kinds/inline.ts` | 1 |
+Known presentation props now have explicit schema types. Malformed reserved values such as a string fixedHeight are rejected atomically, where legacy code accepted arbitrary JSON. This stricter invalid-input behaviour is documented and tested. The differential tests cover generated and real supported fixtures; they are not a claim of unrestricted equivalence on malformed metadata.
 
-Exact findings and source locations are in `react-port-gate-blocker.json`. Complete verification output is in `/Users/avi/.codex/orchestrate/aegis-react/evidence/step1`.
+## Next integration unit
 
-## Remaining work and limits
+Scene 7fc4fc0 and workspace a032070 are verified on their worker branches. React entry, portal bodies, runner switch, focused browser proof, benchmark and composition contracts are drafted. Their integration, browser/performance results and final contracts remain pending at this checkpoint.
 
-Domain and protocol implementations, differential fidelity tests, removal of legacy domain JS, runtime staging, React entry and store, Effect host-client, scene engine, native connection proof and React canvas/pan checks are pending. No React benchmark was run. contracts.md was not created because there are no verified interfaces to freeze. Feature workers must wait for those contracts. No final design files were changed.
-
-The supplied main benchmark was p50 9.3 ms, p95 21.3 ms and maximum 13.8 s. The fresh untouched-base run was p50 8.7 ms, p95 33.5 ms and maximum 13,318.8 ms. The old runner uses headless Chromium with CPU sampling and does not provide callback CPU histograms or native display-pacing proof.
+The supplied main benchmark was p50 9.3 ms, p95 21.3 ms, maximum 13.8 s. The untouched foundation baseline was p50 8.7 ms, p95 33.5 ms, maximum 13,318.8 ms. No React app benchmark is claimed at this checkpoint.

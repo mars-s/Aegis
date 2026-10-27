@@ -12,15 +12,19 @@
   },
   "scripts": {
     "dev": "npx --yes @tauri-apps/cli@2.12.4 dev",
-    "build": "npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
-    "check": "npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check && npm --workspace @aegis/app run check",
+    "build": "npm run stage:runtime && npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
+    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check && npm --workspace @aegis/app run check",
     "check:safe-types": "node scripts/check-safe-types.ts",
-    "check:types": "tsc --noEmit -p tsconfig.json",
-    "check:lint": "oxlint --deny-warnings scripts packages vitest.config.ts",
+    "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json",
+    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit/domain app/src/objects/chart/context.ts vitest.config.ts",
     "check:unit": "vitest run",
     "ui": "npm --prefix app run dev",
     "check:ui": "node checks/ui/run.mjs",
-    "bench": "node checks/ui/bench.mjs"
+    "bench": "node checks/ui/bench.mjs",
+    "build:shared": "tsc -p packages/domain/tsconfig.json && tsc -p packages/protocol/tsconfig.json && tsc -p agent/tsconfig.json",
+    "stage:runtime": "npm run build:shared && node scripts/stage-runtime.ts",
+    "check:runtime": "npm run stage:runtime && node scripts/check-staged-runtime.ts",
+    "check:dependencies": "npm ls --workspaces --depth=0"
   },
   "devDependencies": {
     "@types/node": "^22.19.0",

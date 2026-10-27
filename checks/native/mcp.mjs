@@ -31,8 +31,8 @@ try {
   const { config } = await response.json(), server = config.mcpServers.aegis;
   const resources = join(bundle, 'Contents/Resources');
   assert.equal(server.args[0], join(data, 'integrations/mcp/server.mjs'));
-  assert.deepEqual(await readFile(server.args[0]), await readFile(join(resources, 'plugins/aegis/server.mjs')));
-  assert.ok((await stat(join(resources, 'plugins/aegis/.claude-plugin/plugin.json'))).isFile());
+  assert.deepEqual(await readFile(server.args[0]), await readFile(join(resources, 'runtime/plugins/aegis/server.mjs')));
+  assert.ok((await stat(join(resources, 'runtime/plugins/aegis/.claude-plugin/plugin.json'))).isFile());
   assert.equal(server.env.AEGIS_DATA, data);
   if (process.env.AEGIS_MCP_CLIENT === 'codex') client = await codexMcpClient(config);
   else {

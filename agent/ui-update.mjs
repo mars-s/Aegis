@@ -4,7 +4,7 @@
 // never sees half a UI. Rollback renames the newest previous back. AEGIS_SAFE=1 in the shell ignores all of it.
 import { spawn } from 'node:child_process';
 import { cp, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 
 const run = (cmd, args, cwd) => new Promise((resolve) => {
@@ -19,6 +19,8 @@ const run = (cmd, args, cwd) => new Promise((resolve) => {
 export async function checkBuilt(dir) {
   const html = await readFile(join(dir, 'index.html'), 'utf8').catch(() => null);
   if (!html) return { ok: false, reason: 'no index.html' };
+  const protocol = /<meta\s+name=["']aegis-ui-protocol["']\s+content=["']([^"']+)["']/i.exec(html)?.[1] ?? '1';
+  if (protocol !== '1') return { ok: false, reason: `unsupported UI protocol ${protocol}` };
   const refs = [...html.matchAll(/(?:src|href)="\.?\/?([^"]+\.(?:js|css))"/g)].map(m => m[1]);
   if (!refs.length) return { ok: false, reason: 'index.html loads no scripts' };
   for (const ref of refs) if (!(await stat(join(dir, ref)).catch(() => null))?.isFile()) return { ok: false, reason: `missing ${ref}` };
@@ -54,11 +56,12 @@ export function createUiUpdater({ data, appDir, onChange }) {
         log('copy', from);
         await cp(from, incoming, { recursive: true });
       } else {
-        log('check', 'svelte-check');
-        const check = await run('npx', ['--no-install', 'svelte-check', '--tsconfig', './tsconfig.json', '--threshold', 'error', '--output', 'machine'], source);
+        const sourceRoot = dirname(source);
+        log('check', 'npm run check');
+        const check = await run('npm', ['run', 'check'], sourceRoot);
         if (check.code !== 0) { log('refused', 'type check failed'); return { ok: false, step: 'check', out: check.out }; }
         log('build', 'vite build');
-        const build = await run('npx', ['--no-install', 'vite', 'build', '--outDir', incoming, '--emptyOutDir'], source);
+        const build = await run('npm', ['--workspace', '@aegis/app', 'run', 'build', '--', '--outDir', incoming, '--emptyOutDir'], sourceRoot);
         if (build.code !== 0) { log('refused', 'build failed'); return { ok: false, step: 'build', out: build.out }; }
       }
       const verdict = await checkBuilt(incoming);

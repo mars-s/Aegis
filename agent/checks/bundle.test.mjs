@@ -1,6 +1,7 @@
 // The packaged app copies only the files listed in tauri.conf.json resources. Every relative import the host makes
 // (directly or through shared modules) must be inside one of them, or the installed host crashes at start.
 import { test } from 'node:test';
+import {execFileSync} from 'node:child_process';
 import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
 import {createRequire} from 'node:module';
@@ -12,6 +13,8 @@ const bundled = Object.keys(conf.bundle.resources).map(p => resolve(root, 'src-t
 const inBundle = file => bundled.some(b => file === b || file.startsWith(b + '/'));
 
 test('every file the host imports is bundled with the app', () => {
+  execFileSync(process.execPath, [join(root, 'scripts/stage-runtime.ts')], {cwd:root, stdio:'pipe'});
+  const runtime = join(root, 'runtime');
   const seen = new Set(), missing = [];
   const walk = file => {
     if (seen.has(file)) return; seen.add(file);
@@ -21,12 +24,12 @@ test('every file the host imports is bundled with the app', () => {
       const next = m[1].startsWith('@aegis/') ? createRequire(file).resolve(m[1]) : resolve(dirname(file), m[1]);
       if (m[1].startsWith('@aegis/')) {
         const packageName=m[1].split('/').slice(0,2).join('/').replace('@aegis/','');
-        const metadata=join(root,'packages',packageName,'package.json');
+        const metadata=join(runtime,'packages',packageName,'package.json');
         if(!inBundle(metadata)) missing.push(relative(root,metadata));
       }
       try { if (statSync(next).isFile()) walk(next); } catch { missing.push(relative(root, next) + ' (not found)'); }
     }
   };
-  walk(join(root, 'agent/server.mjs'));
+  walk(join(runtime, 'agent/server.mjs'));
   assert.deepEqual(missing, []);
 });

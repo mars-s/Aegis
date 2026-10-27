@@ -1,10 +1,11 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { assertSlideFits } from './deck-fit.mjs';
 import { demoBatch } from '../demo-batch.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { realpathSync, mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync } from 'node:fs';
+import { realpathSync, mkdtempSync, appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
@@ -13,11 +14,9 @@ const stamp = Date.now();
 const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-deck-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', reject); });
-const ui = mkdtempSync(join(tmpdir(), 'aegis-deck-ui-'));
-for (const file of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'svelte.config.js', 'public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
-// The frozen sources use the worktree's installed fonts through this symlink.
-writeFileSync(join(ui, 'vite.deck.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} } } });`);
+const ui = createUiSnapshot(repo, 'aegis-deck-ui-');
+// The frozen workspace includes its installed font assets.
+writeFileSync(join(ui, 'vite.deck.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([join(ui, '..'), realpathSync(join(ui, '..'))])} } } });`);
 const vite = spawn('npx', ['vite', '--config', 'vite.deck.config.ts', '--port', String(5192 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('deck-vite.txt'), d));
 const ready = new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
@@ -215,4 +214,4 @@ try {
   console.log('PASS B tool places a starter deck, every slide can be deleted, Add slide recovers and closing flushes pending edits');
   assert.deepEqual(errors, []); console.log('PASS no browser errors');
 } catch (error) { await page.screenshot({ path: out('deck-fail.png') }); console.error(error); console.error(errors); process.exitCode = 1; }
-finally { await browser.close(); host.kill(); vite.kill(); }
+finally { await browser.close(); host.kill(); vite.kill(); disposeUiSnapshot(ui); }

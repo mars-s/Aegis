@@ -8,3 +8,5 @@ app/.vite/
 app/.vite-cache/
 packages/*/dist/
 .scratch/
+runtime/
+agent/dist/
