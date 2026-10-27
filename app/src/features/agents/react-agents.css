@@ -29,7 +29,7 @@
 .aegis-agents .orb-menu:popover-open { margin: 0; inset: auto; position: fixed; }
 .aegis-agents .orb-menu { scroll-padding-block: 46px 8px; }
 .aegis-agents .aegis-model-group { display: flex; justify-content: space-between; gap: 12px; position: sticky; top: -6px; padding: 12px; background: var(--raised); color: var(--muted); font-size: 12px; z-index: 1; }
-.aegis-agents .agent-edge-chooser { margin: auto; padding: 6px; max-height: 55vh; overflow: auto; border: 1px solid var(--line-strong); border-radius: 12px; color: var(--text); background: var(--raised); }
+.aegis-agents .agent-edge-chooser { margin: auto; padding: 6px; max-height: 55vh; overflow: auto; border: 1px solid var(--line-strong); border-radius: 12px; color: var(--text); background: var(--raised); pointer-events: auto; }
 .aegis-agents .agent-edge-chooser button { display: block; width: 100%; min-height: 44px; text-align: left; background: transparent; border: 0; }
 .aegis-agents .agents-panel { position: absolute; inset: 64px 12px 96px auto; width: min(360px, calc(100vw - 24px)); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
 .aegis-agents .panel-head { display: flex; justify-content: space-between; align-items: center; }
