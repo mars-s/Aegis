@@ -47,6 +47,13 @@ export class SceneGraph {
 
   apply(change: SceneChange): void {
     const dirtyLinks = new Set<LinkId>();
+    for (const card of change.upserted) {
+      const old = this.nodes.get(card.id);
+      if (old && old.card.x === card.x && old.card.y === card.y && old.card.w === card.w && old.card.h === card.h && old.card.rot === card.rot && old.card.props?.hidden === card.props?.hidden) continue;
+      for (const wire of this.wires.search(rotatedBounds(rect(card), card.rot ?? 0))) dirtyLinks.add(wire.link.id);
+      if (old) for (const wire of this.wires.search(old.bounds)) dirtyLinks.add(wire.link.id);
+    }
+    for (const id of change.removed) { const old = this.nodes.get(id); if (old) for (const wire of this.wires.search(old.bounds)) dirtyLinks.add(wire.link.id); }
     for (const id of [...change.removed, ...change.upserted.map(card => card.id)]) {
       for (const link of this.incident.get(id) ?? []) dirtyLinks.add(link);
       const entry = this.entries.get(id);
@@ -110,7 +117,10 @@ export class SceneGraph {
   private putLink(link: Link): void {
     const a = this.nodes.get(link.a), b = this.nodes.get(link.b);
     if (!a || !b) return;
-    const route = routeLink(link, a.layout.bounds, b.layout.bounds, a.rotation, b.rotation);
+    const initial = routeLink(link, a.layout.bounds, b.layout.bounds, a.rotation, b.rotation);
+    const hull = linkBounds(initial, '');
+    const obstacles = this.cards.search(hull).filter(entry => entry.node !== a && entry.node !== b && !entry.node.hidden).map(entry => fromBounds(entry.node.bounds));
+    const route = routeLink(link, a.layout.bounds, b.layout.bounds, a.rotation, b.rotation, 1, obstacles);
     const entry = { ...linkBounds(route, link.label ?? ''), link, route };
     this.links.set(link.id, entry);
     for (const id of [link.a, link.b]) { const links = this.incident.get(id); if (links) links.add(link.id); else this.incident.set(id, new Set([link.id])); }

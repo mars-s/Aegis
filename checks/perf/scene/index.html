@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Aegis scene verification</title>
+<link rel="stylesheet" href="/app/src/canvas/scene.css">
 <style>
 html,body { margin:0; width:100%; height:100%; background:#000; color:#ddd; font-family:Inter,sans-serif }
 #stage { position:absolute; inset:20px; overflow:hidden; outline:none; touch-action:none }
@@ -9,6 +10,7 @@ canvas { position:absolute; inset:0; pointer-events:none }
 .scene-body { box-sizing:border-box; overflow:auto; padding:16px; }
 .scene-card.title { background:transparent; border:0; font-size:28px; font-weight:600 }
 </style>
+<button id="outside" style="position:absolute;z-index:100;left:0;top:0">Outside canvas</button>
 <div id="stage" tabindex="0"><canvas id="backdrop"></canvas><canvas id="overlay"></canvas><div id="world"></div></div><div id="portals"></div>
 <script type="module" src="./browser-fixture.ts"></script>
 </html>
