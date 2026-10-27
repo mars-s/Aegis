@@ -39,5 +39,5 @@ export default defineConfig({
   cacheDir: process.env.AEGIS_VITE_CACHE || '.vite-cache',
   clearScreen: false,
   server: { port: 5173, strictPort: true, host: '127.0.0.1', fs: { allow: [fileURLToPath(new URL('.', import.meta.url)), realpathSync(fileURLToPath(new URL('./node_modules', import.meta.url))), fileURLToPath(new URL('../packages', import.meta.url)), realpathSync(fileURLToPath(new URL('../node_modules', import.meta.url)))] } },
-  build: { rolldownOptions: { input: browserTestEntries(fileURLToPath(new URL('.', import.meta.url)), implementation), output: { entryFileNames: chunk => chunk.name.startsWith('src/') ? '[name]' : 'assets/[name]-[hash].js' } }, outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
+  build: { rolldownOptions: { preserveEntrySignatures: process.env.AEGIS_TEST_FACADE === '1' ? 'strict' : false, input: browserTestEntries(fileURLToPath(new URL('.', import.meta.url)), implementation), output: { entryFileNames: chunk => chunk.name.startsWith('src/') ? '[name]' : 'assets/[name]-[hash].js' } }, outDir: 'dist', emptyOutDir: true, target: 'safari16', sourcemap: true },
 });
