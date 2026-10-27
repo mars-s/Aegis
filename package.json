@@ -2,8 +2,14 @@
   "name": "aegis",
   "private": true,
   "type": "module",
-  "workspaces": ["app", "agent", "packages/*"],
-  "engines": { "node": ">=22.19.0" },
+  "workspaces": [
+    "app",
+    "agent",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
     "dev": "npx --yes @tauri-apps/cli@2.12.4 dev",
     "build": "npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
@@ -18,12 +24,13 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.0",
+    "@types/rbush": "4.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@types/rbush": "4.0.0",
     "oxc-parser": "0.95.0",
     "oxlint": "1.89.0",
     "typescript": "7.0.2",
-    "vitest": "5.0.5"
+    "vitest": "5.0.5",
+    "zod": "4.6.7"
   }
 }
