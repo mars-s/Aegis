@@ -138,7 +138,7 @@ export interface CanvasEngine {
 }
 export interface CardDropTarget {
   readonly highlight: HTMLElement;
-  readonly run: () => boolean;
+  readonly run: (moves: readonly Command[]) => boolean;
 }
 export interface CardDropRequest {
   readonly cards: readonly Card[];

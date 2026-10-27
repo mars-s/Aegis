@@ -190,11 +190,21 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
       const cards = context.workspace.scene.snapshot().cards.filter(card => ids.includes(card.id)).map(cardRect);
       if (!cards.length) return;
       context.engine()?.glow(ids);
-      const a = schedule.availableArea(), left = Math.min(...cards.map(card => card.x)), top = Math.min(...cards.map(card => card.y));
-      const right = Math.max(...cards.map(card => card.x + card.w)), bottom = Math.max(...cards.map(card => card.y + card.h));
+      const a = schedule.availableArea();
       const h = Math.max(80, a.h - islandHeight - 24);
-      const zoom = Math.max(.05, Math.min(1, (a.w - 48) / Math.max(1, right - left), (h - 48) / Math.max(1, bottom - top)));
-      context.engine()?.navigate({ kind: 'restore', camera: { x: a.x + a.w / 2 - (left + right) / 2 * zoom, y: a.y + h / 2 - (top + bottom) / 2 * zoom, zoom }, motion: instant ? 'instant' : 'glide' });
+      const extent = (items: readonly WindowRect[]): WindowRect => {
+        const x = Math.min(...items.map(item => item.x)), y = Math.min(...items.map(item => item.y));
+        return { x, y, w: Math.max(...items.map(item => item.x + item.w)) - x, h: Math.max(...items.map(item => item.y + item.h)) - y };
+      };
+      const fit = (bounds: WindowRect, maximum: number): number => Math.max(.05, Math.min(maximum, (a.w - 48) / Math.max(1, bounds.w), (h - 48) / Math.max(1, bounds.h)));
+      let bounds = extent(cards), zoom = fit(bounds, 1);
+      if (islandHeight === 0) for (let iteration = 0; iteration < 24; iteration++) {
+        bounds = extent([...cards, ...[...windows.values()].filter(w => !w.closed).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH / zoom, h: (w.collapsed ? COLLAPSED_HEIGHT : w.height) / zoom }))]);
+        const next = fit(bounds, zoom), settled = Math.abs(next - zoom) < 1e-10;
+        zoom = next;
+        if (settled) break;
+      }
+      context.engine()?.navigate({ kind: 'restore', camera: { x: a.x + a.w / 2 - (bounds.x + bounds.w / 2) * zoom, y: a.y + h / 2 - (bounds.y + bounds.h / 2) * zoom, zoom }, motion: instant ? 'instant' : 'glide' });
     },
     draft(agentId, element, index, width, height) { drafts.set(element, { agentId, index, width, height, x: 0, y: 0 }); schedule.invalidate(); return () => { drafts.delete(element); schedule.invalidate(); }; },
     identity(id, element) {
