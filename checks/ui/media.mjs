@@ -134,7 +134,10 @@ try {
   log('Image preparation falls back to JPEG for large PNGs, preserves transparency and animation, and resizes stills');
   const image = out('media-fixture.svg');
   writeFileSync(image, '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300"><path fill="#ff69b4" d="M0 0h200v300H0z"/><path fill="#87ceeb" d="M200 0h200v300H200z"/><path fill="#ffd700" d="M400 0h200v300H400z"/><path fill="#163029" d="M600 0h200v300H600z"/><path fill="#903cff" d="M800 0h200v300H800z"/></svg>');
-  const chooser = page.waitForEvent('filechooser'); await page.locator('#toolsFold').click(); await page.locator('#tools [data-tool="import-image"]').click(); await (await chooser).setFiles(image);
+  await page.mouse.move(24, 480);
+  if (await page.locator('#toolsFold').getAttribute('aria-expanded') !== 'true') await page.locator('#toolsFold').click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#tools [data-tool="import-image"]').click()]);
+  await chooser.setFiles(image);
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'image')); await centreCard('image');
   const imageCard = page.locator('.card.image'); await imageCard.hover(); await imageCard.getByRole('button', { name: 'Pull colours', exact: true }).click();
   await page.waitForFunction(() => aegis.canvas.board.cards.filter(c => c.type === 'swatch').length >= 4);

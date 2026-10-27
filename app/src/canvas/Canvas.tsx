@@ -8,6 +8,7 @@ import "./scene.css";
 import { createSceneTheme } from "../platform/scene-theme.js";
 import { bindOrientationMenu } from "./orientation-menu.js";
 import { wireframePolicies } from "./wireframe-policies.js";
+import { copyDrag } from "./copy-drag.js";
 
 export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop, toolChanged }: {
   readonly workspace: Workspace;
@@ -36,6 +37,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
       resolveCardDrop: request => dropResolver.current?.(request) ?? null,
       onToolChange: name => toolObserver.current?.(name),
       ...wireframePolicies(() => workspace.scene.snapshot()),
+      copyDrag: request => copyDrag(workspace.scene.snapshot(), request),
       onToolCommit: (boardId, commit) => {
         if (workspace.metadata.getSnapshot().id !== boardId) return;
         const result = workspace.submit(commit.commands);
