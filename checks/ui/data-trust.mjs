@@ -1,3 +1,4 @@
+import { assertCameraScale } from './static-geometry.mjs';
 // Exercise the production bundle and real host with temporary data only.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -100,6 +101,7 @@ try {
       pass(`${engineName}: unavailable Open is hidden, heading size increments 24 to 25 and line-height controls agree`);
 
       await apply([{ op: 'create', type: 'object', kind: 'sheet', newId: 'trustsht', text: 'Plan the week', x: 0, y: 180, data: { columns: [{ label: 'Day', kind: 'text' }, { label: 'Focus', kind: 'number', unit: 'h' }], rows: [{ cells: ['Mon', '3'] }, { cells: ['Tue', '4'] }] } }]);
+      await assertCameraScale(page, ['trustsht']);
       await select(['trustsht']); await page.keyboard.press('Enter'); await page.locator('.sheet-grid').waitFor();
       assert.equal(await page.locator('.sheet-grid td[data-r="0"][data-c="1"]').textContent(), 'Focus (h)');
       assert.equal(await page.locator('.sheet-fx').textContent(), 'Value');

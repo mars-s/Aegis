@@ -5,11 +5,13 @@ import type { CanvasEngine } from "@aegis/scene";
 import { createWorkspace } from "./workspace/index.js";
 import type { Workspace } from "./workspace/index.js";
 import { Canvas } from "./canvas/Canvas.js";
-import { composition } from "./composition.js";
+import { createComposition } from "./composition.js";
 import type { FeatureContext } from "./composition.js";
 import { locateConnection } from "./platform/connection.js";
 import type { Connection } from "./platform/connection.js";
 import { installTestFacade } from "./platform/test-facade.js";
+import { installEditorActions } from "./platform/editor-actions.js";
+import { installDataImport } from "./platform/data-import.js";
 
 declare const __AEGIS_TEST_FACADE__: boolean;
 
@@ -22,6 +24,8 @@ interface Runtime {
 
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace } = runtime;
+  const [importError, setImportError] = useState<string | null>(null);
+  const composition = useMemo(() => createComposition({ assetUrl: runtime.client.assetUrl }), [runtime.client]);
   const metadata = useSyncExternalStore(workspace.metadata.subscribe, workspace.metadata.getSnapshot);
   const saving = useSyncExternalStore(workspace.saving.subscribe, workspace.saving.getSnapshot);
   const ui = useSyncExternalStore(workspace.ui.subscribe, workspace.ui.getSnapshot);
@@ -52,6 +56,9 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const context = useMemo<FeatureContext>(() => ({
     workspace, engine: () => engine.current,
     openEditor: (id, full) => {
+      const card = workspace.record(id).getSnapshot();
+      const key = card?.type === "object" ? `object:${card.kind}` : card?.type;
+      if (!composition.editors.some(editor => editor.kind === key)) return false;
       const opened = workspace.ui.getSnapshot().editor;
       if (opened && opened.id !== id && !context.closeEditor()) return false;
       workspace.act({ kind: "edit", id, view: full ? "full" : "side" });
@@ -67,7 +74,9 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       workspace.act({ kind: "edit-close" });
       return true;
     },
-  }), [workspace]);
+  }), [workspace, composition]);
+  useEffect(() => installEditorActions(context), [context]);
+  useEffect(() => installDataImport({ context, client: runtime.client, error: setImportError }), [context, runtime.client]);
   function add(type: "note" | "title"): void {
     const camera = engine.current?.camera() ?? { x: 0, y: 0, zoom: 1 };
     workspace.submit([{ op: "create", type, text: type === "title" ? "Untitled" : "", props: { contentFit: true }, x: (innerWidth / 2 - camera.x) / camera.zoom, y: (innerHeight / 2 - camera.y) / camera.zoom }]);
@@ -76,6 +85,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const editorKind = activeCard?.type === "object" ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
   return <>
+    {importError ? <div role="alert" className="react-import-error">{importError}<button onClick={() => setImportError(null)}>Dismiss</button></div> : null}
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} />
     <div className="react-board-label">{metadata.name}</div>
     <nav className="react-tools" aria-label="Canvas tools">
@@ -87,16 +97,17 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       {composition.tools.map(tool => <button key={tool.id} data-tool={tool.id} onClick={() => tool.run(context)}>{tool.label}</button>)}
       {composition.menus.length ? <details className="react-actions"><summary>Actions</summary>{composition.menus.map(item => <button key={item.id} onClick={() => item.run(context)}>{item.label}</button>)}</details> : null}
     </nav>
-    <div className="react-save-state" role="status" data-save-state={saving.kind}>
+    <div className="react-save-state" role="status" data-saved data-save-state={saving.kind}>
       {saving.kind === "blocked" ? <><span>{saving.reason}</span><button onClick={workspace.retry}>Retry</button></> : saving.kind === "saving" ? "Saving" : "Saved"}
     </div>
     {ui.leftPanel ? composition.panels.filter(panel => panel.side === "left").map(panel => <panel.Body key={panel.id} context={context} />) : null}
     {ui.rightPanel ? composition.panels.filter(panel => panel.side === "right").map(panel => <panel.Body key={panel.id} context={context} />) : null}
-    {Editor && ui.editor && engine.current ? <aside className={`react-editor${ui.editor.view === "full" ? " full" : ""}`}><button onClick={context.closeEditor}>Close editor</button><Editor cardId={ui.editor.id} workspace={workspace} engine={engine.current} /></aside> : null}
+    {Editor && ui.editor && engine.current ? <aside className={`react-editor side-editor${ui.editor.view === "full" ? " full" : ""}`} aria-label="Card editor"><header className="react-editor-toolbar"><button data-close onClick={context.closeEditor}>Close editor</button><button aria-label={ui.editor.view === "full" ? "Half width" : "Full width"} onClick={() => ui.editor && context.openEditor(ui.editor.id, ui.editor.view !== "full")}>{ui.editor.view === "full" ? "Half width" : "Full width"}</button></header><div className="react-editor-content"><Editor cardId={ui.editor.id} workspace={workspace} engine={engine.current} /></div></aside> : null}
   </>;
 }
 
 export default function App() {
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -110,6 +121,7 @@ export default function App() {
         if (!connection) { setError("Open Aegis to connect to your local boards."); return; }
         client = createHostClient({ baseUrl: connection.base, token: connection.token });
         const listed = await client.boards(lifetime.signal);
+        if (lifetime.signal.aborted) return;
         if (listed.kind === "error") { setError(failureMessage(listed.error)); return; }
         const first = listed.value[0];
         const loaded = first ? await client.board(first.id, lifetime.signal) : await client.createBoard("First board", lifetime.signal);
@@ -123,7 +135,17 @@ export default function App() {
         if (!lifetime.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not open the board.");
       }
     })();
-    return () => { lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose(); };
-  }, []);
+    const dispose = (): void => { lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose(); };
+    const resume = (event: PageTransitionEvent): void => {
+      if (!event.persisted) return;
+      setRuntime(null);
+      setError(null);
+      setSessionVersion(version => version + 1);
+    };
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("beforeunload", dispose, { once: true });
+    window.addEventListener("pagehide", dispose, { once: true });
+    return () => { window.removeEventListener("pageshow", resume); window.removeEventListener("beforeunload", dispose); window.removeEventListener("pagehide", dispose); dispose(); };
+  }, [sessionVersion]);
   return <main className="react-app">{runtime ? <BoardView runtime={runtime} /> : <p className="react-connection" role="status">{error ?? "Opening your board"}</p>}{runtime && error ? <div id="toast" role="alert">{error}<button onClick={() => setError(null)}>Dismiss</button></div> : <div id="toast" />}</main>;
 }

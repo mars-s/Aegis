@@ -3,7 +3,7 @@ import { decodeStoredBoard } from "@aegis/protocol/storage";
 import type { Board, CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import { benchmark } from "../canvas/benchmark.js";
-import type { WorkspaceConnection } from "@aegis/host-client";
+import type { CreatedIds, WorkspaceConnection } from "@aegis/host-client";
 import type { Workspace } from "../workspace/index.js";
 import type { Connection } from "./connection.js";
 
@@ -18,10 +18,11 @@ export interface TestFacade {
     readonly frameIds: (ids: readonly string[], maximumZoom?: number) => void;
     readonly fit: () => void;
     readonly load: (board: unknown) => void;
+    readonly setBoard: (board: unknown) => void;
     readonly inspect: CanvasEngine["inspect"];
     readonly engine: CanvasEngine;
   };
-  readonly apply: (commands: unknown) => ReturnType<Workspace["submit"]>;
+  readonly apply: (commands: unknown, done?: (created: CreatedIds) => void) => ReturnType<Workspace["submit"]>;
   readonly undo: Workspace["undo"];
   readonly redo: Workspace["redo"];
   readonly flush: () => Promise<void>;
@@ -53,6 +54,7 @@ export function installTestFacade(args: {
     const value: unknown = await response.json();
     return value;
   };
+  const load = (value: unknown): void => { workspace.replaceBoard(decodeStoredBoard(value)); };
   const facade: TestFacade = {
     workspace,
     canvas: {
@@ -63,10 +65,14 @@ export function installTestFacade(args: {
       select: values => workspace.act({ kind: "select", ids: ids(values) }),
       frameIds: values => { engine.navigate({ kind: "fit", ids: ids(values), motion: "instant" }); args.persistCamera(); },
       fit: () => { engine.navigate({ kind: "fit", ids: [], motion: "instant" }); args.persistCamera(); },
-      load: value => { workspace.replaceBoard(decodeStoredBoard(value)); },
+      load, setBoard: load,
       inspect: engine.inspect, engine,
     },
-    apply: value => workspace.submit(CommandSchema.array().parse(value)),
+    apply: (value, done) => {
+      const result = workspace.submit(CommandSchema.array().parse(value));
+      if (result.kind === "applied") done?.(result.created);
+      return result;
+    },
     undo: workspace.undo,
     redo: workspace.redo,
     flush: args.replication.settled,

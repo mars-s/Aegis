@@ -3,7 +3,7 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom, re
   const strip = document.createElement('div'); strip.className = 'window-actions'; strip.hidden = true; strip.setAttribute('role', 'toolbar'); stage.append(strip);
   let hovered = null, currentId = null, sources = [], leaveTimer = 0;
   function redraw(requestedId) {
-    if (stage.dataset.zoomTier === 'cluster' || stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
+    if (stage.classList.contains('connecting') || stage.classList.contains('placing')) { strip.hidden = true; return; }
     const focused = document.activeElement?.closest('#world > .card')?.dataset.id;
     const editorSource = stage.querySelector('#world > .card.editor-source')?.dataset.id;
     const id = editorSource || (strip.contains(document.activeElement) ? currentId : requestedId || (strip.matches(':hover') ? currentId : hovered || focused || getSelection().at(-1)));
@@ -29,8 +29,8 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom, re
     [...strip.children].forEach((button, i) => { button.disabled = actions[i].disabled; button.setAttribute('aria-label', actions[i].getAttribute('aria-label') || button.textContent); });
     strip.hidden = false;
     const width = strip.offsetWidth, height = strip.offsetHeight, zoom = getZoom();
-    const left = !rect.summary && zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
-    const top = rect.summary ? rect.top - height - 24 : zoom < .9 ? rect.top - height - 8 : rect.top + 2;
+    const left = zoom < .9 && rect.width < 180 ? rect.right + 8 : rect.right - width - 4;
+    const top = zoom < .9 ? rect.top - height - 8 : rect.top + 2;
     let x = Math.max(8, Math.min(innerWidth - width - 8, left)), y = Math.max(48, Math.min(innerHeight - height - 8, top));
     // Off-screen agent cues (agents/edges.js) sit in the window frame; step the strip clear of any it would cover.
     for (const cue of document.querySelectorAll('.agent-edges .agent-edge:not([hidden])')) {
@@ -45,7 +45,7 @@ export function mountWindowActions({ stage, getSelection, mountedEl, getZoom, re
   }
   function approach(event) {
     if (strip.contains(event.target)) { clearTimeout(leaveTimer); leaveTimer = 0; return; }
-    const id = event.target.closest('.semantic-window')?.dataset.cardId || event.target.closest('#world > .card')?.dataset.id;
+    const id = event.target.closest('#world > .card')?.dataset.id;
     if (id) { clearTimeout(leaveTimer); leaveTimer = 0; if (hovered !== id) { hovered = id; redraw(id); } }
     else if (!leaveTimer) leaveTimer = setTimeout(() => { leaveTimer = 0; if (strip.matches(':hover')) return; hovered = null; redraw(); }, 160);
   }

@@ -1,6 +1,7 @@
 // Evidence must tell the same story on the board, in references and in a presentation.
 import { chromium, webkit } from './playwright.mjs';
 import { demoBatch } from '../demo-batch.mjs';
+import { readDiagramTopology } from './static-geometry.mjs';
 import { choose } from './dropdown.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -184,12 +185,13 @@ try {
       await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async id => aegis.canvas.setBoard(await aegis.host.get(`/boards/${id}`)), boardId);
       await page.evaluate(() => aegis.canvas.fit());
-      const summary = page.locator('.semantic-window[data-card-id="liveplot"]');
-      await summary.getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
-      assert.equal(await summary.locator('.semantic-headline').textContent(), '9 h');
-      const doc = page.locator('.semantic-window[data-card-id="brief001"]');
+      const plotCard = page.locator('.card[data-id="liveplot"]');
+      await plotCard.getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
+      assert.equal(await plotCard.locator('.values tbody tr:last-child td').textContent(), '9 h');
+      assert.match(await plotCard.locator('.cartesian svg').getAttribute('aria-label'), /9 h/);
+      const doc = page.locator('.card[data-id="brief001"]');
       await doc.waitFor();
-      assert.deepEqual(await doc.locator('.semantic-fact').allTextContents(), ['Compare the weekly focus hours with the evidence.']);
+      assert.equal(await doc.locator('.doc-view').textContent(), 'Compare the weekly focus hours with the evidence. Keep the whole comparison.');
       await open('brief001');
       await page.locator('.editor-reference-chart').getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
       await close(); await open('liveplot');
@@ -217,11 +219,11 @@ try {
       await page.evaluate(async () => aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Demo topology' })));
       await apply(demoBatch);
       await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(450);
-      const diagram = page.locator('.semantic-window').filter({ has: page.locator('strong', { hasText: 'Idea to decision' }) });
-      await diagram.locator('.semantic-graphic text').first().waitFor();
-      const topology = await diagram.locator('.semantic-graphic').evaluate(svg => ({ names: [...svg.querySelectorAll('text')].map(node => node.textContent), edges: [...svg.querySelectorAll('path')].map(node => [Number(node.dataset.from), Number(node.dataset.to)]), labels: [...svg.querySelectorAll('text')].map(node => ({ font: parseFloat(getComputedStyle(node).fontSize), x: node.getBBox().x, right: node.getBBox().x + node.getBBox().width })), width: svg.viewBox.baseVal.width }));
+      const diagram = page.locator('.card.kind-diagram');
+      await diagram.locator('.node').first().waitFor();
+      const topology = await readDiagramTopology(diagram);
       assert.deepEqual(topology.names, ['Collect', 'Try it', 'Decide', 'Share']); assert.deepEqual(topology.edges, [[0, 1], [1, 2], [2, 3]]);
-      assert.ok(topology.labels.every(label => label.font >= 12 && label.x >= 0 && label.right <= topology.width));
+      assert.ok(topology.labels.every(label => label.font >= 12 && !label.clipped));
       await page.screenshot({ path: join(output, `${prefix}-demo-fit.png`) });
       assert.deepEqual(errors, []);
       results.push({ engine: engineName, width, height, theme, comparison: comparisonResult, presented, layouts, presentationLayout, composition, legend, missing, topology, errors });

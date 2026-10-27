@@ -3,6 +3,8 @@ import type { CanvasEngine } from "@aegis/scene";
 import type { ComponentType } from "react";
 import type { Workspace } from "./workspace/index.js";
 import { NoteBody } from "./cards/basic/Note.js";
+import { dataCards, dataEditors } from "./cards/data/index.js";
+import type { DataServices } from "./cards/data/index.js";
 import type { CardBodyProps } from "./canvas/CardPortals.js";
 export type { CardBodyProps } from "./canvas/CardPortals.js";
 
@@ -56,7 +58,9 @@ export function defineComposition(composition: Composition): Composition {
   });
 }
 
-export const composition = defineComposition({
-  cards: [{ kind: "note", Body: NoteBody }, { kind: "title", Body: NoteBody }],
-  tools: [], panels: [], menus: [], editors: [],
-});
+export function createComposition(services: Pick<DataServices, "assetUrl">): Composition {
+  return defineComposition({
+    cards: [{ kind: "note", Body: NoteBody }, { kind: "title", Body: NoteBody }, ...dataCards],
+    tools: [], panels: [], menus: [], editors: dataEditors(services),
+  });
+}

@@ -1,5 +1,5 @@
 import type { BatchId, Board, BoardId, Command, Source } from '@aegis/domain/schema';
-import type { BatchResponse, BoardListEntry, HostEvent } from '@aegis/protocol/http';
+import type { AssetUpload, BatchResponse, BoardListEntry, HostEvent } from '@aegis/protocol/http';
 import type { HostFailure, HostResult } from './result.js';
 
 export type { Source } from '@aegis/domain/schema';
@@ -41,6 +41,7 @@ export interface HostClient {
     readonly opened: () => void;
     readonly event: (event: HostEvent, bytes: number) => void;
   }) => Promise<HostResult<void>>;
+  readonly upload: (file: File, signal?: AbortSignal) => Promise<HostResult<AssetUpload>>;
   readonly assetUrl: (url: string) => string;
   readonly dispose: () => void;
 }

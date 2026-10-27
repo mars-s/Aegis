@@ -16,7 +16,7 @@
     "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check && npm --workspace @aegis/app run check",
     "check:safe-types": "node scripts/check-safe-types.ts",
     "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.react.json",
-    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit app/src/workspace app/src/platform app/src/cards app/src/main.tsx app/src/App.tsx app/src/composition.tsx app/src/canvas/Canvas.tsx app/src/canvas/CardPortals.tsx app/src/canvas/benchmark.ts vitest.config.ts",
+    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit app/src/workspace app/src/platform app/src/cards app/src/main.tsx app/src/App.tsx app/src/composition.tsx app/src/canvas/Canvas.tsx app/src/canvas/CardPortals.tsx app/src/canvas/benchmark.ts vitest.config.ts app/src/charts app/src/editors/sheet app/src/editors/dataset app/src/features/data/*.ts app/src/features/data/*.tsx",
     "check:unit": "vitest run",
     "ui": "npm --prefix app run dev",
     "check:ui": "node checks/ui/run.mjs",

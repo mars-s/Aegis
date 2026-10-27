@@ -1,5 +1,6 @@
 // Interaction regressions against the shipped bundle, with fictional local data only.
 import { chromium, webkit } from './playwright.mjs';
+import { assertRealLinkEdges } from './static-geometry.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -67,17 +68,29 @@ try {
       catch (error) { errors.push(`${engineName}: ${name}: ${error.message}`); await shot(`${engineName}-${name}-failure`); }
       finally { await close(); }
     };
-    await check('summary-selection', async () => {
+    await check('window-selection', async () => {
       await page.evaluate(() => { aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select(['decision']); }); await settle();
       const before = await page.evaluate(() => ({ ...aegis.canvas.view }));
-      await page.locator('.semantic-window[data-card-id="comparison"]').click({ modifiers: ['Shift'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision', 'comparison']);
       assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), before, 'modifier selection leaves the camera still');
-      await page.locator('.semantic-window[data-card-id="comparison"]').click({ modifiers: ['Meta'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision']);
-      await page.locator('.semantic-window[data-card-id="comparison"]').click({ modifiers: ['Shift'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
       await page.evaluate(() => aegis.canvas.setView({ x: 40, y: 0, z: 1 })); await settle();
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision', 'comparison'], 'selection survives detail');
+      await page.evaluate(() => aegis.canvas.setView({ x: 70, y: 80, z: .6 })); await settle();
+      const worldBefore = await page.evaluate(() => aegis.canvas.board.cards.filter(c => ['decision', 'comparison'].includes(c.id)).map(c => ({ id: c.id, x: c.x, y: c.y })));
+      const strip = await page.locator('.card[data-id="comparison"] .win-strip').boundingBox();
+      await page.keyboard.down('Meta'); await page.mouse.move(strip.x + 80, strip.y + strip.height / 2); await page.mouse.down();
+      await page.mouse.move(strip.x + 141, strip.y + strip.height / 2 + 37, { steps: 4 }); await page.mouse.up(); await page.keyboard.up('Meta');
+      await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'comparison').x !== 1100);
+      const moved = await page.evaluate(() => aegis.canvas.board.cards.filter(c => ['decision', 'comparison'].includes(c.id)).map(c => ({ id: c.id, x: c.x, y: c.y })));
+      assert.deepEqual(moved[0], worldBefore[0], 'Cmd-drag leaves the other selected window still');
+      assert.ok(Math.abs(moved[1].x - worldBefore[1].x - 61 / .6) < 1 && Math.abs(moved[1].y - worldBefore[1].y - 37 / .6) < 1, 'Cmd-drag uses the exact camera scale and bypasses snapping');
+      assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['comparison']);
+      await page.evaluate(cards => new Promise(resolve => aegis.apply(cards.map(c => ({ op: 'move', ...c })), resolve)), worldBefore);
+
     });
     await check('visible-controls', async () => {
       await page.evaluate(() => { aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select(['decision']); document.getElementById('stage').focus(); });
@@ -86,15 +99,16 @@ try {
       const geometry = await page.evaluate(() => {
         const r = el => el.getBoundingClientRect().toJSON();
         const visible = el => el && !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
-        return { summary: r(document.querySelector('.semantic-window[data-card-id="decision"]')), bar: r(document.getElementById('selectionBar')), actions: r(document.querySelector('.window-actions')), resize: visible(document.querySelector('.selection-resize')), rotate: visible(document.querySelector('.rotation-handle')) };
+        return { window: r(document.querySelector('.card[data-id="decision"]')), bar: r(document.getElementById('selectionBar')), actions: r(document.querySelector('.window-actions')), resize: visible(document.querySelector('.selection-resize')), rotate: visible(document.querySelector('.rotation-handle')) };
       });
-      assert.equal(geometry.resize, false); assert.equal(geometry.rotate, false);
-      assert.ok(geometry.bar.bottom <= geometry.summary.top - 23.9, JSON.stringify(geometry));
-      assert.ok(geometry.actions.bottom <= geometry.summary.top - 23.9, JSON.stringify(geometry));
-      assert.ok(geometry.actions.right <= geometry.summary.right + 1, JSON.stringify(geometry));
+      assert.equal(geometry.resize, true); assert.equal(geometry.rotate, true);
+      assert.ok(geometry.bar.bottom <= geometry.window.top - 23.9, JSON.stringify(geometry));
+      assert.ok(geometry.actions.bottom <= geometry.window.top - 7.9, JSON.stringify(geometry));
+      assert.ok(geometry.actions.right <= geometry.window.right + 1, JSON.stringify(geometry));
       await shot(`${engineName}-summary-controls`);
       await page.evaluate(() => { aegis.canvas.setView({ x: 300, y: 250, z: .05 }); document.getElementById('stage').focus(); }); await page.waitForTimeout(150);
-      assert.ok(await page.locator('#selectionBar, .window-actions, .editing-outline').evaluateAll(els => els.every(el => el.hidden || getComputedStyle(el).display === 'none' || getComputedStyle(el).visibility === 'hidden')));
+      assert.ok(await page.locator('#selectionBar, .window-actions, .editing-outline').evaluateAll(els => els.every(el => !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden')));
+      assert.equal(await page.locator('.overview-back, .overview-cluster').count(), 0);
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision']);
       await shot(`${engineName}-selected-cluster`);
     });
@@ -103,23 +117,15 @@ try {
         aegis.apply([{ op: 'create', type: 'note', newId: 'obstacle', text: 'Unrelated window', x: 800, y: 433, w: 480, h: 256 }, { op: 'link_update', id: 'evidence', set: { bend: 400 } }]);
         aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select([]);
       }); await settle();
-      const m = await page.evaluate(() => {
-        const path = document.querySelector('[data-link-line="evidence"]'), length = path.getTotalLength();
-        return { stroke: parseFloat(getComputedStyle(path).strokeWidth), above: Number(getComputedStyle(document.getElementById('links')).zIndex) > Number(getComputedStyle(document.querySelector('.semantic-summaries')).zIndex), endpoints: ['decision', 'comparison'].map((id, i) => ({ r: aegis.canvas.representations.get(id), p: { x: path.getPointAtLength(i * length).x, y: path.getPointAtLength(i * length).y } })) };
-      });
-      assert.equal(m.stroke, 1); assert.ok(m.above, 'summary wires paint above intervening summaries');
-      for (const { r, p } of m.endpoints) assert.ok(Math.min(Math.abs(p.x - r.x), Math.abs(p.x - r.x - r.w), Math.abs(p.y - r.y), Math.abs(p.y - r.y - r.h)) < .2);
-      const crossing = () => page.evaluate(() => {
-        const path = document.querySelector('[data-link-line="evidence"]'), p = path.getPointAtLength(path.getTotalLength() / 2), r = aegis.canvas.representations.get('obstacle');
-        path.style.pointerEvents = 'stroke';
-        const visible = document.elementFromPoint(p.x, p.y) === path; path.style.pointerEvents = '';
-        const inside = Array.from({ length: 501 }, (_, i) => path.getPointAtLength(path.getTotalLength() * i / 500)).some(p => p.x > r.x - 11.8 && p.x < r.x + r.w + 11.8 && p.y > r.y - 11.8 && p.y < r.y + r.h + 11.8);
-        return { visible, inside };
-      });
-      assert.deepEqual(await crossing(), { visible: true, inside: false }, 'the wire clears the unrelated summary by 12px');
-      await shot(`${engineName}-summary-connectors`);
+      await assertRealLinkEdges(page);
+      const curve = await page.locator('[data-link-line="evidence"]').getAttribute('d');
+      assert.match(curve, /Q/, 'links retain the world-space bend instead of routing around summaries');
+      const obstacle = await page.locator('.card[data-id="obstacle"]').boundingBox();
+      assert.ok(Math.abs(obstacle.x - (800 * .6 + 70)) < 1 && Math.abs(obstacle.y - (433 * .6 + 80)) < 1, 'unrelated windows keep their position');
+      await shot(`${engineName}-window-connectors`);
       await open('decision'); await close(); await settle();
-      assert.deepEqual(await crossing(), { visible: true, inside: false }, 'the route keeps its clearance after the editor closes');
+      await assertRealLinkEdges(page);
+      assert.equal(await page.locator('[data-link-line="evidence"]').getAttribute('d'), curve, 'the real curve returns after the editor closes');
       await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['obstacle'] }, { op: 'link_update', id: 'evidence', set: { bend: 0 } }], resolve)));
     });
     await check('reference-legend', async () => {

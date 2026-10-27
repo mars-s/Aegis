@@ -25,3 +25,9 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 #toast button { margin-left: 12px; }
 @media (max-width: 600px) { .react-tools { bottom: 18px; } .react-save-state { top: 20px; bottom: auto; } .react-editor { left: 0; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+.react-editor { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.react-editor-toolbar { display: flex; flex: none; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-border); }
+.react-editor-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.react-editor-content > .data-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+
+.react-import-error { position: absolute; z-index: 30; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }
