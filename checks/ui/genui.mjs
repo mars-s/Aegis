@@ -137,7 +137,7 @@ try {
       assert.equal(await card.getByRole('button', { name: /^Open(?: |$)/ }).count(), 0, `${kind} has no Open affordance`);
       checkedOpen.add(kind); return;
     }
-    await card.hover();
+    await card.locator('.win-strip').hover();
     const open = page.locator('.window-actions').getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' && ['plot', 'sheet'].includes(kind) ? 'Open' : `Open Sample ${kind}`, exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
@@ -336,7 +336,7 @@ try {
   console.log('pass genui: timeline ticks, stats, table, progress and stage values saved');
 
   const openEditor = async (kind, keyboard = false) => {
-    const card = await frame(kind); await card.hover();
+    const card = await frame(kind); await card.locator('.win-strip').hover();
     const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
     if (keyboard) await open.press('Enter'); else await open.click();
     const editor = page.locator('.side-editor.is-open:has(.object.expanded)');
