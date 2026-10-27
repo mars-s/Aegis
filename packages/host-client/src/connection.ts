@@ -29,12 +29,14 @@ export function createHostClient(options: HostOptions): HostClient {
     readonly body?: { readonly kind: 'json'; readonly value: unknown } | { readonly kind: 'file'; readonly file: File };
     readonly signal?: AbortSignal | undefined;
   }): Promise<HostResult<T>> {
+    if (lifetime.signal.aborted || args.signal?.aborted) return Promise.resolve({ kind: 'error', error: { kind: 'cancelled' } });
     const operation = Effect.scoped(Effect.gen(function* () {
       const controller = yield* Effect.acquireRelease(
         Effect.sync(() => new AbortController()),
         controller => Effect.sync(() => { controller.abort(); }),
       );
       const signal = AbortSignal.any([lifetime.signal, controller.signal, ...(args.signal ? [args.signal] : [])]);
+      if (signal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
       const response = yield* Effect.tryPromise({
         try: () => fetchHost(base + args.path, {
           method: args.method, signal,
@@ -43,6 +45,7 @@ export function createHostClient(options: HostOptions): HostClient {
         }),
         catch: error => signal.aborted ? { kind: 'cancelled' } as const : offline(error),
       });
+      if (signal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
       if (response.status === 401) return yield* Effect.fail<HostFailure>({ kind: 'unauthorised' });
       if (!response.ok) {
         const message = yield* Effect.promise(async () => {
@@ -51,9 +54,11 @@ export function createHostClient(options: HostOptions): HostClient {
             return decodeHostError(value);
           } catch { return response.statusText; }
         });
+        if (signal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
         return yield* Effect.fail<HostFailure>({ kind: 'http', status: response.status, message });
       }
-      const value: unknown = yield* Effect.tryPromise({ try: () => response.json(), catch: error => ({ kind: 'protocol', message: String(error) } as const) });
+      const value: unknown = yield* Effect.tryPromise({ try: () => response.json(), catch: error => signal.aborted ? { kind: 'cancelled' } as const : { kind: 'protocol', message: String(error) } as const });
+      if (signal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
       return yield* Effect.try({ try: () => args.decode(value), catch: error => ({ kind: 'protocol', message: error instanceof Error ? error.message : 'Invalid host response' } as const) });
     }));
     return Effect.runPromise(Effect.match(operation, {
@@ -75,6 +80,7 @@ export function createHostClient(options: HostOptions): HostClient {
       decode: decodeOkResponse, signal,
     }),
     events: args => {
+      if (lifetime.signal.aborted || args.signal.aborted) return Promise.resolve({ kind: 'error', error: { kind: 'cancelled' } });
       const signal = AbortSignal.any([lifetime.signal, args.signal]);
       const operation = Effect.scoped(Effect.gen(function* () {
         const controller = yield* Effect.acquireRelease(
@@ -82,6 +88,7 @@ export function createHostClient(options: HostOptions): HostClient {
           controller => Effect.sync(() => { controller.abort(); }),
         );
         const eventSignal = AbortSignal.any([signal, controller.signal]);
+        if (eventSignal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
         return yield* Effect.tryPromise({
           try: async () => {
             const response = await fetchHost(`${base}/events?token=${encodeURIComponent(options.token)}`, {

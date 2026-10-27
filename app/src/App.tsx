@@ -107,6 +107,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
 }
 
 export default function App() {
+  const [sessionVersion, setSessionVersion] = useState(0);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -120,6 +121,7 @@ export default function App() {
         if (!connection) { setError("Open Aegis to connect to your local boards."); return; }
         client = createHostClient({ baseUrl: connection.base, token: connection.token });
         const listed = await client.boards(lifetime.signal);
+        if (lifetime.signal.aborted) return;
         if (listed.kind === "error") { setError(failureMessage(listed.error)); return; }
         const first = listed.value[0];
         const loaded = first ? await client.board(first.id, lifetime.signal) : await client.createBoard("First board", lifetime.signal);
@@ -133,7 +135,17 @@ export default function App() {
         if (!lifetime.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not open the board.");
       }
     })();
-    return () => { lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose(); };
-  }, []);
+    const dispose = (): void => { lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose(); };
+    const resume = (event: PageTransitionEvent): void => {
+      if (!event.persisted) return;
+      setRuntime(null);
+      setError(null);
+      setSessionVersion(version => version + 1);
+    };
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("beforeunload", dispose, { once: true });
+    window.addEventListener("pagehide", dispose, { once: true });
+    return () => { window.removeEventListener("pageshow", resume); window.removeEventListener("beforeunload", dispose); window.removeEventListener("pagehide", dispose); dispose(); };
+  }, [sessionVersion]);
   return <main className="react-app">{runtime ? <BoardView runtime={runtime} /> : <p className="react-connection" role="status">{error ?? "Opening your board"}</p>}{runtime && error ? <div id="toast" role="alert">{error}<button onClick={() => setError(null)}>Dismiss</button></div> : <div id="toast" />}</main>;
 }

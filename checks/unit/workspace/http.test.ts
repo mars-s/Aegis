@@ -1,9 +1,37 @@
 import { describe, expect, it } from 'vitest';
 import { BoardIdSchema, BatchIdSchema } from '@aegis/domain';
 import { createHostClient } from '@aegis/host-client';
-import { boardWith, noteId } from './helpers.js';
+import { boardWith, deferred, noteId } from './helpers.js';
 
 describe('Effect host boundary', () => {
+  it('does not start a host read after the client lifetime ends', async () => {
+    let reads = 0;
+    const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => { reads++; return new Response('[]'); } });
+    client.dispose();
+    expect(await client.boards()).toEqual({ kind: 'error', error: { kind: 'cancelled' } });
+    expect(reads).toBe(0);
+  });
+
+  it('reports cancellation while reading a response body as cancellation', async () => {
+    const started = deferred<void>();
+    const lifetime = new AbortController();
+    const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async (_input, init) => {
+      const body = new ReadableStream<Uint8Array>({ start: stream => {
+        const abort = () => stream.error(new DOMException('Aborted response', 'AbortError'));
+        if (init?.signal?.aborted) abort();
+        else init?.signal?.addEventListener('abort', abort, { once: true });
+      } });
+      started.resolve();
+      return new Response(body);
+    } });
+    try {
+      const response = client.boards(lifetime.signal);
+      await started.promise;
+      lifetime.abort();
+      expect(await response).toEqual({ kind: 'error', error: { kind: 'cancelled' } });
+    } finally { client.dispose(); }
+  });
+
   it('rejects malformed upload responses at the protocol boundary', async () => {
     for (const value of [{ url: 'https://external.example/file.csv', type: 'text/csv', size: 4 }, { url: `asset:${'a'.repeat(32)}.csv`, type: 'text/csv', size: -1 }]) {
       const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => new Response(JSON.stringify(value)) });
