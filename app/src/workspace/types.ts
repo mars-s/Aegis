@@ -58,3 +58,5 @@ export interface Workspace {
   readonly replaceBoard: (board: Board) => boolean;
   readonly dispose: () => void;
 }
+
+export type FeatureWorkspace = Omit<Workspace, 'replication' | 'dispose'>;

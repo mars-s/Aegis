@@ -36,6 +36,7 @@ import { BoardColours } from './features/colours/BoardColours.js';
 import { AppearanceColours } from './features/colours/AppearanceColours.js';
 import { DevicesPanel } from './features/media/DevicesPanel.js';
 import { drawingTool, placementTool } from './platform/creative-tools.js';
+import { Unsorted } from './platform/Unsorted.js';
 import { CreativeImports } from './platform/CreativeImports.js';
 import { createAvailableArea } from './platform/available-area.js';
 import { createEditorController } from './platform/editor-controller.js';
@@ -97,7 +98,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
       { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
       ...(['swatch', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const at = context.engine()?.screenToWorld({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 0, y: 0 }; context.workspace.submit([{ op: 'create', type, x: at.x, y: at.y }]); } })),
-    ], panels: [...base.panels, { id: 'colours', side: 'left', Body: BoardColours }] });
+    ], panels: [...base.panels,
+      { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
+      { id: 'draw', label: 'Drawing', side: 'left', Body: ({ context }) => <div className="creative-panel-tools">{(['ink', 'shape', 'path', 'stamp'] as const).map(kind => <button type="button" key={kind} onClick={() => draw(kind)(context)}>{kind === 'ink' ? 'Draw ink' : kind === 'shape' ? 'Shapes' : kind === 'path' ? 'Vector pen' : 'Emoji stamps'}</button>)}</div> },
+      { id: 'media-devices', label: 'Media devices', side: 'left', Body: DevicesPanel },
+      { id: 'wireframe', label: 'Wireframe', side: 'left', Body: () => <button type="button" onClick={() => setCreativeMode('wireframe')}>Open wireframe tools</button> },
+      { id: 'unsorted', label: 'Unsorted', side: 'left', Body: Unsorted },
+    ] });
   }, [client, workspace]);
   const controller = useMemo(() => createEditorController({ workspace, engine: () => engine.current, composition, cameraChanged: persistCamera }), [workspace, composition, persistCamera]);
   controllerRef.current = controller;

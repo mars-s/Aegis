@@ -1,7 +1,7 @@
 import type { Card, CardId, ObjectCard } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type { ComponentType } from "react";
-import type { Workspace } from "./workspace/index.js";
+import type { FeatureWorkspace } from "./workspace/index.js";
 import { creativeCards } from "./cards/creative/index.js";
 import { basicRegistrations } from "./cards/basic/index.js";
 import { objectRegistrations } from "./cards/objects/index.js";
@@ -16,7 +16,7 @@ import type { CardBodyProps } from "./canvas/CardPortals.js";
 export type { CardBodyProps } from "./canvas/CardPortals.js";
 
 export type CardBodyKind = Exclude<Card["type"], "object"> | `object:${ObjectCard["kind"]}`;
-export type FeatureWorkspace = Omit<Workspace, "replication" | "dispose">;
+export type { FeatureWorkspace } from "./workspace/index.js";
 export interface FeatureContext {
   readonly workspace: FeatureWorkspace;
   readonly engine: () => CanvasEngine | null;
@@ -35,6 +35,7 @@ export interface ActionRegistration {
 }
 export interface PanelRegistration {
   readonly id: string;
+  readonly label?: string;
   readonly side: "left" | "right";
   readonly Body: ComponentType<{ readonly context: FeatureContext }>;
 }

@@ -39,3 +39,8 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .library-undo { position: fixed; left: 24px; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); }
 
 .react-import-error { position: absolute; z-index: 30; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }
+
+.aegis-chrome .unsorted-list { display: grid; gap: 6px; overflow: auto; max-height: 42vh; }
+.aegis-chrome .unsorted-list .tray-item { text-align: left; overflow-wrap: anywhere; padding: 8px; border: 1px solid var(--line); }
+.aegis-chrome .unsorted-list .tray-item.dragging { opacity: .5; }
+.aegis-chrome .creative-panel-tools { display: flex; flex-wrap: wrap; gap: 4px; }

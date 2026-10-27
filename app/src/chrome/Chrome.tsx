@@ -588,7 +588,7 @@ export function Chrome({
                   <Panel
                     key={panel.id}
                     id={panel.id}
-                    label={panel.id}
+                    label={panel.label ?? panel.id}
                     layout={layout}
                     change={change}
                   >
@@ -625,7 +625,7 @@ export function Chrome({
         );
       const registered = composition.panels.find((panel) => panel.id === id);
       return registered ? (
-        <Panel key={id} id={id} label={id} layout={layout} change={change}>
+        <Panel key={id} id={id} label={registered.label ?? id} layout={layout} change={change}>
           <registered.Body context={context} />
         </Panel>
       ) : null;
