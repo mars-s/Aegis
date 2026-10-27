@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import react from '@vitejs/plugin-react';
+import { productionBrowser } from '../scripts/production-browser.ts';
 import { uiImplementation } from '../scripts/ui-implementation.ts';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +18,7 @@ const implementation = uiImplementation(process.env.AEGIS_UI_IMPL);
 // Relative asset paths: the same build loads from the app bundle, from the host's ui folder, or from a preview.
 export default defineConfig({
   plugins: [
+    productionBrowser(implementation),
     ...(implementation === 'react' ? [react()] : [svelte()]),
     pdfResources(),
     {

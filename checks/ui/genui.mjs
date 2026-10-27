@@ -49,6 +49,13 @@ try {
     }],
   });
   await vite.listen();
+  if (process.env.AEGIS_BROWSER_BUILD === 'production') await page.route(`http://127.0.0.1:${vitePort}/**`, async route => {
+    if (route.request().isNavigationRequest() && route.request().frame() === page.mainFrame()) {
+      const response = await route.fetch(), html = await response.text();
+      await route.fulfill({ response, body: html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${security.csp}"><script>window.__genuiParentInlineRan = true</script>`) });
+    } else await route.continue();
+  });
+
   const unknown = await fetch(`http://127.0.0.1:${port}/sandbox/${'0'.repeat(64)}`);
   assert.equal(unknown.status, 404, 'unknown sandbox IDs return 404 without a bearer token');
   const anonymousPost = await fetch(`http://127.0.0.1:${port}/sandbox`, { method: 'POST', body: '{}' });

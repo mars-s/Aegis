@@ -27,7 +27,7 @@ export function createUiSnapshot(repo: string, prefix: string): string {
   // Keep the agent workspace link resolvable without copying its runtime or data.
   mkdirSync(join(root, "agent"));
   cpSync(join(repo, "agent/package.json"), join(root, "agent/package.json"));
-  for (const name of ["src", "index.html", "package.json", "tsconfig.json", "tsconfig.react.json", "vite.config.ts", "svelte.config.js", "public", "node_modules"]) {
+  for (const name of ["src", ...(process.env.AEGIS_BROWSER_BUILD === "production" ? ["dist"] : []), "index.html", "package.json", "tsconfig.json", "tsconfig.react.json", "vite.config.ts", "svelte.config.js", "public", "node_modules"]) {
     const source = join(repo, "app", name);
     if (existsSync(source)) cpSync(source, join(app, name), { recursive: true, verbatimSymlinks: true });
   }

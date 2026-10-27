@@ -1,7 +1,8 @@
 // Throwaway run: real host (fake model, temp data) + the Svelte app on the Vite dev server, headless Chromium.
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
-import { spawn } from 'node:child_process';
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,6 +41,7 @@ try {
   await page.waitForTimeout(900);
   const counts = await page.evaluate(() => ({ objects: document.querySelectorAll('.card.object .object').length, svgBars: document.querySelectorAll('.card.object.kind-plot svg path').length, nodes: document.querySelectorAll('.diagram .node').length, rows: document.querySelectorAll('.sheet tbody tr').length }));
   log('rendered', JSON.stringify(counts));
+  assert.equal(counts.objects, 6); assert.ok(counts.svgBars > 0); assert.ok(counts.nodes > 0); assert.ok(counts.rows > 0);
   await page.screenshot({ path: out(`objects-${theme}.png`) });
   // Zoom to 1 on the chart and diagram for a closer look.
   await page.evaluate(() => { const ids = aegis.canvas.board.cards.filter(c => c.kind === 'plot' || c.kind === 'reply').map(c => c.id); aegis.canvas.frameIds(ids, 1); });
@@ -57,19 +59,32 @@ try {
   await page.screenshot({ path: out(`objects-${theme}-sheet.png`) });
   // Existing features still there.
   log('library rows', await page.locator('.tree-row').count(), 'layers rows', await page.locator('.layer-row').count(), 'tools', await page.locator('#tools [data-tool]').count());
-  // Live update: edit Reply.svelte on disk, check it lands without a reload and the board and camera stay.
-  const { readFileSync, writeFileSync } = await import('node:fs');
-  const file = repo + '/app/src/objects/kinds/Reply.svelte';
-  const original = readFileSync(file, 'utf8');
-  await page.evaluate(() => { window.__marker = 'still-here'; });
-  const viewBefore = await page.evaluate(() => JSON.stringify(aegis.canvas.view));
-  const t0 = Date.now();
-  writeFileSync(file, original.replace('font-weight: 650; line-height: 1.18;', 'font-weight: 650; line-height: 1.18; color: rgb(255, 0, 128);'));
-  try {
-    await page.waitForFunction(() => getComputedStyle(document.querySelector('.reply h2')).color === 'rgb(255, 0, 128)', null, { timeout: 10000 });
-    log('live edit landed in', Date.now() - t0, 'ms; no reload', await page.evaluate(() => window.__marker === 'still-here'), '; camera kept', viewBefore === await page.evaluate(() => JSON.stringify(aegis.canvas.view)), '; objects', await page.evaluate(() => document.querySelectorAll('.card.object .object').length));
-  } finally { writeFileSync(file, original); }
-  await page.waitForTimeout(800);
-} catch (e) { errors.push('script: ' + e.message); await page.screenshot({ path: out('objects-fail.png') }); }
+  if (process.env.AEGIS_BROWSER_BUILD !== 'production') {
+    const { readFileSync, writeFileSync } = await import('node:fs');
+    const react = process.env.AEGIS_UI_IMPL === 'react';
+    const file = repo + (react ? '/app/src/cards/objects/Reply.tsx' : '/app/src/objects/kinds/Reply.svelte');
+    const original = readFileSync(file, 'utf8');
+    const anchor = react ? '<h2>{data.headline}</h2>' : 'font-weight: 650; line-height: 1.18;';
+    const replacement = react ? '<h2 style={{ color: "rgb(255, 0, 128)" }}>{data.headline}</h2>' : anchor + ' color: rgb(255, 0, 128);';
+    assert.ok(original.includes(anchor), 'live source anchor exists');
+    await page.evaluate(() => { window.__marker = 'still-here'; });
+    const before = await page.evaluate(() => ({ board: aegis.canvas.board.id, selection: aegis.canvas.selection(), view: aegis.canvas.view }));
+    writeFileSync(file, original.replace(anchor, replacement));
+    try {
+      await page.waitForFunction(() => getComputedStyle(document.querySelector('.reply h2')).color === 'rgb(255, 0, 128)', null, { timeout: 10000 });
+      assert.equal(await page.evaluate(() => window.__marker), 'still-here', 'live update does not reload');
+      assert.deepEqual(await page.evaluate(() => ({ board: aegis.canvas.board.id, selection: aegis.canvas.selection(), view: aegis.canvas.view })), before, 'live update retains board, selection and exact camera');
+      assert.equal(await page.locator('.card.object .object').count(), 6);
+    } finally { writeFileSync(file, original); }
+    await page.waitForTimeout(800);
+  }
+
+} catch (e) { process.exitCode = 1; errors.push('script: ' + e.stack); await page.screenshot({ path: out('objects-fail.png') }); }
 console.log(errors.length ? 'ERRORS\n' + errors.join('\n') : 'no page errors');
 await b.close(); host.kill(); vite.kill();
+
+assert.deepEqual(errors, [], 'object interactions and live update are error-free');
+if (process.env.AEGIS_BROWSER_BUILD === 'production') {
+  const result = spawnSync(process.execPath, [new URL(import.meta.url).pathname, theme], { stdio: 'inherit', env: { ...process.env, AEGIS_BROWSER_BUILD: 'development', AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-hmr-data-')), AEGIS_VITE_CACHE: mkdtempSync(join(tmpdir(), 'aegis-hmr-cache-')) } });
+  assert.equal(result.status, 0, 'development hot replacement leg');
+}
