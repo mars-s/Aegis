@@ -42,6 +42,19 @@ try {
     server: { port: vitePort, strictPort: true, host: '127.0.0.1', fs: { allow: [repo + '/app', realpathSync(repo + '/app/node_modules')] } },
     plugins: [{
       name: 'item-12-parent-csp-check',
+      enforce: 'pre',
+      configureServer(server) {
+        if (process.env.AEGIS_BROWSER_BUILD !== 'production') return;
+        // Serve the policy over the real loopback connection. Intercepting the
+        // navigation with route.fulfill loses Chromium's local address space.
+        server.middlewares.use((request, response, next) => {
+          if (new URL(request.url || '/', 'http://localhost').pathname !== '/') return next();
+          const html = readFileSync(repo + '/app/dist/index.html', 'utf8');
+          response.setHeader('Content-Type', 'text/html');
+          response.setHeader('X-Aegis-Build', `${process.env.AEGIS_UI_IMPL || 'legacy'}:production`);
+          response.end(html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${security.csp}"><script>window.__genuiParentInlineRan = true</script>`));
+        });
+      },
       transformIndexHtml: {
         order: 'post',
         handler: html => html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${security.csp}"><script>window.__genuiParentInlineRan = true</script>`),
@@ -49,12 +62,7 @@ try {
     }],
   });
   await vite.listen();
-  if (process.env.AEGIS_BROWSER_BUILD === 'production') await page.route(`http://127.0.0.1:${vitePort}/**`, async route => {
-    if (route.request().isNavigationRequest() && route.request().frame() === page.mainFrame()) {
-      const response = await route.fetch(), html = await response.text();
-      await route.fulfill({ response, body: html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${security.csp}"><script>window.__genuiParentInlineRan = true</script>`) });
-    } else await route.continue();
-  });
+
 
   const unknown = await fetch(`http://127.0.0.1:${port}/sandbox/${'0'.repeat(64)}`);
   assert.equal(unknown.status, 404, 'unknown sandbox IDs return 404 without a bearer token');
