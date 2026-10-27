@@ -32,7 +32,7 @@ export class CanvasPainter {
     this.drawGrid(camera);
     const ctx = this.ink;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, this.width, this.height);
-    ctx.lineWidth = 1; ctx.font = '12px Inter, sans-serif';
+    ctx.lineWidth = 1;
     for (const { link, route } of links) {
       const { p0, p2, control } = route;
       ctx.strokeStyle = link.colour || 'rgb(255 255 255 / .16)'; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.5;
@@ -44,6 +44,7 @@ export class CanvasPainter {
       if (link.arrow === 'end' || link.arrow === 'both') this.arrow(p2, route.points.at(-2) ?? control);
       if (link.arrow === 'both') this.arrow(p0, route.points[1] ?? control);
       if (link.label && camera.zoom >= 0.12) {
+        ctx.font = '12px Inter, sans-serif';
         ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.strokeText(link.label, route.label.x, route.label.y - 12 * Math.min(1, camera.zoom));
         ctx.fillStyle = '#b5b5bd'; ctx.fillText(link.label, route.label.x, route.label.y - 12 * Math.min(1, camera.zoom)); ctx.lineWidth = 1;
       }
