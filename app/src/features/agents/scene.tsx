@@ -24,11 +24,12 @@ interface WindowBinding {
   readonly agent: AgentSnapshot;
   readonly element: HTMLElement;
   readonly edge: HTMLButtonElement;
+  readonly reveal: () => void;
   x: number; y: number; height: number; collapsed: boolean; closed: boolean; placed: boolean; dirty: boolean; manuallyMoved: boolean;
   screenX: number; screenY: number; offscreen: boolean;
 }
 export interface AgentScene {
-  readonly bind: (agent: AgentSnapshot, element: HTMLElement, edge: HTMLButtonElement) => () => void;
+  readonly bind: (agent: AgentSnapshot, element: HTMLElement, edge: HTMLButtonElement, reveal: () => void) => () => void;
   readonly collapsed: (id: AgentId, collapsed: boolean) => void;
   readonly closed: (id: AgentId, closed: boolean) => void;
   readonly drag: (id: AgentId, dx: number, dy: number, start: boolean, end: boolean) => void;
@@ -146,9 +147,9 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
     if (keyboard) w.element.querySelector<HTMLButtonElement>('.agent-window-toggle')?.focus({ preventScroll: true });
   };
   return {
-    bind(agent, element, edge) {
+    bind(agent, element, edge, reveal) {
       const saved = savedAgentWindow(agent.id);
-      const w: WindowBinding = { agent, element, edge, x: saved?.x ?? 0, y: saved?.y ?? 0, height: COLLAPSED_HEIGHT, collapsed: saved?.collapsed ?? true, closed: saved?.closed ?? false, placed: !!saved, dirty: true, manuallyMoved: !!saved, screenX: 0, screenY: 0, offscreen: false };
+      const w: WindowBinding = { agent, element, edge, reveal, x: saved?.x ?? 0, y: saved?.y ?? 0, height: COLLAPSED_HEIGHT, collapsed: saved?.collapsed ?? true, closed: saved?.closed ?? false, placed: !!saved, dirty: true, manuallyMoved: !!saved, screenX: 0, screenY: 0, offscreen: false };
       windows.set(agent.id, w);
       const observer = new ResizeObserver(() => { w.dirty = true; schedule.invalidate(); }); observer.observe(element); schedule.invalidate();
       return () => { observer.disconnect(); windows.delete(agent.id); schedule.invalidate(); };
@@ -164,7 +165,7 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
       if (end) { dragOrigins.delete(id); w.dirty = true; save(id, w); }
       schedule.invalidate();
     },
-    recover, show(id) { const w = windows.get(id); if (w) { w.closed = false; w.collapsed = false; w.dirty = true; save(id, w); schedule.invalidate(); recover(id, true); } },
+    recover, show(id) { const w = windows.get(id); if (w) { w.closed = false; w.collapsed = false; w.dirty = true; w.reveal(); save(id, w); schedule.invalidate(); recover(id, true); } },
     near(id, ids) {
       const w = windows.get(id), target = context.workspace.scene.snapshot().cards.find(card => ids.includes(card.id));
       if (w && target && !w.manuallyMoved) { w.x = target.x - WINDOW_WIDTH / camera.zoom - 24; w.y = target.y; w.placed = true; w.dirty = true; schedule.invalidate(); }

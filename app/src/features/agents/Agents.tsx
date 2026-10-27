@@ -31,7 +31,6 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const [phase, setPhase] = useState<Phase>('idle');
   const [prompt, setPrompt] = useState('');
-  const [shown, setShown] = useState<{ id: AgentId; serial: number } | null>(null);
   const [resolved, setResolved] = useState(false);
   const island = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null), orb = useRef<HTMLButtonElement>(null);
   const morph = useRef<ReturnType<typeof createMorph> | null>(null);
@@ -153,11 +152,11 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   }, [state.pinned]);
   const cards = runtime.workspace.scene.snapshot().cards.filter(card => state.pinned.includes(card.id));
   const names = cards.map(card => (card.heading || card.text || (card.type === 'object' ? card.kind : card.type) || 'Window').split('\n')[0]?.trim().slice(0, 40) || 'Window');
-  const show = (id: AgentId): void => { runtime.select(id); setShown(previous => ({ id, serial: (previous?.serial ?? 0) + 1 })); };
+  const show = (id: AgentId): void => { runtime.select(id); scene.show(id); };
   return <div className="aegis-agents aegis-feature" onKeyDown={event => {
     if (!event.metaKey && !event.ctrlKey && !event.altKey && ['Enter', ' ', 'Home', 'End', 'ArrowUp', 'ArrowDown'].includes(event.key) && event.target instanceof Element && event.target.closest('button')) event.stopPropagation();
   }}>
-    <AgentWindows runtime={runtime} scene={scene} shown={shown} />
+    <AgentWindows runtime={runtime} scene={scene} />
     <AgentDrafts runtime={runtime} scene={scene} />
     <div ref={island} id="agentIsland" className={`agent-island${agent?.running ? ' working' : ''}${agent?.error ? ' failed' : ''}${phase === 'done' && result ? ' has-result' : ''}`} data-state={phase}
       onPointerEnter={event => { hint.dismiss(); if (leave.current) clearTimeout(leave.current); if (!suppressHover.current && event.pointerType !== 'touch' && matchMedia('(hover: hover) and (pointer: fine)').matches && phase === 'idle') change('hover', false); }}

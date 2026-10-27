@@ -10,7 +10,7 @@ import { savedAgentWindow } from './scene.js';
 import type { AgentScene } from './scene.js';
 import type { EdgeSide } from './geometry.js';
 
-export function AgentWindows({ runtime, scene, shown }: { readonly runtime: AgentRuntime; readonly scene: AgentScene; readonly shown: { readonly id: AgentId; readonly serial: number } | null }) {
+export function AgentWindows({ runtime, scene }: { readonly runtime: AgentRuntime; readonly scene: AgentScene }) {
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const [identity, setIdentity] = useState<AgentId | null>(null);
   const tip = useRef<HTMLDivElement>(null);
@@ -24,11 +24,11 @@ export function AgentWindows({ runtime, scene, shown }: { readonly runtime: Agen
     onPointerOut={event => { const window = event.target instanceof Element ? event.target.closest('.agent-window') : null; if (window && !(event.relatedTarget instanceof Node && window.contains(event.relatedTarget)) && !window.contains(document.activeElement)) setIdentity(null); }}
     onBlur={event => { const window = event.target instanceof Element ? event.target.closest('.agent-window') : null; if (!(event.relatedTarget instanceof Node && window?.contains(event.relatedTarget))) setIdentity(null); }}
     onClick={() => setIdentity(null)} onKeyDown={event => { if (event.key === 'Escape' && identity) { event.preventDefault(); event.stopPropagation(); setIdentity(null); } }}>
-    {state.agents.map(agent => <AgentWindow key={agent.id} agent={agent} agents={state.agents} runtime={runtime} scene={scene} shown={shown} />)}</div><EdgeClusters runtime={runtime} scene={scene} />
+    {state.agents.map(agent => <AgentWindow key={agent.id} agent={agent} agents={state.agents} runtime={runtime} scene={scene} />)}</div><EdgeClusters runtime={runtime} scene={scene} />
     {who ? <div ref={tip} id="agentIdentity" className="agent-identity" role="tooltip" style={{ visibility: 'hidden' }}><p>{agentName(who, state.agents)} · {shortTitle(who)}</p><p>{who.error || who.status || 'Ready'}</p></div> : null}
   </>;
 }
-function AgentWindow({ agent, agents, runtime, scene, shown }: { readonly agent: AgentSnapshot; readonly agents: readonly AgentSnapshot[]; readonly runtime: AgentRuntime; readonly scene: AgentScene; readonly shown: { readonly id: AgentId; readonly serial: number } | null }) {
+function AgentWindow({ agent, agents, runtime, scene }: { readonly agent: AgentSnapshot; readonly agents: readonly AgentSnapshot[]; readonly runtime: AgentRuntime; readonly scene: AgentScene }) {
   const [position] = useState(() => savedAgentWindow(agent.id));
   const [collapsed, setCollapsed] = useState(position?.collapsed ?? true);
   const [closed, setClosed] = useState(position?.closed ?? false);
@@ -49,12 +49,8 @@ function AgentWindow({ agent, agents, runtime, scene, shown }: { readonly agent:
   }, [agent.running, agent.error, resolved]);
   useLayoutEffect(() => {
     const element = windowRef.current, edge = edgeRef.current;
-    if (element && edge) return scene.bind(initialAgent.current, element, edge);
+    if (element && edge) return scene.bind(initialAgent.current, element, edge, () => { setClosed(false); setCollapsed(false); });
   }, [scene]);
-  useEffect(() => {
-    if (shown?.id !== agent.id) return;
-    setClosed(false); setCollapsed(false); scene.closed(agent.id, false); scene.collapsed(agent.id, false); scene.show(agent.id);
-  }, [agent.id, scene, shown]);
   const collapse = (value: boolean): void => { setCollapsed(value); scene.collapsed(agent.id, value); };
   const name = `${agentName(agent, agents)} · ${shortTitle(agent)}`;
   return <>
