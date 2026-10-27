@@ -1,3 +1,4 @@
+import { assertCameraScale } from './static-geometry.mjs';
 // Production browser checks, isolated host data and no real model providers.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -119,6 +120,7 @@ try {
         await page.getByLabel('Format selection', { exact: true }).click();
         const format = page.getByRole('dialog', { name: 'Format selection controls', exact: true });
         await inspect('format-menu', format); await shot('format-menu'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+        await assertCameraScale(page, [ids.doc, ids.sheet]);
         await open(ids.doc); assert.equal(await count(), expectedCount);
         assert.ok((await page.locator('.editor-context-source').textContent()).includes(expectedCount));
         await inspect('editor-header', page.locator('.side-editor-head')); await inspect('document-ribbon', page.locator('.docs-ribbon')); await inspect('document-footer', page.locator('.docs-footer')); await shot('document-before-save');

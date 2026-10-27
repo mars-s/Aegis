@@ -180,7 +180,7 @@ try {
         }, group);
         for (const type of group) {
           await card(`atlas${type.replaceAll('-', '').slice(0, 11)}`).waitFor(); await select(`atlas${type.replaceAll('-', '').slice(0, 11)}`);
-          assert.equal(await page.evaluate(id => aegis.canvas.representations.get(id)?.summary, `atlas${type.replaceAll('-', '').slice(0, 11)}`), false, `${type} is shown in detail`);
+          assert.equal(await page.evaluate(id => aegis.canvas.mountedEl(id)?.inert, `atlas${type.replaceAll('-', '').slice(0, 11)}`), false, `${type} is shown in detail`);
           assert.equal(await page.locator('.selection-resize:not([hidden])').count(), 1, `${type} has a selection resize target`);
           assert.ok(await card(`atlas${type.replaceAll('-', '').slice(0, 11)}`).locator('.resize').count() <= 1, `${type} has no duplicate card resize targets`);
           assert.equal(await page.locator('[data-connect-card]').count(), 0);

@@ -18,12 +18,11 @@ export function selectionPosition(canvas, bar, outline) {
     const project = c => { const p = canvas.worldToScreen(c.x, c.y), q = canvas.worldToScreen(c.x + c.w, c.y + c.h); return { left: p.x, top: p.y, right: q.x, bottom: q.y }; };
     const rects = current.map(c => canvas.representationRect(c.id)).filter(r => r?.width);
     const boxes = rects.length === current.length ? rects : current.map(project);
-    const summary = rects.some(r => r.summary);
     const p = { x: Math.min(...boxes.map(r => r.left)), y: Math.min(...boxes.map(r => r.top)) }, q = { x: Math.max(...boxes.map(r => r.right)), y: Math.max(...boxes.map(r => r.bottom)) };
     const phone = innerWidth <= 700 || document.body.classList.contains('phone');
     const width = Math.min(barWidth, innerWidth - 24), left = Math.max(12, Math.min(innerWidth - width - 12, (p.x + q.x - width) / 2));
-    const hasRotation = !summary && !locked && !current.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type));
-    const gap = summary ? 64 : hasRotation ? 40 : 10;
+    const hasRotation = !locked && !current.some(c => ['frame', 'section', 'coll', 'ink'].includes(c.type));
+    const gap = hasRotation ? 40 : 10;
     const above = p.y - barHeight - gap, below = q.y + 12;
     const top = phone ? hubTop - barHeight - 10 : Math.max(8, Math.min(innerHeight - barHeight - 12, above >= 8 ? above : below));
     const selectionBox = { left: p.x - 10, right: q.x + 10, top: p.y - 10, bottom: q.y + 10 };
@@ -49,9 +48,8 @@ export function selectionPosition(canvas, bar, outline) {
     const blocked = stripBoxes.map(r => nearby.some(n => n.z > selectedZ && intersects(n.r, r)));
     // All geometry reads finish before these writes.
     Object.assign(outline.style, { left: `${p.x}px`, top: `${p.y}px`, width: `${q.x - p.x}px`, height: `${q.y - p.y}px` });
-    outline.classList.toggle('summary', summary);
-    strips.forEach((strip, i) => { strip.style.pointerEvents = blocked[i] ? 'none' : ''; strip.hidden = locked || summary; });
-    rotation.hidden = !hasRotation; resize.hidden = locked || summary;
+    strips.forEach((strip, i) => { strip.style.pointerEvents = blocked[i] ? 'none' : ''; strip.hidden = locked; });
+    rotation.hidden = !hasRotation; resize.hidden = locked;
     Object.assign(bar.style, { left: `${phone ? 10 : left}px`, top: `${top}px` }); bar.classList.toggle('docked', phone);
   }
   function schedule() { if (current.length) canvas.redraw(); }

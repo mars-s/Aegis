@@ -78,3 +78,5 @@ body.motion-off .object-editor.is-open { transition-duration: 160ms; }
 .genui .generated-text.multiline { display: grid; }
 .genui .text-edit-hint { display: none; margin-top: 8px; color: var(--muted); font: 400 12px/1.5 var(--font); letter-spacing: normal; text-align: left; white-space: normal; overflow-wrap: anywhere; }
 .genui .generated-text:has(> .inline-value.editing) > .text-edit-hint { display: block; }
+
+.card.kind-sheet .sheet :is(.note, .rating .of) { font-size: 12px; }

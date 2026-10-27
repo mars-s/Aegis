@@ -161,9 +161,8 @@ try {
   await verifyAsset(key.props.import.original, 'application/vnd.apple.keynote', 'two-previews.key');
   await screenshots('keynote', key.id);
   assert.match(await page.locator(`.card[data-id="${key.id}"] .deck-source`).getAttribute('href'), /\/assets\/.*\.key$/);
-  // Detail links live in the detail tier; below it the card is a semantic summary.
   await page.evaluate(id => { const c = aegis.canvas.board.cards.find(c => c.id === id); aegis.canvas.setView({ x: 80 - c.x, y: 80 - c.y, z: 1 }); }, key.id);
-  await page.waitForFunction(() => document.getElementById('stage').dataset.zoomTier === 'detail');
+  await page.waitForFunction(() => aegis.canvas.view.z === 1);
   const downloadEvent = page.waitForEvent('download');
   await page.locator(`.card[data-id="${key.id}"] .deck-source`).click();
   const originalDownload = await downloadEvent;

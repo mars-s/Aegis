@@ -93,7 +93,7 @@ try {
         const a = result.windows[i]; assert.ok(a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top, `${name}: summaries do not overlap`);
       }
       assert.ok(result.originals.every(v => ['hidden', 'unmounted'].includes(v)), 'full source duplicates are absent');
-      assert.equal(await page.locator('.semantic-summaries').evaluate(el => getComputedStyle(el).visibility), 'hidden', 'unchosen summaries cannot crowd the reference area');
+      assert.equal(await page.locator('.semantic-summaries, .board-overview').count(), 0, 'adaptive overlays cannot crowd the reference area');
       assert.ok(await page.locator('#world > .card').evaluateAll(cards => cards.every(el => getComputedStyle(el).visibility === 'hidden')), 'the compact reference area has no overlapping full windows');
       metrics.push({ engine: engineName, name, ...result }); await shot(name);
     }

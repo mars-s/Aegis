@@ -8,17 +8,13 @@ import { mountTouch } from '../features/mobile/touch.js';
 import { displayRotation, preference } from '../features/settings/preferences.js';
 // R4 orientation: names stay in screen space and reuse visible-card culling.
 import { createOrientation } from './orientation.js';
-import { zoomTier, summarisedCard, cardTier } from '../features/overview/zoom.js';
-
-import { spatialLayout, fitSpatial, projectCard, displayedCard } from '../features/overview/spatial.js';
-import { routeSummaryLink } from './link-routing.js';
+import { MIN_Z, MAX_Z, projectCard, cardBounds, fitView } from './geometry.js';
 
 const MARGIN = 400;          // px of world kept mounted beyond the viewport
 const FAR = 0.4;             // below this zoom a crowded view may switch to drawn shapes
 // Far out, real cards keep showing (with their content) while few enough are on screen. Only a crowded far
 // view swaps to canvas-drawn shapes, so a 5,000 card board stays smooth while a normal board never goes blank.
 const LIVE_LIMIT = 400;
-const MIN_Z = 0.05, MAX_Z = 4;
 const WINDOWS = new Set(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'slides', 'canvas', 'font']);
 
 // Card renderers from feature modules: type -> { render(el, card, api), drop?(el), interactive?: css selector }.
@@ -58,7 +54,6 @@ export function registerDragHandler(id, handler) { DRAG_HANDLERS.set(id, handler
 export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSelect, onOpenUrl, onPlace, onOpenCard, onContext, pointerTool, resolveUrl = u => u, renderObject, dropObject }) {
   let board = null;
   let view = { x: 0, y: 0, z: 1 };
-  let representations = new Map();
   let viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
   // PM5.6: omitted names use the same camera framing as Windows rows.
   const orientation = createOrientation(stage, () => view, () => schedule(), (id, keyboard) => frameIds([id], 1, false, keyboard));
@@ -80,11 +75,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   let focusedId = null;
   const windowActions = mountWindowActions({ stage, getSelection: () => [...selected], mountedEl: id => mounted.get(id)?.el, getZoom: () => view.z, representationRect });
   function representationRect(id) {
-    const rect = representations.get(id);
-    if (!rect || stage.dataset.zoomTier === 'cluster') return null;
-    if (!rect.summary && mounted.has(id)) return mounted.get(id).el.getBoundingClientRect();
-    const origin = stage.getBoundingClientRect();
-    return { left: origin.left + rect.x, top: origin.top + rect.y, right: origin.left + rect.x + rect.w, bottom: origin.top + rect.y + rect.h, width: rect.w, height: rect.h, summary: rect.summary };
+    const card = board?.cards.find(c => c.id === id);
+    if (!card || effectiveFlag(board, card, 'hidden')) return null;
+    if (mounted.has(id)) return mounted.get(id).el.getBoundingClientRect();
+    const rect = projectCard(cardBounds(card, displayRotation(card)), view), origin = stage.getBoundingClientRect();
+    return { left: origin.left + rect.x, top: origin.top + rect.y, right: origin.left + rect.x + rect.w, bottom: origin.top + rect.y + rect.h, width: rect.w, height: rect.h };
   }
   // PM 7: the editor owns its source marker independently of canvas selection.
   let editorSource = null;
@@ -194,10 +189,6 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
   function paint() {
     frame = 0;
     viewportSize = { width: stage.clientWidth, height: stage.clientHeight };
-    const tier = zoomTier(view.z, stage.dataset.zoomTier);
-    if (stage.dataset.zoomTier !== tier) stage.dataset.zoomTier = tier;
-    if (board) representations = spatialLayout(board.cards.filter(c => !effectiveFlag(board, c, 'hidden')), view, tier, frameArea(), agentBounds().map(c => projectCard(c, view)), representations);
-    stage.toggleAttribute('data-has-summaries', [...representations.values()].some(r => r.summary));
     const crisp = localStorage.getItem('aegis:crisp') === 'on' && view.z > 1.02;
     if (!crisp || Number(world.style.zoom) !== view.z) { world.style.zoom = ''; world.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.z})`; }
     else world.style.transform = `translate(${view.x / view.z}px, ${view.y / view.z}px)`;
@@ -249,6 +240,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (orientation.active) orientation.consider(c);
       const x = c.x * z + view.x, y = c.y * z + view.y, w = c.w * z, h = (c.type === 'title' ? 56 : c.h) * z;
       if (c.type === 'title') { ctx.fillStyle = text; ctx.fillRect(x, y + h * 0.3, Math.min(w, (c.text.length || 4) * 14 * z), Math.max(2, h * 0.4)); continue; }
+      const rotation = displayRotation(c) * Math.PI / 180;
+      if (rotation) { ctx.save(); ctx.translate(x + w / 2, y + h / 2); ctx.rotate(rotation); ctx.translate(-x - w / 2, -y - h / 2); }
       ctx.fillStyle = /^#[0-9a-f]{6}$/i.test(c.color || '') ? c.color : fills[c.color] || fills.plain;
       const rounded = w > 24 && h > 12;
       if (rounded) { ctx.beginPath(); ctx.roundRect(x, y, w, h, Math.min(8 * z, h / 2)); ctx.fill(); }
@@ -259,6 +252,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       // PM 7: crowded far views keep the source marker quiet too.
       if (selected.has(c.id) || c.id === editorSource) { ctx.strokeStyle = css.getPropertyValue(c.id === editorSource ? '--data' : '--focus'); ctx.lineWidth = c.id === editorSource ? 1 : 1.5; ctx.strokeRect(x, y, w, h); ctx.lineWidth = 1; }
       // end PM 7
+      if (rotation) ctx.restore();
     }
   }
 
@@ -322,10 +316,6 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (m.geo !== geo) { place(m.el, c); m.geo = geo; }
       if (m.z !== z) { m.el.style.zIndex = z; m.el.style.setProperty('--card-order', z); m.z = z; }
       const el = m.el;
-      const summary = tierIsSummary(c);
-      if (el.inert !== summary) el.inert = summary;
-      el.classList.toggle('semantic-detail', summarisedCard(c));
-      el.classList.toggle('semantic-hidden', summary);
       el.classList.toggle('selected', selected.has(c.id));
       // PM 7: preserve the marker across virtual mounts and saved content renders.
       el.classList.toggle('editor-source', c.id === editorSource);
@@ -335,7 +325,6 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     });
     for (const [id, m] of mounted) if (!keep.has(id)) { if (m.el.contains(document.activeElement)) continue; removeEl(m.el); mounted.delete(id); }
   }
-  function tierIsSummary(card) { return summarisedCard(card) && cardTier(card, view.z, representations.get(card.id)?.summary ? 'summary' : 'detail', stage.dataset.zoomTier) !== 'detail'; }
   const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
   const signature = c => JSON.stringify([c.type, c.text, c.heading, c.badge, c.color, c.items, c.url, c.kind, c.ver, c.type === 'object' ? c.data : null, c.props, c.rot, c.parent]);
   const objectAppearance = c => c.type === 'object' ? JSON.stringify([c.color, c.props, c.parent]) : null;
@@ -451,23 +440,17 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const parts = [], by = new Map(board.cards.map(c => [c.id, c]));
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const screen = p => ({ x: p.x * view.z + view.x, y: p.y * view.z + view.y });
-    const obstacles = [...representations.values()].filter(r => r.x + r.w >= 0 && r.y + r.h >= 0 && r.x <= viewportSize.width && r.y <= viewportSize.height);
     for (const l of board.links) {
       const a = by.get(l.a), b = by.get(l.b); if (!a || !b || effectiveFlag(board, a, 'hidden') || effectiveFlag(board, b, 'hidden')) continue;
-      const ra = representations.get(a.id), rb = representations.get(b.id), summary = ra?.summary || rb?.summary;
-      if (stage.dataset.zoomTier === 'cluster') continue;
-      const geometry = summary ? linkGeometry({ ...l, bend: (l.bend ?? 0) * view.z }, displayedCard(a, ra, displayRotation(a)), displayedCard(b, rb, displayRotation(b)), c => c.rot) : linkGeometry(l, a, b);
-      const g = summary ? geometry : Object.fromEntries(Object.entries(geometry).map(([key, value]) => [key, screen(value)]));
-      const p = g.p0, q = g.p2, c = g.control;
-      const route = summary ? routeSummaryLink(p, q, ra, rb, obstacles) : null;
-      const h = route?.label || g.handle;
-      const d = route?.d || `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;
-      const colour = !summary && /^#[0-9a-f]{6}$/i.test(l.colour ?? '') ? l.colour : 'var(--line-strong)';
-      parts.push(`<path class="link-line" data-link-line="${esc(l.id)}" d="${d}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"${l.dash ? ' stroke-dasharray="8 6"' : ''}/>`);
-      const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour};stroke-width:${summary ? 1 : 1.5}"/>`; };
-      if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, route?.endFrom || c));
-      if (l.arrow === 'both') parts.push(arrow(p, route?.startFrom || c));
-      parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:${summary ? 'none' : 'stroke'}"/>`);
+      const g = Object.fromEntries(Object.entries(linkGeometry(l, a, b)).map(([key, value]) => [key, screen(value)]));
+      const p = g.p0, q = g.p2, c = g.control, h = g.handle;
+      const d = `M${p.x} ${p.y} Q${c.x} ${c.y} ${q.x} ${q.y}`;
+      const colour = /^#[0-9a-f]{6}$/i.test(l.colour ?? '') ? l.colour : 'var(--line-strong)';
+      parts.push(`<path class="link-line" data-link-line="${esc(l.id)}" d="${d}" style="stroke:${colour};stroke-width:1.5"${l.dash ? ' stroke-dasharray="8 6"' : ''}/>`);
+      const arrow = (tip, from) => { const dx = tip.x - from.x, dy = tip.y - from.y, len = Math.hypot(dx, dy) || 1, x = dx / len, y = dy / len; return `<path d="M${tip.x - x * 11 - y * 5} ${tip.y - y * 11 + x * 5} L${tip.x} ${tip.y} L${tip.x - x * 11 + y * 5} ${tip.y - y * 11 - x * 5}" style="stroke:${colour};stroke-width:1.5"/>`; };
+      if (l.arrow === 'end' || l.arrow === 'both' || l.arrow === true) parts.push(arrow(q, c));
+      if (l.arrow === 'both') parts.push(arrow(p, c));
+      parts.push(`<path class="link-hit" data-link="${esc(l.id)}" d="${d}" style="stroke:transparent;stroke-width:16;pointer-events:stroke"/>`);
       if (l.label && view.z >= 0.12) { const size = 12; parts.push(`<text class="link-label" x="${h.x}" y="${h.y - 12 * Math.min(1, view.z)}" text-anchor="middle" style="font-size:${size.toFixed(1)}px;stroke-width:${(5 * Math.min(1, view.z)).toFixed(1)}px">${esc(l.label)}</text>`); }
     }
     links.innerHTML = parts.join('');
@@ -480,13 +463,6 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     mounted.get(focusedId)?.el.classList.remove('window-focus');
     focusedId = id;
     mounted.get(id)?.el.classList.add('window-focus');
-  }
-  function selectCard(id, modifiers, replace = false) {
-    const extend = modifiers.shiftKey || modifiers.metaKey || modifiers.ctrlKey;
-    if (extend) selected.has(id) ? selected.delete(id) : selected.add(id);
-    else if (replace || !selected.has(id)) { selected.clear(); selected.add(id); }
-    focusCard([...selected].at(-1));
-    return extend;
   }
   stage.addEventListener('pointerdown', e => {
     cancelAnimationFrame(anim); anim = 0;
@@ -697,9 +673,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
 
   function frameIds(ids, maxZ = 1, includeAgents = false, instant = false) {
     const agents = includeAgents ? agentBounds().map((c, i) => ({ ...c, id: `agent-fit-${i}`, screenSize: { w: c.w * view.z, h: c.h * view.z } })) : [];
-    const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')), ...agents]; if (!cards.length) return;
+    const cards = [...board.cards.filter(c => ids.includes(c.id) && !effectiveFlag(board, c, 'hidden')).map(c => cardBounds(c, displayRotation(c))), ...agents]; if (!cards.length) return;
     const area = frameArea();
-    const target = fitSpatial(cards, area, maxZ);
+    const target = fitView(cards, area, maxZ);
     glideTo(target, instant ? 0 : 420);
   }
 
@@ -788,24 +764,8 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     setFocus(ids) { focusIds = ids ? new Set(ids) : null; if (ids?.length) focusCard(ids.at(-1)); schedule(); },
     get view() { return view; },
     get viewportSize() { return viewportSize; },
-    get representations() { return representations; },
     representationRect,
     get availableArea() { return frameArea(); },
-    activateSummary(id, instant = false, modifiers = {}) {
-      if (stage.classList.contains('connecting')) return;
-      const extend = selectCard(id, modifiers, true); onSelect?.([...selected]); schedule();
-      if (extend) return;
-      frameIds([id], 1, false, instant);
-      const focus = () => requestAnimationFrame(() => {
-        windowActions.redraw();
-        const action = stage.querySelector(`.window-actions:not([hidden]) [data-window-action="${id}"]`);
-        const card = mounted.get(id)?.el;
-        if (action) action.focus({ preventScroll: true });
-        else if (card) { card.tabIndex = 0; card.focus({ preventScroll: true }); }
-      });
-      if (instant || reduced.matches || preference("motion", "on") === "off") focus();
-      else setTimeout(focus, 440);
-    },
     selection: () => [...selected],
     frameIds, glow, fit, setTool,
     // PM 7: shared editor open and close hook.
