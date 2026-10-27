@@ -1,3 +1,4 @@
+import { verifyStartupBoard } from './startup-board.mjs';
 import { checkChrome } from './chrome.mjs';
 import { waitForAsync } from './poll.mjs';
 import { checkRefineSettings } from './refine-settings.mjs';
@@ -269,3 +270,5 @@ try {
 } catch (error) {
   console.error(error); console.error('page errors', errors); process.exitCode = 1; await shot('failure');
 } finally { await browser.close(); host.kill(); vite.kill(); }
+
+if (!process.exitCode && process.env.AEGIS_UI_IMPL === 'react') await verifyStartupBoard();

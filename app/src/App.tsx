@@ -298,6 +298,7 @@ export default function App() {
         const loaded = first ? await client.board(first.id, lifetime.signal) : await client.createBoard("First board", lifetime.signal);
         if (lifetime.signal.aborted) return;
         if (loaded.kind === "error") { setError(failureMessage(loaded.error)); return; }
+        localStorage.setItem('aegis:board', loaded.value.id);
         const workspace = createWorkspace({ board: loaded.value });
         if (retainedSelection.current?.boardId === loaded.value.id) workspace.act({ kind: 'select', ids: retainedSelection.current.ids.filter(id => loaded.value.cards.some(card => card.id === id)) });
         const replication = connectWorkspace({ workspace, client, onError: failure => { if (!lifetime.signal.aborted && failure.kind !== "cancelled") setError(failureMessage(failure)); } });
