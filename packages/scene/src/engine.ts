@@ -42,7 +42,7 @@ interface MeasurementRequest { readonly key: string; readonly generation: number
 const windowTypes = new Set<Card['type']>(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'canvas', 'font']);
 const connectionToolId = 'connect';
 
-/** Sole owner of scene frames. Events enqueue data; layout reads precede writes. */
+/** Sole owner of scene frames. Discrete input settles before the next task; frame reads precede writes. */
 export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const { stage, world, backdrop, overlay, workspace } = args;
   const ownerWindow = stage.ownerDocument.defaultView;
@@ -149,6 +149,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (!disposed && !pending) pending = view.requestAnimationFrame(frame);
   }
 
+  let discreteInputEpoch: number | null = null;
   function enqueue(input: Input): void {
     if (disposed) return;
     const last = inputs.at(-1);
@@ -156,11 +157,19 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     else inputs.push(input);
     inputAt ??= input.at;
     invalidate();
+    if ((input.kind === 'down' || input.kind === 'up' || input.kind === 'cancel') && discreteInputEpoch !== epoch) {
+      const scheduledEpoch = epoch;
+      discreteInputEpoch = scheduledEpoch;
+      queueMicrotask(() => {
+        if (discreteInputEpoch === scheduledEpoch) discreteInputEpoch = null;
+        if (!disposed && scheduledEpoch === epoch) { drainInput(performance.now()); invalidate(); }
+      });
+    }
   }
 
   function post(operation: () => void): void {
     const currentEpoch = epoch;
-    setTimeout(() => { if (!disposed && currentEpoch === epoch) operation(); }, 0);
+    queueMicrotask(() => { if (!disposed && currentEpoch === epoch) operation(); });
   }
 
   function commitTool(commit: ToolCommit): void {
