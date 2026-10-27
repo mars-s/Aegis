@@ -13,15 +13,41 @@ function change(board: Board, commands: readonly Command[]): Board {
   return result.board;
 }
 
-function event(before: Board, after: Board) {
+function event(before: Board, after: Board, undoRequest?: string) {
   return decodeHostEvent({
     type: 'board', boardId: after.id, baseRev: before.rev, rev: after.rev,
     patch: { cards: after.cards, removed: before.cards.filter(card => !after.cards.some(next => next.id === card.id)).map(card => card.id), links: after.links, order: after.cards.map(card => card.id), fields: {} },
-    author: { kind: 'agent', conversationId: '1' }, touched: after.cards.map(card => card.id), focus: null, sentAt: 1,
+    author: { kind: 'agent', conversationId: '1', ...(undoRequest ? { undoRequest } : {}) }, touched: after.cards.map(card => card.id), focus: null, sentAt: 1,
   });
 }
 
 describe('ordered workspace connection', () => {
+  it('carries actual batch provenance and publishes accepted board events without animating local edits or Undo', async () => {
+    const initial = boardWith([{ op: 'create', newId: noteId, text: 'Agent-authored note', agent: 'synthetic-agent' }]);
+    const host = memoryHost(initial), workspace = createWorkspace({ board: initial });
+    const connection = connectWorkspace({ client: host.client, workspace });
+    const origins: string[] = [], authors: string[] = [];
+    workspace.scene.subscribe(change => origins.push(change.origin));
+    workspace.events.subscribe(() => { const next = workspace.events.getSnapshot(); if (next?.type === 'board') authors.push(next.author.kind); });
+    try {
+      await connection.settled(); origins.length = 0;
+      workspace.submit([{ op: 'move', id: noteId, x: 100, y: 200 }]);
+      expect(origins[0]).toBe('local');
+      await connection.settled();
+      workspace.undo();
+      expect(origins.at(-1)).toBe('local');
+      await connection.settled();
+      const before = host.board(), after = change(before, [{ op: 'move', id: noteId, x: 300, y: 400 }]);
+      host.setBoard(after); host.emit(event(before, after));
+      await expect.poll(() => origins.at(-1)).toBe('agent');
+      expect(authors.at(-1)).toBe('agent');
+      const undone = change(after, [{ op: 'move', id: noteId, x: 0, y: 0 }]);
+      host.setBoard(undone); host.emit(event(after, undone, 'synthetic-request'));
+      await expect.poll(() => origins.at(-1)).toBe('sync');
+      expect(workspace.record(noteId).getSnapshot()?.x).toBe(0);
+    } finally { connection.dispose(); workspace.dispose(); }
+  });
+
   it('retains failed and later saves until explicit Retry, then sends them in order', async () => {
     const initial = boardWith();
     const host = memoryHost(initial);

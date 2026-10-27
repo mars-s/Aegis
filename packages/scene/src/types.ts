@@ -3,8 +3,10 @@ import type { CameraState, Point, Rect } from './geometry.js';
 import type { ZoomTier } from './representations.js';
 
 export type { Source } from '@aegis/domain/schema';
+export type SceneOrigin = 'local' | 'agent' | 'sync';
 export interface SceneChange extends ChangeSet {
   readonly kind: 'change' | 'replace';
+  readonly origin: SceneOrigin;
 }
 export interface SceneSource {
   readonly snapshot: () => Board;

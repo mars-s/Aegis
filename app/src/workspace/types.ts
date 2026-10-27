@@ -1,5 +1,6 @@
 import type { AgentId, BatchId, Board, Card, CardContent, CardId, ChangeSet, Command, Source } from '@aegis/domain/schema';
 import type { HostEvent } from '@aegis/protocol/http';
+import type { SceneOrigin } from '@aegis/scene';
 import type { CreatedIds, HostFailure, LocalFieldError, ReplicationPort } from '@aegis/host-client';
 
 export type AgentStatus = Extract<HostEvent, { readonly type: 'agent' }>;
@@ -14,9 +15,10 @@ export type SaveState =
   | { readonly kind: 'saving'; readonly pending: number }
   | { readonly kind: 'blocked'; readonly batchId: BatchId; readonly pending: number; readonly reason: string; readonly errors: readonly FieldError[] };
 
-export type SceneChange =
+export type SceneChange = (
   | (ChangeSet & { readonly kind: 'change' })
-  | (ChangeSet & { readonly kind: 'replace'; readonly board: Board });
+  | (ChangeSet & { readonly kind: 'replace'; readonly board: Board })
+) & { readonly origin: SceneOrigin };
 
 export interface SceneSource {
   readonly snapshot: () => Board;

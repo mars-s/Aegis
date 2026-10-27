@@ -65,7 +65,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     }
   }
 
-  function publish(next: Board, replace = false): void {
+  function publish(next: Board, replace = false, origin: SceneChange['origin'] = 'sync'): void {
     const previous = projected;
     projected = replace ? next : stabiliseBoard(previous, next);
     byId = new Map(projected.cards.map(card => [card.id, card]));
@@ -80,7 +80,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     for (const [id, source] of recordSources) source.set(byId.get(id) ?? null);
     const selected = selectedIds(selection.getSnapshot(), projected.cards);
     if (!equalValue(selection.getSnapshot(), selected)) selection.set(selected);
-    const notification: SceneChange = replace ? { ...change, kind: 'replace', board: projected } : { ...change, kind: 'change' };
+    const notification: SceneChange = replace ? { ...change, kind: 'replace', board: projected, origin } : { ...change, kind: 'change', origin };
     for (const listener of [...sceneListeners]) notify(() => { listener(notification); });
   }
 
@@ -88,7 +88,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     blocked = { kind: 'blocked', batchId, reason, pending: pending.length, errors };
   }
 
-  function rebase(): void {
+  function rebase(origin: SceneChange['origin'] = 'sync'): void {
     let next = confirmed;
     for (const entry of pending) {
       const result = applyBatch(next, { commands: [...entry.commands] });
@@ -99,7 +99,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
       }
       next = result.board;
     }
-    publish(next);
+    publish(next, false, origin);
     publishReplication();
   }
 
@@ -115,7 +115,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     const before = projected;
     const id = BatchIdSchema.parse(crypto.randomUUID());
     pending = [...pending, { id, boardId: confirmed.id, commands: prepared }];
-    publish(result.board);
+    publish(result.board, false, 'local');
     const derived = prepared.every(command => command.op === 'measure' || command.op === 'initialise_html');
     if (derived) {
       const previous = undoEntries.at(-1);
@@ -173,7 +173,8 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     else if (fields.palette !== undefined) confirmed.palette = fields.palette;
     if (fields.tray === null) delete confirmed.tray;
     else if (fields.tray !== undefined) confirmed.tray = fields.tray;
-    rebase();
+    rebase(event.author.kind === 'agent' && !event.author.undoRequest ? 'agent' : 'sync');
+    eventSource.set(event);
     return 'applied';
   }
 

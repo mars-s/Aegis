@@ -47,7 +47,7 @@ const released: SlotLease[] = [];
 function update(cards: readonly Card[], removed: readonly CardId[] = []): void {
   const old = current, replaced = new Map(cards.map(card => [card.id, card])), excluded = new Set(removed);
   current = BoardSchema.parse({ ...current, rev: RevisionSchema.parse(current.rev + 1), cards: current.cards.flatMap(card => excluded.has(card.id) ? [] : [replaced.get(card.id) ?? card]) });
-  for (const listener of listeners) listener({ kind: 'change', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: cards, removed, links: null, order: null });
+  for (const listener of listeners) listener({ kind: 'change', origin: 'local', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: cards, removed, links: null, order: null });
 }
 const workspace: CanvasWorkspace = {
   scene: { snapshot: () => current, subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); } },
@@ -96,11 +96,11 @@ window.sceneHarness = {
   update: card => update([CardSchema.parse(card)]),
   replace: count => {
     const old = current; current = fixture(count);
-    for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
+    for (const listener of listeners) listener({ kind: 'replace', origin: 'sync', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
   },
   load: value => {
     const old = current; current = BoardSchema.parse(value);
-    for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
+    for (const listener of listeners) listener({ kind: 'replace', origin: 'sync', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
   },
   removePortals: () => root.unmount(),
   holdCleanup: hold => { holdCleanup = hold; },
