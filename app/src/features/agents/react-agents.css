@@ -36,6 +36,9 @@
 .aegis-agents .panel-head h2 { margin: 0; font-size: 15px; font-weight: 500; }
 .aegis-agents .agent-error { position: absolute; top: 24px; left: 50%; translate: -50% 0; padding: 12px 16px; max-width: min(480px, calc(100vw - 32px)); background: var(--raised); border: 1px solid var(--line-strong); border-radius: 8px; }
 .aegis-agents .agent-error button { margin-left: 12px; }
+.mobile-content .agent-composer-host { position: relative; inset: auto; z-index: auto; }
+.mobile-content .agent-composer-host .agent-island { position: relative; left: auto; bottom: auto; translate: none; width: 100%; max-width: none; }
+.mobile-content .agent-composer-host #composer { width: 100%; max-height: 60dvh; }
 .aegis-agents ::selection { background: var(--data-soft); color: var(--text); }
 .card.in-context { outline: 1px solid var(--chart-1); outline-offset: 3px; }
 @media (max-width: 700px) { .aegis-agents .agents-panel { inset: auto 12px 160px; width: auto; max-height: 50dvh; } }
