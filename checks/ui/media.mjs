@@ -324,6 +324,7 @@ try {
     document.getElementById('stage').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: clipboard }));
   });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.url === 'https://example.com/') && aegis.canvas.board.cards.some(c => c.url?.includes('/album/4aawyAB9vmqN3uQ7FjRGTy')));
+  await page.mouse.move(1550, 24);
   await page.locator('#settingsBtn').click(); await page.locator('#theme').getByText('Dark', { exact: true }).click(); await page.locator('#closeSettings').click();
   await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--dot') === '#333344');
   await page.screenshot({ path: out('media-dark.png') });
