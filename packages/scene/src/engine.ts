@@ -410,7 +410,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
             for (const id of gesture.bases.keys()) pool.pin(id, 'capture', false);
             const accepted = gesture.moved ? input.drop : null;
             dropTarget = null;
-            if (accepted) { positions.clear(); post(() => { accepted.run(); invalidate(); }); }
+            if (accepted) { positions.clear(); post(() => { accepted.run(commands); invalidate(); }); }
             else if (commands.length) post(() => { workspace.submit(commands); positions.clear(); invalidate(); });
             else {
               positions.clear();
@@ -459,9 +459,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     // A single formatting target stays live at its saved geometry, even offscreen.
     // Multi-selection never turns the whole board into mounted bodies.
-    const retained = new Set(initialBodies.keys());
+    const retained = new Set([...initialBodies.keys()].filter(id => !pool.isEditorOnlyPinned(id)));
     const formattingId = selected.size === 1 ? selected.values().next().value : undefined;
-    if (formattingId) retained.add(formattingId);
+    if (formattingId && !pool.isEditorOnlyPinned(formattingId)) retained.add(formattingId);
     for (const id of retained) {
       const node = graph.nodes.get(id);
       if (node && !node.hidden && canLease(node.card) && !placements.some(placement => placement.node === node)) placements.push({ node, ...boundsFor(node), rotation: rotationFor(node), selected: selected.has(id) });
