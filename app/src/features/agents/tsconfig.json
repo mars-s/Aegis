@@ -1,0 +1,4 @@
+{
+  "extends": "../../../tsconfig.react.json",
+  "include": ["./**/*.ts", "./**/*.tsx", "../settings/**/*.ts", "../settings/**/*.tsx", "../mobile/**/*.ts", "../mobile/**/*.tsx", "../onboarding/**/*.ts", "../onboarding/**/*.tsx", "../first-minute/**/*.ts", "../first-minute/**/*.tsx", "../overview/**/*.ts", "../overview/**/*.tsx"]
+}

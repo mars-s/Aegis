@@ -56,3 +56,8 @@
   .mobile-content #agentsPanel { min-height: 0; }
   .mobile-content .agent-list { max-height: 34dvh; overflow: auto; }
 }
+
+/* Native dialog visibility and focus trapping are owned by the React sheet. */
+dialog.mobile-sheet:not([open]) { display: none; }
+dialog.mobile-sheet { margin: 0; width: 100%; max-width: none; }
+dialog.mobile-sheet::backdrop { background: rgb(0 0 0 / .25); }

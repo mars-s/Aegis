@@ -1,0 +1,49 @@
+import { z } from 'zod/v4';
+import type { Source } from '@aegis/domain/schema';
+
+export const PreferencesSchema = z.object({
+  theme: z.enum(['system', 'light', 'dark']).default('dark'),
+  motion: z.enum(['on', 'off']).default('on'),
+  doubleClickNote: z.enum(['on', 'off']).default('on'),
+  noteColour: z.enum(['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple']).default('plain'),
+  gridVisible: z.enum(['on', 'off']).default('on'),
+  gridShape: z.enum(['dots', 'lines', 'crosses']).default('dots'),
+  snap: z.enum(['on', 'off']).default('off'), tilt: z.enum(['on', 'off']).default('off'),
+});
+export type Preferences = z.output<typeof PreferencesSchema>;
+const keys = { theme: 'theme', motion: 'motion', doubleClickNote: 'double-click-note', noteColour: 'note-colour', gridVisible: 'grid-visible', gridShape: 'grid-shape', snap: 'snap', tilt: 'tilt' } as const satisfies Record<keyof Preferences, string>;
+export interface PreferenceStore extends Source<Preferences> {
+  readonly set: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
+  readonly attach: () => () => void;
+}
+export function createPreferenceStore(): PreferenceStore {
+  const read = (): Preferences => {
+    const fields = Object.fromEntries(Object.entries(keys).map(([field, key]) => [field, localStorage.getItem(`aegis:${key}`) ?? undefined]));
+    const clean = Object.fromEntries(Object.entries(PreferencesSchema.shape).map(([name, schema]) => {
+      const parsed = schema.safeParse(fields[name]);
+      return [name, parsed.success ? parsed.data : undefined];
+    }));
+    return PreferencesSchema.parse(clean);
+  };
+  let snapshot = read();
+  const listeners = new Set<() => void>();
+  const appearance = (): void => {
+    document.body.classList.toggle('motion-off', snapshot.motion === 'off');
+    document.documentElement.dataset.theme = snapshot.theme === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' : snapshot.theme;
+  };
+  const publish = (): void => { appearance(); for (const listener of listeners) listener(); };
+  return {
+    getSnapshot: () => snapshot, subscribe: listener => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    set(key, value) {
+      snapshot = PreferencesSchema.parse({ ...snapshot, [key]: value });
+      localStorage.setItem(`aegis:${keys[key]}`, String(value)); publish();
+      window.dispatchEvent(new CustomEvent('aegis:preferences-changed', { detail: snapshot }));
+    },
+    attach() {
+      const media = matchMedia('(prefers-color-scheme: dark)');
+      const storage = (event: StorageEvent): void => { if (event.storageArea === localStorage && event.key?.startsWith('aegis:')) { snapshot = read(); publish(); } };
+      media.addEventListener('change', appearance); addEventListener('storage', storage); appearance();
+      return () => { media.removeEventListener('change', appearance); removeEventListener('storage', storage); };
+    },
+  };
+}
