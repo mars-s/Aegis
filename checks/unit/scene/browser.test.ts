@@ -17,10 +17,10 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false, insets = false, attachmentBrowser = browser): Promise<Page> {
+async function page(motion: boolean | 'system' = false, insets = false, attachmentBrowser = browser): Promise<Page> {
   if (!attachmentBrowser) throw new Error('Browser not started');
   const result = await attachmentBrowser.newPage({ viewport: { width: 1440, height: 900 } });
-  await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
+  await result.goto(url + `?motion=${motion === 'system' ? 'system' : motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
   return result;
@@ -84,6 +84,224 @@ describe('real scene attachment', () => {
       await p.close();
     } finally { await alternate?.close(); }
   });
+
+  test.each(['chromium', 'webkit'] as const)('retains one selected formatting body at real offscreen geometry in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness;
+        harness.select(['note-9']);
+        harness.engine.navigate({ kind: 'restore', camera: { x: -10000, y: -10000, zoom: .2 }, motion: 'instant' });
+      });
+      await p.locator('[data-body="note-9"]').waitFor({ state: 'attached' });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => { if (!(el instanceof HTMLElement)) throw new Error('Missing formatting card'); return { hidden: el.hidden, inert: el.inert, left: el.getBoundingClientRect().left, text: el.textContent }; })).toMatchObject({ hidden: false, inert: false, text: 'Note 9' });
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el.getBoundingClientRect().right)).toBeLessThan(0);
+      await p.evaluate(() => { window.sceneHarness.select([]); });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el instanceof HTMLElement && el.hidden)).toBe(true);
+      await p.evaluate(() => {
+        window.sceneHarness.replace(5000);
+        window.sceneHarness.select(window.sceneHarness.board().cards.map(card => card.id));
+        window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: -100000, y: -100000, zoom: .05 }, motion: 'instant' });
+      });
+      await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(32);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('uses the current motion preference when navigation starts in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page('system', false, alternate ?? browser);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      await p.emulateMedia({ reducedMotion: 'no-preference' });
+      const frames = await p.evaluate(() => new Promise<readonly number[]>(resolve => {
+        const engine = window.sceneHarness.engine, frames: number[] = [];
+        const release = engine.registerFrameParticipant({ write: () => { frames.push(engine.camera().x); if (!engine.busy()) { release(); resolve(frames); } } });
+        engine.navigate({ kind: 'restore', camera: { x: 200, y: 100, zoom: .8 }, motion: 'glide', duration: 420 });
+      }));
+      expect(frames.length).toBeGreaterThanOrEqual(5);
+      expect(frames.at(-1)).toBe(200);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      expect(await p.evaluate(() => {
+        const engine = window.sceneHarness.engine;
+        engine.navigate({ kind: 'restore', camera: { x: 20, y: 30, zoom: 1 }, motion: 'glide' });
+        return { busy: engine.busy(), camera: engine.camera() };
+      })).toEqual({ busy: false, camera: { x: 20, y: 30, zoom: 1 } });
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('agent cues follow provenance, real origins and lease retirement in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const h = window.sceneHarness, card = h.board().cards[0]; if (!card) throw new Error('Missing card');
+        h.engine.ring([card.id], '#ff0000', 4000, 'Agent test', { x: 25, y: 40 }, 'dashed');
+      });
+      expect(await p.locator('.agent-line .origin').getAttribute('cx')).toBe('25');
+      expect(await p.locator('.agent-line .origin').getAttribute('cy')).toBe('40');
+      expect(await p.locator('.agent-line path, .agent-line .station').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke))).toEqual(['rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)']);
+      expect(await p.locator('.agent-line .origin').evaluate(node => getComputedStyle(node).fill)).toBe('rgb(63, 141, 253)');
+      expect(await p.locator('.card.glow').evaluate(node => getComputedStyle(node, '::after').borderTopColor)).toBe('rgb(63, 141, 253)');
+      expect(await p.locator('.card.glow').count()).toBe(1);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 100, y: 80 }], 'local'));
+      await idle(p);
+      expect(await p.locator('.agent-line .origin').count()).toBe(0);
+      await p.waitForFunction(() => !document.querySelector('.card.glow'));
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 110, y: 80 }], 'sync'));
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 120, y: 80 }], 'agent'));
+      await idle(p);
+      expect(await p.locator('.card.glow').getAttribute('data-id')).toBe('note-0');
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'delete', id: 'note-0' }], 'local'));
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.evaluate(() => { const h = window.sceneHarness, card = h.board().cards[0]; if (!card) throw new Error('Missing card'); h.engine.glow([card.id]); h.replace(10); });
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('agent presentation retargets, yields to a drag and releases exits in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(true, false, alternate ?? browser);
+      const batch = async (commands: unknown) => { await p.evaluate(commands => window.sceneHarness.batch(commands, 'agent'), commands); await idle(p); };
+      await batch([{ op: 'move', id: 'note-2', x: 780, y: 130 }]);
+      const before = await p.locator('[data-id="note-2"]').evaluate(el => {
+        const animation = el.getAnimations().find(animation => animation.id === 'aegis-agent-card'); if (!animation) throw new Error('Missing move animation'); animation.pause(); animation.currentTime = 90;
+        return getComputedStyle(el).transform;
+      });
+      await batch([{ op: 'move', id: 'note-2', x: 550, y: 180 }]);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().find(animation => animation.id === 'aegis-agent-card')?.effect?.getTiming().duration)).toBe(320);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => { const animation = el.getAnimations().find(animation => animation.id === 'aegis-agent-card'); if (!(animation?.effect instanceof KeyframeEffect)) throw new Error('Missing effect'); animation.pause(); animation.currentTime = 0; return animation.effect.getKeyframes()[0]?.transform; })).toBe(before);
+      await idle(p);
+      const box = await p.locator('[data-id="note-2"]').boundingBox(); if (!box) throw new Error('Missing animated card');
+      expect(await p.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('.card')?.getAttribute('data-id'), { x: box.x + 8, y: box.y + 90 })).toBe('note-2');
+      await p.mouse.move(box.x + 8, box.y + 90); await p.mouse.down(); await p.mouse.move(box.x + 58, box.y + 110); await p.mouse.up(); await idle(p);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
+      const dragged = await p.locator('[data-id="note-2"]').boundingBox();
+      expect(Math.abs((dragged?.x ?? Infinity) - box.x - 50)).toBeLessThanOrEqual(13);
+      await batch([{ op: 'create', type: 'note', newId: 'agententer', text: 'New result', x: 80, y: 600 }, { op: 'delete', id: 'note-3' }]);
+      expect(await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').map(animation => animation.effect?.getTiming().duration).sort())).toEqual([180, 240]);
+      await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').forEach(animation => animation.finish())); await idle(p);
+      expect(await p.locator('.card[aria-hidden="true"]').count()).toBe(0);
+      await batch([{ op: 'move', id: 'agententer', x: 120, y: 600 }]);
+      await p.evaluate(() => document.body.classList.add('motion-off'));
+      expect(await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('wireframe policies snap with live guides and submit parenting atomically in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'snapone', type: 'box', text: 'First', color: 'plain', x: 80, y: 80, w: 160, h: 100 }, { id: 'snaptwo', type: 'box', text: 'Second', color: 'plain', x: 380, y: 80, w: 160, h: 100 }], links: [] });
+      }); await idle(p);
+      const box = await p.locator('[data-id="snapone"]').boundingBox(); if (!box) throw new Error('Missing snap source');
+      await p.mouse.move(box.x + 20, box.y + 70); await p.mouse.down(); await p.mouse.move(box.x + 157, box.y + 70, { steps: 4 }); await idle(p);
+      expect(await p.locator('.drag-guides line').count()).toBeGreaterThan(0);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.mouse.up(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'snapone')?.x)).toBe(220);
+      expect(await p.locator('.drag-guides line').count()).toBe(0);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'dropframe', type: 'frame', text: 'Frame', color: 'plain', x: 500, y: 80, w: 300, h: 300 }, { id: 'dropbox', type: 'box', text: 'Loose', color: 'plain', x: 80, y: 80, w: 160, h: 100 }], links: [] });
+      }); await idle(p);
+      const loose = await p.locator('[data-id="dropbox"]').boundingBox(); if (!loose) throw new Error('Missing drop source');
+      await p.mouse.move(loose.x + 20, loose.y + 70); await p.mouse.down(); await p.mouse.move(loose.x + 520, loose.y + 70, { steps: 4 }); await p.mouse.up(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.at(-1))).toEqual([{ op: 'move', id: 'dropbox', x: 580, y: 80 }, { op: 'update', id: 'dropbox', set: { parent: 'dropframe' } }]);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'dropbox')?.parent)).toBe('dropframe');
+      const name = p.locator('[data-id="dropframe"] .wf-frame-name'), header = await name.boundingBox(); if (!header) throw new Error('Missing overflow name');
+      await p.mouse.move(header.x + 10, header.y + 6); await p.mouse.down(); await p.mouse.move(header.x + 83, header.y + 47, { steps: 4 }); await p.mouse.up(); await idle(p);
+      const cards = await p.evaluate(() => window.sceneHarness.board().cards.map(card => ({ id: card.id, x: card.x, y: card.y })));
+      expect(cards).toEqual([{ id: 'dropframe', x: 573, y: 121 }, { id: 'dropbox', x: 653, y: 121 }]);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('unselected section glass starts a marquee and an unmoved tap selects the section in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'glassone', type: 'box', text: 'First', color: 'plain', x: 200, y: 200, w: 100, h: 80 }, { id: 'glasstwo', type: 'box', text: 'Second', color: 'plain', x: 400, y: 220, w: 100, h: 80 }, { id: 'glass', type: 'section', text: 'Glass', color: 'plain', x: 100, y: 100, w: 600, h: 300 }], links: [] });
+      }); await idle(p);
+      await p.mouse.move(160, 190); await p.mouse.down(); await p.mouse.move(550, 350, { steps: 4 }); await p.mouse.up(); await idle(p);
+      expect(await p.locator('.card.selected').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-id')).sort())).toEqual(['glassone', 'glasstwo']);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.mouse.click(150, 180); await idle(p);
+      expect(await p.locator('.card.selected').getAttribute('data-id')).toBe('glass');
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('a deferred Escape clear cannot overwrite a newer explicit selection in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(async () => {
+        const h = window.sceneHarness, stage = document.getElementById('stage');
+        h.select(['note-0']);
+        stage?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+        h.select(['note-2']);
+        await new Promise<void>(resolve => h.engine.afterInput(resolve));
+      }); await idle(p);
+      expect(await p.locator('.card.selected').getAttribute('data-id')).toBe('note-2');
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('hidden ancestors immediately retire real descendant leases and selection decorations in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'hideparent', type: 'note', text: 'Parent', color: 'plain', x: 80, y: 80, w: 240, h: 160 }, { id: 'hidechild', type: 'note', text: 'Child', parent: 'hideparent', color: 'plain', x: 400, y: 80, w: 240, h: 160 }, { id: 'hidegrandchild', type: 'note', text: 'Grandchild', parent: 'hidechild', color: 'plain', x: 720, y: 80, w: 240, h: 160 }], links: [] });
+        h.select(['hideparent']);
+      });
+      await p.locator('[data-id="hidegrandchild"]').waitFor(); await idle(p);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'hideparent', set: { props: { hidden: true } } }], 'local')); await idle(p);
+      expect(await p.locator('.card[data-id]').count()).toBe(0);
+      expect(await p.locator('.card.selected').count()).toBe(0);
+      expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().length)).toBe(0);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'hideparent', set: { props: { hidden: false } } }], 'local'));
+      await p.locator('[data-id="hidegrandchild"]').waitFor(); await idle(p);
+      expect(await p.locator('.card[data-id]').count()).toBe(3);
+      expect(await p.locator('.card.selected').count()).toBe(1);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('new agent bodies get bounded temporary offscreen measurement residency in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser), camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+      await p.evaluate(() => window.sceneHarness.batch(Array.from({ length: 40 }, (_, index) => ({ op: 'create', newId: `warm${String(index).padStart(2, '0')}`, type: 'note', text: `Offscreen ${index}`, x: 5000 + index * 300, y: 5000, w: 240, h: 160 })), 'agent'));
+      await p.waitForFunction(() => document.querySelectorAll('.card[data-id^="warm"]').length === 12); await idle(p);
+      expect(await p.locator('.card[data-id^="warm"]').evaluateAll(nodes => nodes.every(node => node instanceof HTMLElement && !node.hidden && !node.inert && node.textContent?.startsWith('Offscreen') && node.getBoundingClientRect().left > innerWidth))).toBe(true);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+      expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(17);
+      await p.waitForFunction(() => !document.querySelector('.card[data-id^="warm"]'), undefined, { timeout: 7000 });
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+      await p.close();
+    } finally { await alternate?.close(); }
+  }, 10000);
 
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
     for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {

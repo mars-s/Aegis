@@ -57,7 +57,7 @@ export function Options({ runtime, show, addNotes, showAll, changed }: {
         <button type="button" role="menuitem" onClick={() => { close(); showAll(); }}>All agents</button>
         {state.agents.map(agent => <button type="button" key={agent.id} role="menuitemradio" aria-checked={runtime.current()?.id === agent.id}
           aria-description={agentName(agent, state.agents)} onClick={() => { close(false); show(agent.id); }}><span>{shortTitle(agent)}</span><span className="orb-menu-value">{agent.running ? 'Working' : 'Ready'}</span></button>)}
-      </> : page === 'count' ? [1, 2, 3, 4, 5, 6, 7, 8].map(count => <button type="button" role="menuitemradio" aria-checked={state.count === count} key={count} onClick={() => { runtime.count(count); close(); }}>{count === 1 ? 'One' : `${count} agents`}</button>) :
+      </> : page === 'count' ? [1, 2, 3, 4, 5, 6, 7, 8].map(count => <button type="button" role="menuitemradio" aria-label={`${count} agent${count === 1 ? '' : 's'}`} aria-checked={state.count === count} key={count} onClick={() => { runtime.count(count); close(); }}>{count === 1 ? 'One' : `${count} agents`}</button>) :
         [...new Set(state.models.map(model => model.provider))].map(provider => {
           const description = state.readyProviders.has(provider) ? provider === 'fake' ? 'Available' : 'Signed in' : 'Sign in required';
           return <div key={provider} role="group" aria-label={`${providerName(provider)}, ${description}`}>
