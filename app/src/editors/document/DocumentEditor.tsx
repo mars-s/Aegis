@@ -236,6 +236,13 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
       editorProps: {
         ...editor.options.editorProps,
         handleKeyDown: (view, event) => {
+          if (event.key === "Escape" && !event.isComposing && !(event.target instanceof Element && event.target.closest(".docs-math-source"))) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (link !== null) { setLink(null); view.focus(); }
+            else close();
+            return true;
+          }
           if (
             (event.metaKey || event.ctrlKey) &&
             event.key.toLowerCase() === "a" &&
@@ -326,7 +333,7 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
         },
       },
     });
-  }, [editor, workspace, cardId]);
+  }, [editor, workspace, cardId, link]);
 
   function openLink(): void {
     const href: unknown = editor.getAttributes("link").href;
@@ -455,14 +462,6 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
       data-page={page}
       data-revision={revision}
       aria-label="Document editor"
-      onFocusCapture={() => engine.pin(cardId, "focus", true)}
-      onBlurCapture={(event) => {
-        if (
-          !(event.relatedTarget instanceof Node) ||
-          !event.currentTarget.contains(event.relatedTarget)
-        )
-          engine.pin(cardId, "focus", false);
-      }}
       onCompositionStart={() => session.setComposing(true)}
       onCompositionEnd={() => session.setComposing(false)}
       onKeyDown={(event) => {

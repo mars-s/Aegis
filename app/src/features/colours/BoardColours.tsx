@@ -1,4 +1,6 @@
 import './legacy-menu.js';
+import { CardIdSchema } from '@aegis/domain';
+import { requestCardEdit, takeCardEdit } from '../media/creation-edit.js';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { MouseEvent, CSSProperties } from 'react';
 import type { FeatureContext } from '../../composition.js';
@@ -12,7 +14,14 @@ export function BoardColours({ context }: { readonly context: FeatureContext }) 
   const subscribe = useCallback((listener: () => void) => workspace.scene.subscribe(() => listener()), [workspace]), board = useSyncExternalStore(subscribe, workspace.scene.snapshot);
   const [edit, setEdit] = useState<{ kind: 'palette'; hex: string; name: string } | { kind: 'background' } | null>(null), closeMenu = useRef<(() => void) | null>(null), originalHex = useRef('');
   useEffect(() => () => { closeMenu.current?.(); }, [board.id]);
-  const add = (hex = '#ff9ec4', name = colorName(hex)) => { const at = context.engine()?.screenToWorld({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 0, y: 0 }; workspace.submit([{ op: 'create', type: 'swatch', x: at.x, y: at.y, props: { hex, label: name, autoName: false } }]); };
+  const add = (hex = '#ff9ec4', name?: string, edit = false) => {
+    const at = context.engine()?.screenToWorld({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 0, y: 0 };
+    const id = CardIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
+    if (edit) requestCardEdit(workspace, id);
+    const result = workspace.submit([{ op: 'create', newId: id, type: 'swatch', x: at.x, y: at.y, props: { hex, label: name ?? colorName(hex), autoName: !name } }]);
+    if (result.kind === 'applied') workspace.act({ kind: 'select', ids: [id] });
+    else if (edit) takeCardEdit(workspace, id);
+  };
   function change(value: ColourValue) {
     if (edit?.kind === 'background') { workspace.submit([{ op: 'board_set', set: { bg: value.hex } }]); return; }
     const current = workspace.scene.snapshot(), old = originalHex.current;
@@ -27,7 +36,7 @@ export function BoardColours({ context }: { readonly context: FeatureContext }) 
     const popup = createMenu({ trigger, menu: element, label: 'Palette colour', bindTrigger: false, items: [{ title: 'Add to the board', run: () => add(hex, name) }, { title: 'Rename', run: () => { editPalette(hex, name); queueMicrotask(() => { const input = document.querySelector('.colour-pop input[aria-label="Colour name"]'); if (input instanceof HTMLInputElement) { input.focus(); input.select(); } }); } }, { title: 'Change colour…', run: () => editPalette(hex, name) }, { title: 'Remove from board colours', destructive: true, run: () => remove(hex) }], onToggle: open => { if (!open) { element.remove(); } } });
     closeMenu.current = () => { popup.destroy(); element.remove(); }; popup.open(event.nativeEvent, { x: event.clientX, y: event.clientY });
   }
-  return <section className="board-colours" aria-label="Board colours"><div className="colour-actions"><button onClick={() => add()}>Add colour</button><button onClick={() => setEdit({ kind: 'background' })}>Background</button>{board.bg && <button onClick={() => workspace.submit([{ op: 'board_set', set: { bg: null } }])}>Default background</button>}</div><small>Saved palette</small>{!board.palette?.length && <p className="muted">Save a swatch here from its colour editor.</p>}
+  return <section className="board-colours" aria-label="Board colours"><div className="colour-actions"><button onClick={() => add(undefined, undefined, true)}>Add colour</button><button onClick={() => setEdit({ kind: 'background' })}>Background</button>{board.bg && <button onClick={() => workspace.submit([{ op: 'board_set', set: { bg: null } }])}>Default background</button>}</div><small>Saved palette</small>{!board.palette?.length && <p className="muted">Save a swatch here from its colour editor.</p>}
     {(board.palette ?? []).map(row => <div key={row.hex} className="palette-row" onContextMenu={event => menu(event, row.hex, row.name)}><button style={paletteStyle(row.hex)} title={row.hex} onClick={() => add(row.hex, row.name)}>{row.name}</button><button onClick={() => editPalette(row.hex, row.name)}>Edit</button><button aria-label={`Remove ${row.name} from board colours`} onClick={() => remove(row.hex)}>×</button></div>)}<small>Colours in use</small><div className="colour-quick">{boardColours(board).map(row => <button key={row.hex} className="colour-swatch" data-hex={row.hex} aria-label={row.name} title={`${row.name} ${row.hex}`} style={{ background: row.hex }} onClick={() => add(row.hex, row.name)} />)}</div>
     {edit && <ColourEditor board={workspace.scene.snapshot} value={edit.kind === 'palette' ? { hex: edit.hex, label: edit.name, autoName: false } : { hex: board.bg || '#ffffff', label: '', autoName: false }} name={edit.kind !== 'background'} onChange={change} onClose={() => setEdit(null)} />}
   </section>;

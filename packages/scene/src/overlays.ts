@@ -69,6 +69,12 @@ export class SceneOverlays {
       } else if (this.hoveredWindow && !this.leaveTimer) this.leaveTimer = setTimeout(() => { this.leaveTimer = null; this.hoveredWindow = null; invalidate(); }, 160);
       if (this.active || this.edge || this.near || this.hoveredWindow || !this.strip.hidden) invalidate();
     }, { passive: true, signal });
+    world.addEventListener('pointerover', event => {
+      const owner = event.target instanceof Node ? this.windowAt(event.target) : null;
+      if (!owner) return;
+      if (this.leaveTimer) { clearTimeout(this.leaveTimer); this.leaveTimer = null; }
+      this.hoveredWindow = owner; invalidate();
+    }, { passive: true, capture: true, signal });
     view?.addEventListener('keydown', () => { this.keyboard = true; this.hovered = null; invalidate(); }, { capture: true, signal });
     view?.addEventListener('focusin', () => invalidate(), { signal });
     view?.addEventListener('blur', () => { this.pointer = null; this.edge = false; this.near = false; this.hovered = null; this.hoveredWindow = null; invalidate(); }, { signal });
@@ -178,7 +184,11 @@ export class SceneOverlays {
       if (!stable) {
         this.strip.replaceChildren(...this.actions.map((action, index) => {
           const button = this.stage.ownerDocument.createElement('button'); button.type = 'button'; button.dataset.windowAction = this.actionId ?? ''; button.textContent = action.text;
-          button.addEventListener('click', () => this.actions[index]?.source.click(), { signal: this.abort.signal });
+          button.addEventListener('click', event => {
+            const source = this.actions[index]?.source; if (!source) return;
+            button.focus({ preventScroll: true });
+            source.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, detail: event.detail, shiftKey: event.shiftKey, altKey: event.altKey, ctrlKey: event.ctrlKey, metaKey: event.metaKey, clientX: event.clientX, clientY: event.clientY }));
+          }, { signal: this.abort.signal });
           return button;
         }));
         this.invalidate();

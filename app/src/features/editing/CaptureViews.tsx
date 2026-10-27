@@ -4,6 +4,7 @@ import { useWorkspaceMetadata } from '../../workspace/index.js';
 import type { FeatureContext } from '../../composition.js';
 import { captureIdeas, describeCapture, parseCapture, putCaptured, undoCapture } from './capture.js';
 import type { CaptureReceipt } from './capture.js';
+import { shortcutTitle } from '../../lib/shortcuts.js';
 import './capture.css';
 
 // Quick capture behaviour ported from Aegis. See LICENSE.mochiboard.
@@ -13,7 +14,7 @@ function focusCanvas(): void {
 }
 
 export function CaptureButton() {
-  return <button type="button" id="quickCapture" aria-keyshortcuts="Meta+Shift+K Control+Shift+K">Idea</button>;
+  return <button type="button" id="quickCapture" title={shortcutTitle("quickCapture")} aria-keyshortcuts="Meta+Shift+K Control+Shift+K">Idea</button>;
 }
 
 function CaptureDialog({ entry, capture, close, error }: {

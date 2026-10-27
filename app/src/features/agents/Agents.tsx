@@ -132,6 +132,13 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     const applied = runtime.workspace.submit(commands);
     if (applied.kind === 'applied') { setPrompt(''); close(true); }
   }
+  const notes = useRef(addNotes); notes.current = addNotes;
+  useEffect(() => {
+    const form = input.current?.form; if (!form) return;
+    const add = () => notes.current();
+    form.addEventListener('add-as-notes', add);
+    return () => form.removeEventListener('add-as-notes', add);
+  }, []);
   composer.current = { open, close: () => close(true), ask: async text => { setPrompt(text); open(true); return send(text, true); } };
   useEffect(() => {
     const controller: AgentComposer = { open: keyboard => composer.current?.open(keyboard), close: () => composer.current?.close(), ask: text => composer.current?.ask(text) ?? Promise.resolve(false) };
@@ -200,7 +207,7 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
             <textarea ref={input} id="prompt" aria-label="Message" rows={1} value={prompt} placeholder={state.pinned.length ? state.pinned.length === 1 ? 'What should the agent do with this window?' : `What should the agent do with these ${state.pinned.length} windows?` : agent ? 'Follow up with this agent…' : 'Ask about your board…'}
               onChange={event => { composerRevision.current++; morph.current?.capture({ instant: false }); setPrompt(event.target.value); }}
               onKeyDown={event => { if (event.key !== 'Enter' || event.nativeEvent.isComposing) return; if (event.metaKey || event.ctrlKey) { event.preventDefault(); addNotes(); } else if (!event.shiftKey) { event.preventDefault(); if (!state.sending) void send(event.currentTarget.value, event.altKey); } }} />
-            <div className="composer-row"><Options runtime={runtime} show={show} addNotes={addNotes} showAll={openActivity} changed={() => open(true)} /><span className="island-hint">Return to send <span>· Shift Return for a new line</span></span><span className="spacer" /><button id="send" type="submit" className="island-icon send" disabled={state.sending} aria-label={agent ? 'Send follow-up' : 'Start agent'}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3m-4 4 4-4 4 4" /></svg></button></div>
+            <div className="composer-row"><Options runtime={runtime} show={show} addNotes={() => { input.current?.form?.dispatchEvent(new Event('add-as-notes')); }} showAll={openActivity} changed={() => open(true)} /><span className="island-hint">Return to send <span>· Shift Return for a new line</span></span><span className="spacer" /><button id="send" type="submit" className="island-icon send" disabled={state.sending} aria-label={agent ? 'Send follow-up' : 'Start agent'}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3m-4 4 4-4 4 4" /></svg></button></div>
           </form>
           <button type="button" className="island-result-undo" hidden={phase !== 'done' || !result} disabled={!result?.entry.canUndo || !!agent?.running} title={result?.entry.undoBlockedReason || 'Undo this request'} onClick={() => { if (agent && result) void runtime.undo(agent.id, result.entry.id); }}>Undo</button>
         </div>

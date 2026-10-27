@@ -49,7 +49,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     host.append(circle); selection.append(host); return { kind, host, circle };
   });
   selection.prepend(feedback);
-  const previewGroup = svg('g', {}), previewTarget = svg('rect', { fill: 'none', stroke: 'var(--focus)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }), previewPath = svg('path', { 'data-connect-preview': '', fill: 'none', stroke: 'var(--focus)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' });
+  const previewGroup = svg('g', {}), previewTarget = svg('rect', { fill: 'none', stroke: 'var(--focus)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }), previewPath = svg('path', { 'data-connect-preview': '', fill: 'none', stroke: 'var(--muted)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' });
   let selected: LinkId | null = null, disposed = false, dirty = true;
   let selectedLink: ReturnType<FeatureWorkspace['scene']['snapshot']>['links'][number] | undefined;
   let paintedRoute = '', paintedZoom = 0, paintedCamera = '';
