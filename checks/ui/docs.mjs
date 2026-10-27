@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+const react = process.env.AEGIS_UI_IMPL === 'react';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `docs-${process.pid}`;
 const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-docs-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
@@ -31,7 +32,7 @@ const choose = async (label, value, scope = page.locator('.docs-panel')) => {
   const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) { if (['Page colour', 'Paper size'].includes(label)) await more(); else await format(); }
   await chooseDropdown(root.getByRole('combobox', { name: label, exact: true }), value);
 };
-const saved = async () => { await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
+const saved = async () => { if (react) { await page.waitForFunction(() => !aegis.canvas.busy()); await page.evaluate(() => new Promise(resolve => aegis.canvas.engine.afterInput(resolve))); } await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
 try {
@@ -119,9 +120,9 @@ try {
   console.log('PASS document footer keeps Back and word count; Copy appears only for applicable board selection and otherwise lives in options');
   const noteBox = await page.locator('.card[data-id=docsnote]').boundingBox();
   const paperBox = await page.locator('.docs-paper').boundingBox();
-  await page.mouse.move(noteBox.x + 30, noteBox.y + 20); await page.mouse.down();
+  await page.mouse.move(noteBox.x + 30, noteBox.y + (react ? 5 : 20)); await page.mouse.down();
   await page.mouse.move(paperBox.x + 110, paperBox.y + 150, { steps: 18 });
-  assert.equal(await page.locator('.docs-panel.docs-drop-target').count(), 1);
+  assert.equal(await page.locator('.docs-panel.docs-drop-target, .docs-panel[data-scene-drop-target]').count(), 1);
   await page.mouse.up(); await saved();
   b = await board(); assert.ok(b.cards.find(c => c.id === docId).props.body.includes('Copied note content'));
   assert.ok(b.cards.find(c => c.id === docId).props.doc.content.some(n => n.content?.some(t => t.text === 'Copied note content' && t.marks?.some(m => m.type === 'bold'))));
@@ -133,7 +134,7 @@ try {
   const linkPaper = await page.locator('.docs-paper').boundingBox();
   await page.mouse.move(linkBox.x + 30, linkBox.y + 10); await page.mouse.down();
   await page.mouse.move(linkPaper.x + 110, linkPaper.y + 200, { steps: 18 });
-  assert.equal(await page.locator('.docs-panel.docs-drop-target').count(), 1);
+  assert.equal(await page.locator('.docs-panel.docs-drop-target, .docs-panel[data-scene-drop-target]').count(), 1);
   await page.mouse.up(); await saved();
   assert.equal(await page.locator('.docs-prose a[href="https://example.com/research"]').textContent(), 'Research preview title');
   b = await board();
@@ -141,8 +142,9 @@ try {
   assert.deepEqual([b.cards.find(c => c.id === 'docslink').x, b.cards.find(c => c.id === 'docslink').y], [410, 200]);
   console.log('PASS copying a link keeps its preview title, description and link target');
   // Clipboard copy of the checklist, then paste into editor using the browser clipboard event.
-  await page.locator('.card[data-id=docstodo]').click({ position: { x: 10, y: 10 } });
-  const payload = await page.evaluate(() => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData('text/x-aegis'); });
+  await page.locator('.card[data-id=docstodo]').click({ position: { x: react ? 30 : 10, y: react ? .5 : 10 } });
+  if (react) await page.waitForFunction(() => aegis.canvas.selection().includes('docstodo'));
+  const payload = await page.evaluate(type => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData(type); }, react ? 'application/x-aegis-cards' : 'text/x-aegis');
   assert.ok(payload.includes('docstodo'));
   await page.locator('.docs-prose').click();
   // On macOS Command+End scrolls without moving the caret. Paste must start at
@@ -154,7 +156,7 @@ try {
     return { head: editor.state.selection.head, end: editor.state.doc.content.size - 1 };
   });
   assert.equal(caret.head, caret.end, 'Clipboard paste starts at the document end');
-  await page.evaluate(data => { const transfer = new DataTransfer(); transfer.setData('text/x-aegis', data); document.querySelector('.docs-prose').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })); }, payload);
+  await page.evaluate(({ data, type }) => { const transfer = new DataTransfer(); transfer.setData(type, data); document.querySelector('.docs-prose').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })); }, { data: payload, type: react ? 'application/x-aegis-cards' : 'text/x-aegis' });
   await saved(); b = await board(); assert.ok(JSON.stringify(b.cards.find(c => c.id === docId).props.doc).includes('taskList'));
   assert.equal(await page.locator('.docs-prose input[type=checkbox]:checked').count(), 1);
   await more();
@@ -193,7 +195,7 @@ try {
   await page.getByRole('button', { name: 'Undo card copy', exact: true }).click();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 1; }, docId);
   const again = await page.locator('.card[data-id=docsnote]').boundingBox(); const destination = await pill.boundingBox();
-  await page.mouse.move(again.x + 50, again.y + 20); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
+  await page.mouse.move(again.x + 50, again.y + (react ? 5 : 20)); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
   await pill.dblclick(); await page.locator('.docs-panel').waitFor(); await more(); assert.equal(await page.getByLabel('Page colour', { exact: true }).getAttribute('data-value'), 'dark'); assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' }); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
   await less(); await page.keyboard.press('Escape'); assert.equal(await page.locator('.docs-panel').count(), 0);

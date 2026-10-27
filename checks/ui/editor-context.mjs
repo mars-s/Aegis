@@ -173,7 +173,8 @@ try {
     await page.locator('.side-editor').evaluate(el => { el.style.width = ''; });
     await page.locator('#sideBtn').click(); await page.locator('#side.open:not([hidden])').waitFor();
     await page.waitForTimeout(500); await composition('sidebar-open');
-    await page.getByRole('button', { name: 'Hide windows and library', exact: true }).click();
+    if (react) await page.locator('#sideBtn').click();
+    else await page.getByRole('button', { name: 'Hide windows and library', exact: true }).click();
     await page.locator('#side').waitFor({ state: 'hidden' });
     await page.setViewportSize({ width: 1586, height: 992 }); await page.waitForTimeout(500); await composition('resized');
     const expand = page.getByRole('button', { name: 'Full width', exact: true }); await expand.click();

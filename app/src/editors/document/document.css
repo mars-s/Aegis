@@ -563,7 +563,9 @@
   min-width: 80px;
   flex: 1;
 }
-.docs-drop-target {
+.docs-drop-target,
+.document-editor[data-scene-drop-target],
+.document-card[data-scene-drop-target] {
   outline: 2px solid var(--data) !important;
   outline-offset: -2px;
 }
