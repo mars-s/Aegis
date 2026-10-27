@@ -25,7 +25,7 @@ interface TouchHold { readonly pointer: number; readonly target: Element; readon
 type Input =
   | { readonly kind: 'touch-hold'; readonly request: TouchHold; readonly at: number }
   | { readonly kind: 'wheel'; readonly point: Point; readonly dx: number; readonly dy: number; readonly zoom: boolean; readonly at: number }
-  | { readonly kind: 'down'; readonly point: Point; readonly pointer: number; readonly pan: boolean; readonly action: 'move' | 'selection-move' | 'resize' | 'rotate'; readonly target?: CardId; readonly edit?: HTMLElement; readonly modifiers: Modifiers; readonly at: number }
+  | { readonly kind: 'down'; readonly point: Point; readonly pointer: number; readonly pan: boolean; readonly action: 'move' | 'selection-move' | 'resize' | 'rotate'; readonly target?: CardId; readonly selection?: readonly CardId[]; readonly edit?: HTMLElement; readonly modifiers: Modifiers; readonly at: number }
   | { readonly kind: 'touch-down' | 'touch-move' | 'touch-up'; readonly point: Point; readonly pointer: number; readonly at: number }
   | { readonly kind: 'move' | 'up'; readonly drop?: CardDropTarget | null; readonly point: Point; readonly pointer: number; readonly bypass: boolean; readonly at: number }
   | { readonly kind: 'cancel'; readonly at: number }
@@ -404,7 +404,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
               break;
             }
             const ids = input.modifiers.bypass ? [id] : input.modifiers.shift ? selected.has(id) ? [...selected].filter(candidate => candidate !== id) : [...selected, id] : selected.has(id) ? [...selected] : [id];
-            select(args.selectForDrag?.(ids, id, input.modifiers) ?? ids);
+            select(input.selection ?? args.selectForDrag?.(ids, id, input.modifiers) ?? ids);
             const carried = args.expandDrag?.([...selected], input.modifiers) ?? [...selected];
             const bases = new Map<CardId, Rect>();
             for (const candidate of carried) { const current = graph.nodes.get(candidate); if (current && !current.locked) bases.set(candidate, agentMotion.takeover(candidate, current.layout.bounds)); }
@@ -678,7 +678,16 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const edit = !pan && !handle && event.target instanceof Element ? event.target.closest<HTMLElement>('[contenteditable]:not([contenteditable="false"])') : null;
     const target = event.target instanceof Node ? pool.cardAt(event.target) : null;
     if (edit) textPress = { edit, start: point(event) };
-    enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, ...(target ? { target } : {}), ...(edit ? { edit } : {}), modifiers: { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey, alt: event.altKey }, at: performance.now() });
+    const modifiers = { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey, alt: event.altKey };
+    const hit = target ?? hitTest(point(event)), node = hit ? graph.nodes.get(hit) : undefined;
+    let selection: readonly CardId[] | undefined;
+    if (!pan && action === 'move' && hit && node && !node.locked && !(node.card.type === 'section' && !selected.has(hit) && !edit && !modifiers.shift && !modifiers.bypass)) {
+      const ids = modifiers.bypass ? [hit] : modifiers.shift ? selected.has(hit) ? [...selected].filter(id => id !== hit) : [...selected, hit] : selected.has(hit) ? [...selected] : [hit];
+      selection = args.selectForDrag?.(ids, hit, modifiers) ?? ids;
+      selectionRequest++;
+      workspace.act({ kind: 'select', ids: selection });
+    }
+    enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, ...(target ? { target } : {}), ...(selection ? { selection } : {}), ...(edit ? { edit } : {}), modifiers, at: performance.now() });
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('click', event => {
     const press = textPress; textPress = null;
