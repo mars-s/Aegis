@@ -1,5 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-import { collectionLayout, columns } from '../../lib/board/collection.js';
+import { collectionLayout, columns } from '@aegis/domain/collection';
 export { collectionLayout };
 
 export function collectionDrop(board, cards, point) {

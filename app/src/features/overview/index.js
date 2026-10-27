@@ -1,5 +1,5 @@
 import { boardClusters } from './clusters.js';
-import { cardSummary } from '../../lib/board/summary.js';
+import { cardSummary } from '@aegis/domain/summary';
 import { effectiveFlag } from '../editing/model.js';
 import { summarisedCard } from './zoom.js';
 import { summaryContent } from './summary.js';

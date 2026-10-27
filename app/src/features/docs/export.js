@@ -1,4 +1,4 @@
-import { escapeHTML, plainText } from './content.js';
+import { escapeHTML, plainText } from '@aegis/domain/content';
 import { printHtml } from '../../lib/native-files';
 
 export function downloadBlob(blob, title, extension) {

@@ -1,5 +1,5 @@
 import { slideHTML, observeSlideFits } from '../deck/slides.js';
-import { parseTime, seriesColor } from '../../objects/chart/chart.ts';
+import { parseTime, seriesColor } from '@aegis/domain/charts';
 
 const paths = {
   Document: 'M4 2h8l4 4v16H4zM12 2v5h4M7 11h6M7 15h6M7 19h4',

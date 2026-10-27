@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --test checks/*.test.mjs"
+    "check": "node --test checks/*.test.mjs",
+    "build": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@earendil-works/chord": "1.3.0",

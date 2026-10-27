@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { boardClusters } from '../../app/src/features/overview/clusters.js';
-import { boardSubtitle } from '../../app/src/lib/board/summary.js';
+import { boardSubtitle } from '@aegis/domain/summary';
 const card = (id, type, text, x, props = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
 
 test('named headings collect nearby work and count windows, excluding the headings', () => {

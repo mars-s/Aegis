@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
-import { documentWordCount } from '../../app/src/lib/board/words.js';
+import { documentWordCount } from '@aegis/domain/words';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });

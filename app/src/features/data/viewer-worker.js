@@ -1,4 +1,4 @@
-import { parseCsv, profileDataset, toDate, toNumber } from '../../lib/board/dataset.js';
+import { parseCsv, profileDataset, toDate, toNumber } from '@aegis/domain/dataset';
 
 let data, profile, order;
 const collator = new Intl.Collator('en-AU', { numeric: true, sensitivity: 'base' });

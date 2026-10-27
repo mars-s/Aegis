@@ -1,10 +1,10 @@
-import { boardSubtitle } from '../app/src/lib/board/summary.js';
+import { boardSubtitle } from '@aegis/domain/summary';
 // Aegis agent host: Pi Durable on 127.0.0.1, driving boards through the board commands.
 // The canvas talks to it over HTTP with a bearer token; it pushes changes as server-sent events.
 import http from 'node:http';
 // item 12 sandbox: shared document builder and closed source validation.
-import { sandboxDocument, SANDBOX_HEADER_CSP } from '../app/src/objects/kinds/html-sandbox.js';
-import { checkObject } from '../app/src/lib/board/objects.js';
+import { sandboxDocument, SANDBOX_HEADER_CSP } from '@aegis/protocol/sandbox';
+import { checkObject } from '@aegis/domain/objects';
 // item 12 sandbox end
 import { activityFromView, createStatusTracker, fallbackStatus, summariseStatus } from './status.mjs';
 // PM6 finding 1: version the canonical agent view for both events and GET responses.
@@ -14,7 +14,7 @@ import { conversationFromView, displayBrief, draftsFromView } from './status.mjs
 // Round 2 history: passive transcript entries do not enter model context.
 import { historyFromView, requestUndoCommands } from './status.mjs';
 // item 9 end
-import { linkPreview } from '../app/src/features/media/link-preview.mjs';
+import { linkPreview } from './dist/link-preview.js';
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, unlink, chmod, stat, appendFile } from 'node:fs/promises';
 import { createReadStream, createWriteStream } from 'node:fs';
@@ -28,10 +28,9 @@ import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
 import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
 import { Harness, createRegistry, defineExtension, defineTool, section, AgentDoc, LiveDoc } from '@earendil-works/pi-durable';
 import { openNodeSqliteStorage } from '@earendil-works/pi-durable/storage/sqlite/node';
-import { applyBatch, cardTypeGuide, emptyBoard, findSpace } from '../app/src/lib/board/commands.js';
-import { DATASET_LIMITS, MEASURES, BUCKETS, FILTER_OPS, parseCsv, profileDataset, queryDataset } from '../app/src/lib/board/dataset.js';
-import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '../app/src/lib/board/objects.js';
-import '../app/src/lib/board/types/index.js';
+import { applyBatch, cardTypeGuide, emptyBoard, findSpace } from '@aegis/domain/commands';
+import { DATASET_LIMITS, MEASURES, BUCKETS, FILTER_OPS, parseCsv, profileDataset, queryDataset } from '@aegis/domain/dataset';
+import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '@aegis/domain/objects';
 import { createLibraryActions, emptyLibrary, tidyLibrary } from './library.mjs';
 import { createUiUpdater } from './ui-update.mjs';
 import { handleMcpRequest } from './mcp.mjs';

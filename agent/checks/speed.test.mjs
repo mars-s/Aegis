@@ -4,9 +4,8 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, rm, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { applyBatch, emptyBoard, objectContentSize } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard, objectContentSize } from '@aegis/domain/commands';
 import { demoBatch } from '../../checks/demo-batch.mjs';
-import '../../app/src/lib/board/types/index.js';
 import { inspectModelInput, assertBoundedGrowth } from '../../checks/agent-speed.mjs';
 
 test('item 11: demo windows fit content, share the grid and never overlap', () => {

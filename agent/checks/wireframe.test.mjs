@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import '../../app/src/lib/board/types/wireframe.js';
-import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard, describe } from '@aegis/domain/commands';
 import { DEVICES, PIECES, wireCard, screenCommand, pieceCommands, sectionCommands, selectForDrag, expandDrag, snapDrag, dropCommands, alignmentCommands } from '../../app/src/features/wireframe/model.js';
 
 const apply = (board, commands) => { const result = applyBatch(board, { commands }); assert.equal(result.ok, true, JSON.stringify(result.errors)); return result.board; };

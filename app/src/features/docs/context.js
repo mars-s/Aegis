@@ -1,4 +1,4 @@
-import { cardSummary } from '../../lib/board/summary.js';
+import { cardSummary } from '@aegis/domain/summary';
 import { createDropdown } from '../../lib/ui/dropdown.js';
 import { liveReference, referenceCard } from './reference.js';
 import { summarisedCard } from '../overview/zoom.js';

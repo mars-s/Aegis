@@ -1,5 +1,5 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-import { cardTitle } from '../../lib/board/summary.js';
+import { cardTitle } from '@aegis/domain/summary';
 export const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const colour = value => /^#[0-9a-f]{6}$/i.test(value ?? '') ? value : `var(--c-${['gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple'].includes(value) ? value : 'gray'}, var(--card))`;
 const typeName = card => ({ doc: 'Document', deck: 'Slides', dataset: 'CSV', title: 'Heading', todo: 'Checklist', coll: 'Group', frame: 'Frame', note: 'Note', canvas: 'Board', plot: 'Chart', sheet: 'Sheet' })[card.kind || card.type] || card.kind || card.type;

@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, statSync } from 'node:fs';
+import {createRequire} from 'node:module';
 import { dirname, join, resolve, relative } from 'node:path';
 
 const root = resolve(new URL('../..', import.meta.url).pathname);
@@ -16,8 +17,13 @@ test('every file the host imports is bundled with the app', () => {
     if (seen.has(file)) return; seen.add(file);
     if (!inBundle(file)) missing.push(relative(root, file));
     const src = readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/(?:^|\n)\s*(?:import|export)\s[^'"]*?['"](\.{1,2}\/[^'"]+)['"]/g)) {
-      const next = resolve(dirname(file), m[1]);
+    for (const m of src.matchAll(/(?:^|\n)\s*(?:import|export)\s[^'"]*?['"]((?:\.{1,2}\/|@aegis\/)[^'"]+)['"]/g)) {
+      const next = m[1].startsWith('@aegis/') ? createRequire(file).resolve(m[1]) : resolve(dirname(file), m[1]);
+      if (m[1].startsWith('@aegis/')) {
+        const packageName=m[1].split('/').slice(0,2).join('/').replace('@aegis/','');
+        const metadata=join(root,'packages',packageName,'package.json');
+        if(!inBundle(metadata)) missing.push(relative(root,metadata));
+      }
       try { if (statSync(next).isFile()) walk(next); } catch { missing.push(relative(root, next) + ' (not found)'); }
     }
   };

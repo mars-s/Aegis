@@ -1,4 +1,4 @@
-import { OBJECT_SIZE } from '../../lib/board/objects.js';
+import { OBJECT_SIZE } from '@aegis/domain/objects';
 import './drafts.css';
 
 // Skeleton windows for what an agent is still writing. The host streams each create command as the model emits it;

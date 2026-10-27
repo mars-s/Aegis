@@ -1,7 +1,7 @@
 <!-- From Zephium (zephium-browser/Zephium @ 0eaad6d, frame/src/shared/ui/data/Chart/Readout.svelte), MPL-2.0. Changes for Aegis: local imports. -->
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { ChartEvidence } from "./chart";
+  import type { ChartEvidence } from "@aegis/domain/charts";
   import type { Readout } from "./plan";
 
   /** The tooltip's card, shadcn-svelte's: the point, a row per series with its indicator, and the sources behind it. */

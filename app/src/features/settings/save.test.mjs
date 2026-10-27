@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSaveQueue } from './save.js';
 import { repairBatch } from './preferences.js';
-import { applyBatch, emptyBoard } from '../../lib/board/commands.js';
+import { applyBatch, emptyBoard } from '@aegis/domain/commands';
 
 test('failed saves retain later edits and retry in order against a real board', async () => {
   let board = emptyBoard('boardaa'), online = false;

@@ -1,4 +1,4 @@
-import { plainText } from '../app/src/features/docs/content.js';
+import { plainText } from '@aegis/domain/content';
 
 export const boardURI = id => `aegis://boards/${id}`;
 export const cardURI = (boardId, cardId) => `${boardURI(boardId)}/cards/${cardId}`;

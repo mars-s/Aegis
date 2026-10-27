@@ -2,7 +2,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Readout from "./Readout.svelte";
-  import type { ChartEvidence, ChartSpec } from "./chart";
+  import type { ChartEvidence, ChartSpec } from "@aegis/domain/charts";
   import { radar, readout, type Plan } from "./plan";
   let {
     spec,

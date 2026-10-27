@@ -2,7 +2,7 @@
   import { onMount, untrack } from 'svelte';
   import font from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?inline';
   import type { Host } from '../../lib/host';
-  import { reportedHeight, reportedEscape, reportedState, THEME_KEYS } from './html-sandbox.js';
+  import { reportedHeight, reportedEscape, reportedState, THEME_KEYS } from '@aegis/protocol/sandbox';
   let { cardId, data, title, post, onset, onheight, onescape = () => {} }: { cardId: string; data: { html: string; css: string; js: string; height?: number; state?: string }; title: string; post: Host['post']; onset: (path: (string | number)[], value: unknown) => void; onheight: (height: number) => void; onescape?: () => void } = $props();
   let frame = $state<HTMLIFrameElement>();
   let ready = $state(false);

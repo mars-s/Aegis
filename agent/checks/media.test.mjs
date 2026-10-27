@@ -6,14 +6,13 @@ import { spawn } from 'node:child_process';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import '../../app/src/lib/board/types/media.js';
-import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard } from '@aegis/domain/commands';
 import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from '../../app/src/features/colors/model.js';
 import { contrastText } from '../../app/src/features/colors/settings.js';
 import { uploadRecording } from '../../app/src/features/media/upload.js';
 import { cropBox } from '../../app/src/features/media/images.js';
 import { spotifyOf, normaliseLink } from '../../app/src/features/media/links.js';
-import { publicAddress, parsePreview, linkPreview } from '../../app/src/features/media/link-preview.mjs';
+import { publicAddress, parsePreview, linkPreview } from '../dist/link-preview.js';
 
 test('media cards retain asset references, colour names and independent crop settings', () => {
   const original = emptyBoard('media');

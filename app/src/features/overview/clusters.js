@@ -1,5 +1,5 @@
 import { effectiveFlag } from '../editing/model.js';
-import { cardTitle } from '../../lib/board/summary.js';
+import { cardTitle } from '@aegis/domain/summary';
 const containers = new Set(['frame', 'coll', 'template-group']);
 export function boardClusters(board) {
   const cards = board.cards.filter(c => !effectiveFlag(board, c, 'hidden'));

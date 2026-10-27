@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 // Match the host's import, so a missing registration import fails this check.
-import '../../app/src/lib/board/types/index.js';
-import { applyBatch, emptyBoard, describe, cardTypeGuide } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard, describe, cardTypeGuide } from '@aegis/domain/commands';
 import { chartTicks, lineChart, slideHTML, newSlide } from '../../app/src/features/deck/slides.js';
 
 test('the host accepts deck creates and updates, and describes slides for agents', () => {
