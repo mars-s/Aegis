@@ -2,6 +2,8 @@ import { Effect } from 'effect';
 import type { Board } from '@aegis/domain/schema';
 import { decodeStoredBoard } from '@aegis/protocol/storage';
 import { decodeAssetUpload, decodeBatchResponse, decodeBoardList, decodeHostEvent, decodeHostError, decodeOkResponse } from '@aegis/protocol/http';
+import { AgentModelSchema, AgentReceiptSchema, AgentSnapshotSchema } from '@aegis/protocol/agents';
+import { AccountsSchema, LibraryResultSchema, LibrarySnapshotSchema, LinkPreviewSchema, McpSetupSchema, RewriteResponseSchema, decodeSandbox } from '@aegis/protocol/services';
 import type { HostClient } from './contracts.js';
 import type { HostFailure, HostResult } from './result.js';
 import { readEventStream } from './sse.js';
@@ -68,6 +70,34 @@ export function createHostClient(options: HostOptions): HostClient {
   }
 
   return {
+    agents: {
+      list: (boardId, signal) => request({ method: 'GET', path: boardId ? `/agents?board=${encodeURIComponent(boardId)}` : '/agents', decode: value => AgentSnapshotSchema.array().parse(value), signal }),
+      models: signal => request({ method: 'GET', path: '/models', decode: value => AgentModelSchema.array().parse(value), signal }),
+      connected: async (provider, signal) => {
+        if (provider === 'fake') return request({ method: 'GET', path: '/models', decode: value => AgentModelSchema.array().parse(value).some(model => model.provider === provider), signal });
+        const result = await request({ method: 'GET', path: '/auth', decode: value => AccountsSchema.parse(value), signal });
+        return result.kind === 'error' ? result : { kind: 'ok', value: result.value.some(account => account.provider === provider && account.connected) };
+      },
+      start: (input, signal) => request({ method: 'POST', path: '/agents', body: { kind: 'json', value: input }, decode: value => AgentReceiptSchema.array().parse(value), signal }),
+      message: (id, content, selectedIds, signal) => request({ method: 'POST', path: `/agents/${encodeURIComponent(id)}/message`, body: { kind: 'json', value: { content, selectedIds } }, decode: decodeOkResponse, signal }),
+      stop: (id, signal) => request({ method: 'POST', path: `/agents/${encodeURIComponent(id)}/stop`, body: { kind: 'json', value: {} }, decode: decodeOkResponse, signal }),
+      undoRequest: (id, requestId, signal) => request({ method: 'POST', path: `/agents/${encodeURIComponent(id)}/history/${encodeURIComponent(requestId)}/undo`, body: { kind: 'json', value: {} }, decode: decodeOkResponse, signal }),
+    },
+    accounts: signal => request({ method: 'GET', path: '/auth', decode: value => AccountsSchema.parse(value), signal }),
+    authenticate: (provider, action, signal) => request({ method: 'POST', path: `/auth/${action}`, body: { kind: 'json', value: { provider } }, decode: value => AccountsSchema.parse(value), signal }),
+    answer: (provider, answer, signal) => request({ method: 'POST', path: '/auth/answer', body: { kind: 'json', value: { provider, answer } }, decode: decodeOkResponse, signal }),
+    mcp: signal => request({ method: 'GET', path: '/integrations/mcp', decode: value => McpSetupSchema.parse(value), signal }),
+    rewrite: (input, signal) => request({ method: 'POST', path: '/rewrite', body: { kind: 'json', value: input }, decode: value => RewriteResponseSchema.parse(value), signal }),
+    linkPreview: (url, signal) => request({ method: 'GET', path: `/link-preview?url=${encodeURIComponent(url)}`, decode: value => LinkPreviewSchema.parse(value), signal }),
+    registerSandbox: (input, signal) => request({ method: 'POST', path: '/sandbox', body: { kind: 'json', value: input }, decode: value => decodeSandbox(value, base), signal }),
+    library: {
+      read: signal => request({ method: 'GET', path: '/library', decode: value => LibrarySnapshotSchema.parse(value), signal }),
+      change: (change, signal) => request({ method: 'POST', path: '/library', body: { kind: 'json', value: change }, decode: value => LibraryResultSchema.parse(value), signal }),
+      createBoard: (name, parent, signal) => request({ method: 'POST', path: '/boards', body: { kind: 'json', value: { name, parent } }, decode: decodeStoredBoard, signal }),
+      renameBoard: (id, name, signal) => request({ method: 'POST', path: `/boards/${encodeURIComponent(id)}/name`, body: { kind: 'json', value: { name } }, decode: decodeOkResponse, signal }),
+      duplicate: (id, signal) => request({ method: 'POST', path: '/library/duplicate', body: { kind: 'json', value: { id } }, decode: value => LibraryResultSchema.parse(value), signal }),
+      removeBoard: (id, signal) => request({ method: 'POST', path: `/boards/${encodeURIComponent(id)}/delete`, body: { kind: 'json', value: {} }, decode: value => LibraryResultSchema.parse(value), signal }),
+    },
     boards: signal => request({ method: 'GET', path: '/boards', decode: decodeBoardList, signal }),
     board: (id, signal) => request({ method: 'GET', path: `/boards/${encodeURIComponent(id)}`, decode: decodeStoredBoard, signal }),
     createBoard: (name, signal) => request({ method: 'POST', path: '/boards', body: { kind: 'json', value: { name } }, decode: decodeStoredBoard, signal }),

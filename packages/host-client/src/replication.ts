@@ -1,6 +1,6 @@
 import { Effect } from 'effect';
 import type { HostEvent } from '@aegis/protocol/http';
-import type { HostClient, ReplicationPort } from './contracts.js';
+import type { BoardClient, ReplicationPort } from './contracts.js';
 import type { HostFailure } from './result.js';
 
 export interface WorkspaceConnection {
@@ -10,7 +10,7 @@ export interface WorkspaceConnection {
 }
 
 export interface ConnectionOptions {
-  readonly client: HostClient;
+  readonly client: BoardClient;
   readonly workspace: { readonly replication: ReplicationPort };
   readonly onError?: (error: HostFailure) => void;
   readonly reconnectMs?: number;

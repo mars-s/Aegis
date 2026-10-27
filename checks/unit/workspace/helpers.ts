@@ -1,6 +1,6 @@
 import { applyBatch, BoardIdSchema, CardIdSchema, emptyBoard } from '@aegis/domain';
 import type { Board, Command } from '@aegis/domain';
-import type { HostClient, HostResult, PendingBatch } from '@aegis/host-client';
+import type { BoardClient, HostResult, PendingBatch } from '@aegis/host-client';
 import type { BatchResponse, HostEvent } from '@aegis/protocol/http';
 
 export const boardId = BoardIdSchema.parse('boardaa');
@@ -30,7 +30,7 @@ export function memoryHost(initial: Board) {
   let receive: (event: HostEvent, bytes: number) => void = () => {};
   const attempts: PendingBatch[] = [];
   const reads: Board['id'][] = [];
-  const client: HostClient = {
+  const client: BoardClient = {
     boards: async () => ({ kind: 'ok', value: [{ id: board.id, name: board.name, cards: board.cards.length, rev: board.rev, boardParent: board.parent ?? null, editedAt: board.editedAt ?? null, subtitle: '' }] }),
     board: async id => {
       reads.push(id);

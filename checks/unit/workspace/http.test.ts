@@ -1,9 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { BoardIdSchema, BatchIdSchema } from '@aegis/domain';
+import { AgentIdSchema, BoardIdSchema, BatchIdSchema } from '@aegis/domain';
 import { createHostClient } from '@aegis/host-client';
+import type { HostClient, HostResult } from '@aegis/host-client';
 import { boardWith, deferred, noteId } from './helpers.js';
 
 describe('Effect host boundary', () => {
+  it('decodes every new semantic service and refuses a foreign sandbox capability', async () => {
+    const signal = new AbortController().signal;
+    const operations: readonly ((client: HostClient) => Promise<HostResult<unknown>>)[] = [
+      client => client.agents.list(null, signal), client => client.agents.models(signal),
+      client => client.agents.start({ boardId: boardWith().id, brief: 'Synthetic', selectedIds: [], model: { provider: 'fake', modelId: 'fake' }, count: 1 }, signal),
+      client => client.accounts(signal), client => client.mcp(signal), client => client.library.read(signal),
+      client => client.library.change({ op: 'create', kind: 'folder', parent: null }, signal),
+      client => client.rewrite({ text: 'Synthetic', how: 'Shorten', title: '', around: '' }, signal),
+      client => client.linkPreview('https://example.invalid', signal),
+      client => client.agents.stop(AgentIdSchema.parse('synthetic-agent'), signal),
+    ];
+    for (const operation of operations) {
+      const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => new Response('{"invalid":true}') });
+      try { expect(await operation(client)).toMatchObject({ kind: 'error', error: { kind: 'protocol' } }); }
+      finally { client.dispose(); }
+    }
+    for (const url of ['https://other.invalid/sandbox/' + 'a'.repeat(64), 'http://127.0.0.1:4101/sandbox/not-a-capability', 'http://127.0.0.1:4101/sandbox/' + 'a'.repeat(64) + '?token=unexpected']) {
+      const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => new Response(JSON.stringify({ url })) });
+      try { expect(await client.registerSandbox({ html: '', css: '', js: '', parentOrigin: 'http://127.0.0.1:4101', channel: crypto.randomUUID(), font: '', theme: '', motionOff: true }, signal)).toMatchObject({ kind: 'error', error: { kind: 'protocol' } }); }
+      finally { client.dispose(); }
+    }
+  });
+
   it('does not start a host read after the client lifetime ends', async () => {
     let reads = 0;
     const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => { reads++; return new Response('[]'); } });

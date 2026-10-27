@@ -1,3 +1,6 @@
+import type { AgentModel, AgentSnapshot, StartAgent } from '@aegis/protocol/agents';
+import type { AgentId, CardId, RequestId } from '@aegis/domain/schema';
+import type { LibrarySnapshot, LibraryChange, LibraryResult, Provider, ProviderAccount, McpSetup, RewriteRequest, LinkPreview, SandboxRequest } from '@aegis/protocol/services';
 import type { BatchId, Board, BoardId, Command, Source } from '@aegis/domain/schema';
 import type { AssetUpload, BatchResponse, BoardListEntry, HostEvent } from '@aegis/protocol/http';
 import type { HostFailure, HostResult } from './result.js';
@@ -30,7 +33,7 @@ export interface ReplicationPort {
 
 export type BoardSummary = BoardListEntry;
 
-export interface HostClient {
+export interface BoardClient {
   readonly boards: (signal?: AbortSignal) => Promise<HostResult<readonly BoardSummary[]>>;
   readonly board: (id: BoardId, signal?: AbortSignal) => Promise<HostResult<Board>>;
   readonly createBoard: (name: string, signal?: AbortSignal) => Promise<HostResult<Board>>;
@@ -53,3 +56,31 @@ export interface LocalFieldError {
 }
 
 export type CreatedIds = Readonly<Extract<BatchResponse, { readonly ok: true }>['created']>;
+
+export interface AgentClient {
+  readonly list: (boardId: BoardId | null, signal: AbortSignal) => Promise<HostResult<readonly AgentSnapshot[]>>;
+  readonly models: (signal: AbortSignal) => Promise<HostResult<readonly AgentModel[]>>;
+  readonly connected: (provider: string, signal: AbortSignal) => Promise<HostResult<boolean>>;
+  readonly start: (request: StartAgent, signal: AbortSignal) => Promise<HostResult<readonly Pick<AgentSnapshot, 'id'>[]>>;
+  readonly message: (id: AgentId, content: string, selectedIds: readonly CardId[], signal: AbortSignal) => Promise<HostResult<void>>;
+  readonly stop: (id: AgentId, signal: AbortSignal) => Promise<HostResult<void>>;
+  readonly undoRequest: (id: AgentId, requestId: RequestId, signal: AbortSignal) => Promise<HostResult<void>>;
+}
+export interface HostClient extends BoardClient {
+  readonly agents: AgentClient;
+  readonly accounts: (signal?: AbortSignal) => Promise<HostResult<readonly ProviderAccount[]>>;
+  readonly authenticate: (provider: Provider, action: 'start' | 'cancel' | 'logout', signal?: AbortSignal) => Promise<HostResult<readonly ProviderAccount[]>>;
+  readonly answer: (provider: Provider, answer: string, signal?: AbortSignal) => Promise<HostResult<void>>;
+  readonly mcp: (signal?: AbortSignal) => Promise<HostResult<McpSetup>>;
+  readonly rewrite: (request: RewriteRequest, signal?: AbortSignal) => Promise<HostResult<string>>;
+  readonly linkPreview: (url: string, signal: AbortSignal) => Promise<HostResult<LinkPreview>>;
+  readonly registerSandbox: (request: SandboxRequest, signal: AbortSignal) => Promise<HostResult<{ readonly url: string }>>;
+  readonly library: {
+    readonly read: (signal?: AbortSignal) => Promise<HostResult<LibrarySnapshot>>;
+    readonly change: (change: LibraryChange, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;
+    readonly createBoard: (name: string, parent: string | null, signal?: AbortSignal) => Promise<HostResult<Board>>;
+    readonly renameBoard: (id: BoardId, name: string, signal?: AbortSignal) => Promise<HostResult<void>>;
+    readonly duplicate: (id: string, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;
+    readonly removeBoard: (id: BoardId, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;
+  };
+}

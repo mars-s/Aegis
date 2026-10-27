@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentIdSchema, applyBatch, BoardSchema, RevisionSchema } from '@aegis/domain';
 import type { Board, Command } from '@aegis/domain';
 import { connectWorkspace } from '@aegis/host-client';
-import type { HostClient, HostResult } from '@aegis/host-client';
+import type { BoardClient, HostResult } from '@aegis/host-client';
 import { decodeHostEvent } from '@aegis/protocol/http';
 import { createWorkspace } from '../../../app/src/workspace/store.js';
 import { boardWith, deferred, memoryHost, noteId, otherBoardId, otherId } from './helpers.js';
@@ -83,7 +83,7 @@ describe('ordered workspace connection', () => {
     const gate = deferred<HostResult<Board>>();
     let oldSignal: AbortSignal | undefined;
     const next = BoardSchema.parse({ ...initial, id: otherBoardId, name: 'Second board' });
-    const client: HostClient = {
+    const client: BoardClient = {
       ...host.client,
       board: async (id, signal) => {
         if (id === initial.id) { oldSignal = signal; return gate.promise; }
@@ -130,7 +130,7 @@ describe('ordered workspace connection', () => {
     const snapshot = deferred<HostResult<Board>>();
     const reading = deferred<void>();
     let reads = 0;
-    const client: HostClient = {
+    const client: BoardClient = {
       ...host.client,
       board: async (id, signal) => {
         reads++;
@@ -176,7 +176,7 @@ describe('ordered workspace connection', () => {
     const initial = boardWith();
     const host = memoryHost(initial);
     let reads = 0;
-    const client: HostClient = {
+    const client: BoardClient = {
       ...host.client,
       board: async (id, signal) => {
         reads++;
@@ -201,7 +201,7 @@ describe('ordered workspace connection', () => {
     const initial = boardWith();
     const host = memoryHost(initial);
     const snapshot = deferred<HostResult<Board>>();
-    const client: HostClient = { ...host.client, board: () => snapshot.promise };
+    const client: BoardClient = { ...host.client, board: () => snapshot.promise };
     const workspace = createWorkspace({ board: initial });
     const source = workspace.agent(AgentIdSchema.parse('helper-1'));
     const connection = connectWorkspace({ client, workspace });
@@ -223,7 +223,7 @@ describe('ordered workspace connection', () => {
     const missed = change(initial, [{ op: 'update', id: noteId, set: { text: 'Missed' } }]);
     const latest = change(missed, [{ op: 'update', id: noteId, set: { text: 'Latest' } }]);
     let reads = 0;
-    const client: HostClient = {
+    const client: BoardClient = {
       ...host.client,
       board: async () => ({ kind: 'ok', value: ++reads <= 2 ? initial : latest }),
     };
@@ -243,7 +243,7 @@ describe('ordered workspace connection', () => {
     const initial = boardWith();
     const host = memoryHost(initial);
     let signal: AbortSignal | undefined;
-    const client: HostClient = {
+    const client: BoardClient = {
       ...host.client,
       events: args => { signal = args.signal; return host.client.events(args); },
     };

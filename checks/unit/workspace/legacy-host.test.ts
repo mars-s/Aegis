@@ -5,12 +5,17 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod/v4';
 import { expect, it } from 'vitest';
-import { BatchIdSchema } from '@aegis/domain';
+import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
 import { connectWorkspace, createHostClient } from '@aegis/host-client';
+import type { HostResult } from '@aegis/host-client';
 import { createWorkspace } from '../../../app/src/workspace/store.js';
 import { noteId, otherId } from './helpers.js';
 
 const ReadySchema = z.object({ aegis: z.literal('ready'), port: z.number().int().positive() });
+function value<T>(result: HostResult<T>): T {
+  if (result.kind === 'error') throw new Error(JSON.stringify(result.error));
+  return result.value;
+}
 
 it('saves, reloads, receives SSE and persists camera against the untouched legacy host', async () => {
   const data = await mkdtemp(join(tmpdir(), 'aegis-workspace-host-'));
@@ -55,6 +60,28 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
       expect(await (await fetch(client.assetUrl(uploaded.value.url))).text()).toBe(csv);
       const created = await client.createBoard('Real host workspace');
       if (created.kind !== 'ok') throw new Error(JSON.stringify(created.error));
+      const signal = new AbortController().signal;
+      expect(value(await client.accounts(signal)).map(account => [account.provider, account.connected])).toEqual([['openai', false], ['anthropic', false]]);
+      expect(value(await client.agents.models(signal)).some(model => model.provider === 'fake')).toBe(true);
+      expect(value(await client.agents.connected('fake', signal))).toBe(true);
+      expect(value(await client.rewrite({ text: 'A local passage', how: 'Shorten', title: 'Synthetic', around: '' }, signal))).toBe('A local passage (rewritten)');
+      expect(value(await client.mcp(signal)).codexCommand).toContain('aegis');
+      const folder = value(await client.library.change({ op: 'create', kind: 'folder', parent: null, name: 'Synthetic folder' }, signal));
+      if (!folder.created) throw new Error('The synthetic folder was not created');
+      const child = value(await client.library.createBoard('Synthetic child', folder.created, signal));
+      value(await client.library.renameBoard(child.id, 'Renamed child', signal));
+      expect(value(await client.library.read(signal)).boards.find(board => board.id === child.id)).toMatchObject({ name: 'Renamed child', parent: folder.created });
+      const duplicate = value(await client.library.duplicate(child.id, signal));
+      if (!duplicate.created) throw new Error('The synthetic duplicate was not created');
+      value(await client.library.removeBoard(BoardIdSchema.parse(duplicate.created), signal));
+      expect(value(await client.library.read(signal)).boards.some(board => board.id === duplicate.created)).toBe(false);
+      const receipt = value(await client.agents.start({ boardId: created.value.id, brief: 'FAKEREPLY A local reply', selectedIds: [], model: { provider: 'fake', modelId: 'fake' }, count: 1 }, signal))[0];
+      if (!receipt) throw new Error('The synthetic agent was not created');
+      await expect.poll(async () => value(await client.agents.list(created.value.id, signal)).find(agent => agent.id === receipt.id)?.text).toBe('A local reply');
+      const sandbox = value(await client.registerSandbox({ html: '<p>Local sandbox</p>', css: '', js: '', parentOrigin: `http://127.0.0.1:${port}`, channel: crypto.randomUUID(), font: 'data:font/woff2;base64,AA==', theme: '', motionOff: true }, signal));
+      const page = await fetch(sandbox.url);
+      expect(page.headers.get('content-security-policy')).toContain('sandbox allow-scripts');
+      expect(await page.text()).toContain('Local sandbox');
       const workspace = createWorkspace({ board: created.value });
       const connection = connectWorkspace({ client, workspace });
       try {
