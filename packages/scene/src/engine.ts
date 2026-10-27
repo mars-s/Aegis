@@ -14,7 +14,7 @@ import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
 import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, ToolCommit, ToolPointer } from './types.js';
+import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
@@ -124,16 +124,17 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       const stroke = { colour: { kind: 'theme' as const, token: 'focus' as const }, width: 1.5, dash: [] };
       tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', opacity: 1, space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, opacity: 1, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
     };
-    tools.set({
+    const tool: SceneTool = {
       accepts: point => point.button === 0,
       down: update, move: points => { const point = points.at(-1); if (point) update(point); },
       up: point => {
         const target = hitTest(point.screen);
         const duplicate = [...graph.links.values()].some(entry => entry.link.a === id && entry.link.b === target || entry.link.a === target && entry.link.b === id);
-        post(() => { if (target && target !== id && !duplicate) workspace.submit([{ op: 'connect', a: id, b: target }]); tools.set(null); });
+        post(() => { if (!tools.isCurrent(tool)) return; if (target && target !== id && !duplicate) workspace.submit([{ op: 'connect', a: id, b: target }]); tools.set(null); });
       },
-      acceptsKey: key => key.key === 'Enter', key: () => { tools.set(null); }, cancel: () => { tools.preview(null); },
-    });
+      acceptsKey: key => key.key === 'Enter', key: () => { tools.set(null); }, cancel: () => { if (tools.isCurrent(tool)) tools.set(null); },
+    };
+    tools.set(tool);
   }
 
   function navigation(intent: Navigation, now: number): void {

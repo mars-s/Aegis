@@ -40,6 +40,29 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test('Escape and pan cancel Connect without rearming it on the next pointer move', async () => {
+    const p = await page();
+    for (const cancel of ['escape', 'space', 'middle'] as const) {
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, source = harness.board().cards[0];
+        if (!source) throw new Error('Missing connection source');
+        document.getElementById('stage')?.focus();
+        harness.engine.startConnection(source.id);
+      });
+      await p.mouse.move(1100, 700); await idle(p);
+      expect(await p.locator('#stage').evaluate(element => element.style.cursor)).toBe('crosshair');
+      if (cancel === 'escape') await p.keyboard.press('Escape');
+      else if (cancel === 'space') await p.keyboard.press('Space');
+      else { await p.mouse.down({ button: 'middle' }); await p.mouse.up({ button: 'middle' }); }
+      await idle(p);
+      await p.mouse.move(1120, 720); await idle(p);
+      expect(await p.locator('#stage').evaluate(element => element.style.cursor)).toBe('');
+      await p.locator('[data-id="note-2"]').click({ position: { x: 10, y: 100 } }); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.flat().filter(command => command.op === 'connect'))).toEqual([]);
+    }
+    await p.close();
+  });
+
   test('discards a deferred tool batch when its board epoch changes', async () => {
     const p = await page();
     await p.evaluate(() => {

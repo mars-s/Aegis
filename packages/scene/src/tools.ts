@@ -21,6 +21,7 @@ export class ToolController {
   constructor(invalidate: () => void, hitTest: (point: Point) => CardId | null) { this.invalidate = invalidate; this.hitTest = hitTest; }
   owns(pointer: number): boolean { return this.pointer === pointer; }
   name(): string | null { return this.current?.id ?? null; }
+  isCurrent(tool: SceneTool): boolean { return this.current === tool; }
   set(tool: SceneTool | null): void {
     if (tool === this.current) return;
     this.cancel('tool-change'); this.current = tool;
