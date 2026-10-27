@@ -44,6 +44,7 @@ import { CaptureButton, CaptureViews } from './features/editing/registration.js'
 import { CreativeImports } from './platform/CreativeImports.js';
 import { createAvailableArea } from './platform/available-area.js';
 import { createEditorController } from './platform/editor-controller.js';
+import { useEditorPresence } from './platform/editor-presence.js';
 import { createLibraryService, hostValue } from './platform/library-service.js';
 
 declare const __AEGIS_TEST_FACADE__: boolean;
@@ -130,6 +131,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const library = useMemo(() => createLibraryService({ workspace, client, replication: runtime.replication, open: openBoard, notify: setNotice, storage: localStorage }), [workspace, client, runtime.replication, openBoard]);
   const pendingDeletion = useSyncExternalStore(library.pending.subscribe, library.pending.getSnapshot);
   const ui = useSyncExternalStore(workspace.ui.subscribe, workspace.ui.getSnapshot);
+  const { presence: editorPresence, element: editorElement } = useEditorPresence(ui.editor, chromeEngine, controller.instant);
+  const presentedEditor = editorPresence.kind === 'closed' ? null : editorPresence.editor;
   const attached = useCallback((instance: CanvasEngine | null): void => {
     engineCleanup.current?.(); engineCleanup.current = null;
     engine.current = instance; setChromeEngine(instance);
@@ -209,13 +212,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     editorActions: <EditorActions context={context} full={ui.editor?.view === 'full'} />,
   }), [context, client, runtime.connection.native, ui.editor?.view]);
   const shortcuts = useMemo(() => [{ id: 'note', label: 'Note', text: 'N' }, { id: 'doc', label: 'Document', text: 'D' }, { id: 'deck', label: 'Slides', text: 'B' }, { id: 'ask', label: 'Ask', text: 'Command K or /' }, { id: 'fit', label: 'Fit board', text: '0' }, { id: 'side', label: 'Library and Windows', text: '\\' }], []);
-  const activeCard = ui.editor ? workspace.record(ui.editor.id).getSnapshot() : null;
+  const activeCard = presentedEditor ? workspace.record(presentedEditor.id).getSnapshot() : null;
   const editorKind = activeCard?.type === 'object' ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
   useEffect(() => {
     document.body.classList.toggle('editor-open', !!ui.editor);
     document.body.classList.toggle('editor-wide', ui.editor?.view === 'full');
-    document.body.classList.toggle('docs-open', editorKind === 'doc');
+    document.body.classList.toggle('docs-open', !!ui.editor && editorKind === 'doc');
     document.body.classList.toggle('docs-full', editorKind === 'doc' && ui.editor?.view === 'full');
     return () => document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
   }, [editorKind, ui.editor?.view]);
@@ -227,9 +230,9 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
-    {Editor && ui.editor && chromeEngine ? <aside data-scene-interactive className={`react-editor side-editor is-open${editorKind === 'deck' ? ' deck-panel' : ''}${ui.editor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">
-      {editorKind !== 'doc' ? <header className="react-editor-toolbar"><span className="side-editor-name">{activeCard?.text || 'Untitled'}</span><EditorActions context={context} full={ui.editor.view === 'full'} /></header> : null}
-      <div className="react-editor-content"><Editor cardId={ui.editor.id} workspace={workspace} engine={chromeEngine} /></div>
+    {Editor && presentedEditor && chromeEngine ? <aside ref={editorElement} inert={editorPresence.kind === 'closing'} data-scene-interactive className={`react-editor side-editor${editorPresence.kind === 'open' ? ' is-open' : editorPresence.kind === 'closing' ? ' is-closing' : ''}${editorPresence.kind !== 'closed' && editorPresence.instant ? ' instant' : ''}${editorKind === 'deck' ? ' deck-panel' : ''}${presentedEditor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">
+      {editorKind !== 'doc' ? <header className="react-editor-toolbar"><span className="side-editor-name">{activeCard?.text || 'Untitled'}</span><EditorActions context={context} full={presentedEditor.view === 'full'} /></header> : null}
+      <div className="react-editor-content"><Editor cardId={presentedEditor.id} workspace={workspace} engine={chromeEngine} /></div>
     </aside> : null}
     {ui.editor && editorKind === 'doc' ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
