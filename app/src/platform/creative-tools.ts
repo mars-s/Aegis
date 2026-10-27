@@ -6,12 +6,15 @@ import { butter, centerline, colour, pathD, shapePoints } from '../features/draw
 import type { InkPoint, VectorPoint } from '../features/draw/art.js';
 import type { DrawSettings } from '../features/draw/Inspector.js';
 import { pieceCommands, screenCommand, wireCard } from '../features/wireframe/commands.js';
+import { toolExit } from './tool-lifetime.js';
 import type { WirePlacement } from '../features/wireframe/WireframePanel.js';
 
 const id = (): CardId => CardIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
 const previewColour = (value: string): PreviewColour => { const hex = colour(value); return hex.startsWith('#') ? { kind: 'hex', value: hex } : { kind: 'theme', token: 'text' }; };
 const stroke = (value = 'ink', width = 1.5) => ({ colour: previewColour(value), width, dash: [] });
 export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, kind: 'ink' | 'shape' | 'path' | 'stamp', settings: () => DrawSettings, finished: () => void): SceneTool {
+  const name = kind === 'ink' ? 'draw-ink' : kind === 'path' ? 'vector' : `draw-${kind}`;
+  const exit = toolExit(engine, name, finished);
   let start: ToolPointer | null = null, samples: InkPoint[] = [], points: VectorPoint[] = [], erased = new Set<CardId>();
   function clear(): void { start = null; samples = []; points = []; erased = new Set(); engine.preview(null); }
   function commit(commands: readonly Command[], selection: readonly CardId[]): void { engine.commitTool({ commands, selection }); }
@@ -38,10 +41,10 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
       const prefs = settings(), newId = id();
       commit([{ op: 'create', newId, type: 'path', x, y, w, h, props: { points: points.map(point => ({ x: point.x - x, y: point.y - y, ...(point.ox === undefined ? {} : { ox: point.ox - x, oy: (point.oy ?? point.y) - y, ix: (point.ix ?? point.x) - x, iy: (point.iy ?? point.y) - y }) })), ow: w, oh: h, stroke: prefs.stroke, sw: prefs.sw, closed: false } }], [newId]);
     }
-    clear(); engine.afterInput(() => { engine.tool(null); finished(); });
+    clear(); exit();
   }
   return {
-    id: kind === 'ink' ? 'draw-ink' : kind === 'path' ? 'vector' : `draw-${kind}`,
+    id: name,
     accepts: point => point.button === 0,
     down: point => { start = point; if (kind === 'path') points.push({ ...point.world }); paint(point); },
     move: values => { for (const point of values) { if (kind === 'path' && start && point.buttons) { const last = points.at(-1); if (last) points[points.length - 1] = { ...last, ox: point.world.x, oy: point.world.y, ix: last.x * 2 - point.world.x, iy: last.y * 2 - point.world.y }; } paint(point); } },
@@ -65,11 +68,12 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
       clear();
     },
     acceptsKey: key => key.key === 'Escape' || kind === 'path' && key.key === 'Enter',
-    key: key => { if (kind === 'path' && (key.key === 'Enter' || points.length > 1)) finishPath(); else { clear(); engine.afterInput(() => { engine.tool(null); finished(); }); } },
+    key: key => { if (kind === 'path' && (key.key === 'Enter' || points.length > 1)) finishPath(); else { clear(); exit(); } },
     cancel: clear,
   };
 }
 export function placementTool(engine: CanvasEngine, workspace: FeatureWorkspace, request: WirePlacement): SceneTool {
+  const exit = toolExit(engine, `wire-${request.kind}`);
   let start: ToolPointer | null = null;
   const commandsAt = (point: ToolPointer): readonly Command[] => request.kind === 'screen' ? [screenCommand(request.device, point.world)] : request.kind === 'piece' ? pieceCommands(request.name, point.world, workspace.scene.snapshot().cards) : [wireCard({ type: request.kind, ...(request.kind === 'icon' ? { text: request.name, w: 48, h: 48 } : request.kind === 'text' ? { text: 'Text', w: 200, h: 40 } : {}) }, point.world.x, point.world.y)];
   return { id: `wire-${request.kind}`, accepts: point => point.button === 0, down: point => { start = point; }, move: points => {
@@ -79,6 +83,6 @@ export function placementTool(engine: CanvasEngine, workspace: FeatureWorkspace,
     const dragged = Math.hypot(point.screen.x - initial.screen.x, point.screen.y - initial.screen.y) > 4;
     const commands = commandsAt(dragged ? initial : point).map(command => command.op === 'create' && dragged && (request.kind === 'box' || request.kind === 'section') ? CommandSchema.parse({ ...command, x: Math.min(initial.world.x, point.world.x), y: Math.min(initial.world.y, point.world.y), w: Math.max(40, Math.abs(point.world.x - initial.world.x)), h: Math.max(24, Math.abs(point.world.y - initial.world.y)) }) : command);
     engine.commitTool({ commands, selection: commands.flatMap(command => command.op === 'create' && command.newId ? [command.newId] : []) }); engine.preview(null); start = null;
-    engine.afterInput(() => { engine.tool(null); });
-  }, acceptsKey: key => key.key === 'Escape', key: () => { engine.preview(null); engine.afterInput(() => { engine.tool(null); }); }, cancel: () => { start = null; engine.preview(null); } };
+    exit();
+  }, acceptsKey: key => key.key === 'Escape', key: () => { engine.preview(null); exit(); }, cancel: () => { start = null; engine.preview(null); } };
 }
