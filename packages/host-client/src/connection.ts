@@ -1,7 +1,7 @@
 import { Effect } from 'effect';
 import type { Board } from '@aegis/domain/schema';
 import { decodeStoredBoard } from '@aegis/protocol/storage';
-import { decodeBatchResponse, decodeBoardList, decodeHostEvent, decodeHostError, decodeOkResponse } from '@aegis/protocol/http';
+import { decodeAssetUpload, decodeBatchResponse, decodeBoardList, decodeHostEvent, decodeHostError, decodeOkResponse } from '@aegis/protocol/http';
 import type { HostClient } from './contracts.js';
 import type { HostFailure, HostResult } from './result.js';
 import { readEventStream } from './sse.js';
@@ -26,7 +26,7 @@ export function createHostClient(options: HostOptions): HostClient {
     readonly method: 'GET' | 'POST';
     readonly path: string;
     readonly decode: (value: unknown) => T;
-    readonly body?: unknown;
+    readonly body?: { readonly kind: 'json'; readonly value: unknown } | { readonly kind: 'file'; readonly file: File };
     readonly signal?: AbortSignal | undefined;
   }): Promise<HostResult<T>> {
     const operation = Effect.scoped(Effect.gen(function* () {
@@ -38,8 +38,8 @@ export function createHostClient(options: HostOptions): HostClient {
       const response = yield* Effect.tryPromise({
         try: () => fetchHost(base + args.path, {
           method: args.method, signal,
-          headers: { authorization: `Bearer ${options.token}`, 'content-type': 'application/json' },
-          ...(args.body === undefined ? {} : { body: JSON.stringify(args.body) }),
+          headers: { authorization: `Bearer ${options.token}`, 'content-type': args.body?.kind === 'file' ? args.body.file.type : 'application/json' },
+          ...(args.body === undefined ? {} : { body: args.body.kind === 'file' ? args.body.file : JSON.stringify(args.body.value) }),
         }),
         catch: error => signal.aborted ? { kind: 'cancelled' } as const : offline(error),
       });
@@ -65,13 +65,13 @@ export function createHostClient(options: HostOptions): HostClient {
   return {
     boards: signal => request({ method: 'GET', path: '/boards', decode: decodeBoardList, signal }),
     board: (id, signal) => request({ method: 'GET', path: `/boards/${encodeURIComponent(id)}`, decode: decodeStoredBoard, signal }),
-    createBoard: (name, signal) => request({ method: 'POST', path: '/boards', body: { name }, decode: decodeStoredBoard, signal }),
+    createBoard: (name, signal) => request({ method: 'POST', path: '/boards', body: { kind: 'json', value: { name } }, decode: decodeStoredBoard, signal }),
     commit: (batch, signal) => request({
       method: 'POST', path: `/boards/${encodeURIComponent(batch.boardId)}/batch`,
-      body: { commands: batch.commands }, decode: decodeBatchResponse, signal,
+      body: { kind: 'json', value: { commands: batch.commands } }, decode: decodeBatchResponse, signal,
     }),
     saveCamera: (id, view: Board['view'], signal) => request({
-      method: 'POST', path: `/boards/${encodeURIComponent(id)}/view`, body: { view },
+      method: 'POST', path: `/boards/${encodeURIComponent(id)}/view`, body: { kind: 'json', value: { view } },
       decode: decodeOkResponse, signal,
     }),
     events: args => {
@@ -106,6 +106,7 @@ export function createHostClient(options: HostOptions): HostClient {
         onFailure: error => ({ kind: 'error', error } as const),
       }));
     },
+    upload: (file, signal) => request({ method: 'POST', path: '/assets', body: { kind: 'file', file }, decode: decodeAssetUpload, signal }),
     assetUrl: url => url.startsWith('asset:') ? `${base}/assets/${encodeURIComponent(url.slice(6))}` : url,
     dispose: () => { lifetime.abort(); },
   };

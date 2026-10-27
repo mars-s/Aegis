@@ -11,6 +11,7 @@ import { locateConnection } from "./platform/connection.js";
 import type { Connection } from "./platform/connection.js";
 import { installTestFacade } from "./platform/test-facade.js";
 import { installEditorActions } from "./platform/editor-actions.js";
+import { installDataImport } from "./platform/data-import.js";
 
 declare const __AEGIS_TEST_FACADE__: boolean;
 
@@ -23,6 +24,7 @@ interface Runtime {
 
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace } = runtime;
+  const [importError, setImportError] = useState<string | null>(null);
   const composition = useMemo(() => createComposition({ assetUrl: runtime.client.assetUrl }), [runtime.client]);
   const metadata = useSyncExternalStore(workspace.metadata.subscribe, workspace.metadata.getSnapshot);
   const saving = useSyncExternalStore(workspace.saving.subscribe, workspace.saving.getSnapshot);
@@ -74,6 +76,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     },
   }), [workspace, composition]);
   useEffect(() => installEditorActions(context), [context]);
+  useEffect(() => installDataImport({ context, client: runtime.client, error: setImportError }), [context, runtime.client]);
   function add(type: "note" | "title"): void {
     const camera = engine.current?.camera() ?? { x: 0, y: 0, zoom: 1 };
     workspace.submit([{ op: "create", type, text: type === "title" ? "Untitled" : "", props: { contentFit: true }, x: (innerWidth / 2 - camera.x) / camera.zoom, y: (innerHeight / 2 - camera.y) / camera.zoom }]);
@@ -82,6 +85,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const editorKind = activeCard?.type === "object" ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
   return <>
+    {importError ? <div role="alert" className="react-import-error">{importError}<button onClick={() => setImportError(null)}>Dismiss</button></div> : null}
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} />
     <div className="react-board-label">{metadata.name}</div>
     <nav className="react-tools" aria-label="Canvas tools">

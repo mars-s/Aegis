@@ -4,6 +4,14 @@ import { createHostClient } from '@aegis/host-client';
 import { boardWith, noteId } from './helpers.js';
 
 describe('Effect host boundary', () => {
+  it('rejects malformed upload responses at the protocol boundary', async () => {
+    for (const value of [{ url: 'https://external.example/file.csv', type: 'text/csv', size: 4 }, { url: `asset:${'a'.repeat(32)}.csv`, type: 'text/csv', size: -1 }]) {
+      const client = createHostClient({ baseUrl: 'http://127.0.0.1:4101', token: 'check', fetch: async () => new Response(JSON.stringify(value)) });
+      try { expect(await client.upload(new File(['a,b'], 'check.csv', { type: 'text/csv' }))).toMatchObject({ kind: 'error', error: { kind: 'protocol' } }); }
+      finally { client.dispose(); }
+    }
+  });
+
   it('uses real legacy routes and validates JSON at the boundary', async () => {
     const requests: { readonly url: string; readonly init: RequestInit | undefined }[] = [];
     const board = boardWith();

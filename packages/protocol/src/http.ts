@@ -27,3 +27,11 @@ export const decodeHostEvent = (value:unknown): HostEvent => HostEventSchema.par
 export const decodeHostError = (value:unknown): string => z.object({error:z.string()}).parse(value).error;
 
 export function decodeOkResponse(value:unknown):void {z.object({ok:z.literal(true)}).parse(value);}
+
+export const AssetUploadSchema = z.object({
+  url: z.string().regex(/^asset:[a-f0-9]{32}\.[a-z0-9]{3,4}$/),
+  type: z.string().regex(/^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i),
+  size: z.number().int().positive(),
+});
+export type AssetUpload = z.output<typeof AssetUploadSchema>;
+export const decodeAssetUpload = (value: unknown): AssetUpload => AssetUploadSchema.parse(value);
