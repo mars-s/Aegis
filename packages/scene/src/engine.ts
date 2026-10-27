@@ -16,7 +16,7 @@ import { FrameMetrics } from './metrics.js';
 import { ToolController } from './tools.js';
 import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
-import { LIVE_LIMIT, representationMode } from './representations.js';
+import { representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
 import type { CardDropTarget, CanvasAttachment, CanvasEngine, DragGuide, DragSnapshot, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer, ToolPreview, ToolPrimitive } from './types.js';
 
@@ -91,7 +91,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   };
   motionPreference.addEventListener('change', event => { systemReducedMotion = event.matches; invalidate(); }, { signal: abort.signal });
   const canLease = args.canLease ?? ((card: Card): boolean => card.type === 'note' || card.type === 'title');
-  const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? LIVE_LIMIT), invalidate);
+  const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? 256), invalidate);
   const agentLine = new AgentLine(world), agentMotion = new AgentMotion(world, pool, view);
   const dragGuides = new DragGuides(world);
   const flashes = new Map<CardId, number>();

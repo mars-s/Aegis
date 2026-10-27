@@ -65,6 +65,11 @@ export class LeasePool {
       if (now - shell.lastSeen >= 2000) this.release(shell);
       else expiresAt = Math.min(expiresAt, shell.lastSeen + 2000);
     }
+    const overflow = this.byCard.size - capacity;
+    if (overflow > 0) {
+      const parked = [...this.byCard.values()].filter(shell => !shell.pins.size && shell.residency.kind === 'bound' && !visible.has(shell.residency.lease.cardId)).sort((a, b) => a.lastSeen - b.lastSeen);
+      for (const shell of parked.slice(0, overflow)) this.release(shell);
+    }
     this.queued = 0;
     let admitted = 0;
     for (const placement of placements) {
