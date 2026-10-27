@@ -1,6 +1,9 @@
-import type { ObjectData } from '@aegis/domain/objects';
+import type { ObjectData } from "@aegis/domain/objects";
 
-export interface SandboxRegistration extends Pick<ObjectData['html'], 'html' | 'css' | 'js' | 'state'> {
+export interface SandboxRegistration extends Pick<
+  ObjectData["html"],
+  "html" | "css" | "js" | "state"
+> {
   readonly parentOrigin: string;
   readonly channel: string;
   readonly font: string;
@@ -9,5 +12,8 @@ export interface SandboxRegistration extends Pick<ObjectData['html'], 'html' | '
 }
 export interface ObjectServices {
   readonly assetUrl: (url: string) => string;
-  readonly registerSandbox: (request: SandboxRegistration, signal: AbortSignal) => Promise<{ readonly url: string }>;
+  readonly registerSandbox: (
+    request: SandboxRegistration,
+    signal: AbortSignal,
+  ) => Promise<{ readonly url: string }>;
 }
