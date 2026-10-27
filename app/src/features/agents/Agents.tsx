@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
 import { z } from 'zod/v4';
 import { CardIdSchema } from '@aegis/domain/schema';
 import type { AgentId, Command } from '@aegis/domain/schema';
@@ -35,6 +36,12 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const island = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null), orb = useRef<HTMLButtonElement>(null);
   const morph = useRef<ReturnType<typeof createMorph> | null>(null);
   const composer = useRef<AgentComposer | null>(null);
+  const composerHome = useRef<HTMLDivElement>(null);
+  const [composerHost] = useState(() => {
+    const host = document.createElement('div');
+    host.className = 'agent-composer-host aegis-agents aegis-feature';
+    return host;
+  });
   const leave = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restoringFocus = useRef(false), suppressHover = useRef(false);
   const pendingOrbFocus = useRef(false);
@@ -56,6 +63,17 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     framed.current = state.pinned.length ? state.pinned : runtime.workspace.selection.getSnapshot().length ? runtime.workspace.selection.getSnapshot() : result?.ids ?? [];
     scene.frame(framed.current, island.current?.offsetHeight ?? 0, true);
   }
+  useLayoutEffect(() => {
+    composerHome.current?.append(composerHost);
+    const dock = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      const target: unknown = event.detail;
+      if (target instanceof HTMLElement) { target.append(composerHost); composer.current?.open(true); }
+      else if (target === null) { composerHome.current?.append(composerHost); composer.current?.close(); }
+    };
+    addEventListener('aegis:mobile-agent-composer', dock);
+    return () => { removeEventListener('aegis:mobile-agent-composer', dock); composerHost.remove(); };
+  }, [composerHost]);
   useLayoutEffect(() => {
     const root = island.current;
     const shell = root?.querySelector<HTMLElement>('.island-morph'), content = root?.querySelector<HTMLElement>('.island-content');
@@ -158,7 +176,8 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   }}>
     <AgentWindows runtime={runtime} scene={scene} />
     <AgentDrafts runtime={runtime} scene={scene} />
-    <div ref={island} id="agentIsland" className={`agent-island${agent?.running ? ' working' : ''}${agent?.error ? ' failed' : ''}${phase === 'done' && result ? ' has-result' : ''}`} data-state={phase}
+    <div ref={composerHome} />
+    {createPortal(<div ref={island} id="agentIsland" className={`agent-island${agent?.running ? ' working' : ''}${agent?.error ? ' failed' : ''}${phase === 'done' && result ? ' has-result' : ''}`} data-state={phase}
       onPointerEnter={event => { hint.dismiss(); if (leave.current) clearTimeout(leave.current); if (!suppressHover.current && event.pointerType !== 'touch' && matchMedia('(hover: hover) and (pointer: fine)').matches && phase === 'idle') change('hover', false); }}
       onPointerLeave={() => { suppressHover.current = false; leave.current = setTimeout(() => { if (island.current?.dataset.state === 'hover') change('idle', false); }, 160); }}>
       <div className="island-morph"><div className="island-surface" aria-hidden="true">{islandTiles.map(name => <i className={`island-tile island-${name}`} key={name} />)}</div>
@@ -180,7 +199,7 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
           <button type="button" className="island-result-undo" hidden={phase !== 'done' || !result} disabled={!result?.entry.canUndo || !!agent?.running} title={result?.entry.undoBlockedReason || 'Undo this request'} onClick={() => { if (agent && result) void runtime.undo(agent.id, result.entry.id); }}>Undo</button>
         </div>
       </div>{hint.hint}
-    </div>
+    </div>, composerHost)}
     <select id="model" hidden aria-label="Agent model source" value={state.model ? modelValue(state.model) : ''} onChange={event => runtime.model(event.target.value)}>{state.models.map(model => <option key={modelValue(model)} value={modelValue(model)}>{model.name}</option>)}</select>
     <select id="count" hidden aria-label="Agent count source" value={state.count} onChange={event => runtime.count(Number(event.target.value))}>{[1, 2, 3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count}</option>)}</select>
     {activityOpen ? <AgentActivity runtime={runtime} show={show} close={closeActivity} /> : null}
