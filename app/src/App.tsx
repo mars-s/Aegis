@@ -76,6 +76,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const importChoice = useRef<(() => void) | null>(null);
   const importAttached = useCallback((choose: (() => void) | null) => { importChoice.current = choose; }, []);
   const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => { if (notice) { const timer = setTimeout(() => setNotice(null), 5000); return () => clearTimeout(timer); } }, [notice]);
   const [chromeEngine, setChromeEngine] = useState<CanvasEngine | null>(null);
   const [agentControls, setAgentControls] = useState<AgentShellControls | null>(null);
   const [facadeEngine, setFacadeEngine] = useState<CanvasEngine | null>(null);
@@ -108,7 +109,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'draw-stamp', label: 'Emoji stamps', shortcut: 'e', run: draw('stamp') },
       { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
       { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
-      ...(['swatch', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
+      ...(['swatch', 'link', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'link' ? 'Link' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
     ], panels: [...base.panels,
       { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
       { id: 'draw', label: 'Drawing', side: 'left', Body: ({ context }) => <div className="creative-panel-tools">{(['ink', 'shape', 'path', 'stamp'] as const).map(kind => <button type="button" key={kind} onClick={() => draw(kind)(context)}>{kind === 'ink' ? 'Draw ink' : kind === 'shape' ? 'Shapes' : kind === 'path' ? 'Vector pen' : 'Emoji stamps'}</button>)}</div> },
@@ -152,7 +153,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   }, [chromeEngine, agentControls]);
   useEffect(() => {
     if (!chromeEngine || facadeEngine !== chromeEngine || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
-    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), flushEditor: controller.flush });
+    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), notify: setNotice, flushEditor: controller.flush });
   }, [chromeEngine, facadeEngine, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
   useLayoutEffect(() => {
@@ -195,6 +196,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       if (result.kind === 'cancelled') return;
       for (const batch of target.replication.state.getSnapshot().pending) hostValue(await client.commit(batch, lifetime.signal));
       if (workspace.metadata.getSnapshot().id === boardId) { runtime.replication.resynchronise(); await runtime.replication.settled(); }
+      setNotice(`Imported ${file.name}${workspace.metadata.getSnapshot().id === boardId ? '' : ' into the original board'}.`);
     } finally { target.dispose(); }
   }, [client, lifetime, workspace, runtime.replication]);
   const creativeServices = useMemo<CreativeServices>(() => ({
@@ -244,7 +246,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     </aside> : null}
     {ui.editor ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
-    {notice ? <div className="react-import-error" role="alert">{notice}<button type="button" onClick={() => setNotice(null)}>Dismiss</button></div> : null}
+    <div id="toast" hidden={!notice} className={notice ? 'toast react-toast' : undefined} role="status">{notice}{notice ? <button type="button" onClick={() => setNotice(null)}>Dismiss</button> : null}</div>
   </DocumentProvider></CreativeProvider>;
 }
 
@@ -296,5 +298,5 @@ export default function App() {
     window.addEventListener("pagehide", dispose, { once: true });
     return () => { window.removeEventListener("pageshow", resume); window.removeEventListener("beforeunload", dispose); window.removeEventListener("pagehide", dispose); dispose(); };
   }, [sessionVersion]);
-  return <main className="react-app">{runtime ? <BoardView runtime={runtime} /> : <p className="react-connection" role="status">{error ?? "Opening your board"}</p>}{runtime && error ? <div id="toast" role="alert">{error}<button onClick={() => setError(null)}>Dismiss</button></div> : <div id="toast" />}</main>;
+  return <main className="react-app">{runtime ? <BoardView runtime={runtime} /> : <p className="react-connection" role="status">{error ?? "Opening your board"}</p>}{runtime && error ? <div className="react-import-error" role="alert">{error}<button onClick={() => setError(null)}>Dismiss</button></div> : null}</main>;
 }

@@ -1,3 +1,4 @@
+import { flushSync } from "react-dom";
 import { CardIdSchema, CommandSchema } from "@aegis/domain";
 import { decodeStoredBoard } from "@aegis/protocol/storage";
 import type { Board, CardId } from "@aegis/domain";
@@ -39,6 +40,7 @@ export interface TestFacade {
   readonly undo: Workspace["undo"];
   readonly redo: Workspace["redo"];
   readonly flush: () => Promise<void>;
+  readonly toast: (message: string) => void;
   readonly benchmark: (count: number) => ReturnType<typeof benchmark>;
   readonly editing: { readonly history: { readonly status: { readonly undo: boolean; readonly redo: boolean } } };
   readonly host: {
@@ -60,6 +62,7 @@ export function installTestFacade(args: {
   readonly persistCamera: () => void;
   readonly assetUrl: (url: string) => string;
   readonly upload: (file: File) => Promise<AssetUpload>;
+  readonly notify: (message: string) => void;
   readonly flushEditor?: () => boolean;
 }): () => void {
   const { workspace, engine } = args;
@@ -75,7 +78,9 @@ export function installTestFacade(args: {
     return value;
   };
   const load = (value: unknown): void => {
-    if (args.flushEditor?.() === false || !workspace.replaceBoard(decodeStoredBoard(value))) throw new Error('Save pending edits before replacing the board.');
+    const board = decodeStoredBoard(value);
+    flushSync(() => { if (args.flushEditor?.() === false || !workspace.replaceBoard(board)) throw new Error('Save pending edits before replacing the board.'); });
+    localStorage.setItem('aegis:board', board.id);
   };
   const watches = new Set<() => void>();
   const mountedEl = (value: string): HTMLElement | null => engine.leases.getSnapshot().find(lease => lease.cardId === value)?.host.parentElement ?? null;
@@ -118,6 +123,7 @@ export function installTestFacade(args: {
     undo: workspace.undo,
     redo: workspace.redo,
     flush: async () => { if (args.flushEditor?.() === false) throw new Error('The editor has unresolved changes.'); await args.replication.settled(); },
+    toast: args.notify,
     editing: { history: { get status() { return workspace.history.getSnapshot(); } } },
     benchmark: async count => { await args.replication.settled(); args.replication.dispose(); return benchmark(engine, workspace, count); },
     host: { base: args.connection.base, upload: args.upload, assetUrl: args.assetUrl, get: path => call(path), post: (path, body) => call(path, body ?? {}) },

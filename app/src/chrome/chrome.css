@@ -823,6 +823,8 @@ body.left-open .aegis-chrome .bar-left {
     min-height: 36px;
   }
   .aegis-chrome .side :is(.tree-row, .layer-row) .row-more {
+    --button-height: 32px;
+    --button-padding: 8px;
     flex: 0 0 32px;
     width: 32px;
     height: 32px;
