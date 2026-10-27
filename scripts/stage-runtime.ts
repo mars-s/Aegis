@@ -46,7 +46,8 @@ export function stageRuntime(args: { readonly root: string; readonly destination
         if (file.endsWith(".mjs")) copyTree(join(source, file), join(target, file));
       }
       copyTree(join(source, "skills"), join(target, "skills"));
-      if (existsSync(join(source, "dist"))) copyTree(join(source, "dist"), join(target, "dist"));
+      if (!existsSync(join(source, "dist/main.js"))) throw new Error("Agent host has no built entry. Run npm run build:shared first.");
+      copyTree(join(source, "dist"), join(target, "dist"));
     } else {
       if (!existsSync(join(source, "dist"))) throw new Error(`${workspace} has no built ESM. Run npm run build:shared first.`);
       copyTree(join(source, "dist"), join(target, "dist"));

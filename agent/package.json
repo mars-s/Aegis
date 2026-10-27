@@ -7,7 +7,7 @@
     "node": ">=22.19.0"
   },
   "scripts": {
-    "start": "node server.mjs",
+    "start": "node dist/main.js",
     "check": "node --test checks/*.test.mjs",
     "build": "tsc -p tsconfig.json"
   },
@@ -18,6 +18,10 @@
     "@modelcontextprotocol/sdk": "1.32.2",
     "zod": "4.6.7",
     "@aegis/domain": "*",
-    "@aegis/protocol": "*"
+    "@aegis/protocol": "*",
+    "effect": "4.0.6"
+  },
+  "devDependencies": {
+    "undici-types": "6.21.0"
   }
 }
