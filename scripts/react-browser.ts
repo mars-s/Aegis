@@ -47,6 +47,10 @@ export async function withReactBrowser<T>(run: (page: Page) => Promise<T>): Prom
     browser = await chromium.launch({ headless: process.env.AEGIS_HEADED !== "1" });
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
     page.on("pageerror", error => errors.push(error.message));
+    await page.addInitScript(() => {
+      localStorage.setItem("aegis:onboarded", "1");
+      localStorage.setItem("aegis:orb-hint-seen", "1");
+    });
     await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas.board);
     const result = await run(page);
