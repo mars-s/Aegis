@@ -65,6 +65,7 @@ function FieldInput({
   useDraftFlush(commit, dirty);
   const title = `${field.label}${field.required ? " (required)" : ""}`;
   const props = {
+    "aria-label": title,
     defaultValue: text,
     required: field.required,
     "aria-describedby": hint,
