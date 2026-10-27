@@ -288,7 +288,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
     const a = screenToWorld(-MARGIN, -MARGIN), b = screenToWorld(viewportSize.width + MARGIN, viewportSize.height + MARGIN);
     return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
   }
-  function mountVisible() {
+  function mountVisible(existingOnly = false) {
     if (!board) return;
     const r = visibleRect(); const keep = new Set();
     board.cards.forEach((c, z) => {
@@ -299,6 +299,7 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       keep.add(c.id);
       const sig = signature(c), geo = geometry(c);
       let m = mounted.get(c.id);
+      if (existingOnly && !m) return;
       if (!m) { m = { el: renderCard(c), sig, appearance: objectAppearance(c), geo: '', z: -1 }; world.appendChild(m.el); mounted.set(c.id, m); }
       else if (m.sig !== sig && !(m.el.contains(document.activeElement) && document.activeElement.isContentEditable)) {
         if (c.type === 'object' && m.el.classList.contains(`kind-${c.kind}`) && m.appearance === objectAppearance(c)) {
@@ -756,9 +757,9 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (first) { focusIds = null; focusedId = null; for (const timer of flashes.values()) clearTimeout(timer); flashes.clear(); cancelAnimationFrame(anim); clearTimeout(viewT); clearTimeout(crispTimer); }
       else if (focusedId && !board.cards.some(c => c.id === focusedId)) focusCard(null);
       if (first) { for (const m of mounted.values()) removeEl(m.el); mounted.clear(); selected.clear(); view = next.view ?? { x: 0, y: 0, z: 1 }; if (!next.view || (next.view.x === 0 && next.view.y === 0)) view = { x: stage.clientWidth / 2 - 200, y: stage.clientHeight / 3, z: 1 }; }
-      // Publish local content and hit areas with the board, before another input can read stale SVG.
+      // Refresh mounted local content and hit areas before another input can read stale SVG.
       if (!first && !animate) {
-        if (!(view.z < FAR && visibleCount() > LIVE_LIMIT)) mountVisible();
+        if (!(view.z < FAR && visibleCount() > LIVE_LIMIT)) mountVisible(true);
         drawLinks();
       }
       schedule(true);
