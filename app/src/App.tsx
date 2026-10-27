@@ -4,7 +4,7 @@ import type { BoardId, CardId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
 import type { HostClient, WorkspaceConnection } from '@aegis/host-client';
 import type { CanvasEngine } from '@aegis/scene';
-import { createWorkspace } from './workspace/index.js';
+import { createWorkspace, useCard } from './workspace/index.js';
 import type { Workspace } from './workspace/index.js';
 import { Canvas } from './canvas/Canvas.js';
 import { createComposition, defineComposition } from './composition.js';
@@ -48,6 +48,11 @@ import { useEditorPresence } from './platform/editor-presence.js';
 import { createLibraryService, hostValue } from './platform/library-service.js';
 
 declare const __AEGIS_TEST_FACADE__: boolean;
+
+function EditorTitle({ workspace, id }: { readonly workspace: Workspace; readonly id: CardId }) {
+  const card = useCard(workspace, id);
+  return <span className="side-editor-name">{card?.text || 'Untitled'}</span>;
+}
 interface Runtime { readonly workspace: Workspace; readonly client: HostClient; readonly replication: WorkspaceConnection; readonly connection: Connection }
 
 async function openUrl(url: string): Promise<void> {
@@ -234,7 +239,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
     {Editor && presentedEditor && chromeEngine ? <aside ref={editorElement} inert={editorPresence.kind === 'closing'} data-scene-interactive className={`react-editor side-editor${editorPresence.kind === 'open' ? ' is-open' : editorPresence.kind === 'closing' ? ' is-closing' : ''}${editorPresence.kind !== 'closed' && editorPresence.instant ? ' instant' : ''}${editorKind === 'deck' ? ' deck-panel' : ''}${presentedEditor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">
-      {editorKind !== 'doc' ? <header className="react-editor-toolbar"><span className="side-editor-name">{activeCard?.text || 'Untitled'}</span><EditorActions context={context} full={presentedEditor.view === 'full'} /></header> : null}
+      {editorKind !== 'doc' ? <header className="react-editor-toolbar"><EditorTitle workspace={workspace} id={presentedEditor.id} /><EditorActions context={context} full={presentedEditor.view === 'full'} /></header> : null}
       <div className="react-editor-content"><Editor cardId={presentedEditor.id} workspace={workspace} engine={chromeEngine} /></div>
     </aside> : null}
     {ui.editor && editorKind === 'doc' ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
