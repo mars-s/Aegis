@@ -14,7 +14,7 @@ export function installEditorActions(context: FeatureContext): () => void {
   const double = (event: MouseEvent): void => {
     if (event.defaultPrevented || !(event.target instanceof Element)) return;
     const stage = event.target.closest<HTMLElement>('#stage');
-    if (!stage || event.target.closest('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="gridcell"]')) return;
+    if (!stage || event.target.closest('input, textarea, select, button, summary, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="gridcell"]')) return;
     const bounds = stage.getBoundingClientRect();
     const id = context.engine()?.hitTest({ x: event.clientX - bounds.left, y: event.clientY - bounds.top });
     if (id && context.openEditor(id, false, false)) { event.preventDefault(); event.stopImmediatePropagation(); }
@@ -37,7 +37,7 @@ export function installEditorActions(context: FeatureContext): () => void {
       context.closeEditor(); event.preventDefault(); event.stopImmediatePropagation();
       return;
     }
-    if (event.key !== 'Enter' || event.target instanceof Element && event.target.closest('input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="gridcell"]')) return;
+    if (event.key !== 'Enter' || event.target instanceof Element && event.target.closest('input, textarea, select, button, summary, a, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="gridcell"]')) return;
     const id = context.workspace.selection.getSnapshot()[0];
     if (id && context.openEditor(id, false, true)) { event.preventDefault(); event.stopImmediatePropagation(); }
   };
