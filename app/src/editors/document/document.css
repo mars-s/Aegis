@@ -1,0 +1,1085 @@
+@import "katex/dist/katex.min.css";
+.card.doc.doc-pill {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 28px;
+  min-height: 48px;
+}
+.docs-card-icon {
+  width: 24px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.docs-card-icon svg {
+  width: 22px;
+  height: 24px;
+}
+.docs-has-content .docs-card-icon {
+  color: var(--accent);
+}
+.docs-card-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+/* Canvas preview page shares the editor's reading type. */
+.doc-page p {
+  margin: 0 0 20px;
+}
+.doc-page h1 {
+  font-size: 40px;
+  line-height: 1.12;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+}
+.doc-page h2 {
+  margin: 30px 0 16px;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.doc-page h3 {
+  margin: 28px 0 14px;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.doc-page :is(ul, ol) {
+  padding-left: 32px;
+  margin: 0 0 20px;
+}
+.doc-page li::marker {
+  color: var(--muted);
+}
+.doc-page li p {
+  margin: 0;
+}
+.doc-page ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.doc-page li[data-type="taskItem"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.doc-page a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.doc-page img {
+  max-width: 100%;
+  height: auto;
+}
+.doc-page table {
+  border-collapse: collapse;
+  width: 100%;
+}
+.doc-page td,
+.doc-page th {
+  border: 1px solid var(--line);
+  padding: 6px;
+}
+/* The document window (locked comp): 36px strip, then the page at reading size, clipped at the window edge. */
+.card.doc.doc-window {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.doc-strip {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  padding: 0 8px 0 15px;
+  background: var(--strip);
+  box-shadow: inset 0 1px 0 var(--edge-top);
+  font-size: 14.5px;
+  letter-spacing: -0.005em;
+  cursor: grab;
+}
+.doc-strip:active {
+  cursor: grabbing;
+}
+.doc-strip .win-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.doc-strip .win-kind {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.doc-strip .win-open {
+  margin-left: auto;
+  flex: none;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  opacity: 0;
+  transition:
+    opacity 150ms var(--ease-out),
+    transform 120ms var(--ease-out);
+}
+.card.doc:hover .win-open,
+.card.doc:focus-within .win-open,
+.card.doc.window-focus .win-open {
+  opacity: 1;
+}
+.doc-strip .win-open:active {
+  transform: scale(0.97);
+}
+.doc-view {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 44px 62px 0;
+  pointer-events: none;
+}
+.doc-page {
+  min-height: 0;
+  font: 400 18px/28px var(--font);
+}
+.doc-page > :first-child {
+  margin-top: 0;
+}
+.doc-page h1 {
+  margin: 0 0 22px;
+}
+.doc-empty {
+  color: var(--faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  .doc-strip .win-open:hover {
+    background: var(--hover);
+    color: var(--text);
+  }
+}
+@media (hover: none), (pointer: coarse) {
+  .doc-strip .win-open {
+    opacity: 1;
+  }
+}
+/* docs-open and docs-full are compatibility aliases set by the shared shell.
+   The canvas keeps its full bounds while the editor floats above it. */
+.docs-panel button,
+.docs-panel select,
+.docs-panel summary {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 6px;
+  padding: 6px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.docs-panel button:hover,
+.docs-panel summary:hover,
+.docs-panel button:focus-visible,
+.docs-panel summary:focus-visible {
+  background: var(--hover);
+  color: var(--text);
+}
+.docs-panel button[aria-pressed="true"] {
+  background: var(--press);
+  color: var(--text);
+}
+.docs-panel button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.docs-panel input,
+.docs-panel select {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: var(--inset);
+}
+.docs-panel .side-editor-tools button {
+  height: 44px;
+  min-width: 44px;
+}
+.docs-spacer {
+  flex: 1;
+}
+/* One title-bar menu keeps the page itself clear for writing. */
+.docs-panel .side-editor-title {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.docs-panel .side-editor-kind {
+  flex: none;
+}
+.docs-more {
+  position: relative;
+}
+.docs-more > summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  list-style: none;
+  color: var(--muted);
+  font-size: 20px;
+}
+.docs-more summary::-webkit-details-marker {
+  display: none;
+}
+.docs-more-tools > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  min-height: 36px;
+}
+.docs-page-options {
+  display: flex;
+  gap: 6px;
+  padding-bottom: 6px;
+}
+.docs-appearance {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+.docs-appearance > summary {
+  min-height: 36px;
+  list-style: none;
+}
+.docs-appearance-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 3px;
+}
+.docs-appearance-tools input[aria-label="Font family"] {
+  width: 140px;
+}
+.docs-appearance-tools input[aria-label="Font size"] {
+  width: 60px;
+  appearance: textfield;
+}
+.docs-appearance-tools input::-webkit-inner-spin-button {
+  appearance: none;
+}
+.docs-table-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  padding-top: 6px;
+}
+.docs-choice {
+  position: relative;
+  min-width: 0;
+}
+.docs-choice > button {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
+  width: 100%;
+  text-align: left;
+}
+.docs-panel :is(button, summary):focus-visible {
+  outline: 1.5px solid var(--text);
+  outline-offset: -2px;
+}
+.docs-scroll {
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 0 16px;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.docs-paper {
+  --paper: var(--card);
+  --ink: var(--text);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100%;
+  max-width: 720px;
+  margin: auto;
+  padding: 28px 40px 160px;
+}
+.docs-panel[data-page="light"] .docs-paper {
+  --paper: #fff;
+  --ink: #25252b;
+}
+.docs-panel[data-page="dark"] .docs-paper {
+  --paper: #24252b;
+  --ink: #e6e6ec;
+}
+.docs-panel input.docs-title {
+  flex: 1;
+  width: 100%;
+  min-width: 40px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font-size: 14.5px;
+  line-height: 1.4;
+  font-weight: 500;
+  padding: 5px 0;
+  outline: none;
+}
+.docs-title::placeholder {
+  color: var(--muted);
+}
+.docs-title:focus-visible {
+  box-shadow: inset 0 -1px 0 var(--line-strong);
+}
+.docs-prose {
+  outline: none;
+  font: 400 18px/28px var(--font);
+  letter-spacing: -0.003em;
+  min-height: 340px;
+  overflow-wrap: anywhere;
+  caret-color: var(--data);
+}
+.docs-prose:focus-visible {
+  outline: none;
+}
+.docs-prose p {
+  margin: 0 0 20px;
+}
+.docs-prose h1 {
+  margin: 30px 0 22px;
+  font-size: 40px;
+  line-height: 1.12;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+}
+.docs-prose h2 {
+  margin: 30px 0 16px;
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.docs-prose h3 {
+  margin: 28px 0 14px;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.docs-prose :is(ul, ol) {
+  padding-left: 32px;
+  margin: 0 0 20px;
+}
+.docs-prose li::marker {
+  color: var(--muted);
+}
+.docs-prose [data-kind="lead"] {
+  font-size: 22px;
+}
+.docs-prose [data-kind="caption"] {
+  font-size: 13px;
+  color: var(--muted);
+}
+.docs-prose blockquote {
+  border-left: 1px solid var(--muted);
+  padding-left: 16px;
+  margin-left: 0;
+}
+.docs-prose pre {
+  background: #80808018;
+  padding: 14px;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+.docs-prose code {
+  font-family: var(--mono);
+  background: #80808018;
+}
+.docs-prose a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.docs-prose img {
+  max-width: 100%;
+  height: auto;
+}
+.docs-panel[data-page="dark"] .docs-prose mark {
+  color: #24252b;
+}
+.docs-panel[data-page="dark"]
+  .docs-prose
+  span:is([style*="color: rgb(37, 37, 43)"], [style*="color: rgb(0, 0, 0)"]) {
+  color: #e6e6ec !important;
+}
+.docs-panel[data-page="dark"]
+  .docs-prose
+  span[style*="color: rgb(107, 99, 112)"] {
+  color: #b9b5c0 !important;
+}
+.docs-prose ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+.docs-prose li[data-type="taskItem"] {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.docs-prose li[data-type="taskItem"] > div {
+  flex: 1;
+}
+.docs-prose li[data-type="taskItem"] > label {
+  user-select: none;
+}
+.docs-prose input[type="checkbox"] {
+  accent-color: var(--muted);
+}
+.docs-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+}
+.docs-prose td,
+.docs-prose th {
+  position: relative;
+  border: 1px solid #aaa6;
+  vertical-align: top;
+  min-width: 40px;
+  padding: 6px;
+}
+.docs-prose th {
+  background: #80808018;
+  font-weight: 600;
+}
+.docs-prose td p,
+.docs-prose th p {
+  margin: 0;
+}
+.docs-prose .selectedCell:after {
+  position: absolute;
+  inset: 0;
+  background: var(--data-soft);
+  content: "";
+  pointer-events: none;
+}
+.docs-prose .column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--data);
+  pointer-events: none;
+}
+.docs-prose.resize-cursor {
+  cursor: col-resize;
+}
+.docs-prose p.is-editor-empty:first-child:before {
+  color: var(--faint);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+.docs-bubble {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  padding: 5px;
+  background: var(--raised);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lift);
+  z-index: 50;
+  width: max-content;
+  max-width: min(calc(100% - 16px), calc(100vw - 32px));
+}
+.docs-footer {
+  flex: none;
+  padding: 4px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.docs-footer button {
+  min-height: 36px;
+}
+.docs-download > div {
+  display: grid;
+  gap: 8px;
+  padding-top: 8px;
+}
+.docs-colours > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 0;
+}
+.docs-colours > div button:empty {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #8885;
+}
+.docs-link-form {
+  position: absolute;
+  top: 100px;
+  left: 18px;
+  right: 18px;
+  z-index: 56;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lift);
+}
+.docs-link-form input {
+  min-width: 80px;
+  flex: 1;
+}
+.docs-drop-target {
+  outline: 2px solid var(--data) !important;
+  outline-offset: -2px;
+}
+.docs-print-frame {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  left: -10000px;
+  top: 0;
+  border: 0;
+}
+.docs-copy-notice {
+  position: fixed;
+  z-index: 70;
+  bottom: 120px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  border-radius: 8px;
+  font: 13px var(--font);
+}
+.docs-copy-notice button {
+  margin-left: 10px;
+  background: var(--hover);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px;
+  cursor: pointer;
+}
+@media (hover: none), (pointer: coarse) {
+  .docs-panel :is(button, summary, select) {
+    min-height: 44px;
+  }
+  .docs-panel button {
+    min-width: 44px;
+  }
+}
+@media (max-width: 760px) {
+  .docs-scroll {
+    padding: 0 6px;
+  }
+  .docs-paper {
+    padding: 20px 22px 120px;
+  }
+  .docs-prose {
+    font-size: 18px;
+    line-height: 28px;
+  }
+  .docs-more-tools {
+    position: fixed;
+    top: 56px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .docs-panel .side-editor-kind,
+  .docs-panel [data-expand] {
+    display: none;
+  }
+  .docs-footer {
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+}
+
+.docs-math {
+  cursor: text;
+  border-radius: 4px;
+  white-space: normal;
+}
+.docs-math:not(.docs-math-block) {
+  display: inline-block;
+  vertical-align: baseline;
+  max-width: 100%;
+}
+.docs-math:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 3px;
+}
+.docs-math-block {
+  display: block;
+  margin: 24px 0;
+  overflow-x: auto;
+}
+.docs-math .katex {
+  font-size: 1.12em;
+}
+.docs-math .katex-display {
+  margin: 0;
+}
+.docs-panel .docs-math-source {
+  display: inline-block;
+  width: min(100%, 32ch);
+  min-width: 10ch;
+  font:
+    15px/1.6 Menlo,
+    monospace;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid currentColor;
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+.docs-panel textarea.docs-math-source {
+  display: block;
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+}
+.doc-page :is(blockquote, pre) {
+  margin: 20px 0;
+  padding: 12px 16px;
+  background: var(--inset);
+  border-radius: 6px;
+}
+.doc-page pre {
+  white-space: pre-wrap;
+  font:
+    15px/1.6 Menlo,
+    monospace;
+}
+
+/* Document ribbon: compact choosers and fields that sit on the ribbon line. */
+.docs-ribbon {
+  margin: 0;
+  padding: 4px 12px;
+}
+.docs-ribbon .docs-choice > .aegis-dropdown {
+  min-width: 108px;
+  height: 32px;
+  min-height: 32px;
+  border: 0;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 12.5px;
+}
+.docs-ribbon input[aria-label="Font family"] {
+  width: 128px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  font-size: 12.5px;
+}
+.docs-ribbon :is(input, .aegis-dropdown):focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--data);
+}
+.docs-ribbon .docs-colours > summary {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  list-style: none;
+  cursor: pointer;
+}
+.docs-ribbon .docs-colours > summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.docs-ribbon .docs-colours {
+  position: relative;
+}
+.docs-ribbon .docs-colours > div > button[aria-label*="#"] {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+}
+.docs-ribbon
+  .docs-colours
+  > div
+  > :is(.aegis-colour-picker, button:last-child) {
+  grid-column: span 3;
+}
+.docs-ribbon .docs-table-tools {
+  width: auto;
+  border-top: 0;
+  padding-top: 0;
+}
+.docs-ribbon .docs-table-tools[hidden] {
+  display: none;
+}
+.docs-ribbon .docs-table-tools button {
+  height: 32px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.docs-ribbon .ribbon-ai .aegis-dropdown,
+.docs-bubble [data-chooser="Rewrite selection"] .aegis-dropdown {
+  color: var(--text);
+  background: var(--data-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--data) 35%, transparent);
+}
+.docs-panel .docs-ribbon button.ribbon-btn {
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+}
+
+.docs-more-tools.aegis-surface {
+  width: min(340px, calc(100vw - 24px));
+  padding: var(--space-3);
+}
+.docs-colours > .aegis-surface {
+  display: grid;
+  grid-template-columns: repeat(6, 32px);
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+/* Writing stays on one 40px row. Detailed controls live in Format. */
+.docs-ribbon.office-ribbon {
+  flex-wrap: nowrap;
+  height: 40px;
+  min-height: 40px;
+  padding: 4px 8px;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+.docs-ribbon > .ribbon-group {
+  flex: none;
+  padding: 0 6px;
+}
+.docs-ribbon > .ribbon-group:first-child {
+  padding-left: 0;
+}
+.docs-ribbon > :is(.docs-format, .docs-insert) {
+  flex: none;
+}
+.docs-ribbon :is(.docs-format, .docs-insert) > summary {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  font-size: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+.docs-ribbon :is(.docs-format, .docs-insert) > summary:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.docs-command-menu.aegis-surface {
+  width: 280px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+}
+.docs-command-menu .ribbon-group {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+}
+.docs-command-menu .ribbon-group + .ribbon-group {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.docs-command-menu .ribbon-btn {
+  min-width: 32px;
+}
+.docs-insert .docs-command-menu .ribbon-group {
+  display: grid;
+}
+.docs-insert .docs-command-menu button.ribbon-btn {
+  justify-content: flex-start;
+  width: 100%;
+  gap: 10px;
+  padding: 0 8px;
+}
+.docs-command-menu .docs-choice > .aegis-dropdown {
+  min-width: 110px;
+}
+
+/* The shared shell controls position and width. This content fills its body. */
+.document-editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  color: var(--text, var(--color-text));
+}
+.document-editor .docs-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 44px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line, var(--color-border));
+}
+.docs-heading [data-saved] {
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--muted, var(--color-muted));
+}
+.document-editor .docs-heading .docs-more {
+  margin-left: auto;
+}
+.docs-more > summary[aria-label="Document options"] {
+  font-size: 0;
+}
+.docs-more > summary[aria-label="Document options"]::after {
+  content: "…";
+  font-size: 20px;
+}
+.document-editor .docs-message {
+  flex: none;
+  padding: 8px 12px;
+  font-size: 12px;
+  border-top: 1px solid var(--line, var(--color-border));
+}
+.docs-message button {
+  margin-left: 8px;
+}
+.docs-panel .docs-format input[aria-label="Font size"] {
+  width: 64px;
+}
+.docs-tool-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.docs-insert-group .docs-tool-label {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+}
+.document-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  container-type: size;
+}
+.document-card .doc-view {
+  overflow: auto;
+  pointer-events: auto;
+  overscroll-behavior: contain;
+}
+.document-card .doc-page {
+  padding-bottom: 40px;
+}
+.document-card .doc-strip {
+  min-height: 36px;
+}
+@container (max-height: 79px) {
+  .document-card .doc-view {
+    display: none;
+  }
+  .document-card .doc-strip {
+    height: 100%;
+    min-height: 48px;
+    border-radius: 28px;
+    background: transparent;
+  }
+}
+.document-context {
+  position: absolute;
+  top: 72px;
+  left: 24px;
+  z-index: 6;
+  width: 322px;
+  max-width: calc(50vw - 56px);
+  color: var(--text, var(--color-text));
+}
+.document-context .editor-context-source {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  min-width: 0;
+  padding: 0 10px;
+}
+.document-context .editor-context-source strong {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.document-context .editor-context-source span {
+  font-size: 12px;
+  flex: none;
+}
+.document-context .editor-context-reference {
+  margin-top: 24px;
+  padding: 0;
+  width: fit-content;
+  max-width: 100%;
+  background: var(--card, var(--color-surface));
+  border: 1px solid var(--line, var(--color-border));
+  border-radius: var(--radius-control);
+}
+.document-context .editor-reference-chart {
+  width: 320px;
+  height: 180px;
+  overflow: hidden;
+}
+.document-context .editor-reference-table {
+  width: 280px;
+  height: 160px;
+  overflow: auto;
+  padding: 8px;
+}
+.document-context table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  font-size: 12px;
+}
+.document-context :is(th, td) {
+  padding: 6px;
+  text-align: left;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line, var(--color-border));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.document-context .editor-reference-region {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  font-size: 12px;
+}
+.editor-reference-region input {
+  width: 52px;
+  font: inherit;
+  color: inherit;
+  background: var(--inset, var(--color-fill));
+  border: 1px solid var(--line, var(--color-border));
+  border-radius: 4px;
+  padding: 4px;
+}
+.document-context .editor-reference-open {
+  width: 100%;
+  text-align: left;
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .document-context {
+    display: none;
+  }
+  .docs-heading .side-editor-kind {
+    display: none;
+  }
+}
+.document-editor .docs-prose:focus-visible {
+  outline: none;
+}
+.document-editor,
+.document-card,
+.document-context {
+  --text: var(--color-text);
+  --muted: var(--color-muted);
+  --faint: var(--color-faint);
+  --card: var(--color-surface);
+  --raised: var(--color-float);
+  --inset: var(--color-fill);
+  --line: var(--color-border);
+  --line-strong: var(--color-border-strong);
+  --hover: var(--color-fill-hover);
+  --press: var(--color-fill-hover);
+  --data: var(--color-ring);
+  --data-soft: color-mix(in srgb, var(--color-ring) 16%, transparent);
+  --ink-2: var(--color-label-secondary);
+  --strip: var(--color-surface);
+  --focus: var(--color-ring);
+  --shadow-lift: var(--shadow-float);
+  --mono: var(--font-mono);
+}
+
+.docs-bubble .ribbon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0;
+}
+.docs-bubble .ribbon-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.docs-bubble .ribbon-ai .aegis-dropdown {
+  min-height: 32px;
+  height: 32px;
+}
