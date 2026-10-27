@@ -16,6 +16,7 @@ const { values } = parseArgs({ options: {
   frames: { type: 'string', default: '600' },
   'warmup-ms': { type: 'string', default: '1500' },
   'min-fps': { type: 'string', default: '0' },
+  'collector-port': { type: 'string', default: '0' },
   out: { type: 'string' },
   screenshot: { type: 'boolean', default: false },
 } });
@@ -29,6 +30,8 @@ const runs = integer(values.runs, 'runs', 1);
 const frames = integer(values.frames, 'frames', 60);
 const warmupMs = integer(values['warmup-ms'], 'warmup-ms', 0);
 const minFps = integer(values['min-fps'], 'min-fps', 0);
+const collectorPort = integer(values['collector-port'], 'collector-port', 0);
+assert(collectorPort <= 65535, 'Invalid collector-port');
 const source = dirname(fileURLToPath(import.meta.url));
 const out = values.out ? resolve(values.out) : await mkdtemp(join(tmpdir(), 'aegis-fps-evidence-'));
 await mkdir(out, { recursive: true });
@@ -41,6 +44,7 @@ for (let run = 1; run <= runs; run++) {
   await mkdir(ui, { recursive: true });
   await copyFile(join(source, 'fps.html'), join(ui, 'index.html'));
   await copyFile(join(source, 'fps.page.mjs'), join(ui, 'fps.page.mjs'));
+  await copyFile(join(source, 'frame-stats.mjs'), join(ui, 'frame-stats.mjs'));
   const nonce = `/${randomUUID()}`;
   let accept;
   const reportPromise = new Promise(resolve => { accept = resolve; });
@@ -63,7 +67,7 @@ for (let run = 1; run <= runs; run++) {
       response.writeHead(400).end();
     }
   });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(collectorPort, '127.0.0.1', resolve); });
   await writeFile(join(ui, 'fps.config.mjs'), `export default ${JSON.stringify({
     frames, warmupMs, collector: `http://127.0.0.1:${server.address().port}${nonce}`,
   })};\n`);
