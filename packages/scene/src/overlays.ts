@@ -132,7 +132,7 @@ export class SceneOverlays {
       const r = rep.bounds;
       let x = clamp(camera.zoom < .9 && r.width < 180 ? r.x + r.width + 8 : r.x + r.width - width - 4, 8, viewport.width - width - 8);
       let y = clamp(camera.zoom < .9 ? r.y - height - 8 : r.y + 2, 48, viewport.height - height - 8);
-      for (const cue of doc.querySelectorAll('.agent-edges .agent-edge:not([hidden])')) {
+      for (const cue of doc.querySelectorAll('.agent-edge:not([hidden])')) {
         const b = cue.getBoundingClientRect(), obstacle = { x: b.x - origin.x - 4, y: b.y - origin.y - 4, width: b.width + 8, height: b.height + 8 };
         if (!intersects({ x, y, width, height }, obstacle)) continue;
         if (obstacle.y > 100 && obstacle.y + obstacle.height < viewport.height - 100) x = obstacle.x < viewport.width / 2 ? obstacle.x + obstacle.width : obstacle.x - width;

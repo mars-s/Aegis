@@ -1,4 +1,5 @@
 import type { Board, BoardId, Card, CardId, ChangeSet, Command, LinkId, Source } from '@aegis/domain/schema';
+import type { GridShape } from './grid.js';
 import type { LinkRoute } from './links.js';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { ZoomTier } from './representations.js';
@@ -95,8 +96,8 @@ export interface SceneTool {
   readonly key: (key: ToolKey) => void;
   readonly cancel: (reason: ToolCancel) => void;
 }
-export interface SceneTheme { readonly dot: string; readonly text: string; readonly muted: string; readonly focus: string; readonly card: string; readonly press: string }
-export type PreviewColour = { readonly kind: 'theme'; readonly token: Exclude<keyof SceneTheme, 'dot'> } | { readonly kind: 'hex'; readonly value: string };
+export interface SceneTheme { readonly grid?: GridShape; readonly tilt?: boolean; readonly dot: string; readonly text: string; readonly muted: string; readonly focus: string; readonly card: string; readonly press: string }
+export type PreviewColour = { readonly kind: 'theme'; readonly token: Exclude<keyof SceneTheme, 'dot' | 'grid' | 'tilt'> } | { readonly kind: 'hex'; readonly value: string };
 export interface ToolCommit { readonly commands: readonly Command[]; readonly selection: readonly CardId[] }
 export interface PreviewStroke { readonly colour: PreviewColour; readonly width: number; readonly dash: readonly number[] }
 export type ToolPrimitive =

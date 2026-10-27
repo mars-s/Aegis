@@ -34,7 +34,7 @@ type Gesture =
   | { readonly kind: 'pan'; readonly pointer: number; readonly start: Point; readonly from: CameraState }
   | { readonly kind: 'move'; readonly pointer: number; readonly start: Point; readonly bases: ReadonlyMap<CardId, Rect>; readonly cards: readonly DragSnapshot[]; readonly copy: boolean; readonly edit: HTMLElement | null; moved: boolean }
   | { readonly kind: 'resize'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly base: Rect; readonly rotation: number }
-  | { readonly kind: 'rotate'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly centre: Point; readonly angle: number; readonly rotation: number }
+  | { readonly kind: 'rotate'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly centre: Point; readonly angle: number; readonly rotation: number; readonly offset: number }
   | { readonly kind: 'pinch'; readonly pointer: number; readonly start: Point; readonly distance: number; readonly anchor: Point; readonly zoom: number }
   | { readonly kind: 'marquee'; readonly pointer: number; readonly start: Point; readonly base: readonly CardId[]; readonly tap: CardId | null };
 interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number; readonly duration: number }
@@ -48,7 +48,13 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const ownerWindow = stage.ownerDocument.defaultView;
   if (!ownerWindow) throw new Error('Scene stage must belong to a window');
   const view = ownerWindow;
-  const board = workspace.scene.snapshot(), graph = new SceneGraph(board);
+  let displayTilt = args.theme?.getSnapshot().tilt ?? false;
+  const displayRotation = (card: Card): number => {
+    const loose = !card.parent && !card.group && ['note', 'todo', 'link'].includes(card.type);
+    const tilt = loose && displayTilt ? ([...card.id].reduce((sum, letter) => sum + letter.charCodeAt(0), 0) % 9 - 4) * .4 : 0;
+    return (card.rot ?? 0) + tilt;
+  };
+  const board = workspace.scene.snapshot(), graph = new SceneGraph(board, displayRotation);
   const painter = new CanvasPainter(backdrop, overlay), metrics = new FrameMetrics();
   let camera: CameraState = { x: board.view.x, y: board.view.y, zoom: clampZoom(board.view.z) };
   const initialRect = stage.getBoundingClientRect();
@@ -310,8 +316,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       }
       case 'rotate': {
         const delta = rotationDelta(gesture.angle, angleFrom(point, gesture.centre));
-        const rotation = gesture.rotation + delta;
-        rotations.set(gesture.id, bypass ? rotation : Math.round(rotation / 15) * 15);
+        const rotation = gesture.rotation - gesture.offset + delta;
+        rotations.set(gesture.id, (bypass ? rotation : Math.round(rotation / 15) * 15) + gesture.offset);
         break;
       }
       case 'pinch': break;
@@ -410,7 +416,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
               select([id]); pool.pin(id, 'capture', true);
               gesture = input.action === 'resize'
                 ? { kind: 'resize', pointer: input.pointer, start: input.point, id, base, rotation: node.rotation }
-                : { kind: 'rotate', pointer: input.pointer, start: input.point, id, centre, angle: angleFrom(input.point, centre), rotation: node.rotation };
+                : { kind: 'rotate', pointer: input.pointer, start: input.point, id, centre, angle: angleFrom(input.point, centre), rotation: node.rotation, offset: node.rotation - (node.card.rot ?? 0) };
               break;
             }
             const ids = input.modifiers.bypass ? [id] : input.modifiers.shift ? selected.has(id) ? [...selected].filter(candidate => candidate !== id) : [...selected, id] : selected.has(id) ? [...selected] : [id];
@@ -465,7 +471,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
             if (gesture.kind === 'resize' && bounds) {
               if (bounds.x !== gesture.base.x || bounds.y !== gesture.base.y) commands.push({ op: 'move', id, x: bounds.x, y: bounds.y });
               if (bounds.width !== gesture.base.width || bounds.height !== gesture.base.height) commands.push({ op: 'update', id, set: { w: bounds.width, h: bounds.height, props: { fixedHeight: true } } });
-            } else if (gesture.kind === 'rotate' && rotation !== undefined && rotation !== gesture.rotation) commands.push({ op: 'update', id, set: { rot: rotation } });
+            } else if (gesture.kind === 'rotate' && rotation !== undefined && rotation !== gesture.rotation) commands.push({ op: 'update', id, set: { rot: rotation - gesture.offset } });
             if (gesture.kind === 'resize' && commands.length) commands.push(...(args.dropCommands?.({ cards: positionedCards(), kind: 'resize' }) ?? []));
             pool.pin(id, 'capture', false);
             if (commands.length) post(() => { workspace.submit(commands); positions.delete(id); rotations.delete(id); invalidate(); });
@@ -615,7 +621,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const active = gesture, delta = copyDelta;
     if (active?.kind !== 'move' || !active.copy || !delta) return tools.getPreview();
     return { cursor: 'default', primitives: active.cards.map<ToolPrimitive>(entry => ({
-      kind: 'rect', opacity: .45, space: 'world', bounds: fromBounds(rotatedBounds({ ...entry.bounds, x: entry.bounds.x + delta.x, y: entry.bounds.y + delta.y }, entry.card.rot ?? 0)), radius: 4,
+      kind: 'rect', opacity: .45, space: 'world', bounds: fromBounds(rotatedBounds({ ...entry.bounds, x: entry.bounds.x + delta.x, y: entry.bounds.y + delta.y }, graph.nodes.get(entry.card.id)?.rotation ?? entry.card.rot ?? 0)), radius: 4,
       fill: { kind: 'theme', token: 'card' }, stroke: { colour: { kind: 'theme', token: 'focus' }, width: 1.5, dash: [6, 4] },
     })) };
   }
@@ -824,7 +830,15 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   });
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
   if (args.theme) painter.themeChanged(args.theme.getSnapshot());
-  const unsubscribeTheme = args.theme?.subscribe(() => { if (args.theme) painter.themeChanged(args.theme.getSnapshot()); invalidate(); });
+  const unsubscribeTheme = args.theme?.subscribe(() => {
+    if (!args.theme) return;
+    const theme = args.theme.getSnapshot(), nextTilt = theme.tilt ?? false;
+    if (nextTilt !== displayTilt) {
+      cancelGesture(); agentMotion.settle(); displayTilt = nextTilt;
+      graph.replace(workspace.scene.snapshot());
+    }
+    painter.themeChanged(theme); invalidate();
+  });
   const unsubscribeArea = args.availableArea?.subscribe(() => { fitAreaDirty = true; invalidate(); });
   invalidate();
 

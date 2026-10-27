@@ -207,7 +207,7 @@ export { CaptureButton, CaptureViews } from "./CaptureViews.js";
 export { exportBoard, imagePdf, prepareExportCard } from "./board-export.js";
 export type { ExportServices, ExportContext } from "./board-export.js";
 export { createExportRenderer } from "./export-view.js";
-export { drawGridMotif, gridShapes } from "./grid-motifs.js";
+export { drawGridMotif, gridShapes } from "@aegis/scene";
 export {
   writingFont,
   writingFonts,

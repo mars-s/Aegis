@@ -1,8 +1,8 @@
 import type { CardId } from '@aegis/domain';
-import type { FeatureWorkspace } from '../../composition.js';
+import type { CanvasWorkspace } from '@aegis/scene';
 
 /** Import feedback belongs to the authored import, never a later viewport lease. */
-export function createImportArrival(workspace: FeatureWorkspace) {
+export function createImportArrival(workspace: Pick<CanvasWorkspace, 'scene' | 'selection'>) {
   const arrivals = new Map<string, boolean>();
   let keyboard = false;
   const reduced = () => document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -23,19 +23,32 @@ export function createImportArrival(workspace: FeatureWorkspace) {
       setTimeout(() => deletes.clear(), 0);
     };
     document.addEventListener('click', deletion, true);
-    const observer = new MutationObserver(records => {
-      for (const record of records) for (const node of record.addedNodes) {
-        if (!(node instanceof HTMLElement)) continue;
-        const id = node.dataset.id;
-        if (!id || !arrivals.has(id)) continue;
-        const instant = arrivals.get(id); arrivals.delete(id);
-        if (instant || reduced()) continue;
-        rememberAnimation(node.animate([{ opacity: 0, scale: '.975' }, { opacity: 1, scale: '1' }], { duration: 240, easing: 'cubic-bezier(.32, .72, 0, 1)' }));
+    const identities = new WeakMap<HTMLElement, string>(), entering = new Map<HTMLElement, Animation>();
+    const arrive = (node: Node) => {
+      if (!(node instanceof HTMLElement) || node.parentElement !== world || !node.matches('.card')) return;
+      const id = node.dataset.id ?? '';
+      if (identities.get(node) === id) return;
+      identities.set(node, id);
+      entering.get(node)?.cancel(); entering.delete(node);
+      if (!id || !arrivals.has(id)) return;
+      const instant = arrivals.get(id); arrivals.delete(id);
+      if (instant || reduced()) return;
+      const animation = node.animate([{ opacity: 0, scale: '.975' }, { opacity: 1, scale: '1' }], { duration: 240, easing: 'cubic-bezier(.32, .72, 0, 1)' });
+      entering.set(node, animation); rememberAnimation(animation);
+      const complete = () => { if (entering.get(node) === animation) entering.delete(node); };
+      void animation.finished.then(complete, complete);
+    };
+    const identity = new MutationObserver(records => { for (const record of records) arrive(record.target); });
+    const observeShells = () => {
+      identity.disconnect();
+      for (const node of world.children) if (node instanceof HTMLElement && node.matches('.card')) {
+        identity.observe(node, { attributes: true, attributeFilter: ['data-id'] }); arrive(node);
       }
-    });
-    observer.observe(world, { childList: true });
+    };
+    const observer = new MutationObserver(observeShells);
+    observer.observe(world, { childList: true }); observeShells();
     const off = workspace.scene.subscribe(change => {
-      if (change.kind === 'replace') { arrivals.clear(); deletes.clear(); }
+      if (change.kind === 'replace') { arrivals.clear(); deletes.clear(); for (const animation of entering.values()) animation.cancel(); entering.clear(); }
       else if (change.origin === 'local' && !keyboard && !reduced()) for (const id of change.removed) {
         if (!deletes.has(id) || !imported.has(id)) continue;
         const node = world.querySelector(`.card[data-id="${CSS.escape(id)}"]`); if (!(node instanceof HTMLElement)) continue;
@@ -54,7 +67,7 @@ export function createImportArrival(workspace: FeatureWorkspace) {
     const motion = new MutationObserver(cancel), media = matchMedia('(prefers-reduced-motion: reduce)');
     motion.observe(document.body, { attributes: true, attributeFilter: ['class'] }); media.addEventListener('change', cancel);
     return () => {
-      observer.disconnect(); motion.disconnect(); media.removeEventListener('change', cancel); off(); arrivals.clear();
+      observer.disconnect(); identity.disconnect(); motion.disconnect(); media.removeEventListener('change', cancel); off(); arrivals.clear();
       for (const animation of animations) animation.cancel(); for (const ghost of ghosts) ghost.remove();
       document.removeEventListener('keydown', key, true);
       document.removeEventListener('pointerdown', pointer, true);

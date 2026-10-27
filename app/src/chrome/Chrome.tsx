@@ -737,6 +737,7 @@ export function Chrome({
       menu.setTrigger(stage);
       menu.setItems([
         { title: "Duplicate", run: () => duplicateCards(context, ids, notify) },
+        ...(ids.some(id => { const card = context.workspace.record(id).getSnapshot(); return card?.rot && !['frame', 'section', 'coll', 'ink'].includes(card.type); }) ? [{ title: 'Reset tilts', run: () => { submit(context, ids.flatMap(id => { const card = context.workspace.record(id).getSnapshot(); return card && !['frame', 'section', 'coll', 'ink'].includes(card.type) ? [{ op: 'update' as const, id, set: { rot: 0 } }] : []; }), notify); } }] : []),
         ...stackMenu(context, ids, notify),
         { title: "Delete", run: () => { void deleteCards(context, ids, notify); } },
       ]);

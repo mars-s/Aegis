@@ -12,6 +12,10 @@ import type { ReplayResult } from './replay.js';
 import { bindOrientationMenu } from '../../../app/src/canvas/orientation-menu.js';
 import { wireframePolicies } from '../../../app/src/canvas/wireframe-policies.js';
 import { copyDrag } from '../../../app/src/canvas/copy-drag.js';
+import { createPreferenceStore } from '../../../app/src/features/settings/preferences-store.js';
+import type { PreferenceStore } from '../../../app/src/features/settings/preferences-store.js';
+import { createSceneTheme } from '../../../app/src/platform/scene-theme.js';
+import { createImportArrival } from '../../../app/src/features/imports/arrival.js';
 
 interface Harness {
   readonly engine: CanvasEngine;
@@ -20,6 +24,9 @@ interface Harness {
   readonly submit: CanvasWorkspace['submit'];
   readonly select: (ids: readonly string[]) => void;
   readonly selection: () => readonly CardId[];
+  readonly preference: PreferenceStore['set'];
+  readonly rememberArrival: (ids: readonly string[], instant: boolean) => void;
+  readonly disposeArrival: () => void;
   readonly setArea: (area: Rect) => void;
   readonly batch: (commands: unknown, origin: SceneOrigin) => void;
   readonly replace: (count: number) => void;
@@ -90,9 +97,16 @@ const workspace: CanvasWorkspace = {
     return { kind: 'applied' };
   },
 };
+const preferences = new URLSearchParams(location.search).has('appearance') ? createPreferenceStore() : null;
+const detachPreferences = preferences?.attach();
+addEventListener('pagehide', () => detachPreferences?.(), { once: true });
+const arrival = new URLSearchParams(location.search).has('arrival') ? createImportArrival(workspace) : null;
+const disposeArrival = arrival?.install(world);
+addEventListener('pagehide', () => disposeArrival?.(), { once: true });
 const insetArea = { x: 240, y: 68, width: 800, height: 600 };
 const areaListeners = new Set<() => void>();
 const engine = createCanvas({ onNavigation: () => { navigationNotifications++; }, onToolCommit: (boardId, commit) => { if (boardId === current.id) { workspace.submit(commit.commands); workspace.act({ kind: 'select', ids: commit.selection }); } }, stage, world, backdrop, overlay, workspace, warmLeases: 32, ...(new URLSearchParams(location.search).get('motion') === 'system' ? {} : { reducedMotion: new URLSearchParams(location.search).get('motion') !== 'on' }), snapGrid: 24,
+  ...(preferences ? { theme: createSceneTheme() } : {}),
   copyDrag: request => copyDrag(current, request),
   ...(new URLSearchParams(location.search).has('drop') ? {
     resolveCardDrop: () => ({
@@ -118,7 +132,7 @@ function Body({ lease }: { readonly lease: SlotLease }) {
       else queueMicrotask(() => engine.leases.acknowledgeUnmount(lease.key, lease.generation));
     };
   }, [lease]);
-  return createElement('div', null, createElement('div', { contentEditable: true, suppressContentEditableWarning: true, 'data-body': lease.cardId, ...(card?.type === 'frame' ? { className: 'wf-frame-name', style: { position: 'absolute', top: '-24px' } } : {}) }, card?.text ?? ''), lease.cardId === 'note-1' ? createElement('iframe', { title: 'Lifetime fixture', srcDoc: '<script>window.frameIdentity=Math.random()</script><p>Persistent frame</p><input value="one" aria-label="Sandbox text">' }) : null, lease.cardId === 'note-2' ? createElement('button', { className: 'win-open', onClick: () => { opened++; } }, 'Open fixture') : null);
+  return createElement('div', null, createElement('div', { contentEditable: true, suppressContentEditableWarning: true, 'data-body': lease.cardId, ...(card?.type === 'frame' ? { className: 'wf-frame-name', style: { position: 'absolute', top: '-24px' } } : {}) }, card?.text ?? ''), lease.cardId === 'note-1' ? createElement('iframe', { title: 'Lifetime fixture', srcDoc: '<script>window.frameIdentity=Math.random()</script><p>Persistent frame</p><input value="one" aria-label="Sandbox text">' }) : null, preferences && lease.cardId === 'note-2' ? createElement('button', { 'data-scene-gesture': 'rotate', 'aria-label': 'Rotate fixture', style: { position: 'absolute', top: '8px', right: '8px' } }, 'Rotate') : null, lease.cardId === 'note-2' ? createElement('button', { className: 'win-open', onClick: () => { opened++; } }, 'Open fixture') : null);
 }
 function Portals() {
   const leases = useSyncExternalStore(engine.leases.subscribe, engine.leases.getSnapshot);
@@ -128,6 +142,9 @@ const root = createRoot(element('portals')); root.render(createElement(Portals))
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
   engine, board: () => current, selection: () => selection, setArea: area => { Object.assign(insetArea, area); for (const listener of areaListeners) listener(); }, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
+  preference: (key, value) => { if (!preferences) throw new Error('Appearance fixture is disabled'); preferences.set(key, value); },
+  rememberArrival: (ids, instant) => { if (!arrival) throw new Error('Arrival fixture is disabled'); arrival.remember(ids.map(id => CardIdSchema.parse(id)), instant); },
+  disposeArrival: () => disposeArrival?.(),
   update: card => update([CardSchema.parse(card)]),
   batch,
   replace: count => {

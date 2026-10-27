@@ -1,3 +1,4 @@
+import { drawGridMotif } from './grid.js';
 import type { CardId, Link } from '@aegis/domain/schema';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { LinkRoute } from './links.js';
@@ -108,19 +109,27 @@ export class CanvasPainter {
   private drawGrid(camera: CameraState): void {
     const ctx = this.grid, dpr = this.dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, this.width, this.height);
+    const shape = this.theme.grid ?? 'dots';
+    if (shape === 'none') return;
     let spacing = 58.4 * camera.zoom;
     while (spacing < 26) spacing *= 2;
     const pixels = Math.max(1, Math.round(spacing * dpr)), step = pixels / dpr;
-    const key = `${pixels}:${dpr}`;
+    const key = `${shape}:${pixels}:${dpr}`;
     if (this.patternKey !== key) {
       const tile = this.backdrop.ownerDocument.createElement('canvas'); tile.width = pixels; tile.height = pixels;
       const tileCtx = tile.getContext('2d');
-      if (tileCtx) { tileCtx.fillStyle = this.theme.dot; tileCtx.fillRect(pixels / 2 - .75 * dpr, pixels / 2 - .75 * dpr, 1.5 * dpr, 1.5 * dpr); this.pattern = ctx.createPattern(tile, 'repeat'); }
+      if (tileCtx) {
+        tileCtx.fillStyle = this.theme.dot;
+        if (shape === 'lines') { tileCtx.fillRect(0, 0, pixels, dpr); tileCtx.fillRect(0, 0, dpr, pixels); }
+        else if (shape === 'dots') tileCtx.fillRect(pixels / 2 - .75 * dpr, pixels / 2 - .75 * dpr, 1.5 * dpr, 1.5 * dpr);
+        else { tileCtx.scale(dpr, dpr); drawGridMotif(tileCtx, shape, step / 2, step / 2); }
+        this.pattern = ctx.createPattern(tile, 'repeat');
+      }
       this.patternKey = key;
     }
     if (!this.pattern) return;
     ctx.save(); ctx.globalAlpha = Math.max(.45, Math.min(1, (camera.zoom - .1) / .4));
-    ctx.scale(1 / dpr, 1 / dpr); ctx.translate(((camera.x + 16.5 * camera.zoom - step / 2) % step) * dpr, ((camera.y + 25.5 * camera.zoom - step / 2) % step) * dpr);
+    ctx.scale(1 / dpr, 1 / dpr); ctx.translate(((camera.x + (shape === 'lines' ? 0 : 16.5 * camera.zoom - step / 2)) % step) * dpr, ((camera.y + (shape === 'lines' ? 0 : 25.5 * camera.zoom - step / 2)) % step) * dpr);
     ctx.fillStyle = this.pattern; ctx.fillRect(-pixels, -pixels, this.width * dpr + pixels * 2, this.height * dpr + pixels * 2); ctx.restore();
   }
 

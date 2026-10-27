@@ -34,7 +34,9 @@ export class SceneGraph {
   private readonly wires = new RBush<SceneLink>();
   private readonly entries = new Map<CardId, CardEntry>();
 
-  constructor(board: Board) { this.replace(board); }
+  private readonly rotationOf: (card: Card) => number;
+
+  constructor(board: Board, rotationOf: (card: Card) => number = card => card.rot ?? 0) { this.rotationOf = rotationOf; this.replace(board); }
 
   replace(board: Board): void {
     this.clear();
@@ -49,8 +51,8 @@ export class SceneGraph {
     const dirtyLinks = new Set<LinkId>();
     for (const card of change.upserted) {
       const old = this.nodes.get(card.id);
-      if (old && old.card.x === card.x && old.card.y === card.y && old.card.w === card.w && old.card.h === card.h && old.card.rot === card.rot && old.card.props?.hidden === card.props?.hidden) continue;
-      for (const wire of this.wires.search(rotatedBounds(rect(card), card.rot ?? 0))) dirtyLinks.add(wire.link.id);
+      if (old && old.card.x === card.x && old.card.y === card.y && old.card.w === card.w && old.card.h === card.h && old.rotation === this.rotationOf(card) && old.card.props?.hidden === card.props?.hidden) continue;
+      for (const wire of this.wires.search(rotatedBounds(rect(card), this.rotationOf(card)))) dirtyLinks.add(wire.link.id);
       if (old) for (const wire of this.wires.search(old.bounds)) dirtyLinks.add(wire.link.id);
     }
     for (const id of change.removed) { const old = this.nodes.get(id); if (old) for (const wire of this.wires.search(old.bounds)) dirtyLinks.add(wire.link.id); }
@@ -88,7 +90,7 @@ export class SceneGraph {
   clear(): void { this.nodes.clear(); this.links.clear(); this.children.clear(); this.parents.clear(); this.incident.clear(); this.entries.clear(); this.cards.clear(); this.wires.clear(); }
 
   private put(card: Card, rank: number): void {
-    const rotation = card.rot ?? 0, bounds = rotatedBounds(rect(card), rotation);
+    const rotation = this.rotationOf(card), bounds = rotatedBounds(rect(card), rotation);
     const node: SceneNode = { card, rank, bounds, rotation, hidden: false, locked: false, text: label(card), layout: { id: card.id, bounds: rect(card) } };
     this.nodes.set(card.id, node); this.entries.set(card.id, { ...bounds, node });
     if (card.parent) { const children = this.children.get(card.parent); if (children) children.add(card.id); else this.children.set(card.parent, new Set([card.id])); }

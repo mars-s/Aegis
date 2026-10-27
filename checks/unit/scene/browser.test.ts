@@ -9,7 +9,7 @@ import { chromium, webkit } from 'playwright';
 import type { Browser, CDPSession, Page } from 'playwright';
 import type {} from '../../perf/scene/browser-fixture.js';
 
-declare global { interface Window { resumeSceneFrames: () => void; touchMenuEvents: { readonly id: string | null; readonly x: number; readonly y: number }[]; touchReleases: number } }
+declare global { interface Window { arrivalShells: Element[]; resumeSceneFrames: () => void; touchMenuEvents: { readonly id: string | null; readonly x: number; readonly y: number }[]; touchReleases: number } }
 
 const scenePort = Number(process.env.AEGIS_PORT_OFFSET ?? 4100);
 const url = `http://127.0.0.1:${scenePort}/checks/perf/scene/index.html`;
@@ -54,6 +54,122 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('window actions avoid individual agent arrows in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.locator('[data-id="note-2"]').hover(); await idle(p);
+      const action = p.locator('.window-actions button'), box = await action.boundingBox();
+      if (!box) throw new Error('Missing actual floating Open action');
+      await p.evaluate(box => {
+        const host = document.createElement('div'), arrow = document.createElement('button');
+        host.className = 'aegis-agents'; arrow.className = 'agent-edge'; arrow.textContent = 'Agent';
+        Object.assign(arrow.style, { position: 'fixed', left: `${box.x}px`, top: `${box.y}px`, width: '44px', height: '44px', zIndex: '50' });
+        host.append(arrow); document.body.append(host); window.sceneHarness.engine.invalidate();
+      }, box); await idle(p);
+      const actionBox = await action.boundingBox(), arrowBox = await p.locator('.agent-edge').boundingBox();
+      if (!actionBox || !arrowBox) throw new Error('Missing pointer target');
+      expect(actionBox.x < arrowBox.x + arrowBox.width && actionBox.x + actionBox.width > arrowBox.x && actionBox.y < arrowBox.y + arrowBox.height && actionBox.y + actionBox.height > arrowBox.y).toBe(false);
+      await action.click(); expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(1); await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('preferences draw real grid shapes and retain saved modes in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&appearance=1&wireframe=1'); await p.waitForFunction(() => !!window.sceneHarness); await idle(p);
+      const pixels = () => p.evaluate(() => {
+        const canvas = document.querySelector<HTMLCanvasElement>('#backdrop'), context = canvas?.getContext('2d');
+        if (!context) throw new Error('Missing real grid canvas');
+        const data = context.getImageData(0, 0, 200, 200).data;
+        let hash = 2166136261, count = 0, maxRow = 0;
+        for (let y = 0; y < 200; y++) { let row = 0; for (let x = 0; x < 200; x++) { const alpha = data[(y * 200 + x) * 4 + 3] ?? 0; hash = Math.imul(hash ^ alpha, 16777619); if (alpha) { row++; count++; } } maxRow = Math.max(maxRow, row); }
+        return { hash, count, maxRow };
+      });
+      const dots = await pixels(); expect(dots.count).toBeGreaterThan(0);
+      await p.evaluate(() => window.sceneHarness.preference('gridShape', 'lines')); await idle(p);
+      const lines = await pixels(); expect(lines.maxRow).toBeGreaterThan(180); expect(lines.hash).not.toBe(dots.hash);
+      const modes = ['dots', 'cross', 'x', 'heart', 'tri', 'square', 'sparkle', 'lines'] as const;
+      const hashes = new Set<number>();
+      for (const mode of modes) { await p.evaluate(mode => window.sceneHarness.preference('gridShape', mode), mode); await idle(p); hashes.add((await pixels()).hash); }
+      expect(hashes.size).toBe(modes.length);
+      await p.evaluate(() => { window.sceneHarness.preference('gridShape', 'heart'); window.sceneHarness.preference('gridVisible', 'off'); }); await idle(p);
+      expect((await pixels()).count).toBe(0);
+      await p.reload(); await p.waitForFunction(() => !!window.sceneHarness); await idle(p); expect((await pixels()).count).toBe(0);
+      await p.evaluate(() => window.sceneHarness.preference('gridVisible', 'on')); await idle(p);
+      const hearts = await pixels(); expect(hearts.count).toBeGreaterThan(dots.count);
+      await p.reload(); await p.waitForFunction(() => !!window.sceneHarness); await idle(p); expect((await pixels()).hash).toBe(hearts.hash);
+      await p.evaluate(() => { localStorage.removeItem('aegis:grid-shape'); localStorage.setItem('aegis:grid', 'cross'); });
+      await p.reload(); await p.waitForFunction(() => !!window.sceneHarness); await idle(p); const cross = await pixels(); expect(cross.count).toBeGreaterThan(dots.count * 3);
+      await p.evaluate(() => localStorage.setItem('aegis:grid-shape', 'crosses'));
+      await p.reload(); await p.waitForFunction(() => !!window.sceneHarness); await idle(p); expect((await pixels()).hash).toBe(cross.hash);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('loose tilt changes real geometry without changing authored rotation in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&appearance=1&wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.frameLocator('iframe[title="Lifetime fixture"]').getByLabel('Sandbox text').fill('retained tilt value');
+      await p.evaluate(() => window.sceneHarness.preference('tilt', 'on')); await idle(p);
+      const rotation = () => p.evaluate(() => window.sceneHarness.engine.representations().find(rep => rep.id === 'note-2')?.rotation);
+      expect(await rotation()).toBeCloseTo(-.8, 8);
+      expect(await p.locator('[data-id="note-2"]').evaluate(node => node.style.transform)).toContain('rotate(-0.8deg)');
+      expect(await p.evaluate(() => window.sceneHarness.engine.hitTest({ x: 958, y: 79 }))).toBe('note-2');
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.rot ?? 0)).toBe(0);
+      expect(await p.frameLocator('iframe[title="Lifetime fixture"]').getByLabel('Sandbox text').inputValue()).toBe('retained tilt value');
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.reload(); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p); expect(await rotation()).toBeCloseTo(-.8, 8);
+      await p.evaluate(() => { window.sceneHarness.batch([{ op: 'update', id: 'note-2', set: { rot: 30 } }], 'local'); window.sceneHarness.select(['note-2']); }); await idle(p);
+      expect(await rotation()).toBeCloseTo(29.2, 8);
+      const box = await p.locator('[data-id="note-2"]').boundingBox(), handle = await p.getByRole('button', { name: 'Rotate fixture' }).boundingBox();
+      if (!box || !handle) throw new Error('Missing native rotation control');
+      const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 }, start = { x: Math.round(handle.x + handle.width / 2), y: Math.round(handle.y + handle.height / 2) };
+      const x = start.x - centre.x, y = start.y - centre.y, angle = Math.PI / 4;
+      await p.keyboard.down('Meta'); await p.mouse.move(start.x, start.y); await p.mouse.down();
+      const end = { x: Math.round(centre.x + x * Math.cos(angle) - y * Math.sin(angle)), y: Math.round(centre.y + x * Math.sin(angle) + y * Math.cos(angle)) };
+      const expected = 30 + (Math.atan2(end.y - centre.y, end.x - centre.x) - Math.atan2(start.y - centre.y, start.x - centre.x)) * 180 / Math.PI;
+      await p.mouse.move(end.x, end.y, { steps: 8 });
+      await p.mouse.up(); await p.keyboard.up('Meta'); await idle(p);
+      const authored = await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.rot);
+      expect(authored).toBeCloseTo(expected, 4); expect(await rotation()).toBeCloseTo(expected - .8, 4);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'note-2', set: { group: 'flat-group' } }], 'local')); await idle(p); expect(await rotation()).toBeCloseTo(expected, 4);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'note-2', set: { group: '' } }], 'local')); await idle(p); expect(await rotation()).toBeCloseTo(expected - .8, 4);
+      await p.evaluate(() => window.sceneHarness.preference('tilt', 'off')); await idle(p); expect(await rotation()).toBeCloseTo(expected, 4);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('import arrival follows actual recycled shell identity only once in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=on&arrival=1&wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => { window.arrivalShells = [...document.querySelectorAll<HTMLElement>('#world > .card')]; window.sceneHarness.replace(0); }); await idle(p);
+      await p.evaluate(() => { window.sceneHarness.rememberArrival(['arrivalone'], false); window.sceneHarness.batch([{ op: 'create', newId: 'arrivalone', type: 'note', x: 100, y: 100, w: 240, h: 160 }], 'local'); });
+      await p.waitForFunction(() => !!document.querySelector('[data-id="arrivalone"]'));
+      expect(await p.locator('[data-id="arrivalone"]').evaluate(node => window.arrivalShells.includes(node))).toBe(true);
+      expect(await p.locator('[data-id="arrivalone"]').evaluate(node => node.getAnimations().some(animation => animation.effect?.getTiming().duration === 240))).toBe(true);
+      await p.waitForTimeout(270);
+      await p.evaluate(() => { window.sceneHarness.replace(0); }); await idle(p);
+      await p.evaluate(() => { window.sceneHarness.batch([{ op: 'create', newId: 'arrivalone', type: 'note', x: 100, y: 100, w: 240, h: 160 }], 'local'); }); await idle(p);
+      expect(await p.locator('[data-id="arrivalone"]').evaluate(node => node.getAnimations().length)).toBe(0);
+      await p.evaluate(() => { window.sceneHarness.rememberArrival(['arrivalkeys'], true); window.sceneHarness.batch([{ op: 'create', newId: 'arrivalkeys', type: 'note', x: 400, y: 100, w: 240, h: 160 }], 'local'); }); await idle(p);
+      expect(await p.locator('[data-id="arrivalkeys"]').evaluate(node => node.getAnimations().length)).toBe(0);
+      await p.evaluate(() => { window.sceneHarness.rememberArrival(['arrivalstale'], false); window.sceneHarness.replace(0); }); await idle(p);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'create', newId: 'arrivalstale', type: 'note', x: 100, y: 100 }], 'local')); await idle(p);
+      expect(await p.locator('[data-id="arrivalstale"]').evaluate(node => node.getAnimations().length)).toBe(0);
+      await p.evaluate(() => { window.sceneHarness.rememberArrival(['arrivaldispose'], false); window.sceneHarness.disposeArrival(); window.sceneHarness.batch([{ op: 'create', newId: 'arrivaldispose', type: 'note', x: 400, y: 100 }], 'local'); }); await idle(p);
+      expect(await p.locator('[data-id="arrivaldispose"]').evaluate(node => node.getAnimations().length)).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('native release publishes one move before painting in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
