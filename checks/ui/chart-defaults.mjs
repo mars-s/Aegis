@@ -38,15 +38,14 @@ try {
       const matrix = svg.getScreenCTM(), scale = Math.hypot(matrix.a, matrix.b);
       return { path: line.getAttribute('d'), stroke: getComputedStyle(line).strokeWidth, vector: getComputedStyle(line).vectorEffect, radius: +dot.getAttribute('r') * scale, label: parseFloat(getComputedStyle(text).fontSize) * scale };
     });
-    const check = (result, smooth = false) => {
+    const check = (result, smooth = false, z = 1) => {
       assert.equal(/[CSQ]/.test(result.path), smooth); assert.equal(result.stroke, '1.5px'); assert.equal(result.vector, 'non-scaling-stroke');
-      assert.ok(Math.abs(result.radius - 2.5) < .02, JSON.stringify(result)); assert.ok(result.label >= 11.99, JSON.stringify(result));
+      assert.ok(Math.abs(result.radius - 2.5 * z) < .02, JSON.stringify(result)); assert.ok(result.label >= 11.99 * z, JSON.stringify(result));
     };
-    // Below 100% a plot is shown as its semantic summary (features/overview/zoom.js), so detail is measured from 100%.
-    for (const z of [1, 1.5, 3]) {
+    for (const z of [.3, .5, .75, 1, 2, 3]) {
       await page.evaluate(z => { aegis.canvas.setView({ x: 10, y: 0, z }); aegis.canvas.select(['plotchart']); }, z);
       await page.locator('#world [data-id="plotchart"] .cartesian svg .dot').first().waitFor(); await page.waitForTimeout(550);
-      const result = await measure('#world [data-id="plotchart"] .cartesian svg'); check(result); metrics.push({ engine: name, z, ...result });
+      const result = await measure('#world [data-id="plotchart"] .cartesian svg'); check(result, false, z); metrics.push({ engine: name, z, ...result });
     }
     await page.evaluate(() => aegis.canvas.setView({ x: 10, y: 0, z: 1 }));
     const smoothing = page.locator('#world [data-id="plotchart"]').getByLabel('Smooth line', { exact: true }); await smoothing.check();
@@ -67,7 +66,7 @@ try {
     await page.screenshot({ path: join(output, `${name}-straight-deck.png`) });
     await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-resolved-chart svg').waitFor(); await page.waitForTimeout(100); check(await measure('.deck-present .deck-resolved-chart svg'));
     await page.screenshot({ path: join(output, `${name}-straight-presentation.png`) });
-    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 100%, 150%, 300%, 1.5px stroke, 2.5px points, 12px labels, saved explicit smoothing and source transfer into deck/presentation`);
+    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 30%, 50%, 75%, 100%, 200%, 300%, scaled points and labels, 1.5px stroke, saved explicit smoothing and source transfer into deck/presentation`);
     await browser.close(); browser = null;
   }
   writeFileSync(join(output, 'metrics.json'), JSON.stringify(metrics, null, 2));

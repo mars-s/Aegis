@@ -2,9 +2,8 @@
 import { linkGeometry } from '../../canvas/engine.js';
 import { svg, worldToLocal, localToWorld } from './geometry.js';
 import { effectiveFlag } from '../editing/model.js';
-import { displayedCard, projectCard } from '../overview/spatial.js';
+import { displayedCard } from '../../canvas/geometry.js';
 import { displayRotation } from '../settings/preferences.js';
-import { routeSummaryLink } from '../../canvas/link-routing.js';
 export function connectorEditor(ctx, layer, changed) {
   const stage = document.getElementById('stage');
   let selected = null, drag = null;
@@ -13,12 +12,10 @@ export function connectorEditor(ctx, layer, changed) {
   const world = e => ctx.canvas.screenToWorld(e.clientX, e.clientY);
   const screen = p => ctx.canvas.worldToScreen(p.x, p.y);
   const pointer = e => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const displayed = c => displayedCard(c, ctx.canvas.representations.get(c.id) || projectCard(c, ctx.canvas.view), displayRotation(c));
+  const displayed = c => displayedCard(c, ctx.canvas.view, displayRotation(c));
   const stop = e => { e.preventDefault(); e.stopImmediatePropagation(); };
   function hitCard(at, except) {
-    if (stage.dataset.zoomTier === 'cluster') return;
     const cards = [...ctx.canvas.board.cards].reverse().filter(c => c.id !== except && !effectiveFlag(ctx.canvas.board, c, 'hidden'));
-    cards.sort((a, b) => Number(!!ctx.canvas.representations.get(b.id)?.summary) - Number(!!ctx.canvas.representations.get(a.id)?.summary));
     for (const radius of [0, 16]) {
       const card = cards.find(c => { const d = displayed(c), p = worldToLocal(d, at); return p.x >= -radius && p.y >= -radius && p.x <= d.w + radius && p.y <= d.h + radius; });
       if (card) return card;
@@ -47,7 +44,6 @@ export function connectorEditor(ctx, layer, changed) {
     if (drag?.kind === 'create' && (drag.boardId !== ctx.canvas.board.id || !ctx.canvas.board.cards.some(c => c.id === drag.a))) cancel();
     if (selected && !current()) { selected = null; changed(); }
     const link = drag?.link || current();
-    if (stage.dataset.zoomTier === 'cluster' || link && [link.a, link.b].some(id => ctx.canvas.representations.get(id)?.summary)) return;
     if (link) {
       const g = wire(link, drag ? { stroke: link.colour || 'var(--focus)', ...(link.dash ? { 'stroke-dasharray': '8 6' } : {}) } : { 'stroke-width': 7, opacity: .18 }); if (g) { knob(g.p0, { 'data-connect-end': 'a' }); knob(g.p2, { 'data-connect-end': 'b' }); knob(g.handle, { 'data-connect-bend': '1', class: 'draw-link-knob draw-link-bend' }); }
     }
@@ -64,12 +60,7 @@ export function connectorEditor(ctx, layer, changed) {
         const points = [[0, 0], [w, 0], [w, h], [0, h]].map(([x, y]) => localToWorld(card, { x, y })).map(p => `${p.x},${p.y}`).join(' ');
         layer.append(svg('polygon', { points, class: 'draw-connect-target', 'data-connect-target': card.id }));
       }
-      const source = displayed(ctx.canvas.board.cards.find(c => c.id === (drag.kind === 'create' ? drag.a : drag.link[drag.end === 'a' ? 'b' : 'a'])));
-      const summary = source.summary || target && displayed(target.card).summary;
-      const { width, height } = ctx.canvas.viewportSize;
-      const obstacles = [...ctx.canvas.representations.values()].filter(r => r.x + r.w >= 0 && r.y + r.h >= 0 && r.x <= width && r.y <= height);
-      const route = summary && target ? routeSummaryLink(from, to, source, displayed(target.card), obstacles) : null;
-      layer.append(svg('path', { d: route?.d || `M${from.x} ${from.y} L${to.x} ${to.y}`, class: 'draw-connect-preview', ...(summary ? { style: 'stroke-width:1' } : {}), 'data-connect-preview': '' }));
+      layer.append(svg('path', { d: `M${from.x} ${from.y} L${to.x} ${to.y}`, class: 'draw-connect-preview', 'data-connect-preview': '' }));
     }
   }
   function cancel() { drag = null; stage.classList.remove('connecting'); hint.hidden = true; }

@@ -41,9 +41,9 @@ all.push('fit-finish');
 all.push('canvas-chrome');
 // Data viewer, deletion recovery, typography and sheet units.
 all.push('data-trust');
-// Empty board actions, onboarding, Library home and far-zoom clusters.
+// Empty board actions, onboarding, Library home and far-zoom geometry.
 all.push('first-minute');
-// Readable summaries and shared zoom tiers in Chromium and WebKit.
+// Plain camera geometry and original content at every zoom in Chromium and WebKit.
 all.push('semantic-zoom');
 all.push('overview-model');
 all.push('evidence-fidelity');

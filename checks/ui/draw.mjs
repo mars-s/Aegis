@@ -1,4 +1,5 @@
 import {viteModule} from '../support/ui-snapshot.ts';
+import { assertCameraScale } from './static-geometry.mjs';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium, webkit } from './playwright.mjs';
@@ -245,6 +246,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Recent 🦉', exact: true }).count(), 1, 'recent survives reload');
   await page.screenshot({ path: out('draw-extended-dark.png') });
   assert.deepEqual(errors, []);
+  await assertCameraScale(page, await page.evaluate(() => aegis.canvas.board.cards.filter(c => c.type === 'shape').slice(0, 1).map(c => c.id)));
   console.log('PASS: ink, marker, highlighter, eraser, shapes/text, four line styles, vector curves/points/corners, repeated emoji, connector creation/style/bend/reattach/selection, saved host state and reload, connected shape conversion, direct text editing, closed paths, point insertion/deletion, stamp favourites/motion/square resize, zoom, connector flip/deletion. Data: ' + data);
 } catch (error) {
   await page.screenshot({ path: out('draw-fail.png') });

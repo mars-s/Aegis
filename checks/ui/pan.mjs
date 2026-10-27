@@ -35,6 +35,7 @@ try {
     { op: 'create', newId: 'panchild', type: 'note', text: 'Grouped work', parent: 'pangroup', x: 1850, y: 340, w: 200, h: 120 },
     { op: 'create', newId: 'panhtml', type: 'object', kind: 'html', text: 'Pan sandbox', data: { html: '<label>Sandbox text<input id="pan-input" value="one"></label>', css: '', js: '', height: 160 }, x: 2400, y: 250 },
   ]));
+  await page.locator('.card[data-id="pannote"]').waitFor({ state: 'attached' });
   assert.equal(await page.locator('.card[data-id="pannote"]').count(), 1, await page.locator('#toast').textContent());
   const snapshot = () => page.evaluate(async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return { cards: b.cards.map(({ id, x, y, w, h, rot }) => ({ id, x, y, w, h, rot })), links: b.links, agents: Object.keys(localStorage).filter(key => key.startsWith('aegis:agent-window:')).sort().map(key => [key, localStorage.getItem(key)]), view: { ...b.view } }; });
   async function pan(locator, name, button = 'left') {
