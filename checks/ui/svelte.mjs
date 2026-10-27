@@ -39,7 +39,7 @@ try {
   await page.keyboard.press('Escape');
   await page.evaluate(() => { aegis.canvas.fit(); });
   await page.waitForTimeout(900);
-  const counts = await page.evaluate(() => ({ objects: document.querySelectorAll('.card.object .object').length, svgBars: document.querySelectorAll('.card.object.kind-plot svg path').length, nodes: document.querySelectorAll('.diagram .node').length, rows: document.querySelectorAll('.sheet tbody tr').length }));
+  const counts = await page.evaluate(() => ({ objects: document.querySelectorAll('.card.object :is(.object, .plot-card, .sheet-card)').length, svgBars: document.querySelectorAll('.card.object.kind-plot svg path').length, nodes: document.querySelectorAll('.diagram .node').length, rows: document.querySelectorAll('.sheet tbody tr').length }));
   log('rendered', JSON.stringify(counts));
   assert.equal(counts.objects, 6); assert.ok(counts.svgBars > 0); assert.ok(counts.nodes > 0); assert.ok(counts.rows > 0);
   await page.screenshot({ path: out(`objects-${theme}.png`) });
@@ -74,7 +74,7 @@ try {
       await page.waitForFunction(() => getComputedStyle(document.querySelector('.reply h2')).color === 'rgb(255, 0, 128)', null, { timeout: 10000 });
       assert.equal(await page.evaluate(() => window.__marker), 'still-here', 'live update does not reload');
       assert.deepEqual(await page.evaluate(() => ({ board: aegis.canvas.board.id, selection: aegis.canvas.selection(), view: aegis.canvas.view })), before, 'live update retains board, selection and exact camera');
-      assert.equal(await page.locator('.card.object .object').count(), 6);
+      assert.equal(await page.locator('.card.object :is(.object, .plot-card, .sheet-card)').count(), 6);
     } finally { writeFileSync(file, original); }
     await page.waitForTimeout(800);
   }

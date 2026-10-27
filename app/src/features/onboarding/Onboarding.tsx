@@ -57,9 +57,13 @@ export function Onboarding({ open, close, context, ask, openAsk }: {
         const node = dialog.current; node?.close(); node?.show();
         setTour({ kind: 'plan', thought: thought.trim(), boardId: metadata.id });
       }}>Add thought</button> : tour.kind === 'plan' ? <button type="button" disabled={pending} onClick={() => {
-        const before = new Set(context.workspace.scene.snapshot().cards.map(card => card.id)), boardId = tour.boardId;
-        setPending(true);
-        void ask(`Turn this thought into a practical plan: ${tour.thought}\n\nCreate a short editable document and a checklist on this board. Use suggestions, not claims about my life. Keep the original thought.`).then(sent => { if (sent && context.workspace.metadata.getSnapshot().id === boardId && latest.current.kind === 'plan') setTour({ kind: 'results', boardId, before }); }).finally(() => setPending(false));
+        const before = new Set(context.workspace.scene.snapshot().cards.map(card => card.id)), plan = tour;
+        setPending(true); setError(null); setTour({ kind: 'results', boardId: plan.boardId, before });
+        void ask(`Turn this thought into a practical plan: ${plan.thought}\n\nCreate a short editable document and a checklist on this board. Use suggestions, not claims about my life. Keep the original thought.`).then(sent => {
+          if (!sent && context.workspace.metadata.getSnapshot().id === plan.boardId && latest.current.kind === 'results') {
+            setTour(plan); setError('The request could not start. Check Ask, then try again.');
+          }
+        }).finally(() => setPending(false));
       }}>Ask for a plan</button> : <><button type="button" onClick={() => { if (results.length) { context.engine()?.navigate({ kind: 'fit', ids: results.map(card => card.id), motion: 'instant' }); finish(); } else openAsk(); }}>{results.length ? 'See my plan' : 'Open Ask'}</button><button type="button" onClick={finish}>Done</button></>}</nav>
     </section>
   </dialog>;
