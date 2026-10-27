@@ -261,6 +261,13 @@ export function Layers({
               draggable={editing !== card.id}
               onFocus={() => setActive(card.id)}
               onKeyDown={(event) => key(event, row, index)}
+              onContextMenu={event => {
+                if (event.target instanceof Element && event.target.closest('input,textarea,[contenteditable]')) return;
+                event.preventDefault();
+                const ids = selection.includes(card.id) ? selection : [card.id];
+                context.workspace.act({ kind: 'select', ids });
+                document.getElementById('stage')?.dispatchEvent(new CustomEvent('layercontext', { detail: { x: event.clientX, y: event.clientY, ids } }));
+              }}
               onClick={(event) => {
                 if (
                   event.target instanceof Element &&

@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { z } from 'zod/v4';
+import { CardIdSchema } from '@aegis/domain';
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type {
@@ -38,6 +39,7 @@ import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
+import { restack, stackMenu, stacking } from './Stacking.js';
 import "./chrome.css";
 
 function setZoom(
@@ -452,9 +454,10 @@ export function Chrome({
         run: () => add("readme"),
       },
       ...composition.tools,
-      ...composition.menus,
+      ...composition.menus.filter(action => !stacking.some(stack => stack.id === action.id)),
+      ...stacking.map(action => ({ id: action.id, label: action.label, shortcut: action.shortcut, run: (target: FeatureContext) => restack(target, target.workspace.selection.getSnapshot(), action.id, notify) })),
     ],
-    [composition, context, engine],
+    [composition, context, engine, notify],
   );
   const actionRef = useRef(actions);
   const dockIds = toolOrder(
@@ -555,6 +558,11 @@ export function Chrome({
             [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel,
           },
         });
+      } else if (mod && !event.shiftKey && !event.altKey && (name === "[" || name === "]")) {
+        const side = name === "[" ? "left" : "right", opened = context.workspace.ui.getSnapshot();
+        change({ ...current.current.layout, open: { ...current.current.layout.open, [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel } });
+      } else if (mod && event.altKey && (event.code === 'BracketLeft' || event.code === 'BracketRight')) {
+        restack(context, ids, event.code === 'BracketRight' ? event.shiftKey ? 'front' : 'forward' : event.shiftKey ? 'back' : 'backward', notify);
       } else if (mod && name === "0") {
         setZoom(engine, 1, current.current.cameraChanged);
       } else if (mod && (name === "+" || name === "=" || name === "-")) {
@@ -642,28 +650,7 @@ export function Chrome({
               },
               {
                 title: "Arrange",
-                items: [
-                  {
-                    title: "Bring to front",
-                    run: () => {
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "front" }],
-                        notify,
-                      );
-                    },
-                  },
-                  {
-                    title: "Send to back",
-                    run: () => {
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "back" }],
-                        notify,
-                      );
-                    },
-                  },
-                ],
+                items: stackMenu(context, ids, notify),
               },
               {
                 title: "Lock",
@@ -701,9 +688,22 @@ export function Chrome({
       );
       menu.open(event, { x: event.clientX, y: event.clientY });
     }
+    const layer = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      const parsed = z.object({ x: z.number().finite(), y: z.number().finite(), ids: CardIdSchema.array() }).safeParse(detail);
+      if (!parsed.success) return;
+      const ids = parsed.data.ids.filter(id => context.workspace.record(id).getSnapshot() !== null);
+      context.workspace.act({ kind: 'select', ids });
+      menu.setTrigger(stage);
+      menu.setItems(stackMenu(context, ids, notify));
+      menu.open(event, { x: parsed.data.x, y: parsed.data.y });
+    };
     stage.addEventListener("contextmenu", open);
+    stage.addEventListener('layercontext', layer);
     return () => {
       stage.removeEventListener("contextmenu", open);
+      stage.removeEventListener('layercontext', layer);
       menu.destroy();
     };
   }, [context, engine, composition, notify, exportBoard]);
