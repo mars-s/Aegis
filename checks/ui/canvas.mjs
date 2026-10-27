@@ -33,6 +33,13 @@ try {
   await page.goto(`http://127.0.0.1:${5190 + offset}/?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
   const api = (path, body) => page.evaluate(([path, body]) => body === undefined ? aegis.host.get(path) : aegis.host.post(path, body), [path, body]);
   const settle = () => page.waitForTimeout(180);
+  const sceneInput = async () => {
+    if (process.env.AEGIS_UI_IMPL !== 'react') return;
+    await page.evaluate(() => new Promise(resolve => {
+      const engine = aegis.canvas.engine;
+      const release = engine.registerFrameParticipant({ read() { release(); engine.afterInput(resolve); } });
+    }));
+  };
   const apply = async commands => { await page.evaluate(c => aegis.apply(c), commands); await settle(); };
   await apply([
     { op: 'create', newId: 'canvasnote', type: 'note', text: 'A thought', heading: 'Growing note', x: 0, y: 0, w: 240, h: 120 },
@@ -139,7 +146,7 @@ try {
     await action('Delete'); await answer(false); verify('cancelling layer deletion preserves it', await page.evaluate(() => aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
     await action('Delete'); await answer(true); verify('confirmed layer deletion removes the card', await page.evaluate(() => !aegis.canvas.board.cards.some(c => c.id === 'canvasnote')));
     await apply([{ op: 'create', type: 'note', newId: 'lateredit', text: 'Keep this later edit', x: -500, y: 0 }]);
-    await page.locator('.layer-undo button').click(); await settle(); verify('layer Undo restores the card and preserves later edits', await page.evaluate(() => ['canvasnote', 'lateredit'].every(id => aegis.canvas.board.cards.some(c => c.id === id)) && aegis.canvas.board.links.some(l => l.id === 'canvaslink' && l.a === 'canvasnote' && l.b === 'canvastodo')));
+    await page.locator('.layer-undo').getByRole('button', { name: 'Undo', exact: true }).click(); await settle(); verify('layer Undo restores the card and preserves later edits', await page.evaluate(() => ['canvasnote', 'lateredit'].every(id => aegis.canvas.board.cards.some(c => c.id === id)) && aegis.canvas.board.links.some(l => l.id === 'canvaslink' && l.a === 'canvasnote' && l.b === 'canvastodo')));
   }
   const parent = await page.evaluate(() => aegis.canvas.board.id);
   await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); }); await settle();
@@ -184,7 +191,7 @@ try {
       await page.evaluate(width => { aegis.canvas.select(['canvasnote']); aegis.canvas.setView(width === 390 ? { x: 60, y: 180, z: .85 } : { x: 430, y: 240, z: 1 }); }, viewport.width); await settle();
       await page.screenshot({ path: out(`canvas-polish-${viewport.width}-${Date.now()}.png`) });
       if (viewport.width === 390) await page.locator('#mobileHub [data-sheet="layers"]').click();
-      const sidebarRow = page.locator('.layer-row[data-id="canvasnote"]');
+      const sidebarRow = page.locator('.layer-row[data-id="canvasnote"]:visible');
       verify(`${viewport.width}px sidebar names keep at least 60% of the row`, await sidebarRow.evaluate(el => el.querySelector('.name').getBoundingClientRect().width / el.getBoundingClientRect().width >= .6));
       await sidebarRow.locator('.row-more').click();
       await page.screenshot({ path: out(`r2-sidebar-menu-${viewport.width}-${Date.now()}.png`) });
@@ -217,16 +224,18 @@ try {
     }, labelId));
     await page.screenshot({ path: out(`r5-orientation-hover-${Date.now()}.png`) });
     // PM5.3: keep the pointer parked over the clicked label while navigating.
-    await label.click(); await page.keyboard.press('Tab');
+    await label.click(); await page.keyboard.press('Tab'); await sceneInput();
     verify('Tab after a hovered label click moves the aid to the focused window without pointer movement', await orientation.evaluate(el => el.contains(document.activeElement) && document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId) && await page.evaluate(id => document.activeElement.dataset.cardId !== id, labelId));
     await page.screenshot({ path: out(`r6-orientation-tab-${Date.now()}.png`) });
-    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Shift+Tab'); await sceneInput();
     verify('Shift+Tab with the pointer parked keeps focusId equal to aidId', await orientation.evaluate(el => document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId) && await page.evaluate(id => document.activeElement.dataset.cardId === id, labelId));
     const labelBox = await label.boundingBox();
     await page.mouse.move(labelBox.x + labelBox.width / 2 - 2, labelBox.y + labelBox.height / 2);
+    await sceneInput();
     verify('pointer hover again after Shift+Tab keeps focusId equal to aidId', await orientation.evaluate(el => document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId));
     await page.keyboard.press('Tab');
     await page.mouse.move(labelBox.x + labelBox.width / 2 + 2, labelBox.y + labelBox.height / 2);
+    await sceneInput();
     verify('pointer movement over the parked label takes the aid back from keyboard focus', await aid.getAttribute('data-card-id') === labelId);
     verify('the more chip counts all unlabelled visible windows beyond the 30-name cap', await orientation.locator('.orientation-more').textContent() === `+${40 - await orientation.locator('span').count()} more`);
     await page.locator('#boardName').focus();
@@ -234,7 +243,7 @@ try {
     verify('orientation clears when the pointer leaves the edge', !await orientation.isVisible());
     await page.keyboard.press('Tab'); await page.locator('#stage').focus(); await orientation.waitFor({ state: 'visible' });
     verify('keyboard canvas focus reveals far zoom names', await orientation.locator('span').count() > 0 && await orientation.locator('span').count() <= 30);
-    await orientation.locator('span').first().focus(); await page.keyboard.press('Tab');
+    await orientation.locator('span').first().focus(); await page.keyboard.press('Tab'); await sceneInput();
     await aid.waitFor({ state: 'visible' });
     verify('Tab focuses a far zoom name and highlights the same window', await orientation.evaluate(el => el.contains(document.activeElement) && document.activeElement.dataset.cardId === el.querySelector('.orientation-aid').dataset.cardId));
     await page.screenshot({ path: out(`r5-orientation-focus-${Date.now()}.png`) });

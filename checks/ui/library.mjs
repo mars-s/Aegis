@@ -369,11 +369,11 @@ try {
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:panels')).columns), orderBeforeCancel);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'library');
   check('panel lift shows selectable slots on both sides, Escape and pointer cancellation restore order, touch skips dragging and Library stays pinned');
-  await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-panel-visibility="layers"]').uncheck(); await page.locator('#closeSettings').click();
+  await page.mouse.move(page.viewportSize().width - 24, 20); await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-panel-visibility="layers"]').uncheck(); await page.locator('#closeSettings').click();
   assert.equal(await page.locator('[data-panel="layers"]').isVisible(), false);
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await page.locator('[data-panel="layers"]').isVisible(), false);
-  await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-reset-panels]').click(); await page.locator('#closeSettings').click();
+  await page.mouse.move(page.viewportSize().width - 24, 20); await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-reset-panels]').click(); await page.locator('#closeSettings').click();
   assert.ok(await page.locator('#side [data-panel="layers"]').isVisible());
   await page.screenshot({ path: out('library-panels-reset.png') }); check('panel drag between sides, persisted order and visibility, Settings reset');
   // Template collections keep their notes together when dragged.

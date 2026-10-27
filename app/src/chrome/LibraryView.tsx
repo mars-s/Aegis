@@ -2,9 +2,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod/v4";
-import type { Board, BoardId } from "@aegis/domain";
+import type { BoardId } from "@aegis/domain";
 import { useSource } from "../workspace/index.js";
 import { confirmAction } from "../lib/ui/confirm.js";
+import { createMenu } from "../lib/ui/menu.js";
+import { BoardPreview } from "./BoardPreview.js";
 import { Icon, MenuButton } from "./controls.js";
 import { ancestors, libraryItems, scopeRoot } from "./library-model.js";
 import type {
@@ -23,48 +25,6 @@ function readExpanded(): ReadonlySet<string> {
   } catch {
     return new Set();
   }
-}
-
-function Preview({
-  service,
-  board,
-}: {
-  readonly service: LibraryService;
-  readonly board: BoardId;
-}) {
-  const [snapshot, setSnapshot] = useState<Board | null>(null);
-  useEffect(() => {
-    const lifetime = new AbortController();
-    void service
-      .load(board, lifetime.signal)
-      .then((value) => {
-        if (!lifetime.signal.aborted) setSnapshot(value);
-      })
-      .catch(() => {});
-    return () => lifetime.abort();
-  }, [service, board]);
-  const cards = snapshot?.cards ?? [];
-  const x = Math.min(0, ...cards.map((card) => card.x)),
-    y = Math.min(0, ...cards.map((card) => card.y));
-  const width = Math.max(1, ...cards.map((card) => card.x + card.w)) - x,
-    height = Math.max(1, ...cards.map((card) => card.y + card.h)) - y;
-  return (
-    <svg
-      viewBox={`${x - 12} ${y - 12} ${width + 24} ${height + 24}`}
-      aria-label="Board preview"
-    >
-      {cards.map((card) => (
-        <rect
-          key={card.id}
-          x={card.x}
-          y={card.y}
-          width={card.w}
-          height={card.h}
-          rx={6}
-        />
-      ))}
-    </svg>
-  );
 }
 
 export function Library({
@@ -94,6 +54,13 @@ export function Library({
     coverFor = useRef<string | null>(null);
   const [footer, setFooter] = useState<Element | null>(null);
   const currentPath = useRef("");
+  const contextMenu = useRef<ReturnType<typeof createMenu> | null>(null);
+  useEffect(() => () => contextMenu.current?.destroy(), []);
+  useEffect(() => {
+    if (!home || !editing) return;
+    const field = dialog.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(editing)}"] strong[contenteditable]`);
+    if (field) { field.focus(); const range = document.createRange(); range.selectNodeContents(field); const selection = window.getSelection(); selection?.removeAllRanges(); selection?.addRange(range); }
+  }, [editing, home]);
   const chain = useMemo(() => ancestors(data, current), [data, current]);
   useEffect(() => {
     setFooter(
@@ -195,6 +162,12 @@ export function Library({
     if (keep && name.trim() && name.trim() !== item.name)
       void run(() => service.rename(item, name.trim()));
   }
+  function covers(item: LibraryItem) {
+    return item.item === 'node' && item.kind === 'project' ? [
+      { title: 'Choose an image…', run: () => { coverFor.current = item.id; file.current?.click(); } },
+      { title: 'Use the first board', run: () => { void run(() => service.cover(item.id, null)); } },
+    ] : [];
+  }
   function menu(item: LibraryItem) {
     const descendants = new Set(
       items
@@ -204,23 +177,7 @@ export function Library({
         .map((candidate) => candidate.id),
     );
     return [
-      ...(item.item === "node" && item.kind === "project"
-        ? [
-            {
-              title: "Choose an image…",
-              run: () => {
-                coverFor.current = item.id;
-                file.current?.click();
-              },
-            },
-            {
-              title: "Use the first board",
-              run: () => {
-                void run(() => service.cover(item.id, null));
-              },
-            },
-          ]
-        : []),
+      ...covers(item),
       { title: "Rename", run: () => rename(item) },
       {
         title: "Move to…",
@@ -300,8 +257,8 @@ export function Library({
     ];
   }
   const root = home
-    ? home.at
-      ? scopeRoot(data, home.at)
+    ? home?.at
+      ? scopeRoot(data, home?.at)
       : undefined
     : chain.find((item) => item.item === "node");
   const rows: { readonly item: LibraryItem; readonly depth: number }[] = [];
@@ -335,7 +292,7 @@ export function Library({
       .sort((a, b) => a.name.localeCompare(b.name))
       .forEach((item) => append(item, 0));
   function title(item: LibraryItem) {
-    return editing === item.id ? (
+    return editing === item.id && !home ? (
       <input
         className="name"
         aria-label={`${item.name} name`}
@@ -460,6 +417,11 @@ export function Library({
                 toggle(item.id);
               }
             }}
+            onContextMenu={(event) => {
+              event.preventDefault(); contextMenu.current?.destroy();
+              const menuControl = createMenu({ items: menu(item) }); contextMenu.current = menuControl;
+              menuControl.open(event.nativeEvent, { x: event.clientX, y: event.clientY });
+            }}
             onDragStart={(event) => {
               event.dataTransfer.setData("application/x-aegis-lib", item.id);
               event.dataTransfer.effectAllowed = "move";
@@ -496,7 +458,7 @@ export function Library({
               className="row-more icon-btn"
               menuClass="ctx-menu"
               label={`More actions for ${item.name}`}
-              items={menu(item)}
+              items={() => menu(item)}
             >
               <Icon name="more" />
             </MenuButton>
@@ -531,7 +493,7 @@ export function Library({
             footer,
           )
         : null}
-      {home ? (
+      {(
         <dialog
           ref={dialog}
           className="library-home aegis-dialog"
@@ -551,8 +513,8 @@ export function Library({
           <nav>
             <button
               onClick={() => {
-                const parent = home.at
-                  ? data.nodes.find((node) => node.id === home.at)?.parent
+                const parent = home?.at
+                  ? data.nodes.find((node) => node.id === home?.at)?.parent
                   : null;
                 setHome({ at: parent ?? null });
               }}
@@ -560,8 +522,8 @@ export function Library({
               Back
             </button>
             <button onClick={() => setHome({ at: null })}>All projects</button>
-            {home.at
-              ? ancestors(data, home.at).map((item) => (
+            {home?.at
+              ? ancestors(data, home?.at).map((item) => (
                   <button
                     key={item.id}
                     onClick={() => setHome({ at: item.id })}
@@ -574,7 +536,7 @@ export function Library({
           </nav>
           <div className="home-heading">
             <h1>
-              {data.nodes.find((node) => node.id === home.at)?.name ??
+              {data.nodes.find((node) => node.id === home?.at)?.name ??
                 "All projects"}
             </h1>
             <input
@@ -586,12 +548,18 @@ export function Library({
             />
             <MenuButton
               label="New in library"
+              triggerLabel="New"
               items={(["board", "folder", "project"] as const).map((kind) => ({
                 title: `${kind[0]?.toUpperCase()}${kind.slice(1)}`,
                 run: () => {
-                  void run(() =>
-                    service.create(kind, kind === "project" ? null : home.at),
-                  );
+                  void run(async () => {
+                    const id = await service.create(kind, kind === "project" ? null : home?.at ?? null);
+                    if (kind === "board") { closeHome(); return; }
+                    if (kind === "project") setHome({ at: null });
+                    setQuery("");
+                    const item = libraryItems(service.source.getSnapshot()).find(candidate => candidate.id === id);
+                    if (item) rename(item);
+                  });
                 },
               }))}
             >
@@ -599,14 +567,24 @@ export function Library({
             </MenuButton>
           </div>
           <div className="home-grid">
-            {homeItems(data, home.at, query).map((item) => (
+            {homeItems(data, home?.at ?? null, query).map((item) => (
               <article
                 className="home-tile"
                 key={item.id}
                 data-item={item.id}
                 {...(item.item === "board"
-                  ? { "data-board": item.id }
+                  ? { "data-board": item.id, "data-open": item.id }
                   : { "data-into": item.id })}
+                onClick={(event) => {
+                  if (event.target instanceof Element && event.target.closest('button,input,[contenteditable]')) return;
+                  if (item.item === "board") void run(async () => { if (await service.open(item.id)) closeHome(); });
+                  else setHome({ at: item.id });
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault(); contextMenu.current?.destroy();
+                  const control = createMenu({ items: menu(item) }); contextMenu.current = control;
+                  control.open(event.nativeEvent, { x: event.clientX, y: event.clientY });
+                }}
               >
                 <button
                   className="home-preview"
@@ -624,30 +602,39 @@ export function Library({
                   }}
                 >
                   {item.item === "board" ? (
-                    <Preview service={service} board={item.id} />
+                    <BoardPreview service={service} board={item.id} />
                   ) : item.cover ? (
                     <img alt="Project cover" src={item.cover} loading="lazy" />
                   ) : (
-                    <Icon name="window" />
+                    (() => {
+                      const first = data.boards.find(board => ancestors(data, board.id).some(parent => parent.id === item.id));
+                      return first ? <BoardPreview service={service} board={first.id} /> : <Icon name="window" />;
+                    })()
                   )}
                 </button>
-                <strong>{title(item)}</strong>
+                {editing === item.id ? <strong key="editing" contentEditable="plaintext-only" suppressContentEditableWarning role="textbox" aria-label="Library item name" onInput={event => setName(event.currentTarget.textContent ?? "")} onBlur={() => finish(item, true)} onKeyDown={event => {
+                  event.stopPropagation();
+                  if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); finish(item, event.key === "Enter"); }
+                }}>{item.name}</strong> : <strong key="name" onDoubleClick={() => rename(item)}>{item.name}</strong>}
+                {item.item === "board" ? <><p className="home-subtitle">{item.subtitle}</p><time dateTime={new Date(item.editedAt ?? 0).toISOString()}>Edited {new Date(item.editedAt ?? 0).toLocaleDateString()}</time></> : null}
                 <p>
                   {item.item === "board"
                     ? `${item.cards} windows`
                     : `${items.filter((candidate) => candidate.parent === item.id).length} items`}
                 </p>
+                {item.item === 'node' && item.kind === 'project' ? <MenuButton label={`Cover for ${item.name}`} dataProjectCover={item.id} items={() => covers(item)}>Cover</MenuButton> : null}
                 <MenuButton
                   label={`More actions for ${item.name}`}
-                  items={menu(item)}
+                  items={() => menu(item)}
                 >
                   <Icon name="more" />
                 </MenuButton>
               </article>
             ))}
           </div>
+          {!homeItems(data, home?.at ?? null, query).length ? <p className="home-empty">{query.trim() ? "No matches" : "No items yet"}</p> : null}
         </dialog>
-      ) : null}
+      )}
     </>
   );
 }
@@ -661,7 +648,7 @@ function homeItems(
   return libraryItems(data)
     .filter((item) =>
       needle
-        ? item.name.toLocaleLowerCase().includes(needle) &&
+        ? `${item.name} ${item.item === "board" ? item.subtitle ?? "" : ""}`.toLocaleLowerCase().includes(needle) &&
           (!at || ancestors(data, item.id).some((parent) => parent.id === at))
         : (item.item === "board"
             ? (item.boardParent ?? item.parent)

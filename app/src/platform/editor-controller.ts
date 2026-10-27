@@ -103,7 +103,11 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       if (opened && !flushFields()) return false;
       instantMotion = reduced(keyboard);
       returning?.(); returning = null;
-      if (engine && !bookmark) bookmark = { board: workspace.metadata.getSnapshot().id, camera: engine.camera(), viewport: engine.viewport(), selection: [...workspace.selection.getSnapshot()], invoker: document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement.id !== 'stage' ? document.activeElement : null, invokerSelector: document.activeElement instanceof Element && document.activeElement.closest('#selectionBar') ? '#selectionBar [aria-label="Open"]' : document.activeElement instanceof Element && document.activeElement.matches('.win-open') ? `.card[data-id="${CSS.escape(id)}"] .win-open` : null };
+      if (engine && !bookmark) {
+        const invoker = document.activeElement instanceof HTMLElement && document.activeElement !== document.body && document.activeElement.id !== 'stage' ? document.activeElement : null;
+        const invokerSelector = invoker?.closest('#selectionBar') ? '#selectionBar [aria-label="Open"]' : invoker?.matches('.window-actions [data-window-action]') ? `.window-actions [data-window-action="${CSS.escape(id)}"]` : invoker?.matches('.win-open') ? `.card[data-id="${CSS.escape(id)}"] .win-open` : null;
+        bookmark = { board: workspace.metadata.getSnapshot().id, camera: engine.camera(), viewport: engine.viewport(), selection: [...workspace.selection.getSnapshot()], invoker, invokerSelector };
+      }
       if (opened) engine?.pin(opened.id, 'editor', false);
       engine?.pin(id, 'editor', true);
       workspace.act({ kind: 'edit', id, view: full ? 'full' : 'side' });

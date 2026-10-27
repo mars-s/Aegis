@@ -85,6 +85,7 @@ try {
   // Search and swap real bundled Material Icons.
   await panel.locator('[data-wf="icon"]').click(); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('settings');
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="settings"]').click(); await clickAt(330, 125);
+  await page.locator('.card[data-type="icon"] .wf-icon').filter({ hasText: 'settings' }).waitFor();
   let icon = (await snapshot()).cards.find(c => c.type === 'icon' && c.props.name === 'settings'); assert.ok(icon);
   await select(icon.id); await panel.getByRole('button', { name: 'Change icon', exact: true }).click();
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('favorite border'); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="favorite_border"]').click();

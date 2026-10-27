@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { createMenu } from "../lib/ui/menu.js";
 import type { MenuItem } from "../lib/ui/menu.js";
 import { createDropdown, createPopup } from "../lib/ui/dropdown.js";
+import type { DropdownOption } from '../lib/ui/dropdown.js';
 
 export function TextField({
   label,
@@ -49,7 +50,7 @@ export function ValuePicker({
   readonly id?: string;
   readonly label: string;
   readonly value: string;
-  readonly options: readonly (readonly [string, string])[];
+  readonly options: readonly DropdownOption[];
   readonly onChange: (value: string) => void;
   readonly size?: boolean;
   readonly disabled?: boolean;
@@ -136,6 +137,7 @@ export function MenuButton({
   className = "",
   children,
   menuClass = "",
+  dataProjectCover,
   disabled = false,
   tabIndex,
 }: {
@@ -144,6 +146,7 @@ export function MenuButton({
   readonly items: readonly MenuItem[] | (() => readonly MenuItem[]);
   readonly className?: string;
   readonly menuClass?: string;
+  readonly dataProjectCover?: string;
   readonly disabled?: boolean;
   readonly tabIndex?: number;
   readonly children: ReactNode;
@@ -187,6 +190,7 @@ export function MenuButton({
       aria-label={triggerLabel ?? label}
       disabled={disabled}
       tabIndex={tabIndex}
+      data-project-cover={dataProjectCover}
     >
       {children}
     </button>
@@ -200,6 +204,7 @@ export function PopupButton({
   className = "",
   triggerId,
   menuId,
+  closeOnResize = false,
 }: {
   readonly label: string;
   readonly children: ReactNode;
@@ -207,9 +212,11 @@ export function PopupButton({
   readonly className?: string;
   readonly triggerId?: string;
   readonly menuId?: string;
+  readonly closeOnResize?: boolean;
 }) {
   const button = useRef<HTMLButtonElement>(null),
     content = useRef<HTMLDivElement>(null);
+  const controller = useRef<ReturnType<typeof createPopup> | null>(null);
   useEffect(() => {
     if (!button.current || !content.current) return;
     const popup = createPopup({
@@ -221,8 +228,11 @@ export function PopupButton({
         if (opened) button.current?.focus({ preventScroll: true });
       },
     });
-    return () => popup.destroy();
-  }, [label]);
+    controller.current = popup;
+    const resized = () => { if (closeOnResize) popup.close(false, true); };
+    window.addEventListener("resize", resized);
+    return () => { window.removeEventListener("resize", resized); popup.destroy(); controller.current = null; };
+  }, [label, closeOnResize]);
   return (
     <>
       <button ref={button} id={triggerId} type="button" aria-label={label}>
@@ -233,6 +243,10 @@ export function PopupButton({
         id={menuId}
         className={`selection-popup-menu ${className}`}
         aria-label={`${label} controls`}
+        onClick={event => {
+          const target = event.target;
+          if (target instanceof Element && target.closest('button[data-popup-close],button[data-tool]:not([data-tool="templates"])')) controller.current?.close(true, true);
+        }}
         hidden
       >
         {children}

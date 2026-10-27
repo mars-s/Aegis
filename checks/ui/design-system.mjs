@@ -124,8 +124,8 @@ try {
     await shot('doc-ribbon');
     await page.getByLabel('Format document', { exact: true }).click(); await shot('doc-format', page.getByRole('dialog', { name: 'Format document controls', exact: true }));
     for (const label of ['Text colour', 'Highlight']) {
-      await doc.locator(`summary[aria-label="${label}"]`).click();
-      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: label + ' choices', exact: true })); await dismiss();
+      await (process.env.AEGIS_UI_IMPL === 'react' ? page.getByRole('dialog', { name: 'Format document controls', exact: true }).getByLabel(label, { exact: true }) : doc.locator(`summary[aria-label="${label}"]`)).click();
+      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Colour editor' : label + ' choices', exact: true })); await dismiss();
     }
     await doc.getByRole('button', { name: 'Link', exact: true }).click();
     await shot('doc-link', page.getByRole('dialog', { name: 'Edit document link', exact: true })); await dismiss();
@@ -147,9 +147,9 @@ try {
     assert.equal(await pageColour.getAttribute('data-value'), 'dark', 'nested select opens with the keyboard before its parent consumes arrows');
     await dismiss();
     await dismiss(); await open("c.kind === 'sheet'");
-    const kind = page.locator('.sheet-editor .office-ribbon [data-kind]'); await kind.click(); await shot('sheet-column-type', await popupFor(kind)); await dismiss(); await dismiss();
+    const kind = process.env.AEGIS_UI_IMPL === 'react' ? page.getByRole('combobox', { name: 'Column type', exact: true }) : page.locator('.sheet-editor .office-ribbon [data-kind]'); await kind.click(); await shot('sheet-column-type', await popupFor(kind)); await dismiss(); await dismiss();
     await open("c.type === 'deck'");
-    const layout = page.locator('.deck-ribbon [data-layout]'); await layout.click(); await shot('slide-layout', await popupFor(layout)); await dismiss(); await dismiss();
+    const layout = process.env.AEGIS_UI_IMPL === 'react' ? page.getByRole('button', { name: 'Slide layout', exact: true }) : page.locator('.deck-ribbon [data-layout]'); await layout.click(); await shot('slide-layout', await popupFor(layout)); await dismiss(); await dismiss();
     // Owned geometric fixture, uploaded through the same image input as a person's file.
     if (theme === 'dark') {
       const buffer = Buffer.from(await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 640; c.height = 360; const g = c.getContext('2d'); g.fillStyle = '#141618'; g.fillRect(0, 0, 640, 360); g.fillStyle = '#3f8dfd'; g.fillRect(96, 96, 448, 168); return c.toDataURL().split(',')[1]; }), 'base64');

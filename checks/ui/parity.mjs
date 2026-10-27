@@ -19,6 +19,14 @@ const context = await browser.newContext({ viewport:{width:390,height:844}, hasT
 let page = await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 const url = `http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${token}`;
 const waitSaved = async () => {await page.waitForFunction(()=>document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase()==='saved'); return page.evaluate(()=>aegis.host.get(`/boards/${aegis.canvas.board.id}`));};
+const inputDone = async () => {
+  if (process.env.AEGIS_UI_IMPL !== 'react') return;
+  await page.evaluate(async () => {
+    const engine = aegis.canvas.engine;
+    const frame = () => new Promise(resolve => { const release = engine.registerFrameParticipant({ write() { release(); engine.afterInput(resolve); } }); });
+    await frame(); await frame();
+  });
+};
 const log = (...a)=>console.log(...a);
 try {
   await page.goto(url); await page.waitForFunction(()=>window.aegis?.canvas?.board);
@@ -46,7 +54,7 @@ try {
   const hub = page.getByRole('navigation',{name:'Board hub'});
   await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator('.mobile-sheet .tree-row[data-board]').first().tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'});
   await hub.getByRole('button',{name:'Windows',exact:true}).tap(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
-  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); await page.locator('.mobile-veil').tap({position:{x:20,y:100}});
+  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); if (process.env.AEGIS_UI_IMPL === 'react') await page.touchscreen.tap(20,100); else await page.locator('.mobile-veil').tap({position:{x:20,y:100}});
   await hub.getByRole('button',{name:'Add',exact:true}).tap();
   for(const name of ['Basics','Wireframe','Colours']) assert.equal(await page.getByRole('heading',{name,exact:true}).isVisible(),true);
   await page.screenshot({path:out('parity-phone-add.png')});
@@ -85,7 +93,7 @@ try {
   await page.evaluate(()=>aegis.apply([{op:'update',id:'savest',set:{heading:'Queued behind failure'}}])); assert.equal(await page.evaluate(()=>aegis.canvas.board.cards.find(c=>c.id==='savest').text),'Kept after failure');
   mode='ok'; await page.getByRole('button',{name:'Retry',exact:true}).tap(); b=await waitSaved(); assert.equal(b.cards.find(c=>c.id==='savest').text,'Kept after failure'); assert.equal(b.cards.find(c=>c.id==='savest').heading,'Queued behind failure');
   log('saving/saved/not saved + retry, ordered retained edits, repaired finite geometry saved');
-  const external=await page.evaluate(()=>aegis.host.post('/boards',{name:'Focus refresh evidence'})); await page.evaluate(()=>window.dispatchEvent(new Event('focus'))); await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator(`.mobile-sheet [data-board="${external.id}"]`).waitFor(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
+  const external=await page.evaluate(()=>aegis.host.post('/boards',{name:'Focus refresh evidence'})); await page.evaluate(()=>window.dispatchEvent(new Event('focus'))); await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator(`.mobile-sheet .tree-row[data-board="${external.id}"]`).waitFor(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
   // Reuse the same context at desktop width to verify controls restore to their original homes.
   await page.setViewportSize({width:1440,height:1000}); await page.waitForFunction(()=>!document.body.classList.contains('phone')); assert.equal(await page.locator('#mobileHub').isVisible(),false); assert.equal(await page.locator('#side [data-panel="library"]').count(),1); await page.locator('#askPill').waitFor({state:'visible'});
   await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
@@ -96,7 +104,7 @@ try {
   await page.locator('#settings').getByLabel('Snap to grid',{exact:true}).check(); await page.locator('#closeSettings').click();
   await page.mouse.dblclick(900,300); b=await waitSaved(); assert.equal(b.cards.length,count+1); assert.equal(b.cards.at(-1).color,'purple'); await page.evaluate(()=>{document.activeElement?.blur();aegis.canvas.glideTo({x:300,y:300,z:1});}); await page.waitForTimeout(60); assert.equal(await page.evaluate(()=>aegis.canvas.view.x),300);
   const purple=b.cards.at(-1); await page.evaluate(c=>{document.activeElement?.blur();aegis.canvas.setView({x:700-c.x,y:300-c.y,z:1});aegis.canvas.select([c.id]);},purple); await page.waitForTimeout(80);
-  const box=await page.locator(`#world [data-id="${purple.id}"]`).boundingBox(); await page.mouse.move(box.x+20,box.y+box.height-15); await page.mouse.down(); await page.mouse.move(box.x+57,box.y+box.height+10,{steps:6}); await page.mouse.up(); b=await waitSaved(); const snapped=b.cards.find(c=>c.id===purple.id); assert.equal(Math.abs(snapped.x%24),0); assert.equal(Math.abs(snapped.y%24),0); log('grid snap saved at',snapped.x,snapped.y);
+  const box=await page.locator(`#world [data-id="${purple.id}"]`).boundingBox(); await page.mouse.move(box.x+20,box.y+box.height-15); await page.mouse.down(); await page.mouse.move(box.x+57,box.y+box.height+10,{steps:6}); await page.mouse.up(); await inputDone(); b=await waitSaved(); const snapped=b.cards.find(c=>c.id===purple.id); assert.equal(Math.abs(snapped.x%24),0); assert.equal(Math.abs(snapped.y%24),0); log('grid snap saved at',snapped.x,snapped.y);
   await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab',{name:'Toolbar',exact:true}).click(); await choose(page.locator('[data-size]'), 'large'); await page.getByRole('switch',{name:'Show readme',exact:true}).uncheck(); await page.getByRole('tab',{name:'Panels',exact:true}).click(); await page.locator('[data-panel-visibility="keys"]').uncheck(); await page.getByRole('button',{name:'Reset layout',exact:true}).click(); await page.getByRole('tab',{name:'About',exact:true}).click(); await page.screenshot({path:out('parity-desktop-about.png')}); await page.getByRole('button',{name:'Replay welcome and tour',exact:true}).click(); assert.equal(await page.locator('.tour-progress').textContent(), '1 of 3'); await page.screenshot({path:out('parity-desktop-tour.png')}); await page.getByRole('button',{name:'Skip',exact:true}).click();
   await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('#tools [data-tool="readme"]').isVisible(),false); await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await page.getByRole('tab',{name:'General',exact:true}).click(); assert.equal(await page.getByLabel('Default note colour',{exact:true}).evaluate(el => el.value),'purple'); await page.locator('#closeSettings').click();
   log('focus library refresh, desktop restoration, six tabs, double-click preference, default colour, motion, tilt, grid, toolbar/panels, replay, persisted preferences');

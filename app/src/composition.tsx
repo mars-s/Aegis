@@ -2,8 +2,9 @@ import type { Card, CardId, ObjectCard } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type { ComponentType } from "react";
 import type { FeatureWorkspace } from "./workspace/index.js";
+import { CanvasBody } from "./chrome/CanvasDoor.js";
 import { creativeCards } from "./cards/creative/index.js";
-import { basicRegistrations } from "./cards/basic/index.js";
+import { basicRegistrations, NoteBody } from "./cards/basic/index.js";
 import { objectRegistrations } from "./cards/objects/index.js";
 import type { ObjectServices } from "./cards/objects/index.js";
 import { documentCard, documentEditor, documentTool, documentOpenAction } from "./cards/document/registration.js";
@@ -72,7 +73,7 @@ export function defineComposition(composition: Composition): Composition {
 export function createComposition(services: Pick<DataServices, "assetUrl"> & Pick<DeckServices, "menu"> & Pick<ObjectServices, "registerSandbox">): Composition {
   const objects = objectRegistrations(services);
   return defineComposition({
-    cards: [...basicRegistrations(services).filter(item => !creativeCards.some(creative => creative.kind === item.kind)), ...creativeCards, ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
+    cards: [{ kind: "canvas", Body: CanvasBody }, { kind: "agent", Body: NoteBody }, ...basicRegistrations(services).filter(item => !creativeCards.some(creative => creative.kind === item.kind)), ...creativeCards, ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
     tools: [documentTool, ...deckTools], panels: [],
     menus: [...editingMenus, documentOpenAction],
     editors: [...dataEditors(services), ...objects.editors, documentEditor, ...deckEditors(services)],

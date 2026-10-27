@@ -75,7 +75,7 @@ try {
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 20000 });
   await page.evaluate(() => {
     window.__importMotions = [];
-    new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node instanceof HTMLElement && node.dataset.id) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true });
+    new MutationObserver(records => { for (const record of records) for (const node of record.type === 'attributes' ? [record.target] : record.addedNodes) if (node instanceof HTMLElement && node.matches('#world > .card[data-id]')) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true, subtree: true, attributes: true, attributeFilter: ['data-id'] });
   });
   assert.equal((await cards()).length, 0);
   assert.equal(await page.locator('#empty .empty-actions button').count(), 3);
@@ -140,6 +140,7 @@ try {
   await page.evaluate(id => aegis.canvas.select([id]), pptx.id);
   await page.locator(`.window-actions [data-window-action="${pptx.id}"]`).click();
   await page.locator('.deck-panel').waitFor();
+  await page.waitForFunction(() => document.querySelector('.deck-panel')?.getAnimations().every(animation => !animation.pending && animation.playState !== 'running'));
   assert.equal(await page.locator('.deck-panel .deck-slide-wrap').count(), 2);
   await assertSlideFits(page.locator('.deck-panel .deck-slide-wrap > .deck-fit').first(), { label: 'Imported PPTX editor', pictures: 2 });
   await assertSlideFits(page.locator('.deck-panel .deck-film-item > .deck-fit').first(), { label: 'Imported PPTX filmstrip', pictures: 2 });

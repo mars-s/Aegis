@@ -6,7 +6,14 @@ export interface Popup {
   position(): void;
   destroy(): void;
 }
-export type DropdownOption = readonly [string, string];
+export type DropdownOption = readonly [string, string] | {
+  readonly value: string;
+  readonly label: string;
+  readonly disabled?: boolean;
+  readonly group?: string;
+  readonly groupDescription?: string;
+  readonly description?: string;
+};
 export interface Dropdown extends HTMLButtonElement {
   value: string;
   readonly dropdown: Popup;

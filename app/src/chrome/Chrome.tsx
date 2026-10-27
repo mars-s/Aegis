@@ -39,8 +39,11 @@ import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
-import { restack, stackMenu, stacking } from './Stacking.js';
+import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
+import { MobileTools } from "./MobileTools.js";
 import { createCoreTools } from "./CoreTools.js";
+import { restack, stackMenu, stacking } from './Stacking.js';
+import { KeyboardHints, ShortcutReference } from "./Shortcuts.js";
 import "./chrome.css";
 
 function setZoom(
@@ -75,6 +78,7 @@ export interface ChromeProps {
   readonly customiseToolbar?: () => void;
   readonly barContent?: ReactNode;
   readonly rightContent?: ReactNode;
+  readonly wireframeSheet?: (close: () => void) => ReactNode;
 }
 
 export function Chrome({
@@ -89,6 +93,7 @@ export function Chrome({
   customiseToolbar,
   barContent,
   rightContent,
+  wireframeSheet,
 }: ChromeProps) {
   const metadata = useWorkspaceMetadata(context.workspace),
     save = useSaveState(context.workspace),
@@ -104,17 +109,34 @@ export function Chrome({
     document.body.dataset.toolSize = toolbar.size;
   }, [toolbar.size]);
   useLayoutEffect(() => {
+    const stage = document.getElementById('stage');
+    let dirty = true, source: HTMLElement | null = null;
     let observedTool: string | null | undefined;
-    return engine.registerFrameParticipant({ write: () => {
+    const changed = (): void => { dirty = true; engine.invalidate(); };
+    const detach = engine.registerFrameParticipant({ write: () => {
       const name = engine.toolName();
-      if (observedTool === name) return;
-      observedTool = name;
-      engine.afterInput(() => {
-        refreshChrome.current();
-        for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
-      });
+      if (observedTool !== name) {
+        observedTool = name;
+        stage?.classList.toggle('connecting', name === 'connect');
+        stage?.classList.toggle('placing', name !== null && name !== 'connect');
+        engine.invalidate();
+        engine.afterInput(() => {
+          refreshChrome.current();
+          for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
+        });
+      }
+      if (!dirty) return;
+      dirty = false;
+      const opened = context.workspace.ui.getSnapshot().editor;
+      const host = opened ? engine.leases.getSnapshot().find(lease => lease.cardId === opened.id)?.host.closest<HTMLElement>('.card') ?? null : null;
+      if (source !== host) { source?.classList.remove('editor-source'); source = host; }
+      source?.classList.add('editor-source');
+      document.getElementById('stage')?.classList.toggle('editor-source-selected', !!opened && context.workspace.selection.getSnapshot().length === 1 && context.workspace.selection.getSnapshot()[0] === opened.id);
     } });
-  }, [engine]);
+    const offUi = context.workspace.ui.subscribe(changed), offLeases = engine.leases.subscribe(changed), offSelection = context.workspace.selection.subscribe(changed);
+    changed();
+    return () => { detach(); offUi(); offLeases(); offSelection(); source?.classList.remove('editor-source'); stage?.classList.remove('editor-source-selected', 'connecting', 'placing'); };
+  }, [context, engine]);
   useEffect(() => {
     const refresh = () => {
       const next = readLayout();
@@ -170,6 +192,24 @@ export function Chrome({
   const notify = useCallback<Notify>((value) => setNotice(value), []);
   const coreTools = useMemo(() => createCoreTools(context, notify), [context, notify]);
   useEffect(() => () => coreTools.dispose(), [coreTools]);
+  useEffect(() => {
+    const stage = document.getElementById('stage'); if (!stage) return;
+    let pending: (() => void) | null = null;
+    const double = (event: MouseEvent): void => {
+      if (event.defaultPrevented || engine.toolName() || localStorage.getItem('aegis:double-click-note') === 'off' || !(event.target instanceof Element) || event.target.closest('input,textarea,button,summary,a,[contenteditable],.canvas-orientation,.window-actions,[data-scene-interactive]')) return;
+      const bounds = stage.getBoundingClientRect(), point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      if (engine.hitTest(point)) return;
+      event.preventDefault();
+      const board = context.workspace.metadata.getSnapshot().id, at = engine.screenToWorld(point);
+      pending?.();
+      pending = engine.registerFrameParticipant({ read() {
+        pending?.(); pending = null;
+        engine.afterInput(() => { if (context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
+      } });
+    };
+    stage.addEventListener('dblclick', double);
+    return () => { pending?.(); stage.removeEventListener('dblclick', double); };
+  }, [coreTools, context, engine]);
   const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(
     (filtered: boolean, matches: number, total: number) =>
@@ -448,6 +488,7 @@ export function Chrome({
         shortcut: "R",
         run: () => add("readme"),
       },
+      ...(library ? [{ id: "canvas", label: "Canvas", run: () => armCanvasPlacement(context, library, notify) }] : []),
       ...composition.tools,
       ...composition.menus.filter(action => !stacking.some(stack => stack.id === action.id)),
       ...stacking.map(action => ({ id: action.id, label: action.label, shortcut: action.shortcut, run: (target: FeatureContext) => restack(target, target.workspace.selection.getSnapshot(), action.id, notify) })),
@@ -462,7 +503,8 @@ export function Chrome({
       "title",
       "todo",
       "readme",
-      ...(library ? ["templates"] : []),
+      ...["link", "media"].filter(id => composition.tools.some(tool => tool.id === id)),
+      ...(library ? ["templates", "canvas"] : []),
       ...composition.tools.map((action) => action.id),
     ],
     toolbar.order,
@@ -781,24 +823,7 @@ export function Chrome({
                   layout={layout}
                   change={change}
                 >
-                  <dl>
-                    <dt>N</dt>
-                    <dd>Note</dd>
-                    <dt>H</dt>
-                    <dd>Heading</dd>
-                    <dt>C</dt>
-                    <dd>Checklist</dd>
-                    <dt>0</dt>
-                    <dd>Fit board</dd>
-                    <dt>\\</dt>
-                    <dd>Library and Windows</dd>
-                    <dt>Shift T</dt>
-                    <dd>Reveal tools</dd>
-                    <dt>⌘ P</dt>
-                    <dd>Commands</dd>
-                    <dt>⌘ Z</dt>
-                    <dd>Undo</dd>
-                  </dl>
+                  <ShortcutReference />
                 </Panel>
               ) : null}
             </div>
@@ -826,26 +851,18 @@ export function Chrome({
     <div className="aegis-chrome">
       <MobileHub
         sheets={{
-          boards: () =>
+          boards: (close) =>
             library ? (
               <Library
-                service={library}
+                service={{ ...library, open: async id => { const opened = await library.open(id); if (opened) close(); return opened; } }}
                 current={metadata.id}
                 notify={notify}
               />
             ) : (
               <p>Library is unavailable.</p>
             ),
-          layers: () => <Layers context={context} notify={notify} />,
-          add: () => (
-            <div className="tools-grid">
-              {actions.map((action) => (
-                <button key={action.id} onClick={() => action.run(context)}>
-                  {action.label}
-                </button>
-              ))}
-            </div>
-          ),
+          layers: (close) => <Layers context={context} notify={notify} onPick={close} />,
+          add: (close) => <MobileTools actions={actions.filter(action => dockIds.includes(action.id))} context={context} close={close} {...(wireframeSheet ? { wireframe: wireframeSheet } : {})} />,
           unsorted: () => {
             const panel = composition.panels.find(
               (item) => item.id === "unsorted",
@@ -875,7 +892,7 @@ export function Chrome({
             <Icon name="window" />
           </button>
         </div>
-        <nav id="boardCrumbs" aria-label="Board path" />
+        <nav id="boardCrumbs" aria-label="Board path">{library ? <BoardCrumbs library={library} current={metadata.id} /> : null}</nav>
         <button
           id="boardName"
           aria-expanded={ui.leftPanel}
@@ -885,11 +902,11 @@ export function Chrome({
         </button>
         <div ref={rightBar} className="bar-right">
           {barContent}
-          <span data-saved data-save-state={save.kind} role="status">
+          <span data-saved data-save-state={save.kind} role="status" title={save.kind === "blocked" ? save.reason : undefined}>
             {save.kind === "saving"
               ? "Saving"
               : save.kind === "blocked"
-                ? save.reason
+                ? "Not saved"
                 : "Saved"}
           </span>
           {save.kind === "blocked" ? (
@@ -1046,18 +1063,20 @@ export function Chrome({
           ))}
       </aside>
       <nav ref={dock} id="tools" aria-label="Canvas tools">
-        {dockIds.slice(0, 6).map(toolButton)}
+        {dockIds.slice(0, 7).map(toolButton)}
         <PopupButton
           label="More tools"
           triggerId="toolsFold"
           menuId="toolsPopover"
+          closeOnResize
           className="tools-popover"
         >
-          <div className="tools-grid">{dockIds.slice(6).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
-          {dockIds.slice(6).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
+          <div className="tools-grid">{dockIds.slice(7).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          {dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
             <h3>Media</h3>
-            <div className="tools-grid">{dockIds.slice(6).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
           </section> : null}
+          <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}>Add as notes</button>
           {customiseToolbar ? (
             <button aria-label="Customise toolbar" onClick={customiseToolbar}>
               Customise toolbar
@@ -1077,6 +1096,7 @@ export function Chrome({
           Redo
         </button>
       </nav>
+      <KeyboardHints />
       <Selection
         canOpen={card => composition.editors.some(editor => editor.kind === (card.type === "object" ? `object:${card.kind}` : card.type))}
         context={context}

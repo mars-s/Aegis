@@ -10,6 +10,9 @@ import { Canvas } from './canvas/Canvas.js';
 import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
 import { Chrome, ToolbarPreferences, PanelPreferences } from './chrome/index.js';
+import { CanvasLibrary } from './chrome/CanvasDoor.js';
+import { resolveCollectionDrop } from './chrome/CollectionDrop.js';
+import { Notifications } from './chrome/Notifications.js';
 import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
 import { createMenu } from './lib/ui/menu.js';
@@ -112,7 +115,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'vector', label: 'Vector pen', shortcut: 'shift+p', run: draw('path') },
       { id: 'draw-stamp', label: 'Emoji stamps', shortcut: 'e', run: draw('stamp') },
       { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
-      { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
+      { id: 'import-image', label: 'Import', shortcut: 'i', run: () => importChoice.current?.() },
+      { id: 'media', label: 'Media', run: () => importChoice.current?.() },
       ...(['swatch', 'link', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'link' ? 'Link' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
     ], menus: [...base.menus, ...wireframeActions(() => setCreativeMode('wireframe'))], panels: [...base.panels,
       { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
@@ -137,10 +141,19 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       await runtime.replication.settled();
       if (signal.aborted || workspace.saving.getSnapshot().kind === 'blocked') return false;
       const current = workspace.metadata.getSnapshot().id, camera = engine.current?.camera();
-      if (camera) hostValue(await client.saveCamera(current, { x: camera.x, y: camera.y, z: camera.zoom }, signal));
+      if (camera) {
+        const saved = await client.saveCamera(current, { x: camera.x, y: camera.y, z: camera.zoom }, signal);
+        if (!(saved.kind === 'error' && saved.error.kind === 'http' && saved.error.status === 404)) hostValue(saved);
+      }
       const board = hostValue(await client.board(id, signal));
       if (signal.aborted || !workspace.replaceBoard(board)) return false;
-      localStorage.setItem('aegis:board', id); return true;
+      localStorage.setItem('aegis:board', id);
+      const scene = engine.current;
+      if (scene) {
+        if (board.cards.length) scene.navigate({ kind: 'fit', ids: [], motion: 'instant' });
+        else { const viewport = scene.viewport(); scene.navigate({ kind: 'restore', camera: { x: viewport.width / 2, y: viewport.height / 2, zoom: 1 }, motion: 'instant' }); }
+      }
+      return true;
     } catch (cause) { if (!signal.aborted) setNotice(cause instanceof Error ? cause.message : 'Could not open this board.'); return false; }
   }, [client, workspace, runtime, lifetime]);
   const library = useMemo(() => createLibraryService({ workspace, client, replication: runtime.replication, open: openBoard, notify: setNotice, storage: localStorage }), [workspace, client, runtime.replication, openBoard]);
@@ -240,13 +253,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     document.body.classList.toggle('docs-full', editorKind === 'doc' && ui.editor?.view === 'full');
     return () => document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
   }, [editorKind, ui.editor?.view]);
-  return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
+  return <CanvasLibrary.Provider value={library.service}><CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
-    {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
     <NavigationViews context={context} engine={chromeEngine} />
-    <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
-    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
+    {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
+    <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request }) ?? resolveCollectionDrop(context, request)} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
+    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} wireframeSheet={close => <WireframePanel context={context} onPlace={request => { chromeEngine.tool(placementTool(chromeEngine, workspace, request)); close(); }} onClose={close} />} /> : null}
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
@@ -256,8 +269,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     </aside> : null}
     {ui.editor ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
-    <div id="toast" hidden={!notice} className={notice ? 'toast react-toast' : undefined} role="status">{notice}{notice ? <button type="button" onClick={() => setNotice(null)}>Dismiss</button> : null}</div>
-  </DocumentProvider></CreativeProvider>;
+    <Notifications message={notice} dismiss={() => setNotice(null)} />
+  </DocumentProvider></CreativeProvider></CanvasLibrary.Provider>;
 }
 
 export default function App() {

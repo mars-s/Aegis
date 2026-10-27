@@ -1,5 +1,5 @@
 import { flushSync } from "react-dom";
-import { CardIdSchema, CommandSchema } from "@aegis/domain";
+import { CardIdSchema } from "@aegis/domain";
 import { decodeStoredBoard } from "@aegis/protocol/storage";
 import type { Board, CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
@@ -9,6 +9,7 @@ import type { AssetUpload } from '@aegis/protocol/http';
 import type { CreatedIds, WorkspaceConnection } from "@aegis/host-client";
 import type { Workspace } from "../workspace/index.js";
 import type { Connection } from "./connection.js";
+import { inputCommands } from '../chrome/InputCommands.js';
 
 export interface TestFacade {
   readonly workspace: Workspace;
@@ -131,7 +132,7 @@ export function installTestFacade(args: {
       inspect: engine.inspect, engine,
     },
     apply: (value, done) => {
-      const result = workspace.submit(CommandSchema.array().parse(value));
+      const result = workspace.submit(inputCommands(workspace.scene.snapshot(), value, localStorage.getItem('aegis:note-colour')));
       if (result.kind === "applied") done?.(result.created);
       return result;
     },

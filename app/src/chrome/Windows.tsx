@@ -8,6 +8,7 @@ import { MenuButton, Icon } from "./controls.js";
 import { cardLabel, descendants, layerParents, useBoard } from "./model.js";
 import { deleteCards, submit } from "./actions.js";
 import type { Notify } from "./actions.js";
+import { confirmAction } from "../lib/ui/confirm.js";
 
 interface LayerRow {
   readonly card: Card;
@@ -20,9 +21,11 @@ export function Layers({
   context,
   notify,
   onFilter,
+  onPick,
 }: {
   readonly context: FeatureContext;
   readonly notify: Notify;
+  readonly onPick?: () => void;
   readonly onFilter?: (
     filtered: boolean,
     matches: number,
@@ -128,6 +131,7 @@ export function Layers({
       ids: [card.id],
       motion: keyboard ? "instant" : "glide",
     });
+    onPick?.();
   }
   function key(
     event: KeyboardEvent<HTMLDivElement>,
@@ -446,8 +450,11 @@ export function Layers({
                   },
                   {
                     title: "Delete",
-                    run: () => {
-                      void deleteCards(context, [card.id], notify);
+                    run: async () => {
+                      const boardId = context.workspace.scene.snapshot().id;
+                      if (await confirmAction({ title: `Delete "${label}"?`, body: "You can undo this after deleting." }) && context.workspace.scene.snapshot().id === boardId) {
+                        await deleteCards(context, [card.id], notify);
+                      }
                     },
                   },
                 ]}
