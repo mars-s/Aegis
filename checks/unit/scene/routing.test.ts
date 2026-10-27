@@ -9,6 +9,15 @@ function crosses(a: { readonly x: number; readonly y: number }, b: { readonly x:
 }
 
 describe('cached link routes', () => {
+  test('preserves an authored world-space bend across a real obstacle', () => {
+    const source = { x: 0, y: 200, width: 200, height: 160 }, target = { ...source, x: 800 };
+    const link = LinkSchema.parse({ id: 'bent', a: 'a', b: 'b', bend: 400 });
+    const result = routeLink(link, source, target, 0, 0, 1, [{ x: 350, y: 160, width: 300, height: 400 }]);
+    expect(result.p0).toEqual({ x: 200, y: 280 }); expect(result.p2).toEqual({ x: 800, y: 280 });
+    expect(result.control).toEqual({ x: 500, y: 680 });
+    expect(result.points).toEqual([]);
+  });
+
   test('routes around a real intervening card and keeps explicit endpoint pins', () => {
     const source = { x: 0, y: 200, width: 200, height: 160 }, target = { ...source, x: 800 };
     const obstacle = { x: 350, y: 160, width: 300, height: 260 };
