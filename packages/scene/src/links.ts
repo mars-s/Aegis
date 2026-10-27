@@ -33,7 +33,7 @@ export function routeLink(link: Pick<Link, 'pa' | 'pb' | 'bend'>, a: Rect, b: Re
   const bend = link.bend === undefined ? Math.min(80 * scale, length * 0.2) : link.bend * scale;
   const mid = { x: (p0.x + p2.x) / 2, y: (p0.y + p2.y) / 2 };
   const control = { x: mid.x - dy / length * bend, y: mid.y + dx / length * bend };
-  const points = obstacles.some(rect => quadraticIntersects(p0, control, p2, rect)) ? routeAround(p0, p2, fromBounds(rotatedBounds(a, aRotation)), fromBounds(rotatedBounds(b, bRotation)), obstacles) ?? [] : [];
+  const points = !link.bend && obstacles.some(rect => quadraticIntersects(p0, control, p2, rect)) ? routeAround(p0, p2, fromBounds(rotatedBounds(a, aRotation)), fromBounds(rotatedBounds(b, bRotation)), obstacles) ?? [] : [];
   const middle = points[Math.floor(points.length / 2)];
   return { p0, p2, control, points, label: middle ?? { x: (p0.x + 2 * control.x + p2.x) / 4, y: (p0.y + 2 * control.y + p2.y) / 4 } };
 }
