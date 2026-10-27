@@ -529,7 +529,7 @@ export function Chrome({
         if (event.shiftKey) context.workspace.redo();
         else if (!undoDeletedCards(context)) context.workspace.undo();
       } else if (mod && name === "d") duplicateCards(context, ids, notify);
-      else if (mod && name === "g")
+      else if (mod && name === "g" && !event.altKey)
         groupCards(context, ids, event.shiftKey, notify);
       else if (mod && name === "p") {
         setQuery("");
