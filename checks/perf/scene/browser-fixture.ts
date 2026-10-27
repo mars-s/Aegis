@@ -7,6 +7,7 @@ import type { Board, Card, CardId, Command } from '@aegis/domain/schema';
 import { createCanvas } from '../../../packages/scene/src/engine.js';
 import type { CanvasEngine, CanvasWorkspace, SceneChange, SceneOrigin, SlotLease } from '../../../packages/scene/src/types.js';
 import { replay } from './replay.js';
+import type { Rect } from '@aegis/scene';
 import type { ReplayResult } from './replay.js';
 import { bindOrientationMenu } from '../../../app/src/canvas/orientation-menu.js';
 import { wireframePolicies } from '../../../app/src/canvas/wireframe-policies.js';
@@ -19,6 +20,7 @@ interface Harness {
   readonly submit: CanvasWorkspace['submit'];
   readonly select: (ids: readonly string[]) => void;
   readonly selection: () => readonly CardId[];
+  readonly setArea: (area: Rect) => void;
   readonly batch: (commands: unknown, origin: SceneOrigin) => void;
   readonly replace: (count: number) => void;
   readonly load: (board: unknown) => void;
@@ -125,7 +127,7 @@ function Portals() {
 const root = createRoot(element('portals')); root.render(createElement(Portals));
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
-  engine, board: () => current, selection: () => selection, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
+  engine, board: () => current, selection: () => selection, setArea: area => { Object.assign(insetArea, area); for (const listener of areaListeners) listener(); }, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
   update: card => update([CardSchema.parse(card)]),
   batch,
   replace: count => {

@@ -53,6 +53,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let camera: CameraState = { x: board.view.x, y: board.view.y, zoom: clampZoom(board.view.z) };
   const initialRect = stage.getBoundingClientRect();
   let viewport: Rect = { x: 0, y: 0, width: Math.max(1, initialRect.width), height: Math.max(1, initialRect.height) }, stageOrigin: Point = { x: initialRect.x, y: initialRect.y };
+  let fitAreaDirty = false;
   let dpr = view.devicePixelRatio || 1, viewportDirty = false, disposed = false, pending = 0, frameCount = 0, epoch = 0, resetLeases = false;
   let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false, consumeToolClick = false;
   let fitting: Extract<Navigation, { readonly kind: 'fit' }> | null = null, measuring = false;
@@ -553,6 +554,10 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const phases: Record<FramePhase, number> = { input: 0, camera: 0, cull: 0, reads: 0, writes: 0 };
     let mark = start;
     tools.flush(); drainInput(timestamp); phases.input = performance.now() - mark; mark = performance.now();
+    if (fitAreaDirty) {
+      fitAreaDirty = false;
+      if (fitting) navigation({ ...fitting, motion: 'instant' }, timestamp);
+    }
     if (glide && reducedMotion()) { camera = glide.to; glide = null; }
     if (glide) {
       const t = Math.min(1, Math.max(0, (timestamp - glide.start) / glide.duration)), k = 1 - (1 - t) ** 3;
@@ -565,6 +570,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       const rect = stage.getBoundingClientRect();
       viewport = { x: 0, y: 0, width: Math.max(1, rect.width), height: Math.max(1, rect.height) }; stageOrigin = { x: rect.x, y: rect.y };
       dpr = view.devicePixelRatio || 1; viewportDirty = false;
+      if (!args.availableArea) fitAreaDirty = true;
       invalidate();
     }
     readMeasurements();
@@ -810,7 +816,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
   if (args.theme) painter.themeChanged(args.theme.getSnapshot());
   const unsubscribeTheme = args.theme?.subscribe(() => { if (args.theme) painter.themeChanged(args.theme.getSnapshot()); invalidate(); });
-  const unsubscribeArea = args.availableArea?.subscribe(invalidate);
+  const unsubscribeArea = args.availableArea?.subscribe(() => { fitAreaDirty = true; invalidate(); });
   invalidate();
 
   return {

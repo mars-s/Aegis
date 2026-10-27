@@ -54,6 +54,54 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each([
+    { engine: 'chromium', insets: true }, { engine: 'webkit', insets: true },
+    { engine: 'chromium', insets: false }, { engine: 'webkit', insets: false },
+  ] as const)('active Fit follows measured area changes and yields to restore in $engine (source=$insets)', async ({ engine, insets }) => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, insets, alternate ?? browser);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: h.board().cards.slice(0, 2), links: [] });
+        h.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' });
+      });
+      await idle(p);
+      if (insets) await p.setViewportSize({ width: 390, height: 844 });
+      await p.evaluate(source => {
+        const h = window.sceneHarness, stage = document.getElementById('stage');
+        if (!stage) throw new Error('Missing resized stage');
+        if (source) {
+          const stop = h.engine.registerFrameParticipant({ read: () => {
+            const rect = stage.getBoundingClientRect(); h.setArea({ x: 0, y: 0, width: rect.width, height: rect.height }); stop();
+          } });
+        } else { stage.style.width = '390px'; stage.style.height = '844px'; }
+        h.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' });
+      }, insets);
+      await idle(p);
+      const result = await p.evaluate(() => {
+        const h = window.sceneHarness, camera = h.engine.camera();
+        return { area: h.engine.availableArea(), camera, cards: h.board().cards.map(card => ({ x: card.x * camera.zoom + camera.x, y: card.y * camera.zoom + camera.y, right: (card.x + card.w) * camera.zoom + camera.x, bottom: (card.y + card.h) * camera.zoom + camera.y })) };
+      });
+      const expectedWidth = insets ? 350 : 390, expectedHeight = insets ? 804 : 844;
+      expect(result.area).toEqual({ x: 0, y: 0, width: expectedWidth, height: expectedHeight });
+      expect(result.camera.zoom).toBeLessThan(0.6);
+      for (const card of result.cards) {
+        expect(card.x).toBeGreaterThanOrEqual(0); expect(card.y).toBeGreaterThanOrEqual(0);
+        expect(card.right).toBeLessThanOrEqual(expectedWidth); expect(card.bottom).toBeLessThanOrEqual(expectedHeight);
+      }
+      await p.evaluate(source => {
+        const h = window.sceneHarness;
+        h.engine.navigate({ kind: 'restore', camera: { x: 13, y: 17, zoom: 0.75 }, motion: 'instant' });
+        if (source) h.setArea({ x: 20, y: 20, width: 300, height: 700 });
+        else { const stage = document.getElementById('stage'); if (stage) { stage.style.width = '500px'; stage.style.height = '900px'; } }
+      }, insets);
+      await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ x: 13, y: 17, zoom: 0.75 });
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('global snap composes with wireframe grid, bypass and Option-copy in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
