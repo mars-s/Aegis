@@ -38,7 +38,7 @@ export function createCoreTools(context: FeatureContext, notify: Notify) {
     pendingEdit = cancel;
     unsubscribe = context.workspace.scene.subscribe(change => { if (change.kind === 'replace' || change.removed.includes(id)) cancel(); });
     release = engine.registerFrameParticipant({ read: () => {
-      const field = engine.leases.getSnapshot().find(lease => lease.cardId === id)?.host.querySelector<HTMLElement>('[contenteditable="plaintext-only"],input:not([hidden])');
+      const field = engine.leases.getSnapshot().find(lease => lease.cardId === id)?.host.querySelector<HTMLElement>('.body[contenteditable="plaintext-only"]');
       if (!field) return;
       cancel();
       engine.afterInput(() => { if (field.isConnected && context.workspace.selection.getSnapshot().includes(id)) field.focus({ preventScroll: true }); });
