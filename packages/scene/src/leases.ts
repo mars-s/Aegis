@@ -21,6 +21,7 @@ export interface LeasePlacement { readonly node: SceneNode; readonly x: number; 
 export class LeasePool {
   private readonly shells: Shell[] = [];
   private readonly byCard = new Map<CardId, Shell>();
+  private highlighted: ReadonlySet<CardId> = new Set();
   private readonly listeners = new Set<() => void>();
   private snapshot: readonly SlotLease[] = [];
   private posted = false;
@@ -92,7 +93,18 @@ export class LeasePool {
     if (pinned) shell.pins.add(reason); else shell.pins.delete(reason);
   }
 
+  highlight(ids: ReadonlySet<CardId>): void {
+    const affected = new Set([...this.highlighted, ...ids]);
+    this.highlighted = ids;
+    for (const id of affected) {
+      const shell = this.byCard.get(id);
+      if (shell) { shell.element.classList.toggle('glow', ids.has(id)); shell.appearance = ''; }
+    }
+  }
+
   has(id: CardId): boolean { return this.byCard.has(id); }
+  ids(): IterableIterator<CardId> { return this.byCard.keys(); }
+  element(id: CardId): HTMLElement | null { return this.byCard.get(id)?.element ?? null; }
   isPinned(id: CardId): boolean { return (this.byCard.get(id)?.pins.size ?? 0) > 0; }
   retire(id: CardId): void { const shell = this.byCard.get(id); if (shell) { shell.pins.clear(); this.release(shell); } }
   cardAt(target: Node): CardId | null {
@@ -111,6 +123,7 @@ export class LeasePool {
 
   reset(boardId: string): void {
     this.boardId = boardId;
+    this.highlighted = new Set();
     for (const shell of this.byCard.values()) { shell.pins.clear(); this.release(shell); }
   }
 
@@ -130,6 +143,7 @@ export class LeasePool {
       element.className = 'card scene-card'; host.className = 'content scene-body';
       element.tabIndex = -1;
       element.style.position = 'absolute'; element.style.transformOrigin = 'center';
+      element.style.left = '0'; element.style.top = '0';
       const resize = this.world.ownerDocument.createElement('div'); resize.className = 'resize'; resize.setAttribute('aria-hidden', 'true');
       host.style.height = '100%'; element.append(host, resize); this.world.append(element);
       shell = { element, host, generation: 0, residency: { kind: 'free' }, lastSeen: 0, geometry: '', appearance: '', typeClass: '', kindClass: '', visible: false, pins: new Set() };
@@ -146,7 +160,7 @@ export class LeasePool {
     this.byCard.delete(lease.cardId); shell.residency = { kind: 'releasing', lease };
     shell.element.hidden = true; shell.element.inert = true; shell.visible = false;
     delete shell.element.dataset.id; delete shell.element.dataset.type; delete shell.element.dataset.kind;
-    shell.element.classList.remove('selected', 'locked', 'fixed-height', 'editor-source', 'in-context');
+    shell.element.classList.remove('selected', 'locked', 'fixed-height', 'editor-source', 'in-context', 'glow');
     delete shell.element.dataset.color; delete shell.element.dataset.parent; delete shell.element.dataset.fixedHeight;
     if (shell.typeClass) shell.element.classList.remove(shell.typeClass);
     if (shell.kindClass) shell.element.classList.remove(shell.kindClass);
@@ -162,11 +176,13 @@ export class LeasePool {
       shell.element.style.width = `${width}px`; shell.element.style.height = `${height}px`; shell.element.style.zIndex = `${node.rank}`;
       shell.geometry = geometry;
     }
-    const appearance = `${node.card.id}:${node.card.type}:${node.card.kind ?? ''}:${node.card.color}:${node.card.parent ?? ''}:${selected}:${node.locked}:${node.card.props?.fixedHeight === true}`;
+    const glowing = this.highlighted.has(node.card.id);
+    const appearance = `${node.card.id}:${node.card.type}:${node.card.kind ?? ''}:${node.card.color}:${node.card.parent ?? ''}:${selected}:${node.locked}:${node.card.props?.fixedHeight === true}:${glowing}`;
     if (shell.appearance !== appearance) {
       shell.element.dataset.id = node.card.id; shell.element.dataset.type = node.card.type; shell.element.dataset.color = node.card.color;
       shell.element.dataset.parent = node.card.parent ?? ''; shell.element.dataset.fixedHeight = String(node.card.props?.fixedHeight === true);
       shell.element.classList.toggle('selected', selected); shell.element.classList.toggle('locked', node.locked);
+      shell.element.classList.toggle('glow', glowing);
       if (shell.typeClass !== node.card.type) {
         if (shell.typeClass) shell.element.classList.remove(shell.typeClass);
         shell.typeClass = node.card.type; shell.element.classList.add(shell.typeClass);

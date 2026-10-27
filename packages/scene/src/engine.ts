@@ -1,4 +1,7 @@
 import type { Card, CardId, Command, Link, LinkId } from '@aegis/domain/schema';
+import { AgentLine } from './agent-line.js';
+import { AgentMotion } from './agent-motion.js';
+import { DragGuides } from './drag-guides.js';
 import { CanvasPainter } from './draw.js';
 import type { DrawLink } from './draw.js';
 import { clampZoom, fitBounds, fromBounds, hitRotated, intersects, project, rotatedBounds, toBounds, union, unproject } from './geometry.js';
@@ -15,7 +18,7 @@ import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
 import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CardDropTarget, CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer } from './types.js';
+import type { CardDropTarget, CanvasAttachment, CanvasEngine, DragGuide, DragSnapshot, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
@@ -27,11 +30,11 @@ type Input =
   | { readonly kind: 'navigation'; readonly intent: Navigation; readonly at: number };
 type Gesture =
   | { readonly kind: 'pan'; readonly pointer: number; readonly start: Point; readonly from: CameraState }
-  | { readonly kind: 'move'; readonly pointer: number; readonly start: Point; readonly bases: ReadonlyMap<CardId, Rect>; readonly edit: HTMLElement | null; moved: boolean }
+  | { readonly kind: 'move'; readonly pointer: number; readonly start: Point; readonly bases: ReadonlyMap<CardId, Rect>; readonly cards: readonly DragSnapshot[]; readonly edit: HTMLElement | null; moved: boolean }
   | { readonly kind: 'resize'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly base: Rect; readonly rotation: number }
   | { readonly kind: 'rotate'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly centre: Point; readonly angle: number; readonly rotation: number }
   | { readonly kind: 'pinch'; readonly pointer: number; readonly start: Point; readonly distance: number; readonly anchor: Point; readonly zoom: number }
-  | { readonly kind: 'marquee'; readonly pointer: number; readonly start: Point; readonly base: readonly CardId[] };
+  | { readonly kind: 'marquee'; readonly pointer: number; readonly start: Point; readonly base: readonly CardId[]; readonly tap: CardId | null };
 interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number; readonly duration: number }
 interface MeasurementRequest { readonly key: string; readonly generation: number; readonly card: Card; readonly epoch: number }
 const windowTypes = new Set<Card['type']>(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'canvas', 'font']);
@@ -56,19 +59,75 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let placements: LeasePlacement[] = [];
   let selected = new Set(workspace.selection.getSnapshot()), marquee: Rect | null = null;
   let focusId: CardId | null = null;
+  let guides: readonly DragGuide[] = [];
   let textPress: { readonly edit: HTMLElement; readonly start: Point } | null = null;
   let dropTarget: CardDropTarget | null = null, paintedDrop: HTMLElement | null = null;
   const inputs: Input[] = [], positions = new Map<CardId, Rect>(), rotations = new Map<CardId, number>(), touches = new Map<number, Point>(), measurements = new Map<string, MeasurementRequest>(), retired = new Set<CardId>();
   let touchQuarantine = false;
   const abort = new AbortController();
   const participants = new Set<FrameParticipant>();
-  const tools = new ToolController(invalidate, hitTest);
+  const tools = new ToolController(invalidate, hitTest, name => {
+    if (args.onToolChange) post(() => { if (tools.name() === name) args.onToolChange?.(name); });
+  });
   const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
   const motionPreference = view.matchMedia('(prefers-reduced-motion: reduce)');
-  const reducedMotion = (): boolean => (args.reducedMotion ?? motionPreference.matches) || stage.ownerDocument.body.classList.contains('motion-off');
+  let systemReducedMotion = motionPreference.matches;
+  const reducedMotion = (refresh = false): boolean => {
+    if (refresh) systemReducedMotion = view.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (args.reducedMotion ?? systemReducedMotion) || stage.ownerDocument.body.classList.contains('motion-off');
+  };
+  motionPreference.addEventListener('change', event => { systemReducedMotion = event.matches; invalidate(); }, { signal: abort.signal });
   const canLease = args.canLease ?? ((card: Card): boolean => card.type === 'note' || card.type === 'title');
   const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? LIVE_LIMIT), invalidate);
+  const agentLine = new AgentLine(world), agentMotion = new AgentMotion(world, pool, view);
+  const dragGuides = new DragGuides(world);
+  const flashes = new Map<CardId, number>();
+  const initialBodies = new Map<CardId, number>();
+  let residencyTimer: ReturnType<typeof setTimeout> | null = null;
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  const motionObserver = new MutationObserver(() => { if (reducedMotion(true)) { agentMotion.settle(); agentLine.settle(); } });
+  motionObserver.observe(stage.ownerDocument.body, { attributes: true, attributeFilter: ['class'] });
+  motionPreference.addEventListener('change', event => { if (event.matches) { agentMotion.settle(); agentLine.settle(); } }, { signal: abort.signal });
   const overlays = new SceneOverlays(stage, world, invalidate, (id, keyboard) => enqueue({ kind: 'navigation', intent: { kind: 'fit', ids: [id], motion: keyboard ? 'instant' : 'glide' }, at: performance.now() }));
+
+  function scheduleGlow(): void {
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = null;
+    if (flashes.size) flashTimer = setTimeout(() => {
+      flashTimer = null;
+      const now = performance.now();
+      for (const [id, until] of flashes) if (until <= now) flashes.delete(id);
+      pool.highlight(new Set(flashes.keys())); scheduleGlow();
+    }, Math.max(1, Math.min(...flashes.values()) - performance.now()));
+  }
+
+  function glow(ids: readonly CardId[]): void {
+    if (disposed) return;
+    const until = performance.now() + 1200;
+    for (const id of ids) { const node = graph.nodes.get(id); if (node && !node.hidden) flashes.set(id, until); }
+    pool.highlight(new Set(flashes.keys())); scheduleGlow();
+  }
+
+  function clearGlow(): void {
+    if (flashTimer) clearTimeout(flashTimer);
+    flashTimer = null; flashes.clear(); pool.highlight(new Set());
+  }
+
+  function scheduleResidency(): void {
+    if (residencyTimer) clearTimeout(residencyTimer);
+    residencyTimer = null;
+    if (initialBodies.size) residencyTimer = setTimeout(() => {
+      residencyTimer = null;
+      const now = performance.now();
+      for (const [id, until] of initialBodies) if (until <= now) initialBodies.delete(id);
+      invalidate(); scheduleResidency();
+    }, Math.max(1, Math.min(...initialBodies.values()) - performance.now()));
+  }
+
+  function clearResidency(): void {
+    if (residencyTimer) clearTimeout(residencyTimer);
+    residencyTimer = null; initialBodies.clear();
+  }
 
   function invalidate(): void {
     if (!disposed && !pending) pending = view.requestAnimationFrame(frame);
@@ -95,12 +154,20 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     post(() => callback(boardId, commit));
   }
 
+  let selectionRequest = 0;
   function select(ids: readonly CardId[]): void {
+    const request = ++selectionRequest, previous = workspace.selection.getSnapshot();
     selected = new Set(ids);
-    post(() => workspace.act({ kind: 'select', ids }));
+    post(() => {
+      if (request !== selectionRequest || workspace.selection.getSnapshot() !== previous) return;
+      workspace.act({ kind: 'select', ids });
+    });
   }
 
   function boundsFor(node: SceneNode): Rect { return positions.get(node.card.id) ?? node.layout.bounds; }
+  function positionedCards(): readonly Card[] {
+    return [...positions].flatMap(([id, bounds]) => { const card = graph.nodes.get(id)?.card; return card ? [Object.assign({}, card, { x: bounds.x, y: bounds.y, w: bounds.width, h: bounds.height })] : []; });
+  }
   function rotationFor(node: SceneNode): number { return rotations.get(node.card.id) ?? node.rotation; }
   function routeWithObstacles(link: Link, a: SceneNode, b: SceneNode): LinkRoute {
     const initial = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b));
@@ -115,6 +182,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   function availableArea(): Rect { return args.availableArea?.getSnapshot() ?? viewport; }
 
   function cancelGesture(): void {
+    guides = [];
     dropTarget = null;
     if (gesture?.kind === 'move') for (const id of gesture.bases.keys()) pool.pin(id, 'capture', false);
     else if (gesture?.kind === 'resize' || gesture?.kind === 'rotate') pool.pin(gesture.id, 'capture', false);
@@ -175,7 +243,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       }
       default: { const exhaustive: never = intent; return exhaustive; }
     }
-    if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) { camera = target; glide = null; }
+    if (intent.motion === 'instant' || reducedMotion(true) || intent.duration === 0) { camera = target; glide = null; }
     else glide = { from: camera, to: target, start: now, duration: Math.max(1, intent.duration ?? 420) };
     if (args.onNavigation) post(args.onNavigation);
   }
@@ -190,7 +258,10 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
         gesture.moved = true;
         let worldDx = dx / camera.zoom, worldDy = dy / camera.zoom;
         const anchor = gesture.bases.values().next().value;
-        if (!bypass && args.snapGrid && anchor) {
+        if (args.snapDrag) {
+          const snapped = args.snapDrag({ start: gesture.cards, delta: { x: worldDx, y: worldDy }, zoom: camera.zoom, bypass });
+          worldDx = snapped.delta.x; worldDy = snapped.delta.y; guides = snapped.guides;
+        } else if (!bypass && args.snapGrid && anchor) {
           const step = Math.max(1, args.snapGrid);
           worldDx = Math.round((anchor.x + worldDx) / step) * step - anchor.x;
           worldDy = Math.round((anchor.y + worldDy) / step) * step - anchor.y;
@@ -220,7 +291,17 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       case 'marquee': {
         marquee = { x: Math.min(point.x, gesture.start.x), y: Math.min(point.y, gesture.start.y), width: Math.abs(dx), height: Math.abs(dy) };
         if (marquee.width + marquee.height < 4) break;
-        const hits = representations.filter(rep => intersects(marquee ?? viewport, rep.bounds) && !graph.nodes.get(rep.id)?.locked).map(rep => rep.id);
+        const box = marquee;
+        const throughSection = gesture.tap !== null;
+        const hits = representations.filter(rep => {
+          const node = graph.nodes.get(rep.id);
+          if (!node || node.locked || !intersects(box, rep.bounds)) return false;
+          return !throughSection || node.card.type !== 'section' || rep.bounds.x > box.x && rep.bounds.y > box.y && rep.bounds.x + rep.bounds.width < box.x + box.width && rep.bounds.y + rep.bounds.height < box.y + box.height;
+        }).map(rep => rep.id);
+        if (gesture.tap) {
+          const groups = new Set(hits.flatMap(id => { const group = graph.nodes.get(id)?.card.group; return group ? [group] : []; }));
+          for (const node of graph.all()) if (node.card.group && groups.has(node.card.group) && !node.hidden && !node.locked && !hits.includes(node.card.id)) hits.push(node.card.id);
+        }
         select([...new Set([...gesture.base, ...hits])]);
         break;
       }
@@ -283,8 +364,11 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           const id = input.target ?? hitTest(input.point) ?? (input.action === 'move' ? null : [...selected].at(-1) ?? null), node = id ? graph.nodes.get(id) : undefined;
           if (id && node) {
             if (node.locked) break;
+            if (node.card.type === 'section' && !selected.has(id) && !input.edit && input.action === 'move' && !input.modifiers.shift && !input.modifiers.bypass) {
+              select([]); gesture = { kind: 'marquee', pointer: input.pointer, start: input.point, base: [], tap: id }; break;
+            }
             if (input.action === 'resize' || input.action === 'rotate') {
-              const base = node.layout.bounds;
+              const base = agentMotion.takeover(id, node.layout.bounds);
               const centre = { x: (base.x + base.width / 2) * camera.zoom + camera.x, y: (base.y + base.height / 2) * camera.zoom + camera.y };
               select([id]); pool.pin(id, 'capture', true);
               gesture = input.action === 'resize'
@@ -296,7 +380,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
             select(args.selectForDrag?.(ids, id, input.modifiers) ?? ids);
             const carried = args.expandDrag?.([...selected], input.modifiers) ?? [...selected];
             const bases = new Map<CardId, Rect>();
-            for (const candidate of carried) { const current = graph.nodes.get(candidate); if (current && !current.locked) bases.set(candidate, current.layout.bounds); }
+            for (const candidate of carried) { const current = graph.nodes.get(candidate); if (current && !current.locked) bases.set(candidate, agentMotion.takeover(candidate, current.layout.bounds)); }
             const descendants = [...bases.keys()];
             for (let index = 0; index < descendants.length; index++) {
               const parent = descendants[index];
@@ -306,11 +390,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
                 if (current && !current.locked && !bases.has(child)) { bases.set(child, current.layout.bounds); descendants.push(child); }
               }
             }
-            gesture = { kind: 'move', pointer: input.pointer, start: input.point, bases, edit: input.edit ?? null, moved: false };
+            const cards = [...bases].flatMap(([id, bounds]) => { const node = graph.nodes.get(id); return node ? [{ card: node.card, bounds }] : []; });
+            gesture = { kind: 'move', pointer: input.pointer, start: input.point, bases, cards, edit: input.edit ?? null, moved: false };
             for (const id of bases.keys()) pool.pin(id, 'capture', true);
           } else {
             const base = input.modifiers.shift ? [...selected] : [];
-            select(base); gesture = { kind: 'marquee', pointer: input.pointer, start: input.point, base };
+            select(base); gesture = { kind: 'marquee', pointer: input.pointer, start: input.point, base, tap: null };
           }
           break;
         }
@@ -321,6 +406,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           if (gesture.kind === 'move') {
             const commands: Command[] = [];
             if (gesture.moved) for (const [id, r] of positions) commands.push({ op: 'move', id, x: r.x, y: r.y });
+            if (commands.length) commands.push(...(args.dropCommands?.({ cards: positionedCards(), kind: 'move' }) ?? []));
             for (const id of gesture.bases.keys()) pool.pin(id, 'capture', false);
             const accepted = gesture.moved ? input.drop : null;
             dropTarget = null;
@@ -338,11 +424,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
               if (bounds.x !== gesture.base.x || bounds.y !== gesture.base.y) commands.push({ op: 'move', id, x: bounds.x, y: bounds.y });
               if (bounds.width !== gesture.base.width || bounds.height !== gesture.base.height) commands.push({ op: 'update', id, set: { w: bounds.width, h: bounds.height, props: { fixedHeight: true } } });
             } else if (gesture.kind === 'rotate' && rotation !== undefined && rotation !== gesture.rotation) commands.push({ op: 'update', id, set: { rot: rotation } });
+            if (gesture.kind === 'resize' && commands.length) commands.push(...(args.dropCommands?.({ cards: positionedCards(), kind: 'resize' }) ?? []));
             pool.pin(id, 'capture', false);
             if (commands.length) post(() => { workspace.submit(commands); positions.delete(id); rotations.delete(id); invalidate(); });
             else { positions.delete(id); rotations.delete(id); }
-          }
-          gesture = null; marquee = null; break;
+          } else if (gesture.kind === 'marquee' && gesture.tap && Math.hypot(input.point.x - gesture.start.x, input.point.y - gesture.start.y) < 5) select([gesture.tap]);
+          gesture = null; marquee = null; guides = []; break;
         }
         case 'cancel':
           cancelGesture(); touches.clear(); touchQuarantine = false; glide = null; break;
@@ -365,10 +452,19 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     tier = representationMode(camera.zoom, visible.length);
     representations = []; placements = [];
     for (const node of visible) {
-      const kind = pool.isPinned(node.card.id) ? 'detail' : tier;
+      const kind = pool.isPinned(node.card.id) || selected.size === 1 && selected.has(node.card.id) ? 'detail' : tier;
       const bounds = boundsFor(node);
       representations.push({ id: node.card.id, kind, bounds: project(bounds, camera), rotation: rotationFor(node), text: node.text });
       if (kind === 'detail' && canLease(node.card)) placements.push({ node, ...bounds, rotation: rotationFor(node), selected: selected.has(node.card.id) });
+    }
+    // A single formatting target stays live at its saved geometry, even offscreen.
+    // Multi-selection never turns the whole board into mounted bodies.
+    const retained = new Set(initialBodies.keys());
+    const formattingId = selected.size === 1 ? selected.values().next().value : undefined;
+    if (formattingId) retained.add(formattingId);
+    for (const id of retained) {
+      const node = graph.nodes.get(id);
+      if (node && !node.hidden && canLease(node.card) && !placements.some(placement => placement.node === node)) placements.push({ node, ...boundsFor(node), rotation: rotationFor(node), selected: selected.has(id) });
     }
     // Selected bodies have first admission when a dense view exceeds warm capacity.
     placements.sort((a, b) => Number(b.selected) - Number(a.selected) || a.node.rank - b.node.rank);
@@ -440,6 +536,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       invalidate();
     }
     readMeasurements();
+    agentMotion.read();
     overlays.read(viewport, stageOrigin, camera, representations, graph.nodes, selected);
     for (const participant of participants) participant.read?.();
     phases.reads = performance.now() - mark; mark = performance.now();
@@ -447,10 +544,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const id of retired) pool.retire(id);
     retired.clear();
     world.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
+    dragGuides.write(guides);
     stage.classList.toggle('far', tier === 'far'); stage.classList.toggle('panning', gesture?.kind === 'pan' || gesture?.kind === 'pinch'); stage.classList.toggle('pan-ready', spaceHeld);
     for (const { shell, height } of measuredHeights) if (shell.dataset.intrinsicHeight !== String(height)) shell.dataset.intrinsicHeight = String(height);
     measuredHeights.length = 0;
     pool.reconcile(placements, timestamp);
+    if (reducedMotion()) agentMotion.settle(); else agentMotion.write();
     painter.paint(viewport, dpr, camera, representations, drawnLinks, id => pool.has(id), selected, marquee, tools.getPreview());
     stage.style.cursor = gesture?.kind === 'pan' ? 'grabbing' : spaceHeld ? 'grab' : tools.getPreview()?.cursor ?? '';
     overlays.write();
@@ -527,8 +626,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (pan) { stage.classList.add('panning'); event.stopImmediatePropagation(); }
     else if (handle) event.stopImmediatePropagation();
     const edit = !pan && !handle && event.target instanceof Element ? event.target.closest<HTMLElement>('[contenteditable]:not([contenteditable="false"])') : null;
+    const target = event.target instanceof Node ? pool.cardAt(event.target) : null;
     if (edit) textPress = { edit, start: point(event) };
-    enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, ...(edit ? { edit } : {}), modifiers: { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey }, at: performance.now() });
+    enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, ...(target ? { target } : {}), ...(edit ? { edit } : {}), modifiers: { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey }, at: performance.now() });
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('click', event => {
     const press = textPress; textPress = null;
@@ -610,10 +710,28 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
       fitting = null;
+      agentMotion.settle(); agentLine.clear(); clearGlow(); clearResidency();
       const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       cancelGesture(); touchPointers.clear(); touches.clear(); touchQuarantine = false;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
-    } else { if (!measuring && change.origin !== 'sync') fitting = null; if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); } graph.apply(change); for (const id of change.removed) retired.add(id); }
+    } else {
+      const created = change.origin === 'agent' ? change.upserted.filter(card => !graph.nodes.has(card.id)).slice(0, 12) : [];
+      if (!measuring && change.origin !== 'sync') fitting = null;
+      if (!measuring) agentMotion.prepare(change, graph.nodes, card => intersects(project({ x: card.x, y: card.y, width: card.w, height: card.h }, camera), viewport), reducedMotion(true));
+      if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); }
+      graph.apply(change); agentLine.reconcile(graph.nodes);
+      for (const id of change.removed) { retired.add(id); flashes.delete(id); initialBodies.delete(id); }
+      for (const id of pool.ids()) if (graph.nodes.get(id)?.hidden) { retired.add(id); agentMotion.cancel(id); }
+      for (const id of initialBodies.keys()) if (!graph.nodes.has(id) || graph.nodes.get(id)?.hidden) initialBodies.delete(id);
+      for (const card of created) {
+        const node = graph.nodes.get(card.id);
+        if (!node || node.hidden || !canLease(card)) continue;
+        initialBodies.delete(card.id); initialBodies.set(card.id, performance.now() + 2000);
+      }
+      while (initialBodies.size > 12) { const oldest = initialBodies.keys().next().value; if (oldest === undefined) break; initialBodies.delete(oldest); }
+      scheduleResidency();
+      if (change.origin === 'agent') glow(change.upserted.map(card => card.id));
+    }
     invalidate();
   });
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
@@ -626,7 +744,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     leases: pool.source,
     navigate: intent => {
       if (disposed) return;
-      if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) {
+      if (intent.motion === 'instant' || reducedMotion(true) || intent.duration === 0) {
         for (let index = inputs.length - 1; index >= 0; index--) if (inputs[index]?.kind === 'wheel' || inputs[index]?.kind === 'navigation') inputs.splice(index, 1);
         navigation(intent, performance.now()); invalidate();
       } else enqueue({ kind: 'navigation', intent, at: performance.now() });
@@ -651,6 +769,13 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     },
     startConnection,
     pin: (id, reason, pinned) => { pool.pin(id, reason, pinned); invalidate(); },
+    glow,
+    ring: (ids, _colour, ms = 4000, label = 'Agent', origin, lineStyle = 'solid') => {
+      if (disposed) return;
+      agentLine.ring(ids.flatMap(id => { const node = graph.nodes.get(id); return node ? [node] : []; }), ms, label, origin, lineStyle, reducedMotion(true));
+      glow(ids);
+    },
+    clearAgentLine: () => agentLine.clear(),
     requestMeasurement: (key, generation) => {
       const lease = pool.find(key, generation), card = lease ? graph.nodes.get(lease.cardId)?.card : null;
       if (lease && card) measurements.set(key, { key, generation, card, epoch });
@@ -667,6 +792,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
+      agentMotion.settle(); agentLine.dispose(); clearGlow(); clearResidency(); motionObserver.disconnect(); dragGuides.dispose();
       paintedDrop?.removeAttribute('data-scene-drop-target'); paintedDrop = null; dropTarget = null;
       tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); unsubscribeTheme?.(); participants.clear(); pool.dispose(); overlays.dispose();
       releaseSpace(); stage.classList.remove('panning', 'far');

@@ -30,6 +30,8 @@ export interface TestFacade {
     readonly setView: (view: { readonly x: number; readonly y: number; readonly z: number }) => void;
     readonly select: (ids: readonly string[]) => void;
     readonly frameIds: (ids: readonly string[], maximumZoom?: number) => void;
+    readonly ring: (ids: readonly string[], ...options: Parameters<CanvasEngine['ring']> extends [unknown, ...infer Rest] ? Rest : never) => void;
+    readonly clearAgentLine: CanvasEngine['clearAgentLine'];
     readonly fit: () => void;
     readonly load: (board: unknown) => void;
     readonly setBoard: (board: unknown) => void;
@@ -111,6 +113,8 @@ export function installTestFacade(args: {
       setView: view => { engine.navigate({ kind: "restore", camera: { x: view.x, y: view.y, zoom: view.z }, motion: "instant" }); args.persistCamera(); },
       select: values => workspace.act({ kind: "select", ids: ids(values) }),
       frameIds: (values, maximumZoom = 1) => { engine.navigate({ kind: "fit", ids: ids(values), motion: "instant", maximumZoom }); args.persistCamera(); },
+      ring: (values, ...options) => engine.ring(ids(values), ...options),
+      clearAgentLine: engine.clearAgentLine,
       fit: () => { engine.navigate({ kind: "fit", ids: [], motion: "instant" }); args.persistCamera(); },
       load, setBoard: load,
       inspect: engine.inspect, engine,
