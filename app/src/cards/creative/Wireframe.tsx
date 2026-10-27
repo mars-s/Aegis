@@ -16,6 +16,14 @@ export function WireframeBody({ cardId, workspace, engine }: CardBodyProps) {
   useEffect(() => { if (text.current && document.activeElement !== text.current) text.current.textContent = card?.text || (card?.type === 'frame' ? 'Screen' : card?.type === 'section' ? 'Section' : card?.type === 'font' ? 'The quick brown fox jumps over the lazy dog.' : ''); }, [card?.text, card?.type]);
   useEffect(() => () => { engine.pin(cardId, 'focus', false); engine.pin(cardId, 'ime', false); }, [cardId, engine]);
   useEffect(() => {
+    if (card?.type !== 'section') return;
+    let scale = 0;
+    return engine.registerFrameParticipant({ write: () => {
+      const label = text.current, next = Math.max(1, Math.min(4, 1 / engine.camera().zoom));
+      if (label && scale !== next) { label.style.transform = `scale(${next})`; scale = next; }
+    } });
+  }, [card?.type, engine]);
+  useEffect(() => {
     const element = text.current;
     if (!element || !takeCardEdit(workspace, cardId)) return;
     element.focus({ preventScroll: true });
