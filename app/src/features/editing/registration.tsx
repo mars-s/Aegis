@@ -16,6 +16,7 @@ import {
 } from "./clipboard.js";
 import { deleteSelection } from "./delete-operations.js";
 import { collectionLayout } from "./collection-operations.js";
+import { navigationActions } from "./NavigationViews.js";
 
 export function setSelection(
   context: FeatureContext,
@@ -78,6 +79,7 @@ export function collectSelection(context: FeatureContext) {
   context.workspace.act({ kind: "select", ids: [id] });
 }
 export const editingMenus: readonly ActionRegistration[] = [
+  ...navigationActions,
   {
     id: "copy",
     label: "Copy",
