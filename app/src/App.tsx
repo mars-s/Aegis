@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
-import type { BoardId } from '@aegis/domain';
+import type { BoardId, CardId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
 import type { HostClient, WorkspaceConnection } from '@aegis/host-client';
 import type { CanvasEngine } from '@aegis/scene';
@@ -139,8 +139,10 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), flushEditor: controller.flush });
   }, [chromeEngine, agentControls, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
-  useEffect(() => controller.install(), [controller]);
-  useEffect(() => installEditorActions(context), [context]);
+  useLayoutEffect(() => {
+    const stopController = controller.install(), stopActions = installEditorActions(context);
+    return () => { stopActions(); stopController(); };
+  }, [controller, context]);
   useEffect(() => installDocumentClipboard(workspace), [workspace]);
   useEffect(() => { const notice = (event: Event): void => { if (event instanceof CustomEvent && typeof event.detail === 'string') setNotice(event.detail); }; window.addEventListener('aegis:notice', notice); return () => window.removeEventListener('aegis:notice', notice); }, []);
   useEffect(() => { installNativeDownloads(setNotice); }, []);
@@ -231,6 +233,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
 }
 
 export default function App() {
+  const retainedSelection = useRef<{ readonly boardId: BoardId; readonly ids: readonly CardId[] } | null>(null);
   const [sessionVersion, setSessionVersion] = useState(0);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -254,6 +257,7 @@ export default function App() {
         if (lifetime.signal.aborted) return;
         if (loaded.kind === "error") { setError(failureMessage(loaded.error)); return; }
         const workspace = createWorkspace({ board: loaded.value });
+        if (retainedSelection.current?.boardId === loaded.value.id) workspace.act({ kind: 'select', ids: retainedSelection.current.ids.filter(id => loaded.value.cards.some(card => card.id === id)) });
         const replication = connectWorkspace({ workspace, client, onError: failure => { if (!lifetime.signal.aborted && failure.kind !== "cancelled") setError(failureMessage(failure)); } });
         active = { workspace, client, replication, connection };
         setRuntime(active);
@@ -261,7 +265,10 @@ export default function App() {
         if (!lifetime.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not open the board.");
       }
     })();
-    const dispose = (): void => { lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose(); };
+    const dispose = (): void => {
+      if (active) retainedSelection.current = { boardId: active.workspace.metadata.getSnapshot().id, ids: [...active.workspace.selection.getSnapshot()] };
+      lifetime.abort(); active?.replication.dispose(); active?.workspace.dispose(); client?.dispose();
+    };
     const resume = (event: PageTransitionEvent): void => {
       if (!event.persisted) return;
       setRuntime(null);
