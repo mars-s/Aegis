@@ -1,12 +1,12 @@
 // Typed boundary to the existing integration-owned menu. No control implementation is forked.
-declare module '*lib/ui/menu.js' {
+declare module "*lib/ui/menu.js" {
   export interface MenuItem {
     readonly title: string;
     readonly run?: (event: MouseEvent) => void;
     readonly items?: readonly MenuItem[] | (() => readonly MenuItem[]);
     readonly ariaLabel?: string;
     readonly checked?: boolean;
-    readonly checkType?: 'radio' | 'checkbox';
+    readonly checkType?: "radio" | "checkbox";
     readonly section?: string;
     readonly shortcut?: string;
     readonly disabled?: boolean;
