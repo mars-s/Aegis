@@ -156,7 +156,8 @@ export function createAgentRuntime({ workspace, service, requireSignIn }: {
     undo: async (id, requestId) => {
       const saving = workspace.saving.getSnapshot();
       if (saving.kind !== 'saved') { update({ error: saving.kind === 'blocked' ? saving.reason : 'Save your changes before undoing this request.' }); return; }
-      await operate(signal => service.undoRequest(id, requestId, signal));
+      const cancel = workspace.expectAgentUndo(id, requestId);
+      if (!await operate(signal => service.undoRequest(id, requestId, signal))) cancel();
     },
     dismissError: () => update({ error: null }),
     priorAgents: async signal => (await service.list(null, signal)).length > 0,
