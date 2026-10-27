@@ -15,9 +15,12 @@ export type ConnectionSelectionChange = (id: LinkId | null) => void;
 
 interface Connections { readonly start: (id: CardId) => void; readonly clear: () => void; readonly dispose: () => void }
 const installed = new WeakMap<FeatureWorkspace, Connections>();
+const setSvgAttributes = (element: SVGElement, attrs: Readonly<Record<string, string | number>>) => {
+  for (const [key, value] of Object.entries(attrs)) { const next = String(value); if (element.getAttribute(key) !== next) element.setAttribute(key, next); }
+};
 const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Readonly<Record<string, string | number>>) => {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, String(value));
+  setSvgAttributes(element, attrs);
   return element;
 };
 const rect = (card: Card) => ({ x: card.x, y: card.y, width: card.w, height: card.h });
@@ -45,9 +48,8 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     const host = svg('g', {}), circle = svg('circle', { r: 6, class: 'draw-link-knob', fill: 'var(--card)', stroke: 'var(--focus)', 'stroke-width': 1.5, 'pointer-events': 'all', ...(kind === 'bend' ? { 'data-connect-bend': '1' } : { 'data-connect-end': kind }) });
     host.append(circle); selection.append(host); return { kind, host, circle };
   });
-  selection.prepend(feedback); selection.style.display = 'none';
+  selection.prepend(feedback);
   const previewGroup = svg('g', {}), previewTarget = svg('rect', { fill: 'none', stroke: 'var(--focus)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }), previewPath = svg('path', { 'data-connect-preview': '', fill: 'none', stroke: 'var(--focus)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' });
-  previewGroup.style.display = 'none';
   let selected: LinkId | null = null, disposed = false, dirty = true;
   let selectedLink: ReturnType<FeatureWorkspace['scene']['snapshot']>['links'][number] | undefined;
   let paintedRoute = '', paintedZoom = 0, paintedCamera = '';
@@ -157,20 +159,18 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     if (!route) selection.remove();
     if (route && current) {
       if (!selection.isConnected) group.prepend(selection);
-      selection.style.display = '';
-      feedback.setAttribute('d', route.d); feedback.setAttribute('stroke', current.colour || 'var(--focus)');
-      feedback.setAttribute('opacity', bending ? '1' : '.18'); feedback.setAttribute('stroke-width', bending ? '2' : '7');
-      for (const knob of knobs) { const at = knob.kind === 'a' ? route.start : knob.kind === 'b' ? route.end : route.label; knob.host.setAttribute('transform', `translate(${at.x} ${at.y})`); }
+      setSvgAttributes(feedback, { d: route.d, stroke: current.colour || 'var(--focus)', opacity: bending ? 1 : .18, 'stroke-width': bending ? 2 : 7 });
+      for (const knob of knobs) { const at = knob.kind === 'a' ? route.start : knob.kind === 'b' ? route.end : route.label; setSvgAttributes(knob.host, { transform: `translate(${at.x} ${at.y})` }); }
     }
     if (!preview) { previewGroup.remove(); return; }
     const from = workspace.record(preview.source).getSnapshot(), to = target(preview.point, preview.except);
     if (!from) { previewGroup.remove(); return; }
     const end = to ? rect(to) : { ...preview.point.world, width: 0, height: 0 }, next = routeLink({}, rect(from), end, from.rot, to?.rot);
-    previewTarget.style.display = to ? '' : 'none';
-    if (to) { for (const [key, value] of Object.entries(rect(to))) previewTarget.setAttribute(key, String(value)); previewTarget.setAttribute('data-connect-target', to.id); }
+    const display = to ? '' : 'none'; if (previewTarget.style.display !== display) previewTarget.style.display = display;
+    if (to) setSvgAttributes(previewTarget, { ...rect(to), 'data-connect-target': to.id });
     else previewTarget.removeAttribute('data-connect-target');
-    previewPath.setAttribute('d', `M${next.p0.x} ${next.p0.y} Q${next.control.x} ${next.control.y} ${next.p2.x} ${next.p2.y}`);
-    previewGroup.style.display = ''; if (!previewGroup.isConnected) group.append(previewGroup);
+    setSvgAttributes(previewPath, { d: `M${next.p0.x} ${next.p0.y} Q${next.control.x} ${next.control.y} ${next.p2.x} ${next.p2.y}` });
+    if (!previewGroup.isConnected) group.append(previewGroup);
   } });
   return { start, clear: () => { choose(null); if (engine.toolName() === 'edit-connector' || engine.toolName() === 'connect') engine.tool(null); }, dispose: () => { disposed = true; offFrame(); offScene(); document.removeEventListener('pointerdown', down, true); layer.remove(); } };
 }
