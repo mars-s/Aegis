@@ -29,10 +29,10 @@ export interface SlotLease {
 export interface LeaseSource extends Source<readonly SlotLease[]> {
   readonly acknowledgeUnmount: (key: string, generation: number) => void;
 }
-export type PinReason = 'focus' | 'ime' | 'dirty' | 'capture' | 'media';
+export type PinReason = 'focus' | 'ime' | 'dirty' | 'capture' | 'media' | 'editor';
 export type Navigation =
-  | { readonly kind: 'fit'; readonly ids: readonly CardId[]; readonly motion: 'instant' | 'glide' }
-  | { readonly kind: 'restore'; readonly camera: CameraState; readonly motion: 'instant' | 'glide' };
+  | { readonly kind: 'fit'; readonly ids: readonly CardId[]; readonly motion: 'instant' | 'glide'; readonly duration?: number; readonly maximumZoom?: number }
+  | { readonly kind: 'restore'; readonly camera: CameraState; readonly motion: 'instant' | 'glide'; readonly duration?: number };
 export interface Representation {
   readonly id: CardId;
   readonly kind: ZoomTier;
@@ -65,8 +65,8 @@ export interface FrameDiagnostics {
   readonly camera: CameraState;
 }
 export interface FrameParticipant {
-  readonly read: () => void;
-  readonly write: () => void;
+  readonly read?: () => void;
+  readonly write?: () => void;
   readonly fitBounds?: (zoom: number) => readonly Rect[];
 }
 export interface ToolPointer {
@@ -85,6 +85,7 @@ export interface ToolPointer {
 export type ToolCancel = 'escape' | 'pointer-cancel' | 'lost-capture' | 'board-change' | 'tool-change' | 'dispose';
 export interface ToolKey { readonly key: string; readonly shift: boolean; readonly alt: boolean; readonly bypass: boolean }
 export interface SceneTool {
+  readonly id?: string;
   readonly accepts: (point: ToolPointer, hit: CardId | null) => boolean;
   readonly down: (point: ToolPointer, hit: CardId | null) => void;
   readonly move: (points: readonly ToolPointer[]) => void;
@@ -109,6 +110,8 @@ export interface CanvasEngine {
   readonly hitTestLink: (point: Point) => LinkId | null;
   readonly linkGeometry: () => readonly { readonly id: LinkId; readonly route: LinkRoute }[];
   readonly tool: (tool: SceneTool | null) => void;
+  readonly toolName: () => string | null;
+  readonly busy: () => boolean;
   readonly preview: (preview: ToolPreview | null) => void;
   readonly afterInput: (run: () => void) => void;
   readonly startTransform: (intent: { readonly kind: 'resize' | 'rotate'; readonly ids: readonly CardId[]; readonly pointer: { readonly id: number; readonly point: Point }; readonly shift: boolean }) => void;

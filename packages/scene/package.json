@@ -15,6 +15,10 @@
     "./links": {
       "types": "./dist/links.d.ts",
       "default": "./dist/links.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry.d.ts",
+      "default": "./dist/geometry.js"
     }
   },
   "scripts": {

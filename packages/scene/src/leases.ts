@@ -128,6 +128,7 @@ export class LeasePool {
     if (!shell) {
       const element = this.world.ownerDocument.createElement('div'), host = this.world.ownerDocument.createElement('div');
       element.className = 'card scene-card'; host.className = 'content scene-body';
+      element.tabIndex = -1;
       element.style.position = 'absolute'; element.style.transformOrigin = 'center';
       const resize = this.world.ownerDocument.createElement('div'); resize.className = 'resize'; resize.setAttribute('aria-hidden', 'true');
       host.style.height = '100%'; element.append(host, resize); this.world.append(element);

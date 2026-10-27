@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type {
@@ -37,6 +38,8 @@ export interface ChromeProps {
   readonly ask?: (ids: readonly CardId[]) => void;
   readonly cameraChanged?: () => void;
   readonly customiseToolbar?: () => void;
+  readonly barContent?: ReactNode;
+  readonly rightContent?: ReactNode;
 }
 
 export function Chrome({
@@ -49,6 +52,8 @@ export function Chrome({
   ask,
   cameraChanged,
   customiseToolbar,
+  barContent,
+  rightContent,
 }: ChromeProps) {
   const metadata = useWorkspaceMetadata(context.workspace),
     save = useSaveState(context.workspace),
@@ -653,6 +658,7 @@ export function Chrome({
           {metadata.name}
         </button>
         <div ref={rightBar} className="bar-right">
+          {barContent}
           <span data-saved data-save-state={save.kind} role="status">
             {save.kind === "saving"
               ? "Saving"
@@ -799,6 +805,7 @@ export function Chrome({
             <Icon name="close" />
           </button>
         </div>
+        {rightContent}
         {panels("right")}
         <SideResize side="right" layout={layout} change={change} />
         {composition.panels

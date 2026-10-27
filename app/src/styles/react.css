@@ -1,6 +1,6 @@
 * { box-sizing: border-box; }
 html, body, #app, .react-app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
-body { font: 13px var(--font); color: var(--color-text); background: #050607; }
+body { font: 13px var(--font); color: var(--text); background: var(--board-canvas, var(--canvas)); }
 button { font: inherit; color: inherit; cursor: pointer; background: #1b1d20; border: 1px solid #34383e; border-radius: 6px; padding: 7px 12px; min-height: 32px; }
 button:hover { background: #282b30; }
 button:disabled { opacity: .4; cursor: default; }
@@ -9,7 +9,7 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .scene-backdrop, .scene-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .scene-overlay { z-index: 2; }
 #world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
-.react-stage .card { position: absolute; display: flex; flex-direction: column; background: #17191c; border: 1px solid #363a40; border-radius: 10px; overflow: hidden; color: #e8eaed; }
+.react-stage .card { position: absolute; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; color: var(--text); }
 .react-stage .card.selected { border-color: #b3bac4; }
 .react-stage .scene-body { display: flex; flex-direction: column; }
 .react-stage .card .body { padding: 16px; flex: 1; min-height: 0; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
@@ -19,7 +19,7 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .react-tools { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; border: 1px solid #2c3035; border-radius: 12px; background: #111316; z-index: 10; }
 .react-save-state { position: absolute; right: 24px; bottom: 26px; display: flex; gap: 10px; align-items: center; color: #a6abb4; font-size: 12px; z-index: 10; }
 .react-connection { margin: 0; position: absolute; top: 45%; width: 100%; text-align: center; color: #b9bdc5; }
-.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: #141618; z-index: 20; border-left: 1px solid #34383e; overflow: auto; }
+.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: var(--card); z-index: 30; border-left: 1px solid var(--line-strong); overflow: auto; }
 .react-editor.full { left: 0; }
 #toast:not(:empty) { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: #24272b; border: 1px solid #4c525b; border-radius: 8px; z-index: 30; }
 #toast button { margin-left: 12px; }
@@ -29,5 +29,13 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .react-editor-toolbar { display: flex; flex: none; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-border); }
 .react-editor-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
 .react-editor-content > .data-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.react-editor-content > * { min-width: 0; flex: 1; }
+.react-editor-toolbar { justify-content: flex-end; align-items: center; }
+.react-editor-toolbar > span:first-child { margin-right: auto; }
+.react-editor :is(.react-editor-toolbar,.side-editor-tools) button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.react-editor :is(.react-editor-toolbar,.side-editor-tools) svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.react-editor kbd { font: 10px var(--font); opacity: .65; }
+.agent-island { max-width: min(calc(100vw - 24px), var(--composer-max-width, 100vw)); }
+.library-undo { position: fixed; left: 24px; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); }
 
 .react-import-error { position: absolute; z-index: 30; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }

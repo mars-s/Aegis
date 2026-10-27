@@ -31,7 +31,7 @@ type Gesture =
   | { readonly kind: 'rotate'; readonly pointer: number; readonly start: Point; readonly id: CardId; readonly centre: Point; readonly angle: number; readonly rotation: number }
   | { readonly kind: 'pinch'; readonly pointer: number; readonly start: Point; readonly distance: number; readonly anchor: Point; readonly zoom: number }
   | { readonly kind: 'marquee'; readonly pointer: number; readonly start: Point; readonly base: readonly CardId[] };
-interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number }
+interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number; readonly duration: number }
 interface MeasurementRequest { readonly key: string; readonly generation: number; readonly card: Card; readonly epoch: number }
 const windowTypes = new Set<Card['type']>(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'canvas', 'font']);
 
@@ -136,7 +136,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
         const ids = new Set(intent.ids);
         const items = graph.all().filter(node => !ids.size || ids.has(node.card.id)).map(node => fromBounds(rotatedBounds(boundsFor(node), rotationFor(node))));
         const available = availableArea(), area = { x: available.x + 48, y: available.y + 48, width: Math.max(1, available.width - 96), height: Math.max(1, available.height - 96) };
-        target = fitBounds(union(items), area);
+        target = fitBounds(union(items), area, intent.maximumZoom ?? 1);
         if (!ids.size) for (let iteration = 0; iteration < 24; iteration++) {
           const fixed = [...participants].flatMap(participant => participant.fitBounds?.(target.zoom) ?? []);
           const next = fitBounds(union([...items, ...fixed]), area, target.zoom);
@@ -148,8 +148,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       }
       default: { const exhaustive: never = intent; return exhaustive; }
     }
-    if (intent.motion === 'instant' || reducedMotion()) { camera = target; glide = null; }
-    else glide = { from: camera, to: target, start: now };
+    if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) { camera = target; glide = null; }
+    else glide = { from: camera, to: target, start: now, duration: Math.max(1, intent.duration ?? 420) };
   }
 
   function moveGesture(point: Point, bypass: boolean): void {
@@ -389,9 +389,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     tools.flush(); drainInput(timestamp); phases.input = performance.now() - mark; mark = performance.now();
     if (glide && reducedMotion()) { camera = glide.to; glide = null; }
     if (glide) {
-      const t = Math.min(1, Math.max(0, (timestamp - glide.start) / 420)), k = 1 - (1 - t) ** 3;
+      const t = Math.min(1, Math.max(0, (timestamp - glide.start) / glide.duration)), k = 1 - (1 - t) ** 3;
       camera = { x: glide.from.x + (glide.to.x - glide.from.x) * k, y: glide.from.y + (glide.to.y - glide.from.y) * k, zoom: glide.from.zoom + (glide.to.zoom - glide.from.zoom) * k };
-      if (t === 1) glide = null;
+      if (t === 1) { camera = glide.to; glide = null; }
     }
     phases.camera = performance.now() - mark; mark = performance.now();
     cull(); phases.cull = performance.now() - mark; mark = performance.now();
@@ -403,7 +403,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     readMeasurements();
     overlays.read(viewport, stageOrigin, camera, representations, graph.nodes, selected);
-    for (const participant of participants) participant.read();
+    for (const participant of participants) participant.read?.();
     phases.reads = performance.now() - mark; mark = performance.now();
     if (resetLeases) { pool.reset(workspace.scene.snapshot().id); resetLeases = false; }
     for (const id of retired) pool.retire(id);
@@ -416,7 +416,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     painter.paint(viewport, dpr, camera, representations, drawnLinks, id => pool.has(id), selected, marquee, tools.getPreview());
     stage.style.cursor = gesture?.kind === 'pan' ? 'grabbing' : spaceHeld ? 'grab' : tools.getPreview()?.cursor ?? '';
     overlays.write();
-    for (const participant of participants) participant.write();
+    for (const participant of participants) participant.write?.();
     phases.writes = performance.now() - mark;
     const end = performance.now();
     metrics.push(start, previousFrame ? timestamp - previousFrame : 0, end - start, phases, inputAt === null ? null : end - inputAt, candidates.length, drawnLinks.length, pool.stats().active);
@@ -534,7 +534,13 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   return {
     leases: pool.source,
-    navigate: intent => enqueue({ kind: 'navigation', intent, at: performance.now() }),
+    navigate: intent => {
+      if (disposed) return;
+      if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) {
+        for (let index = inputs.length - 1; index >= 0; index--) if (inputs[index]?.kind === 'wheel' || inputs[index]?.kind === 'navigation') inputs.splice(index, 1);
+        navigation(intent, performance.now()); invalidate();
+      } else enqueue({ kind: 'navigation', intent, at: performance.now() });
+    },
     camera: () => ({ ...camera }),
     screenToWorld: p => unproject(p, camera),
     representations: () => representations,
@@ -542,6 +548,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     hitTestLink: point => { for (let index = drawnLinks.length - 1; index >= 0; index--) { const entry = drawnLinks[index]; if (entry && routeDistance(point, entry.route) <= 8) return entry.link.id; } return null; },
     linkGeometry: () => drawnLinks.map(entry => ({ id: entry.link.id, route: entry.route })),
     tool: tool => tools.set(tool),
+    toolName: () => tools.name(),
+    busy: () => glide !== null || gesture !== null || inputs.length > 0,
     preview: preview => tools.preview(preview),
     afterInput: post,
     startTransform: intent => {

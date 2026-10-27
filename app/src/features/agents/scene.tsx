@@ -36,6 +36,7 @@ export interface AgentScene {
   readonly show: (id: AgentId) => void;
   readonly near: (id: AgentId, ids: readonly CardId[]) => void;
   readonly bounds: () => readonly WindowRect[];
+  readonly fitBounds: (zoom: number) => readonly WindowRect[];
   readonly group: (side: EdgeSide) => EdgeGroup | undefined;
   readonly cluster: (side: EdgeSide, button: HTMLButtonElement | null) => void;
   readonly frame: (ids: readonly CardId[], islandHeight: number, instant: boolean) => void;
@@ -169,6 +170,7 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
       if (w && target && !w.manuallyMoved) { w.x = target.x - WINDOW_WIDTH / camera.zoom - 24; w.y = target.y; w.placed = true; w.dirty = true; schedule.invalidate(); }
     },
     bounds: () => [...windows.values()].filter(w => !w.closed).map(size),
+    fitBounds: zoom => [...windows.values()].filter(w => !w.closed).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH / zoom, h: (w.collapsed ? COLLAPSED_HEIGHT : w.height) / zoom })),
     group: side => groups.find(group => group.side === side),
     cluster(side, button) { if (button) clusters.set(side, button); else clusters.delete(side); schedule.invalidate(); },
     frame(ids, islandHeight, instant) {

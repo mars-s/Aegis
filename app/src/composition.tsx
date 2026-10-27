@@ -2,7 +2,13 @@ import type { Card, CardId, ObjectCard } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type { ComponentType } from "react";
 import type { Workspace } from "./workspace/index.js";
-import { NoteBody } from "./cards/basic/Note.js";
+import { basicRegistrations } from "./cards/basic/index.js";
+import { objectRegistrations } from "./cards/objects/index.js";
+import type { ObjectServices } from "./cards/objects/index.js";
+import { documentCard, documentEditor, documentTool, documentOpenAction } from "./cards/document/registration.js";
+import { deckCards, deckEditors, deckTools } from "./cards/deck/index.js";
+import type { DeckServices } from "./cards/deck/index.js";
+import { editingMenus } from "./features/editing/registration.js";
 import { dataCards, dataEditors } from "./cards/data/index.js";
 import type { DataServices } from "./cards/data/index.js";
 import type { CardBodyProps } from "./canvas/CardPortals.js";
@@ -13,7 +19,7 @@ export type FeatureWorkspace = Omit<Workspace, "replication" | "dispose">;
 export interface FeatureContext {
   readonly workspace: FeatureWorkspace;
   readonly engine: () => CanvasEngine | null;
-  readonly openEditor: (id: CardId, full?: boolean) => boolean;
+  readonly openEditor: (id: CardId, full?: boolean, keyboard?: boolean) => boolean;
   readonly closeEditor: () => boolean;
 }
 export interface CardRegistration {
@@ -58,9 +64,12 @@ export function defineComposition(composition: Composition): Composition {
   });
 }
 
-export function createComposition(services: Pick<DataServices, "assetUrl">): Composition {
+export function createComposition(services: Pick<DataServices, "assetUrl"> & Pick<DeckServices, "menu"> & Pick<ObjectServices, "registerSandbox">): Composition {
+  const objects = objectRegistrations(services);
   return defineComposition({
-    cards: [{ kind: "note", Body: NoteBody }, { kind: "title", Body: NoteBody }, ...dataCards],
-    tools: [], panels: [], menus: [], editors: dataEditors(services),
+    cards: [...basicRegistrations(services), ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
+    tools: [documentTool, ...deckTools], panels: [],
+    menus: [...editingMenus, documentOpenAction],
+    editors: [...dataEditors(services), ...objects.editors, documentEditor, ...deckEditors(services)],
   });
 }

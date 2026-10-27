@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createCanvas } from "@aegis/scene";
-import type { CanvasEngine } from "@aegis/scene";
+import type { CanvasEngine, Rect, Source } from "@aegis/scene";
 import type { Workspace } from "../workspace/index.js";
 import type { CardBodyKind, Composition } from "../composition.js";
 import { CardPortals } from "./CardPortals.js";
 import "./scene.css";
 import { bindOrientationMenu } from "./orientation-menu.js";
 
-export function Canvas({ workspace, composition, attached, cameraChanged }: {
+export function Canvas({ workspace, composition, attached, cameraChanged, availableArea }: {
   readonly workspace: Workspace;
   readonly composition: Composition;
   readonly attached: (engine: CanvasEngine | null) => void;
   readonly cameraChanged: () => void;
+  readonly availableArea: Source<Rect>;
 }) {
   const stage = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
@@ -23,7 +24,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged }: {
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
-    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace,
+    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, availableArea,
       canLease: card => {
         const kind: CardBodyKind = card.type === "object" ? `object:${card.kind}` : card.type;
         return availableBodies.current.has(kind);
@@ -42,7 +43,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged }: {
     element.addEventListener("keyup", navigationChanged);
     element.addEventListener("dblclick", navigationChanged);
     return () => { disposeMenu(); element.removeEventListener("pointerup", cameraChanged); element.removeEventListener("wheel", cameraChanged); element.removeEventListener("keyup", navigationChanged); element.removeEventListener("dblclick", navigationChanged); attached(null); instance.dispose(); };
-  }, [workspace, attached, cameraChanged]);
+  }, [workspace, attached, cameraChanged, availableArea]);
   return <div id="stage" className="react-stage" ref={stage} tabIndex={0} aria-label="Board canvas">
     <canvas ref={backdrop} className="scene-backdrop" aria-hidden="true" />
     <div id="world" ref={world} />

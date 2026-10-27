@@ -116,7 +116,7 @@ describe('real scene attachment', () => {
     const p = await page(true);
     const result = await p.evaluate(() => {
       const engine = window.sceneHarness.engine;
-      const from = engine.camera(), to = { x: -360, y: 180, zoom: 0.4 };
+      const from = engine.camera(), to = { x: -360, y: 180, zoom: 0.1 };
       const request = window.requestAnimationFrame, cancel = window.cancelAnimationFrame;
       const callbacks = new Map<number, FrameRequestCallback>();
       let serial = 0;

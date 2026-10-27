@@ -6,7 +6,7 @@ const ConnectionSchema = z.object({
 });
 
 export interface NativeBridge {
-  readonly invoke: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+  readonly invoke: (command: string, args?: unknown, options?: { readonly headers: Readonly<Record<string, string>> }) => Promise<unknown>;
 }
 
 declare global {

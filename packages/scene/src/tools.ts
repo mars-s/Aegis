@@ -20,6 +20,7 @@ export class ToolController {
   private readonly hitTest: (point: Point) => CardId | null;
   constructor(invalidate: () => void, hitTest: (point: Point) => CardId | null) { this.invalidate = invalidate; this.hitTest = hitTest; }
   owns(pointer: number): boolean { return this.pointer === pointer; }
+  name(): string | null { return this.current?.id ?? null; }
   set(tool: SceneTool | null): void {
     if (tool === this.current) return;
     this.cancel('tool-change'); this.current = tool;

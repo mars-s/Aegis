@@ -31,6 +31,19 @@
     "src/editors/dataset/**/*.ts",
     "src/editors/dataset/**/*.tsx",
     "src/features/data/**/*.ts",
-    "src/features/data/**/*.tsx"
+    "src/features/data/**/*.tsx",
+    "src/platform/**/*.tsx",
+    "src/chrome/**/*.ts",
+    "src/chrome/**/*.tsx",
+    "src/editors/**/*.ts",
+    "src/editors/**/*.tsx",
+    "src/features/agents/**/*.ts",
+    "src/features/agents/**/*.tsx",
+    "src/features/first-minute/**/*.tsx",
+    "src/features/settings/**/*.ts",
+    "src/features/settings/**/*.tsx",
+    "src/features/onboarding/**/*.tsx",
+    "src/features/mobile/**/*.tsx",
+    "src/features/editing/**/*.tsx"
   ]
 }

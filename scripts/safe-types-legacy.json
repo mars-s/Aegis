@@ -16,9 +16,6 @@
     "explicit-any": 2,
     "type-assertion": 4
   },
-  "app/src/lib/native-files.ts": {
-    "type-assertion": 4
-  },
   "app/src/main.ts": {
     "non-null": 1
   },
