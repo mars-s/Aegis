@@ -159,6 +159,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) { camera = target; glide = null; }
     else glide = { from: camera, to: target, start: now, duration: Math.max(1, intent.duration ?? 420) };
+    if (args.onNavigation) post(args.onNavigation);
   }
 
   function moveGesture(point: Point, bypass: boolean): void {

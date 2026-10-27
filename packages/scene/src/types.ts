@@ -138,6 +138,7 @@ export interface CanvasAttachment {
   readonly backdrop: HTMLCanvasElement;
   readonly overlay: HTMLCanvasElement;
   readonly workspace: CanvasWorkspace;
+  readonly onNavigation?: () => void;
   readonly onToolCommit?: (boardId: BoardId, commit: ToolCommit) => void;
   readonly theme?: Source<SceneTheme>;
   readonly warmLeases?: number;

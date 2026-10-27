@@ -191,6 +191,26 @@ describe('real scene attachment', () => {
     await p.close();
   });
 
+  test('notifies semantic navigation once outside the frame and drops notices from old boards', async () => {
+    const p = await page(true);
+    const during = await p.evaluate(() => new Promise<number>(resolve => {
+      const harness = window.sceneHarness;
+      const release = harness.engine.registerFrameParticipant({ write: () => { release(); resolve(harness.navigationNotifications()); } });
+      harness.engine.navigate({ kind: 'restore', camera: { x: 120, y: 80, zoom: .8 }, motion: 'glide', duration: 120 });
+    }));
+    expect(during).toBe(0);
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.navigationNotifications())).toBe(1);
+    await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' }));
+    await p.waitForFunction(() => window.sceneHarness.navigationNotifications() === 2);
+    await p.evaluate(() => {
+      const harness = window.sceneHarness;
+      harness.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' }); harness.replace(10);
+    }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.navigationNotifications())).toBe(2);
+    await p.close();
+  });
+
   test('renders note/title React portals, then stops requesting idle frames', async () => {
     const p = await page();
     expect(await p.locator('.scene-card.title').innerText()).toContain('Thinking table');
