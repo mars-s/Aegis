@@ -185,7 +185,7 @@ try {
       await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'object', kind: 'html', newId: 'chromewidget', text: 'Widget actions', x: 400, y: 540, w: 440, h: 300, data: { html: '<p>Interactive widget</p>', css: '', js: '', height: 180 } }]); aegis.canvas.select([]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
       await card('chromewidget').locator('iframe').hover();
       const widgetOpen = page.locator('.window-actions').getByRole('button', { name: 'Open Widget actions', exact: true });
-      await widgetOpen.click(); await page.locator(objectPanel).waitFor(); await page.keyboard.press('Escape'); await inputDone();
+      await widgetOpen.click(); await page.locator(objectPanel).waitFor(); await page.keyboard.press('Escape'); await page.locator(objectPanel).waitFor({ state: 'hidden' }); await inputDone();
       const focusReturn = await page.evaluate(() => ({ id: document.activeElement.dataset.windowAction, active: document.activeElement.outerHTML.slice(0, 240), strip: document.querySelector('.window-actions').outerHTML.slice(0, 500), visibility: getComputedStyle(document.querySelector('.window-actions')).visibility, source: document.querySelector('.card.editor-source')?.dataset.id }));
       assert.equal(focusReturn.id, 'chromewidget', `Escape restores the unscaled widget action: ${JSON.stringify(focusReturn)}`);
       await page.evaluate(() => { document.activeElement?.blur(); aegis.apply([{ op: 'delete', ids: ['chromewidget'] }]); });
