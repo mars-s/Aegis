@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
-import type { BoardId, CardId } from '@aegis/domain';
+import type { BoardId, CardId, LinkId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
 import type { HostClient, WorkspaceConnection } from '@aegis/host-client';
 import type { CanvasEngine } from '@aegis/scene';
@@ -27,6 +27,8 @@ import { installTestFacade } from './platform/test-facade.js';
 import { installEditorActions } from './platform/editor-actions.js';
 import { CreativeProvider } from './cards/creative/index.js';
 import type { CreativeServices } from './cards/creative/index.js';
+import { CreativeConnections, startCreativeConnection } from './features/draw/Connections.js';
+import { wireframeActions } from './features/wireframe/registrations.js';
 import { DrawingInspector } from './features/draw/Inspector.js';
 import type { DrawSettings, DrawTarget } from './features/draw/Inspector.js';
 import { readPreferences } from './features/draw/preferences.js';
@@ -73,6 +75,7 @@ function EditorActions({ context, full }: { readonly context: FeatureContext; re
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace, client } = runtime;
   const [creativeMode, setCreativeMode] = useState<DrawTarget | 'wireframe' | null>(null);
+  const connectionSelectionChanged = useCallback((id: LinkId | null) => { if (id) setCreativeMode(null); }, []);
   const drawSettings = useRef<DrawSettings>({ ...readPreferences(), shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' });
   const importChoice = useRef<(() => void) | null>(null);
   const importAttached = useCallback((choose: (() => void) | null) => { importChoice.current = choose; }, []);
@@ -111,7 +114,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
       { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
       ...(['swatch', 'link', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'link' ? 'Link' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
-    ], panels: [...base.panels,
+    ], menus: [...base.menus, ...wireframeActions(() => setCreativeMode('wireframe'))], panels: [...base.panels,
       { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
       { id: 'draw', label: 'Drawing', side: 'left', Body: ({ context }) => <div className="creative-panel-tools">{(['ink', 'shape', 'path', 'stamp'] as const).map(kind => <button type="button" key={kind} onClick={() => draw(kind)(context)}>{kind === 'ink' ? 'Draw ink' : kind === 'shape' ? 'Shapes' : kind === 'path' ? 'Vector pen' : 'Emoji stamps'}</button>)}</div> },
       { id: 'media-devices', label: 'Media devices', side: 'left', Body: DevicesPanel },
@@ -187,7 +190,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     const stage = document.getElementById('stage'); if (!stage) return;
     const rect = stage.getBoundingClientRect();
     chromeEngine.startTransform({ kind: intent.kind, ids: intent.ids, pointer: { id: intent.event.pointerId, point: { x: intent.event.clientX - rect.left, y: intent.event.clientY - rect.top } }, shift: intent.event.shiftKey });
-  }, connect: chromeEngine.startConnection } : undefined, [chromeEngine]);
+  }, connect: id => startCreativeConnection(workspace, id) } : undefined, [chromeEngine, workspace]);
   const importCsv = useCallback(async (file: File, boardId: BoardId, at?: { readonly x: number; readonly y: number }): Promise<void> => {
     const target = createWorkspace({ board: hostValue(await client.board(boardId, lifetime.signal)) });
     try {
@@ -236,6 +239,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
+    {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
     <NavigationViews context={context} engine={chromeEngine} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}

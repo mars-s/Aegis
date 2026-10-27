@@ -11,11 +11,16 @@ import { drawingTool } from './tool.js';
 import { beginPointEdit } from './point-editor.js';
 import { toolExit } from '../../platform/tool-lifetime.js';
 
+export type ConnectionSelectionChange = (id: LinkId | null) => void;
+
 interface Connections { readonly start: (id: CardId) => void; readonly clear: () => void; readonly dispose: () => void }
 const installed = new WeakMap<FeatureWorkspace, Connections>();
+const setSvgAttributes = (element: SVGElement, attrs: Readonly<Record<string, string | number>>) => {
+  for (const [key, value] of Object.entries(attrs)) { const next = String(value); if (element.getAttribute(key) !== next) element.setAttribute(key, next); }
+};
 const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Readonly<Record<string, string | number>>) => {
   const element = document.createElementNS('http://www.w3.org/2000/svg', tag);
-  for (const [key, value] of Object.entries(attrs)) element.setAttribute(key, String(value));
+  setSvgAttributes(element, attrs);
   return element;
 };
 const rect = (card: Card) => ({ x: card.x, y: card.y, width: card.w, height: card.h });
@@ -33,21 +38,31 @@ export function startCreativeConnection(workspace: FeatureWorkspace, id: CardId)
   connections.start(id);
 }
 
-function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, notify: (id: LinkId | null) => void): Connections {
+function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, notify: ConnectionSelectionChange): Connections {
   const element = document.getElementById('stage'); if (!element) throw new Error('Connections require the real scene stage.');
   const stage: HTMLElement = element;
   const layer = svg('svg', { class: 'creative-connections', width: '100%', height: '100%', 'aria-label': 'Connectors' }), group = svg('g', {});
   Object.assign(layer.style, { position: 'absolute', inset: '0', overflow: 'visible', pointerEvents: 'none', zIndex: '4' }); layer.append(group); stage.append(layer);
+  const selection = svg('g', {}), feedback = svg('path', { class: 'draw-link-selection', fill: 'none', stroke: 'var(--focus)', 'stroke-width': 7, 'vector-effect': 'non-scaling-stroke', 'pointer-events': 'none' });
+  const knobs = (['a', 'b', 'bend'] as const).map(kind => {
+    const host = svg('g', {}), circle = svg('circle', { r: 6, class: 'draw-link-knob', fill: 'var(--card)', stroke: 'var(--focus)', 'stroke-width': 1.5, 'pointer-events': 'all', ...(kind === 'bend' ? { 'data-connect-bend': '1' } : { 'data-connect-end': kind }) });
+    host.append(circle); selection.append(host); return { kind, host, circle };
+  });
+  selection.prepend(feedback);
+  const previewGroup = svg('g', {}), previewTarget = svg('rect', { fill: 'none', stroke: 'var(--focus)', 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke' }), previewPath = svg('path', { 'data-connect-preview': '', fill: 'none', stroke: 'var(--focus)', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke' });
   let selected: LinkId | null = null, disposed = false, dirty = true;
+  let selectedLink: ReturnType<FeatureWorkspace['scene']['snapshot']>['links'][number] | undefined;
+  let paintedRoute = '', paintedZoom = 0, paintedCamera = '';
+  previewGroup.append(previewTarget, previewPath);
   type Preview = { readonly source: CardId; readonly point: ToolPointer; readonly except: CardId; readonly endpoint?: 'a' | 'b' };
   let preview: Preview | null = null;
   let bending: { readonly id: LinkId; readonly bend: number } | null = null;
   function choose(id: LinkId | null): void {
-    selected = id; notify(id); dirty = true;
+    const changed = selected !== id; selected = id; selectedLink = id ? workspace.scene.snapshot().links.find(link => link.id === id) : undefined; if (changed) notify(id); dirty = true;
     if (id) workspace.act({ kind: 'select', ids: [] });
     engine.invalidate();
   }
-  const link = () => workspace.scene.snapshot().links.find(link => link.id === selected);
+  const link = () => selectedLink;
   function target(at: ToolPointer, except: CardId) {
     const id = engine.hitTest(at.screen); return id && id !== except ? workspace.record(id).getSnapshot() : null;
   }
@@ -57,23 +72,30 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
   function start(source: CardId): void {
     if (!workspace.record(source).getSnapshot()) return;
     choose(null);
-    const release = toolExit(engine, 'connect-creative'); let active = true;
+    const release = toolExit(engine, 'connect'); let active = true;
     const finish = () => { active = false; preview = null; dirty = true; engine.invalidate(); release(); };
     const move = (point: ToolPointer) => { if (!active) return; preview = { source, point, except: source }; dirty = true; engine.invalidate(); };
-    engine.tool({ id: 'connect-creative', accepts: point => active && point.button === 0, down: move, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
+    engine.tool({ id: 'connect', accepts: point => active && point.button === 0, down: move, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
       if (!active) return;
       const from = workspace.record(source).getSnapshot(), to = target(point, source);
       if (from && to && !duplicate(source, to.id)) {
         const id = LinkIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
         engine.commitTool({ commands: [{ op: 'connect', a: source, b: to.id, newId: id }, { op: 'link_update', id, set: { pa: pin(from, point.world), pb: pin(to, point.world) } }], selection: [] });
-        engine.afterInput(() => choose(id));
+        engine.afterInput(() => { choose(id); engine.tool(edit()); });
       }
       finish();
     }, acceptsKey: key => key.key === 'Escape' || key.key === 'Enter', key: finish, cancel: reason => { if (reason !== 'pan' && reason !== 'pointer-cancel' && reason !== 'lost-capture') active = false; preview = null; dirty = true; engine.invalidate(); } });
     stage.focus({ preventScroll: true });
   }
-  function edit(kind: 'select' | 'bend' | 'a' | 'b'): SceneTool {
-    const current = link(); let changed = false;
+  function handleAt(point: ToolPointer): 'select' | 'bend' | 'a' | 'b' {
+    const route = selected ? engine.linkRoute(selected) : null;
+    if (!route) return 'select';
+    const radius = 10 / engine.camera().zoom;
+    for (const [kind, at] of [['a', route.start], ['b', route.end], ['bend', route.label]] as const) if (Math.hypot(point.world.x - at.x, point.world.y - at.y) <= radius) return kind;
+    return 'select';
+  }
+  function edit(): SceneTool {
+    let current = link(), changed = false, kind: 'select' | 'bend' | 'a' | 'b' = 'select';
     const release = toolExit(engine, 'edit-connector');
     let bend = current?.bend ?? 0;
     const move = (point: ToolPointer) => {
@@ -88,7 +110,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
       }
       dirty = true; engine.invalidate();
     };
-    return { id: 'edit-connector', accepts: point => point.button === 0, down: move, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
+    return { id: 'edit-connector', accepts: (point, hit) => point.button === 0 && (handleAt(point) !== 'select' || !hit && engine.hitTestLink(point.screen) === selected), down: point => { current = link(); kind = handleAt(point); changed = false; bend = current?.bend ?? 0; move(point); }, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
       if (current && changed && kind === 'bend') engine.commitTool({ commands: [{ op: 'link_update', id: current.id, set: { bend } }], selection: [] });
       else if (current && changed && (kind === 'a' || kind === 'b')) {
         const to = target(point, kind === 'a' ? current.b : current.a);
@@ -98,65 +120,69 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     }, acceptsKey: key => ['Escape', 'Delete', 'Backspace'].includes(key.key), key: key => {
       if (key.key !== 'Escape' && current) engine.commitTool({ commands: [{ op: 'link_update', id: current.id, remove: true }], selection: [] });
       engine.afterInput(() => choose(null)); release();
-    }, cancel: () => { preview = null; bending = null; dirty = true; engine.invalidate(); } };
+    }, cancel: reason => { preview = null; bending = null; dirty = true; engine.invalidate(); if (reason === 'tool-change') engine.afterInput(() => { if (!disposed && engine.toolName() !== 'edit-connector') choose(null); }); } };
   }
   const down = (event: PointerEvent) => {
-    if (event.button !== 0 || !(event.target instanceof Element)) return;
-    const control = event.target.closest('[data-link],[data-connect-end],[data-connect-bend]');
-    if (control instanceof SVGElement && layer.contains(control)) {
-      const id = control.dataset.link, found = id ? workspace.scene.snapshot().links.find(link => link.id === id)?.id : selected;
-      if (!found) return;
-      choose(found);
-      const endpoint = control.dataset.connectEnd;
-      engine.tool(edit(endpoint === 'a' || endpoint === 'b' ? endpoint : control.hasAttribute('data-connect-bend') ? 'bend' : 'select'));
-    } else if (selected && !event.target.closest('.draw-inspector,.colour-pop,.ctx-menu')) {
-      choose(null); if (engine.toolName() === 'edit-connector') engine.tool(null);
-    }
+    if (event.button !== 0 || event.defaultPrevented && stage.classList.contains('pan-ready') || !(event.target instanceof Element)) return;
+    if (event.target.closest('.draw-inspector,.colour-pop,.ctx-menu')) return;
+    const tool = engine.toolName();
+    if (tool && tool !== 'edit-connector') return;
+    const inside = stage.contains(event.target) && !event.target.closest('.card,[data-scene-interactive],button,input,textarea,select,a,[contenteditable="true"],[contenteditable="plaintext-only"]');
+    const bounds = inside ? stage.getBoundingClientRect() : null;
+    const found = bounds ? engine.hitTestLink({ x: event.clientX - bounds.left, y: event.clientY - bounds.top }) : null;
+    if (found) { choose(found); engine.tool(edit()); }
+    else if (selected) { choose(null); if (engine.toolName() === 'edit-connector') engine.tool(null); }
   };
   document.addEventListener('pointerdown', down, true);
   const offScene = workspace.scene.subscribe(change => {
     if (change.kind === 'replace') { preview = null; bending = null; choose(null); }
-    else if (selected && !link()) choose(null);
+    else if (selected) { selectedLink = workspace.scene.snapshot().links.find(link => link.id === selected); if (!selectedLink) choose(null); }
     dirty = true; engine.invalidate();
   });
   const offFrame = engine.registerFrameParticipant({ write: () => {
     if (disposed) return;
-    const camera = engine.camera(); group.setAttribute('transform', `translate(${camera.x} ${camera.y}) scale(${camera.zoom})`);
-    if (!dirty && !engine.busy()) return;
-    dirty = false; group.replaceChildren();
-    for (const link of workspace.scene.snapshot().links) {
-      let route = engine.linkRoute(link.id); if (!route) continue;
-      if (bending?.id === link.id) {
-        const from = workspace.record(link.a).getSnapshot(), to = workspace.record(link.b).getSnapshot();
-        if (from && to) {
-          const curved = routeLink({ ...link, bend: bending.bend }, rect(from), rect(to), from.rot, to.rot);
-          route = { d: `M${curved.p0.x} ${curved.p0.y} Q${curved.control.x} ${curved.control.y} ${curved.p2.x} ${curved.p2.y}`, start: curved.p0, end: curved.p2, control: curved.control, label: curved.label };
-        }
+    const camera = engine.camera(), transform = `translate(${camera.x} ${camera.y}) scale(${camera.zoom})`;
+    if (transform !== paintedCamera) { group.setAttribute('transform', transform); paintedCamera = transform; }
+    if (camera.zoom !== paintedZoom) { for (const knob of knobs) knob.circle.setAttribute('transform', `scale(${1 / camera.zoom})`); paintedZoom = camera.zoom; }
+    const current = link();
+    let route = current ? engine.linkRoute(current.id) : null;
+    if (current && route && bending?.id === current.id) {
+      const from = workspace.record(current.a).getSnapshot(), to = workspace.record(current.b).getSnapshot();
+      if (from && to) {
+        const curved = routeLink({ ...current, bend: bending.bend }, rect(from), rect(to), from.rot, to.rot);
+        route = { d: `M${curved.p0.x} ${curved.p0.y} Q${curved.control.x} ${curved.control.y} ${curved.p2.x} ${curved.p2.y}`, start: curved.p0, end: curved.p2, control: curved.control, label: curved.label };
       }
-      group.append(svg('path', { class: 'link-hit', 'data-link': link.id, d: route.d, fill: 'none', stroke: 'transparent', 'stroke-width': 16 / camera.zoom, 'pointer-events': 'stroke' }));
-      if (link.id !== selected) continue;
-      group.append(svg('path', { d: route.d, fill: 'none', stroke: link.colour || 'var(--focus)', opacity: bending ? 1 : .18, 'stroke-width': (bending ? 2 : 7) / camera.zoom, 'pointer-events': 'none' }));
-      const knob = (point: { x: number; y: number }, attrs: Readonly<Record<string, string>>) => group.append(svg('circle', { cx: point.x, cy: point.y, r: 6 / camera.zoom, class: 'draw-link-knob', fill: 'var(--card)', stroke: 'var(--focus)', 'stroke-width': 1.5 / camera.zoom, 'pointer-events': 'all', ...attrs }));
-      knob(route.start, { 'data-connect-end': 'a' }); knob(route.end, { 'data-connect-end': 'b' }); knob(route.label, { 'data-connect-bend': '1' });
     }
-    if (preview) {
-      const from = workspace.record(preview.source).getSnapshot(), to = target(preview.point, preview.except); if (!from) return;
-      const end = to ? rect(to) : { ...preview.point.world, width: 0, height: 0 }, route = routeLink({}, rect(from), end, from.rot, to?.rot);
-      if (to) group.append(svg('rect', { ...rect(to), 'data-connect-target': to.id, fill: 'none', stroke: 'var(--focus)', 'stroke-width': 2 / camera.zoom }));
-      group.append(svg('path', { 'data-connect-preview': '', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: 'none', stroke: 'var(--focus)', 'stroke-width': 1.5 / camera.zoom }));
+    const routeKey = route ? `${route.d}:${route.label.x},${route.label.y}` : '';
+    if (!dirty && routeKey === paintedRoute) return;
+    dirty = false; paintedRoute = routeKey;
+    if (!route) selection.remove();
+    if (route && current) {
+      if (!selection.isConnected) group.prepend(selection);
+      setSvgAttributes(feedback, { d: route.d, stroke: current.colour || 'var(--focus)', opacity: bending ? 1 : .18, 'stroke-width': bending ? 2 : 7 });
+      for (const knob of knobs) { const at = knob.kind === 'a' ? route.start : knob.kind === 'b' ? route.end : route.label; setSvgAttributes(knob.host, { transform: `translate(${at.x} ${at.y})` }); }
     }
+    if (!preview) { previewGroup.remove(); return; }
+    const from = workspace.record(preview.source).getSnapshot(), to = target(preview.point, preview.except);
+    if (!from) { previewGroup.remove(); return; }
+    const end = to ? rect(to) : { ...preview.point.world, width: 0, height: 0 }, next = routeLink({}, rect(from), end, from.rot, to?.rot);
+    const display = to ? '' : 'none'; if (previewTarget.style.display !== display) previewTarget.style.display = display;
+    if (to) setSvgAttributes(previewTarget, { ...rect(to), 'data-connect-target': to.id });
+    else previewTarget.removeAttribute('data-connect-target');
+    setSvgAttributes(previewPath, { d: `M${next.p0.x} ${next.p0.y} Q${next.control.x} ${next.control.y} ${next.p2.x} ${next.p2.y}` });
+    if (!previewGroup.isConnected) group.append(previewGroup);
   } });
-  return { start, clear: () => { choose(null); if (engine.toolName() === 'edit-connector' || engine.toolName() === 'connect-creative') engine.tool(null); }, dispose: () => { disposed = true; offFrame(); offScene(); document.removeEventListener('pointerdown', down, true); layer.remove(); } };
+  return { start, clear: () => { choose(null); if (engine.toolName() === 'edit-connector' || engine.toolName() === 'connect') engine.tool(null); }, dispose: () => { disposed = true; offFrame(); offScene(); document.removeEventListener('pointerdown', down, true); layer.remove(); } };
 }
 
-export function CreativeConnections({ context }: { readonly context: FeatureContext }) {
+export function CreativeConnections({ context, onSelectionChange }: { readonly context: FeatureContext; readonly onSelectionChange: ConnectionSelectionChange }) {
   const engine = context.engine(), [selected, setSelected] = useState<LinkId | null>(null), controller = useRef<Connections | null>(null);
   const settings = useRef<DrawSettings>({ ...readPreferences(), shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' });
   useEffect(() => {
     if (!engine) return;
-    const connections = installConnections(context.workspace, engine, setSelected); controller.current = connections; installed.set(context.workspace, connections);
+    const connections = installConnections(context.workspace, engine, id => { setSelected(id); onSelectionChange(id); }); controller.current = connections; installed.set(context.workspace, connections);
     return () => { connections.dispose(); if (installed.get(context.workspace) === connections) installed.delete(context.workspace); controller.current = null; };
-  }, [context.workspace, engine]);
+  }, [context.workspace, engine, onSelectionChange]);
   if (!selected || !engine) return null;
   return <DrawingInspector context={context} target={{ kind: 'link', id: selected }} onSettings={next => { settings.current = next; }} onFinish={() => controller.current?.clear()} onArm={request => { if (request.kind === 'edit-points') beginPointEdit(context.workspace, engine, request.id); else engine.tool(drawingTool(engine, context.workspace, request.kind, () => settings.current, () => controller.current?.clear())); }} />;
 }
