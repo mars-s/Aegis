@@ -58,7 +58,14 @@ camera bookmarks, focus return and the chart renderer remain integration work.
 Call `disposeDocumentSessions` before deliberately disposing a workspace. A
 false result retains a draft that cannot be flushed and must prevent navigation.
 
-All production source stays inside the two document folders. Existing UI suite
-files and shared contracts are unchanged. Verification details and the required
-integration patches are in the worker report under
-`~/.codex/orchestrate/aegis-react/evidence/documents/`.
+All production changes stay inside the two document folders. The document UI
+checks select real React controls, the shared editor shell and mounted sheet
+rows. They retain the original assertions and expected values. React context
+checks verify real source content and exact camera geometry under the static
+zoom ruling. Legacy checks retain their compact reference assertions.
+
+Parity results and exact cross-owner proposals are recorded under
+`~/.codex/orchestrate/aegis-react/evidence/fix-documents/` and in
+`~/.codex/orchestrate/aegis-react/reports/fix-documents-final.md`. Conditional
+verification copies include those proposed changes. They do not prove parity
+on the worker branch until the integration owner lands the proposals.
