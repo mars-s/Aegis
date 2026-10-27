@@ -5,36 +5,40 @@
 import { spawn } from 'node:child_process';
 import { cp, mkdir, readdir, readFile, rename, rm, stat } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import type { HostLifetime } from './lifetime.js';
 import { randomBytes } from 'node:crypto';
 
-const run = (cmd, args, cwd) => new Promise((resolve) => {
-  const child = spawn(cmd, args, { cwd, env: { ...process.env, FORCE_COLOR: '0' } });
+const run = (cmd: string, args: string[], cwd: string, signal?: AbortSignal): Promise<{ code: number | null; out: string }> => new Promise((resolve) => {
+  const child = spawn(cmd, args, { cwd, env: { ...process.env, FORCE_COLOR: '0' }, detached: process.platform !== 'win32' });
+  const abort = () => { if (child.pid) { try { if (process.platform === 'win32') child.kill(); else process.kill(-child.pid, 'SIGTERM'); } catch {} } };
+  signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
   let out = '';
-  child.stdout.on('data', d => { out += d; }); child.stderr.on('data', d => { out += d; });
-  child.on('close', code => resolve({ code, out: out.slice(-4000) }));
-  child.on('error', e => resolve({ code: -1, out: String(e) }));
+  child.stdout.on('data', (d: unknown) => { out = (out + String(d)).slice(-4000); }); child.stderr.on('data', (d: unknown) => { out = (out + String(d)).slice(-4000); });
+  child.on('close', code => { signal?.removeEventListener('abort', abort); resolve({ code, out }); });
+  child.on('error', error => { signal?.removeEventListener('abort', abort); resolve({ code: -1, out: String(error) }); });
 });
 
 // A built UI is usable when it has an index.html whose scripts and styles all exist.
-export async function checkBuilt(dir) {
+export async function checkBuilt(dir: string): Promise<{ ok: true; files: number } | { ok: false; reason: string }> {
   const html = await readFile(join(dir, 'index.html'), 'utf8').catch(() => null);
   if (!html) return { ok: false, reason: 'no index.html' };
   const protocol = /<meta\s+name=["']aegis-ui-protocol["']\s+content=["']([^"']+)["']/i.exec(html)?.[1] ?? '1';
   if (protocol !== '1') return { ok: false, reason: `unsupported UI protocol ${protocol}` };
-  const refs = [...html.matchAll(/(?:src|href)="\.?\/?([^"]+\.(?:js|css))"/g)].map(m => m[1]);
+  const refs = [...html.matchAll(/(?:src|href)="\.?\/?([^"]+\.(?:js|css))"/g)].flatMap(m => m[1] ? [m[1]] : []);
   if (!refs.length) return { ok: false, reason: 'index.html loads no scripts' };
   for (const ref of refs) if (!(await stat(join(dir, ref)).catch(() => null))?.isFile()) return { ok: false, reason: `missing ${ref}` };
   return { ok: true, files: refs.length };
 }
 
-export function createUiUpdater({ data, appDir, onChange }) {
+export function createUiUpdater({ data, appDir, onChange, lifetime }: { data: string; appDir: string; onChange?: () => void; lifetime?: HostLifetime }) {
   const root = join(data, 'ui');
-  let busy = null;
-  const steps = [];
-  const log = (step, detail = '') => { steps.push({ at: Date.now(), step, detail }); if (steps.length > 40) steps.shift(); onChange?.(); };
+  const execute = (cmd: string, args: string[], cwd: string) => lifetime ? lifetime.run(signal => run(cmd, args, cwd, signal)) : run(cmd, args, cwd);
+  let busy: { id: string } | null = null;
+  const steps: { at: number; step: string; detail: string }[] = [];
+  const log = (step: string, detail = '') => { steps.push({ at: Date.now(), step, detail }); if (steps.length > 40) steps.shift(); onChange?.(); };
 
   async function status() {
-    const names = await readdir(root).catch(() => []);
+    const names: string[] = await readdir(root).catch(() => []);
     return {
       installed: names.includes('current'),
       previous: names.filter(n => n.startsWith('previous-')).sort().reverse(),
@@ -45,7 +49,7 @@ export function createUiUpdater({ data, appDir, onChange }) {
 
   // Build the app source at `source` (default: this checkout's app folder), check it and swap it in.
   // `from` installs an already built folder instead (used by checks and by a lane's preview build).
-  async function install({ source = appDir, from } = {}) {
+  async function install({ source = appDir, from }: { source?: string; from?: string } = {}) {
     if (busy) throw Object.assign(new Error('an update is already running'), { status: 409 });
     const id = `${new Date().toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}-${randomBytes(2).toString('hex')}`;
     busy = { id };
@@ -58,10 +62,10 @@ export function createUiUpdater({ data, appDir, onChange }) {
       } else {
         const sourceRoot = dirname(source);
         log('check', 'npm run check');
-        const check = await run('npm', ['run', 'check'], sourceRoot);
+        const check = await execute('npm', ['run', 'check'], sourceRoot);
         if (check.code !== 0) { log('refused', 'type check failed'); return { ok: false, step: 'check', out: check.out }; }
         log('build', 'vite build');
-        const build = await run('npm', ['--workspace', '@aegis/app', 'run', 'build', '--', '--outDir', incoming, '--emptyOutDir'], sourceRoot);
+        const build = await execute('npm', ['--workspace', '@aegis/app', 'run', 'build', '--', '--outDir', incoming, '--emptyOutDir'], sourceRoot);
         if (build.code !== 0) { log('refused', 'build failed'); return { ok: false, step: 'build', out: build.out }; }
       }
       const verdict = await checkBuilt(incoming);
@@ -69,8 +73,10 @@ export function createUiUpdater({ data, appDir, onChange }) {
       log('swap', id);
       const current = join(root, 'current');
       const had = !!(await stat(current).catch(() => null));
-      if (had) await rename(current, join(root, `previous-${id}`));
-      await rename(incoming, current);
+      const previous = join(root, `previous-${id}`);
+      if (had) await rename(current, previous);
+      try { await rename(incoming, current); }
+      catch (error) { if (had) await rename(previous, current); throw error; }
       // Keep the three most recent previous versions for rollback.
       const old = (await readdir(root)).filter(n => n.startsWith('previous-')).sort().reverse().slice(3);
       for (const n of old) await rm(join(root, n), { recursive: true, force: true });
