@@ -494,6 +494,7 @@ export function Library({
             {title(item)}
             <MenuButton
               className="row-more icon-btn"
+              menuClass="ctx-menu"
               label={`More actions for ${item.name}`}
               items={menu(item)}
             >

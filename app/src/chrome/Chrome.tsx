@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
@@ -31,6 +38,26 @@ import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
 import "./chrome.css";
+
+function setZoom(
+  engine: CanvasEngine,
+  zoom: number,
+  changed: (() => void) | undefined,
+): void {
+  const camera = engine.camera(),
+    next = Math.max(0.05, Math.min(4, zoom)),
+    ratio = next / camera.zoom;
+  engine.navigate({
+    kind: "restore",
+    camera: {
+      x: innerWidth / 2 - (innerWidth / 2 - camera.x) * ratio,
+      y: innerHeight / 2 - (innerHeight / 2 - camera.y) * ratio,
+      zoom: next,
+    },
+    motion: "instant",
+  });
+  changed?.();
+}
 
 export interface ChromeProps {
   readonly context: FeatureContext;
@@ -67,7 +94,7 @@ export function Chrome({
     [notice, setNotice] = useState<Notice | null>(null),
     [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
   const toolbar = useToolbar();
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.body.dataset.toolSize = toolbar.size;
   }, [toolbar.size]);
   useEffect(() => {
@@ -369,19 +396,7 @@ export function Chrome({
       notify({ text: result.errors.map((error) => error.reason).join("\n") });
   }
   function zoom(scale: number): void {
-    const camera = engine.camera(),
-      next = Math.max(0.05, Math.min(4, camera.zoom * scale)),
-      ratio = next / camera.zoom;
-    engine.navigate({
-      kind: "restore",
-      camera: {
-        x: innerWidth / 2 - (innerWidth / 2 - camera.x) * ratio,
-        y: innerHeight / 2 - (innerHeight / 2 - camera.y) * ratio,
-        zoom: next,
-      },
-      motion: "instant",
-    });
-    cameraChanged?.();
+    setZoom(engine, engine.camera().zoom * scale, cameraChanged);
   }
   const actions: readonly ActionRegistration[] = useMemo(
     () => [
@@ -496,7 +511,19 @@ export function Chrome({
             [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel,
           },
         });
-      } else if (!mod && !event.altKey && name === "0") {
+      } else if (mod && name === "0") {
+        setZoom(engine, 1, current.current.cameraChanged);
+      } else if (mod && (name === "+" || name === "=" || name === "-")) {
+        setZoom(
+          engine,
+          engine.camera().zoom * (name === "-" ? 0.8 : 1.25),
+          current.current.cameraChanged,
+        );
+      } else if (
+        !mod &&
+        !event.altKey &&
+        (name === "0" || (event.shiftKey && event.code === "Digit1"))
+      ) {
         engine.navigate({ kind: "fit", ids: [], motion: "instant" });
         current.current.cameraChanged?.();
       } else if (mod && name === "k" && ask) ask(ids);
@@ -791,7 +818,11 @@ export function Chrome({
           <button
             id="sideBtn"
             className="icon-btn"
-            aria-label="Library and Windows"
+            aria-label={
+              ui.leftPanel
+                ? "Hide windows and library"
+                : "Show windows and library"
+            }
             aria-expanded={ui.leftPanel}
             onClick={() => setOpen("left", !ui.leftPanel)}
           >
@@ -839,18 +870,10 @@ export function Chrome({
                   cameraChanged?.();
                 },
               },
-              {
-                title: "100%",
-                run: () => {
-                  const camera = engine.camera();
-                  engine.navigate({
-                    kind: "restore",
-                    camera: { ...camera, zoom: 1 },
-                    motion: "instant",
-                  });
-                  cameraChanged?.();
-                },
-              },
+              ...[0.25, 0.5, 1, 2].map((value) => ({
+                title: `${value * 100}%`,
+                run: () => setZoom(engine, value, cameraChanged),
+              })),
             ]}
           >
             <span aria-label="Zoom menu">Zoom</span>
@@ -976,12 +999,12 @@ export function Chrome({
           className="tools-popover"
         >
           <div className="tools-grid">{dockIds.slice(6).map(toolButton)}</div>
+          {customiseToolbar ? (
+            <button aria-label="Customise toolbar" onClick={customiseToolbar}>
+              Customise toolbar
+            </button>
+          ) : null}
         </PopupButton>
-        {customiseToolbar ? (
-          <button aria-label="Customise toolbar" onClick={customiseToolbar}>
-            Customise toolbar
-          </button>
-        ) : null}
         <button
           disabled={!history.undo}
           onClick={() => context.workspace.undo()}
