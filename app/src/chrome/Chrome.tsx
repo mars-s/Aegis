@@ -735,7 +735,11 @@ export function Chrome({
       const ids = parsed.data.ids.filter(id => context.workspace.record(id).getSnapshot() !== null);
       context.workspace.act({ kind: 'select', ids });
       menu.setTrigger(stage);
-      menu.setItems(stackMenu(context, ids, notify));
+      menu.setItems([
+        { title: "Duplicate", run: () => duplicateCards(context, ids, notify) },
+        ...stackMenu(context, ids, notify),
+        { title: "Delete", run: () => { void deleteCards(context, ids, notify); } },
+      ]);
       menu.open(event, { x: parsed.data.x, y: parsed.data.y });
     };
     stage.addEventListener("contextmenu", open);

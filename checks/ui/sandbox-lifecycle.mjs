@@ -25,7 +25,15 @@ try {
     aegis.apply([{op:'create',newId:'snapshotsecond',type:'object',kind:'html',text:'Second widget',x:700,y:150,w:300,h:250,data:{html:'<p id=second>Second view</p>',css:'',js:'window.aegisState={count:0};'}}]);
    });
    const open=async()=>{await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();await page.evaluate(()=>{aegis.canvas.select(['snapshotwidget']);document.getElementById('stage').focus();});await page.keyboard.press('Enter');await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.id==='snapshotwidget');await page.frameLocator('.side-editor iframe').locator('#queue').waitFor();};
-   await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();await page.frameLocator('.card[data-id="snapshotsecond"] iframe').locator('#second').waitFor();await page.evaluate(()=>aegis.flush());await open();
+   await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();await page.frameLocator('.card[data-id="snapshotsecond"] iframe').locator('#second').waitFor();await page.evaluate(()=>aegis.flush());
+   let releaseLoad;const loadHeld=new Promise(resolve=>{releaseLoad=resolve;});
+   await page.route('**/sandbox/*',async route=>{await loadHeld;await route.continue();});
+   await page.evaluate(()=>{aegis.canvas.select(['snapshotwidget']);document.getElementById('stage').focus();});await page.keyboard.press('Enter');
+   await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.id==='snapshotwidget');await page.locator('.side-editor [data-close]').click();
+   await page.waitForTimeout(100);check(await page.evaluate(()=>aegis.workspace.ui.getSnapshot().editor?.id),'snapshotwidget','early close retains the editor until its real sandbox has loaded');
+   releaseLoad();await page.waitForFunction(()=>!aegis.workspace.ui.getSnapshot().editor);await page.unroute('**/sandbox/*');
+   check(await page.evaluate(()=>document.querySelector('.side-editor')?.textContent.includes('Could not capture')??false),false,'early close completes after load and snapshot acknowledgement');
+   await open();
    const observe=async()=>page.evaluate(()=>{
     window.departureAction='close';window.ackEvents=[];window.departureRetention=[];window.canvasHeights=[];
     addEventListener('message',event=>{

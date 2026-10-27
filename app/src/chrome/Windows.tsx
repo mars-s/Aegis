@@ -8,6 +8,7 @@ import { MenuButton, Icon } from "./controls.js";
 import { cardLabel, descendants, layerParents, useBoard } from "./model.js";
 import { deleteCards, submit } from "./actions.js";
 import type { Notify } from "./actions.js";
+import { collectionLayout } from "@aegis/domain/collection";
 import { confirmAction } from "../lib/ui/confirm.js";
 
 interface LayerRow {
@@ -337,9 +338,10 @@ export function Layers({
                   (item) => item.id === row.parent,
                 );
                 if (parent?.type === "coll") {
-                  notify({
-                    text: "Collection reordering needs the editing service.",
-                  });
+                  const kids = (parent.props?.kids ?? []).filter(id => id !== source), index = kids.indexOf(card.id);
+                  if (index < 0) return;
+                  kids.splice(index + (above ? 0 : 1), 0, source);
+                  submit(context, collectionLayout(board, parent, kids), notify);
                   return;
                 }
                 const moving = descendants(board, [source], parents).map(

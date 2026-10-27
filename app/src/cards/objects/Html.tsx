@@ -33,6 +33,8 @@ export function Html({
     latest = useRef(data),
     channel = useRef(""),
     capturing = useRef(false),
+    loaded = useRef(false),
+    loadWaiters = useRef(new Set<() => void>()),
     viewState = useRef<string | undefined>(undefined),
     measuredHeight = useRef(data.height ?? 240);
   const { set } = useObjectEditing();
@@ -60,6 +62,16 @@ export function Html({
   useEffect(() => {
     latest.current = data;
   }, [data]);
+  function waitForLoad(signal: AbortSignal): Promise<boolean> {
+    if (signal.aborted) return Promise.resolve(false);
+    if (loaded.current) return Promise.resolve(true);
+    return new Promise(resolve => {
+      const finish = (ready: boolean) => { clearTimeout(timer); loadWaiters.current.delete(readyNow); signal.removeEventListener("abort", aborted); resolve(ready); };
+      const readyNow = () => finish(true), aborted = () => finish(false);
+      const timer = setTimeout(() => finish(false), 1500);
+      loadWaiters.current.add(readyNow); signal.addEventListener("abort", aborted, { once: true });
+    });
+  }
   function preferences() {
     const styles = getComputedStyle(frame.current ?? document.documentElement);
     return {
@@ -98,6 +110,7 @@ export function Html({
     const lifetime = new AbortController(),
       ownChannel = crypto.randomUUID();
     channel.current = ownChannel;
+    loaded.current = false;
     viewState.current = undefined;
     const { theme, motionOff, scheme } = preferences(),
       state = latest.current.state;
@@ -158,22 +171,26 @@ export function Html({
     const release = retainObjectPreparation(workspace, cardId, signal => {
       if (!active()) return Promise.resolve(true);
       if (pending) return pending;
-      const card = workspace.record(cardId).getSnapshot();
-      if (card?.type !== "object" || card.kind !== "html") return Promise.resolve(false);
-      baseline = card.data.state;
-      if (baseline !== viewState.current) {
-        restoreCurrent();
-        setFailure("Could not capture custom UI (conflict). Newer saved state was restored. Try the action again.");
-        return Promise.resolve(false);
-      }
-      capturing.current = true;
-      pinObjectDraft(engine, cardId, token, true);
-      setFailure("");
-      pending = snapshot.request(AbortSignal.any([signal, lifetime.signal])).then(result => {
+      const captureSignal = AbortSignal.any([signal, lifetime.signal]);
+      capturing.current = true; pinObjectDraft(engine, cardId, token, true); setFailure("");
+      pending = (async () => {
+        if (!await waitForLoad(captureSignal)) {
+          if (!captureSignal.aborted) setFailure("Could not capture custom UI (timeout). Try the action again.");
+          return false;
+        }
+        const card = workspace.record(cardId).getSnapshot();
+        if (!active() || card?.type !== "object" || card.kind !== "html") return false;
+        baseline = card.data.state;
+        if (baseline !== viewState.current) {
+          restoreCurrent();
+          setFailure("Could not capture custom UI (conflict). Newer saved state was restored. Try the action again.");
+          return false;
+        }
+        const result = await snapshot.request(captureSignal);
         if (result.kind === "refused" && result.reason === "conflict") restoreCurrent();
         if (result.kind === "refused" && !lifetime.signal.aborted && result.reason !== "aborted") setFailure(`Could not capture custom UI (${result.reason}). Try the action again.`);
         return result.kind === "accepted";
-      }).finally(() => { pending = null; capturing.current = false; pinObjectDraft(engine, cardId, token, false); });
+      })().finally(() => { pending = null; capturing.current = false; pinObjectDraft(engine, cardId, token, false); });
       return pending;
     });
     return () => { lifetime.abort(); snapshot.dispose(); release(); pinObjectDraft(engine, cardId, token, false); };
@@ -248,8 +265,9 @@ export function Html({
         referrerPolicy="no-referrer"
         src={src || undefined}
         onLoad={() => {
-          syncPreferences();
-          syncState(true);
+          if (!src || frame.current?.getAttribute("src") !== src) return;
+          syncPreferences(); syncState(true); loaded.current = true;
+          for (const ready of [...loadWaiters.current]) ready();
         }}
         style={{ height }}
       />
