@@ -228,30 +228,70 @@ export function DocumentContext({
       context.workspace.ui.getSnapshot,
     );
   const root = useRef<HTMLElement>(null);
+  const restore = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    const engine = context.engine(), element = root.current;
-    if (!engine || !element) return;
+    const engine = context.engine(), element = root.current, button = restore.current;
+    const stage = document.getElementById("stage");
+    if (!engine || !element || !button || !stage) return;
+    let cardIds = new Set(context.workspace.scene.snapshot().cards.map(card => card.id));
     let left = 0, top = 0, width = 0, hidden = false, height = 0;
+    let dismissed = false, recoveryHidden = true, recovering = false;
+    const dismiss = () => {
+      dismissed = true;
+      engine.invalidate();
+    };
+    const pointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && stage.contains(event.target)) dismiss();
+    };
+    const recover = () => {
+      if (!context.openEditor(sourceId, false)) return;
+      cardIds = new Set(context.workspace.scene.snapshot().cards.map(card => card.id));
+      dismissed = false;
+      recovering = true;
+      engine.invalidate();
+    };
     const stop = engine.registerFrameParticipant({
       read() {
         const area = engine.availableArea(), viewport = engine.viewport();
+        if (stage.classList.contains("panning")) dismissed = true;
         height = element.offsetHeight || height;
         width = Math.min(322, Math.max(0, area.width - 48));
         left = area.x + 24;
         top = area.y + 24;
         hidden = viewport.width <= 760 || width < 200 || area.height < height + 48;
+        recoveryHidden = !dismissed || viewport.width <= 760 || width < 160 || area.height < 80;
       },
       write() {
-        if (element.hidden !== hidden) element.hidden = hidden;
+        if (element.hidden !== (hidden || dismissed)) element.hidden = hidden || dismissed;
+        if (button.hidden !== recoveryHidden) button.hidden = recoveryHidden;
         if (element.style.left !== `${left}px`) element.style.left = `${left}px`;
         if (element.style.top !== `${top}px`) element.style.top = `${top}px`;
         if (element.style.width !== `${width}px`) element.style.width = `${width}px`;
+        if (button.style.left !== `${left}px`) button.style.left = `${left}px`;
+        if (button.style.top !== `${top}px`) button.style.top = `${top}px`;
+        if (recovering && !element.hidden) {
+          recovering = false;
+          engine.afterInput(() => element.querySelector<HTMLElement>('[role="combobox"]')?.focus({ preventScroll: true }));
+        }
       },
+    });
+    const stopBoard = context.workspace.scene.subscribe(change => {
+      if (change.kind === "replace" || change.removed.length || change.upserted.some(card => !cardIds.has(card.id))) dismiss();
     });
     const observer = new ResizeObserver(() => engine.invalidate());
     observer.observe(element);
+    document.addEventListener("pointerdown", pointer, true);
+    stage.addEventListener("pointerup", pointer);
+    stage.addEventListener("wheel", dismiss, { passive: true });
+    button.addEventListener("click", recover);
     engine.invalidate();
-    return () => { observer.disconnect(); stop(); };
+    return () => {
+      observer.disconnect(); stop(); stopBoard();
+      document.removeEventListener("pointerdown", pointer, true);
+      stage.removeEventListener("pointerup", pointer);
+      stage.removeEventListener("wheel", dismiss);
+      button.removeEventListener("click", recover);
+    };
   }, [context, sourceId, ui.editor?.view]);
   const parsed = RegionSchema.safeParse(source?.props?.editorReference);
   const candidates = source ? referenceCandidates(board, source) : [];
@@ -279,6 +319,7 @@ export function DocumentContext({
   if (!source || ui.editor?.view === "full") return null;
   const summary = cardSummary(source);
   return (
+    <>
     <section ref={root} className="document-context" aria-label="Editor context">
       <button
         className="editor-context-source"
@@ -349,5 +390,9 @@ export function DocumentContext({
         ) : null}
       </section>
     </section>
+    <button ref={restore} type="button" className="document-reference-restore" hidden>
+      Show references
+    </button>
+    </>
   );
 }
