@@ -26,6 +26,7 @@ import {
   submit,
 } from "./actions.js";
 import type { Notify } from "./actions.js";
+import { restack } from './Stacking.js';
 import { useCreativeServices } from "../features/media/services.js";
 import {
   collectSelection,
@@ -673,24 +674,12 @@ export function Selection({
                     </button>
                   ) : null}
                   <button
-                    onClick={() =>
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "front" }],
-                        notify,
-                      )
-                    }
+                    onClick={() => restack(context, ids, 'front', notify)}
                   >
                     Bring to front
                   </button>
                   <button
-                    onClick={() =>
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "back" }],
-                        notify,
-                      )
-                    }
+                    onClick={() => restack(context, ids, 'back', notify)}
                   >
                     Send to back
                   </button>
