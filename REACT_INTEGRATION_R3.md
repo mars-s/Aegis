@@ -1,5 +1,140 @@
 # React integration round 3
 
+Status: round 3 integration and evidence handoff complete. React parity remains incomplete.
+
+Branch: codex/react-port. Tested source: fd10e98be60e27f58ce0807d1ef81c74ec9e68d6. Worktree: /tmp/aegis-wt/react/integration. No PR was requested or opened. Every code unit and merge was committed and pushed. The final publication commit changes this report only.
+
+## Final results
+
+| Implementation | Passing suites | Passing / invoked assertion calls | Failed calls |
+| --- | --- | --- | --- |
+| legacy | 44 / 44 | 19,612 / 19,614 | 2 |
+| react | 19 / 44 | 13,400 / 13,419 | 19 |
+
+Both complete matrices ran at the same clean committed source. Coverage is the original declared Chromium/WebKit matrix, and a failing suite can stop before its later browser fixtures. Counts are actual assertion calls. Each semantic-zoom run intentionally catches two negative geometry assertions; these account for both failed calls in the fully passing legacy matrix. Timeouts can fail a suite without invoking a failing assert. The two helper modules are covered through parents, not counted as extra passing suites.
+
+The full root npm run check passes: 262 unit tests, 242 host tests, strict root/React/host types, lint, dependencies and import ownership. The safe-type ratchet is unchanged at 24 legacy findings. Svelte has zero errors and seven existing warnings. Evidence: context-final-check and chrome-ancestry-check.
+
+The final normal build ran with AEGIS_UI_IMPL and AEGIS_TEST_FACADE unset. Its aegis-build.json records implementation legacy and facade false. None of the eight explicit browser test-entry outputs exists. Legacy remains the default. This is local build and browser evidence; native 120 Hz and deployment are unverified.
+
+## Reported heads integrated
+
+| Slice | Reported head | Integration outcome |
+| --- | --- | --- |
+| agents | 541477b | Already inherited at checkpoint |
+| chrome | b38eae7 | Exact report head merged as fd10e98; no source-tree change |
+| decks | 317593e | Already inherited; explicit merge and full root check repeated |
+| creative | 4b69fe0 | Merged as 502bd5d |
+| data | 96609c4 | Merged as c8d45af |
+| documents | f8b6f85 | Merged as 4af4d43 |
+| objects | 68b6064 | Merged as 345f371 |
+| scene | eab41a5 | Merged as b237abb |
+| host | e4048f9 | Verified no-change report; head already inherited |
+| legacy-green | 5084cd0 | Merged as dd3cd45 |
+
+All ten heads are verified ancestors in final-source-audit.json. Every actual merge received the full root gate and was pushed. The final legacy merge follows its owner's two consecutive 44/44 runs at the same reported head, then integration's own final 44/44 run.
+
+The ancestry audit corrected an earlier reporting mistake: Chrome's authored changes were inherited, but b38eae7 itself was not yet an ancestor. Its exact merge changed no source code. The partial r3-final-react run was cancelled and excluded; both authoritative matrices were restarted at fd10e98. The older r3-full-react result is historical evidence only. No targeted pass replaces a failure in the final matrix.
+
+## Request rulings and remaining work
+
+Every open request has a one-line ruling in /Users/avi/.codex/orchestrate/aegis-react/integration-log.md. Accepted integration changes include real double-click/Enter editor dispatch; native key and Escape ownership; camera, selection and focus return; available-area editor fitting; hidden-rail discovery; Shift+Cmd+K capture and preference restoration; the real fetch-SSE race observer; first-minute flush/disposal; shared controls, typography, device and colour pickers; document/reference composition; pointer and crop ownership; canonical chart/preview decoding; notifications; guarded synchronous board replacement; scoped deletion Undo; typed nested-canvas creation; one-shot deck placement; and discrete wireframe carry policies. The unit evidence below records actual checks and limitations.
+
+Open belongs to registered full editors. Inline notes retain Edit, which focuses the actual contenteditable. The added focus assertion preserves all 47 original context-related assertion calls and their arguments. Original expectations and timeouts remain intact.
+
+CreativeConnections stays unmounted under inbox/integration-connection-contract.md because it rebuilds all-link SVG hit paths during busy camera frames. The creative follow-up requires bounded cached picking and selected-link controls before an exact mount proposal. Snapping, guides and atomic wireframe parenting remain scene work. Explicit asynchronous sandbox snapshot acknowledgement remains an object/protocol follow-up; current synchronous state tests do not prove it.
+
+Important remaining failures:
+
+- WebKit first-update delivery: editor-return stops at :54 and deck-studio at :96. Diagnostics show a committed host update and an unchanged UI revision; a common cause is plausible but unproven. No-store and stream-identity experiments failed and were removed.
+- Editor selection return: the final editor-context run fails at :65, called by the Chromium source-alone scenario at :400. The camera is exact, but contextdoc selection becomes empty after closing. Earlier 1037-assertion passes are retained as history, not substituted for this final failure.
+- Selected-card culling: WebKit data-trust stops at :109. Its visible and saved text size is 25, but the selected title body is absent. A bounded active-formatting visibility policy is still required.
+- Other original feature/control failures remain in the ledger below, including connection inspection, focus mode, nested Canvas UI, hidden Settings discovery, reference recovery, typography, icon creation and agent motion/cues.
+
+The proposed facade glide-completion rewrite was discarded: engine.busy already includes queued input, and that rewrite did not repair overview's painted-route failure. No adaptive zoom, test/gate weakening, fake adapter, real-data operation, default switch, force-push or PR was introduced. Main PRODUCT.md and .scratch remain present and untouched by this work. Three unrelated pre-existing stashes are retained. The reconciled integration draft was exported before its own stash was removed.
+
+## Fresh follow-up briefs
+
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-agents-r2.md: agents, agent-motion, agent-edges.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-chrome-r2.md: canvas, library, imports, parity, polish, design-system, canvas-chrome, first-minute.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-creative-r2.md: draw, media, wireframe.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-documents-r2.md: editor-context, fit-finish, spatial-interaction, spatial-memory.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-objects-r2.md: editing.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-replication-r2.md: editor-return, deck-studio.
+- /Users/avi/.codex/orchestrate/aegis-react/briefs/fix-scene-r2.md: pan, orb-capture, data-trust, overview-model.
+
+The seven published briefs assign all 25 failing suites exactly once, with 33 validated helper/action and scenario source locations. Previous briefs are backed up under evidence/integration-r3/briefs-before-r3. Contracts are updated to v3. publication-audit.json verifies the published files against the audited drafts and official ledger.
+
+## Authoritative ledger snapshot
+
+| Suite | Legacy | React | Owner | Passing / invoked calls (legacy; React) | First React failure |
+| --- | --- | --- | --- | --- | --- |
+| canvas | PASS | FAIL | chrome | 196/196 (0 failed calls); 15/16 (1 failed calls) | checks/ui/canvas.mjs:26 (scenario checks/ui/canvas.mjs:101) |
+| library | PASS | FAIL | chrome | 202/202 (0 failed calls); 91/91 (0 failed calls) | checks/ui/library.mjs:38 (scenario checks/ui/library.mjs:208) |
+| docs | PASS | PASS | documents | 122/122 (0 failed calls); 122/122 (0 failed calls) | None |
+| editors | PASS | PASS | documents | 51/51 (0 failed calls); 51/51 (0 failed calls) | None |
+| deck | PASS | PASS | decks | 257/257 (0 failed calls); 257/257 (0 failed calls) | None |
+| draw | PASS | FAIL | creative | 127/127 (0 failed calls); 5/5 (0 failed calls) | checks/ui/draw.mjs:114 |
+| media | PASS | FAIL | creative | 66/66 (0 failed calls); 63/63 (0 failed calls) | checks/ui/media.mjs:327 |
+| imports | PASS | FAIL | chrome | 143/143 (0 failed calls); 112/113 (1 failed calls) | checks/ui/imports.mjs:185 |
+| wireframe | PASS | FAIL | creative | 129/129 (0 failed calls); 16/17 (1 failed calls) | checks/ui/wireframe.mjs:79 |
+| editing | PASS | FAIL | objects | 147/147 (0 failed calls); 11/12 (1 failed calls) | checks/ui/editing.mjs:60 |
+| svelte | PASS | PASS | objects | 15/15 (0 failed calls); 15/15 (0 failed calls) | None |
+| genui | PASS | PASS | objects | 652/652 (0 failed calls); 652/652 (0 failed calls) | None |
+| parity | PASS | FAIL | chrome | 47/47 (0 failed calls); 5/5 (0 failed calls) | checks/ui/parity.mjs:47 |
+| agent-types | PASS | PASS | agents | 18/18 (0 failed calls); 18/18 (0 failed calls) | None |
+| agents | PASS | FAIL | agents | 121/121 (0 failed calls); 41/41 (0 failed calls) | checks/ui/agents.mjs:151 |
+| agent-motion | PASS | FAIL | agents | 163/163 (0 failed calls); 9/10 (1 failed calls) | checks/ui/agent-motion.mjs:106 |
+| polish | PASS | FAIL | chrome | 384/384 (0 failed calls); 10/10 (0 failed calls) | checks/ui/chrome.mjs:93 (scenario checks/ui/polish.mjs:50) |
+| pan | PASS | FAIL | scene | 177/177 (0 failed calls); 167/168 (1 failed calls) | checks/ui/pan.mjs:50 (scenario checks/ui/pan.mjs:140) |
+| agent-edges | PASS | FAIL | agents | 127/127 (0 failed calls); 83/84 (1 failed calls) | checks/ui/agent-edges.mjs:222 |
+| agent-race | PASS | PASS | replication | 24/24 (0 failed calls); 24/24 (0 failed calls) | None |
+| prod-composer | PASS | PASS | agents | 37/37 (0 failed calls); 37/37 (0 failed calls) | None |
+| orb-capture | PASS | FAIL | scene | 87/87 (0 failed calls); 24/25 (1 failed calls) | checks/ui/orb-capture.mjs:12 (scenario checks/ui/orb-capture.mjs:99) |
+| agent-drafts | PASS | PASS | agents | 17/17 (0 failed calls); 17/17 (0 failed calls) | None |
+| ask-selection | PASS | PASS | agents | 10/10 (0 failed calls); 10/10 (0 failed calls) | None |
+| office | PASS | PASS | data | 13/13 (0 failed calls); 13/13 (0 failed calls) | None |
+| editor-return | PASS | FAIL | replication | 141/141 (0 failed calls); 71/71 (0 failed calls) | checks/ui/editor-return.mjs:54 |
+| editor-context | PASS | FAIL | documents | 613/613 (0 failed calls); 515/516 (1 failed calls) | checks/ui/editor-context.mjs:65 (scenario checks/ui/editor-context.mjs:400) |
+| chart-defaults | PASS | PASS | data | 105/105 (0 failed calls); 105/105 (0 failed calls) | None |
+| deck-studio | PASS | FAIL | replication | 989/989 (0 failed calls); 248/248 (0 failed calls) | checks/ui/deck-studio.mjs:96 |
+| data-import | PASS | PASS | data | 12/12 (0 failed calls); 12/12 (0 failed calls) | None |
+| mcp | PASS | PASS | host | 27/27 (0 failed calls); 27/27 (0 failed calls) | None |
+| design-system | PASS | FAIL | chrome | 288/288 (0 failed calls); 90/90 (0 failed calls) | checks/ui/design-system.mjs:127 |
+| controls-polish | PASS | PASS | chrome | 514/514 (0 failed calls); 514/514 (0 failed calls) | None |
+| fit-finish | PASS | FAIL | documents | 738/738 (0 failed calls); 163/164 (1 failed calls) | checks/ui/fit-finish.mjs:55 (scenario checks/ui/fit-finish.mjs:126) |
+| canvas-chrome | PASS | FAIL | chrome | 361/361 (0 failed calls); 16/17 (1 failed calls) | checks/ui/canvas-chrome.mjs:88 |
+| data-trust | PASS | FAIL | scene | 188/188 (0 failed calls); 219/219 (0 failed calls) | checks/ui/data-trust.mjs:109 |
+| first-minute | PASS | FAIL | chrome | 130/130 (0 failed calls); 108/109 (1 failed calls) | checks/ui/first-minute.mjs:154 |
+| semantic-zoom | PASS | PASS | scene | 1348/1350 (2 failed calls); 1348/1350 (2 failed calls) | None |
+| overview-model | PASS | FAIL | scene | 6313/6313 (0 failed calls); 3619/3620 (1 failed calls) | checks/ui/overview-model.mjs:189 |
+| evidence-fidelity | PASS | PASS | data | 2333/2333 (0 failed calls); 2333/2333 (0 failed calls) | None |
+| spatial-interaction | PASS | FAIL | documents | 108/108 (0 failed calls); 97/100 (3 failed calls) | checks/ui/spatial-interaction.mjs:137 (scenario checks/ui/spatial-interaction.mjs:196) |
+| spatial-memory | PASS | FAIL | documents | 242/242 (0 failed calls); 217/218 (1 failed calls) | checks/ui/spatial-memory.mjs:157 |
+| trust-undo | PASS | PASS | replication | 60/60 (0 failed calls); 60/60 (0 failed calls) | None |
+| crop-a11y | PASS | PASS | objects | 1770/1770 (0 failed calls); 1770/1770 (0 failed calls) | None |
+
+Official ledger: /Users/avi/.codex/orchestrate/aegis-react/parity-ledger.tsv. It retains the original six-column schema: 44 suite rows and two VIA PARENTS helper rows. Helper calls are already included above.
+
+## Reproduction and evidence
+
+The complete evidence root is /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3. Every suite directory retains command.json, run.log, source.diff and observed assertion events, plus any original screenshots/metrics. command.json records source SHA, clean/dirty state, isolated data/cache locations, implementation, command, exit, duration and actual call counts. Hosts and browser invocations used disposable AEGIS_DATA and AEGIS_VITE_CACHE within the assigned physical port block 4100-4119. No provider credential files or real app data were used.
+
+Final commands:
+
+- python3 /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3/run.py chrome-ancestry-check legacy -- npm run check
+- python3 /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3/run.py r3-verified-react react
+- python3 /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3/run.py r3-verified-legacy legacy
+- python3 /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3/write-ledger.py r3-verified-react r3-verified-legacy
+- python3 /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3/write-briefs.py --publish
+- npm --workspace @aegis/app run build, with both implementation/facade overrides unset, recorded in normal-default-build/command.json.
+
+Machine-readable results: final-summary.json, final-evidence.json, final-source-audit.json, publication-audit.json and normal-default-build/command.json. Earlier failed experiments and partial runs are retained and excluded from final totals.
+
+## Earlier verified units
+
+The following is the historical unit record. Final results above take precedence over earlier targeted results.
+
 Branch: codex/react-port. Worktree: /tmp/aegis-wt/react/integration.
 Legacy remains the default. Evidence root: /Users/avi/.codex/orchestrate/aegis-react/evidence/integration-r3.
 
@@ -111,6 +246,6 @@ Merged the final reported legacy head 5084cd0 as dd3cd45 after its worker record
 
 Context actions now follow the actual editing capability. Registered full editors offer Open; inline text offers Edit and focuses the real contenteditable. Unsupported cards no longer offer a no-op Open. The added focus check preserves every original assertion and expected value. The AST audit records all 47 original assertion calls unchanged, with one additional static assertion.
 
-The Chrome check discovers the actual React document panel while retaining the legacy selector and all saved/source-furniture assertions. React design-system reaches 90 passing calls before the document Text colour control at :127 in both Chromium and WebKit. React polish reaches the quiet-source lifecycle at chrome.mjs:93; deck passes 257/257. Legacy design-system passes 288/288, including a separate WebKit run, and polish passes 384/384. Complete final matrices follow at a clean committed source.
+The Chrome check discovers the actual React document panel while retaining the legacy selector and all saved/source-furniture assertions. React design-system reaches 90 passing calls before the document Text colour control at :127 in both Chromium and WebKit. React polish reaches the quiet-source lifecycle at chrome.mjs:93; deck passes 257/257. Legacy design-system passes 288/288, including a separate WebKit run, and polish passes 384/384. The authoritative complete matrices are recorded above at a clean committed source.
 
 The final context unit passes the complete root npm run check in context-final-check, including all 262 unit and 242 host tests, strict types, lint, dependencies and the unchanged safe-type gate. No original UI assertion was removed or relaxed.
