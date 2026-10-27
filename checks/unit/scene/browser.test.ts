@@ -248,6 +248,22 @@ describe('real scene attachment', () => {
     } finally { await alternate?.close(); }
   });
 
+  test.each(['chromium', 'webkit'] as const)('a deferred Escape clear cannot overwrite a newer explicit selection in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(async () => {
+        const h = window.sceneHarness, stage = document.getElementById('stage');
+        h.select(['note-0']);
+        stage?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true }));
+        h.select(['note-2']);
+        await new Promise<void>(resolve => h.engine.afterInput(resolve));
+      }); await idle(p);
+      expect(await p.locator('.card.selected').getAttribute('data-id')).toBe('note-2');
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
     for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
       const p = await page();

@@ -136,9 +136,14 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     post(() => callback(boardId, commit));
   }
 
+  let selectionRequest = 0;
   function select(ids: readonly CardId[]): void {
+    const request = ++selectionRequest, previous = workspace.selection.getSnapshot();
     selected = new Set(ids);
-    post(() => workspace.act({ kind: 'select', ids }));
+    post(() => {
+      if (request !== selectionRequest || workspace.selection.getSnapshot() !== previous) return;
+      workspace.act({ kind: 'select', ids });
+    });
   }
 
   function boundsFor(node: SceneNode): Rect { return positions.get(node.card.id) ?? node.layout.bounds; }
