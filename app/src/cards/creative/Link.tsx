@@ -5,10 +5,12 @@ import { useCreativeServices } from '../../features/media/services.js';
 import { normaliseLink, spotifyHeight, spotifyOf } from '../../features/media/link-model.js';
 import { MediaDialog } from '../../features/media/MediaDialog.js';
 import { LinkProps } from './props.js';
+import { takeCardEdit } from '../../features/media/creation-edit.js';
 export function LinkBody({ cardId, workspace, engine }: CardBodyProps) {
   const card = useCard(workspace, cardId), services = useCreativeServices();
   const [editing, setEditing] = useState(false), [address, setAddress] = useState(''), [title, setTitle] = useState(''), [description, setDescription] = useState('');
   const input = useRef<HTMLInputElement>(null), boardId = workspace.metadata.getSnapshot().id;
+  useEffect(() => { if (takeCardEdit(workspace, cardId)) input.current?.focus({ preventScroll: true }); }, [workspace, cardId]);
   const props = LinkProps.parse(card?.props ?? {}), url = card?.url ?? '', loading = !!url && props.previewFor !== url;
   useEffect(() => {
     if (!loading) return;
@@ -34,11 +36,11 @@ export function LinkBody({ cardId, workspace, engine }: CardBodyProps) {
       close();
     } catch (error) { element.setCustomValidity(error instanceof Error ? error.message : String(error)); element.reportValidity(); }
   }
-  if (!url) return <input ref={input} className="url-input" placeholder="Paste a link" aria-label="Link address" onKeyDown={event => {
+  if (!url) return <input ref={input} className="url-input" placeholder="Paste a link" aria-label="Link address" onInput={event => engine.pin(cardId, 'dirty', !!event.currentTarget.value.trim())} onKeyDown={event => {
     event.stopPropagation(); const value = event.currentTarget.value.trim();
     if (event.key === 'Escape') { event.currentTarget.blur(); if (!value && !card.text && !props.title) workspace.submit([{ op: 'delete', ids: [cardId] }]); return; }
     if (event.key !== 'Enter' || !value) return;
-    try { const next = normaliseLink(value), spotify = spotifyOf(next); workspace.submit([{ op: 'update', id: cardId, set: { url: next, h: spotify ? spotifyHeight(spotify.kind) : 130, ...(spotify ? { w: 340 } : {}) } }]); } catch (error) { services.notify(error instanceof Error ? error.message : String(error)); }
+    try { const next = normaliseLink(value), spotify = spotifyOf(next); workspace.submit([{ op: 'update', id: cardId, set: { url: next, h: spotify ? spotifyHeight(spotify.kind) : 130, ...(spotify ? { w: 340 } : {}) } }]); engine.pin(cardId, 'dirty', false); } catch (error) { services.notify(error instanceof Error ? error.message : String(error)); }
   }} />;
   const spotify = spotifyOf(url);
   return <div className={`creative-link${loading ? ' link-loading' : ''}${spotify ? ' spotify-embed' : ''}`} aria-busy={loading}>

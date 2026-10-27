@@ -293,33 +293,34 @@ body.motion-off .genui button {
 .object-editor .side-editor-body {
   overflow: hidden;
 }
-.object-editor .object.expanded {
+.object.expanded {
+  position: relative;
   flex: 1;
   min-height: 0;
 }
-.object-editor .object.expanded > .content {
+.object.expanded > .content {
   padding: 32px clamp(20px, 4vw, 56px) 56px;
   outline-offset: -3px;
 }
-.object-editor .object.expanded > .genui {
+.object.expanded > .genui {
   font-size: 16px;
   line-height: 1.6;
 }
-.object-editor .object.expanded.form > .content,
-.object-editor .object.expanded.progress > .content,
-.object-editor .object.expanded.callout > .content {
+.object.expanded.form > .content,
+.object.expanded.progress > .content,
+.object.expanded.callout > .content {
   width: 100%;
   max-width: 800px;
   margin-inline: auto;
 }
-.object-editor .expanded.diagram .fit {
+.object.expanded.diagram .fit {
   min-width: 640px;
 }
-.object-editor.is-wide .expanded.diagram .fit {
+:is(.object-editor.is-wide, .side-editor.full) .object.expanded.diagram .fit {
   min-width: 0;
 }
 @media (max-width: 760px) {
-  .object-editor .object.expanded > .content {
+  .object.expanded > .content {
     padding: 24px 20px 40px;
   }
 }
@@ -337,6 +338,12 @@ body.motion-off .object-editor.is-open {
   display: flex;
   justify-content: end;
   margin: -12px 0 20px;
+}
+.text-edit-actions > [data-saved] {
+  align-self: center;
+  margin-right: auto;
+  color: var(--muted, var(--color-muted));
+  font: 400 12px/1.5 var(--font);
 }
 .genui .text-edit-toggle {
   border: 0;
@@ -375,7 +382,7 @@ body.motion-off .object-editor.is-open {
 .object-editor .side-editor-body {
   position: relative;
 }
-.object-editor .expanded.gallery > .content {
+.object.expanded.gallery > .content {
   container-type: normal;
 }
 /* PM6.2: guidance belongs beside the active generated text field. */

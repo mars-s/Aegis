@@ -8,7 +8,9 @@ import { frameAt, pieceCommands, screenCommand, wireCard } from './commands.js';
 import type { WirePlacement } from './WireframePanel.js';
 const stroke = () => ({ colour: { kind: 'theme', token: 'text' }, width: 1.5, dash: [] } as const);
 export function placementTool(engine: CanvasEngine, workspace: FeatureWorkspace, request: WirePlacement): SceneTool {
-  const exit = toolExit(engine, `wire-${request.kind}`);
+  const release = toolExit(engine, `wire-${request.kind}`);
+  let active = true;
+  const exit = () => { active = false; release(); };
   let start: ToolPointer | null = null;
   const commandsAt = (point: ToolPointer): readonly Command[] => {
     const grid = localStorage.getItem('aegis:wireframe-grid') === 'on' && !point.bypass;
@@ -20,10 +22,11 @@ export function placementTool(engine: CanvasEngine, workspace: FeatureWorkspace,
     if (request.kind === 'icon') return [wireCard({ type: 'icon', name: request.name, w: 40, h: 40, color: '#27272a' }, at.x, at.y)];
     return [wireCard(request.kind === 'section' ? { type: 'section', text: 'Section', w: 560, h: 360, fill: '#cbd5e1', radius: 24 } : { type: 'box', w: 160, h: 100, fill: '#e4e4e7', radius: 8, sw: 0 }, at.x, at.y)];
   };
-  return { id: `wire-${request.kind}`, accepts: point => point.button === 0, down: point => { start = point; }, move: points => {
+  return { id: `wire-${request.kind}`, accepts: point => active && point.button === 0, down: point => { if (active) start = point; }, move: points => {
+    if (!active) return;
     const point = points.at(-1); if (!point) return; engine.preview({ cursor: 'crosshair', primitives: [{ kind: 'rect', opacity: .6, space: 'world', bounds: { x: start ? Math.min(start.world.x, point.world.x) : point.world.x, y: start ? Math.min(start.world.y, point.world.y) : point.world.y, width: start ? Math.max(40, Math.abs(point.world.x - start.world.x)) : 160, height: start ? Math.max(24, Math.abs(point.world.y - start.world.y)) : 100 }, radius: 4, fill: null, stroke: stroke() }] });
   }, up: point => {
-    const initial = start; if (!initial) return;
+    const initial = start; if (!active || !initial) return;
     const dragged = Math.hypot(point.screen.x - initial.screen.x, point.screen.y - initial.screen.y) > 4;
     const commands = commandsAt(dragged ? initial : point).map(command => {
       if (command.op !== 'create') return command;

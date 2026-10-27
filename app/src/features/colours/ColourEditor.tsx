@@ -44,7 +44,7 @@ export function ColourEditor({ value, board, onChange, onClose, onSave, name = t
     fromHSV({ ...hsv, h: (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, s: Math.min(1, Math.hypot(dx, dy) / (bounds.width / 2)) });
   }
   const rows = [{ hex: '#000000', name: 'Black' }, { hex: '#ffffff', name: 'White' }, ...boardColours(board())].filter((row, i, list) => list.findIndex(p => p.hex === row.hex) === i);
-  return <dialog ref={dialog} className="colour-pop" aria-label="Colour editor" onCancel={onClose} onClose={onClose}>
+  return <dialog ref={dialog} className="colour-pop" aria-label="Colour editor" onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }} onClose={event => { event.stopPropagation(); onClose(); }}>
     <strong>Colour editor</strong>
     <div className="colour-wheel-wrap"><canvas ref={wheel} width={220} height={220} className="colour-wheel" role="slider" tabIndex={0} aria-label="Hue and saturation" aria-describedby={help} aria-valuemin={0} aria-valuemax={359} aria-valuenow={Math.round(hsv.h) % 360} aria-valuetext={`Hue ${Math.round(hsv.h)} degrees, saturation ${Math.round(hsv.s * 100)}%, brightness ${Math.round(hsv.v * 100)}%. ${draft.hex.toUpperCase()}`}
       onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); point(event); event.preventDefault(); }}
