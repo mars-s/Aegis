@@ -161,7 +161,7 @@ export function openDocument(card, ctx, { keyboard = false } = {}) {
     } catch (error) { ctx.toast(`Could not add image: ${error.message}`); }
   }
   editor = new Editor({
-    element: $('.docs-body'), extensions: [...extensions(), BubbleMenu.configure({ element: bubble, appendTo: () => panel, options: { placement: 'top', offset: 8 }, shouldShow: ({ state }) => !state.selection.empty && !!state.doc.textBetween(state.selection.from, state.selection.to).trim() && !editor.isActive('image') })],
+    element: $('.docs-body'), extensions: [...extensions(), BubbleMenu.configure({ element: bubble, appendTo: () => panel, options: { placement: 'top', offset: 8, flip: { boundary: $('.docs-scroll') }, shift: { boundary: $('.docs-scroll'), crossAxis: true, padding: 8 }, scrollTarget: $('.docs-scroll') }, shouldShow: ({ state }) => !state.selection.empty && !!state.doc.textBetween(state.selection.from, state.selection.to).trim() && !editor.isActive('image') })],
     content: loadContent(card),
     editorProps: {
       attributes: { class: 'docs-prose', spellcheck: 'true', 'aria-label': 'Document content' },
