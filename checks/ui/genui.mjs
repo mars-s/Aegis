@@ -729,10 +729,10 @@ try {
   await page.context().setOffline(true);
   await page.frameLocator('.card.kind-html iframe').locator('#minutes').fill('35');
   assert.match(await page.frameLocator('.card.kind-html iframe').locator('#total').textContent(), /140 minutes/);
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'not saved');
+  await page.waitForFunction(() => document.querySelector('[data-save-state]')?.getAttribute('data-save-state') === 'blocked' || document.getElementById('saveState')?.textContent === 'not saved');
   await page.context().setOffline(false);
   await page.locator('#retrySave').press('Enter');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => (document.querySelector('[data-save-state]')?.getAttribute('data-save-state') ?? document.getElementById('saveState')?.textContent) === 'saved');
   const setMinutes = async (widget, minutes) => {
     const slider = widget.locator('#minutes');
     const box = await slider.boundingBox();
@@ -831,7 +831,7 @@ try {
   await page.frameLocator('.card.kind-html iframe').locator('#total').filter({ hasText: '200 minutes' }).waitFor();
   assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '50', 'Open edits update the live canvas before Close');
   await page.screenshot({ path: out(`genui-html-open-50-${stamp}.png`) });
-  await expanded.editor.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await expanded.editor.getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Back to board' : 'Close editor', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
   const canvasFrame = page.frameLocator('.card.kind-html iframe');
   assert.equal(await canvasFrame.locator('#minutes').inputValue(), '50', 'closing Open preserves its edits on the canvas');
@@ -1010,7 +1010,7 @@ try {
   console.log('pass genui: screenshots of every kind at 1440, 1586 and 390; no page errors');
 } catch (error) {
   console.error('FAIL genui:', error.stack);
-  if (page) console.error('diagnostics', JSON.stringify(await page.evaluate(async () => ({ reports: window.__genuiReports, rev: aegis.canvas.board.rev, saved: document.querySelector('#saveState')?.textContent, server: await aegis.host.get(`/boards/${aegis.canvas.board.id}`).then(b => ({ rev: b.rev, html: b.cards.find(c => c.kind === 'html') })), html: aegis.canvas.board.cards.find(c => c.kind === 'html'), widths: aegis.canvas.board.cards.map(c => [c.type, c.kind, c.w]) })).catch(() => null)), errors);
+  if (page) console.error('diagnostics', JSON.stringify(await page.evaluate(async () => ({ reports: window.__genuiReports, rev: aegis.canvas.board.rev, saved: document.querySelector('[data-save-state], #saveState')?.textContent, server: await aegis.host.get(`/boards/${aegis.canvas.board.id}`).then(b => ({ rev: b.rev, html: b.cards.find(c => c.kind === 'html') })), html: aegis.canvas.board.cards.find(c => c.kind === 'html'), widths: aegis.canvas.board.cards.map(c => [c.type, c.kind, c.w]) })).catch(() => null)), errors);
   if (logs.length) console.error(logs.slice(-5).join('\n'));
   if (page) await page.screenshot({ path: out(`genui-fail-${stamp}.png`) }).catch(() => {});
   process.exitCode = 1;
