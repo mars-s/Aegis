@@ -1,7 +1,7 @@
 // Saved reference arrangements and connections to the windows actually on screen.
 import { chromium, webkit } from './playwright.mjs';
 import { demoBatch } from '../demo-batch.mjs';
-import { assertRealLinkEdges } from './static-geometry.mjs';
+import { assertRealLinkEdges, observeLinkPaint, readConnectionPreview, readRenderedLinks } from './static-geometry.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -25,7 +25,7 @@ const apply = commands => page.evaluate(commands => new Promise((resolve, reject
   const timer = setTimeout(() => reject(Error(`Batch was rejected: ${document.getElementById('toast')?.textContent}`)), 5000);
   aegis.apply(commands, value => { clearTimeout(timer); resolve(value); });
 }), commands);
-const saved = () => page.waitForFunction(() => document.getElementById('saveState')?.textContent === 'saved');
+const saved = () => page.waitForFunction(() => document.querySelector('[data-save-state]')?.getAttribute('data-save-state') === 'saved' || document.getElementById('saveState')?.textContent === 'saved');
 const shot = name => page.screenshot({ path: join(output, `${name}.png`) });
 const open = async id => {
   await page.evaluate(id => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard: true } })), id);
@@ -65,7 +65,8 @@ try {
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       const fresh = async () => {
         await close(); await saved();
-        await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Spatial memory' }); localStorage.setItem('aegis:board', board.id); aegis.canvas.setBoard(board); });
+        const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Spatial memory' }); localStorage.setItem('aegis:board', board.id); aegis.canvas.setBoard(board); return board.id; });
+        await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, boardId);
         await apply(fixtures); await settle(); await saved();
       };
       const check = async (label, run) => {
@@ -82,13 +83,15 @@ try {
         const view = await page.evaluate(() => ({ ...aegis.canvas.view }));
         assert.ok(await page.evaluate(at => { const c = aegis.canvas.board.cards.find(c => c.id === 'memorystats'), v = aegis.canvas.view; return at.x >= c.x * v.z + v.x && at.x <= (c.x + c.w) * v.z + v.x && at.y >= c.y * v.z + v.y && at.y <= (c.y + c.h) * v.z + v.y; }, at), 'the visible target lies inside its real projected rectangle');
         await page.getByLabel('More selection controls', { exact: true }).click(); await page.getByRole('button', { name: 'Connect', exact: true }).click();
+        await observeLinkPaint(page);
         await page.mouse.move(at.x, at.y); await settle();
-        assert.equal(await page.locator('[data-connect-target]').getAttribute('data-connect-target'), 'memorystats');
-        const endpoint = await page.locator('[data-connect-preview]').evaluate(el => { const p = el.getPointAtLength(el.getTotalLength()); return { x: p.x, y: p.y }; });
+        const preview = await readConnectionPreview(page, at);
+        assert.equal(preview.target, 'memorystats');
+        const endpoint = preview.end;
         await shot(`${name}-displaced-connect-preview`); await page.mouse.click(at.x, at.y);
         await page.waitForFunction(() => aegis.canvas.board.links.some(l => l.a === 'memorydocument' && l.b === 'memorystats'));
         assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), view, 'Connect leaves the zoom and camera unchanged');
-        const committed = await page.locator('[data-link-line]').evaluate(el => { const p = el.getPointAtLength(el.getTotalLength()); return { x: p.x, y: p.y }; });
+        const committed = (await readRenderedLinks(page))[0].end;
         assert.ok(Math.hypot(endpoint.x - committed.x, endpoint.y - committed.y) < .2, 'preview and committed endpoint agree');
         await shot(`${name}-displaced-connect`);
       });
@@ -96,9 +99,9 @@ try {
         await apply([{ op: 'connect', newId: 'memorywire', a: 'memorydocument', b: 'memoryplot' }, { op: 'link_update', id: 'memorywire', set: { arrow: 'both', bend: 400 } }]);
         await page.evaluate(() => { aegis.canvas.fit(); aegis.canvas.select([]); }); await settle();
         await assertRealLinkEdges(page);
-        const path = page.locator('[data-link-line="memorywire"]');
-        assert.match(await path.getAttribute('d'), /Q/, 'the saved bend stays a world-space curve');
-        assert.equal(await page.locator('#links path:not([class])').count(), 2, 'both arrowheads stay present');
+        const path = (await readRenderedLinks(page)).find(link => link.id === 'memorywire');
+        assert.match(path.d, /Q/, 'the saved bend stays a world-space curve');
+        assert.equal(await page.locator('.scene-overlay').count() ? path.arrows : await page.locator('#links path:not([class])').count(), 2, 'both arrowheads stay present');
         await shot(`${name}-world-routing`);
       });
       await check('reference-memory', async () => {
