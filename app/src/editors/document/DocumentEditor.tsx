@@ -109,7 +109,8 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
   }
 
   useEffect(() => {
-    if (!body.current) return;
+    const scrollTarget = scroll.current;
+    if (!body.current || !scrollTarget) return;
     const release = session.attach(body.current),
       controller = new AbortController();
     lifetime.current = controller;
@@ -128,6 +129,9 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
         options: {
           placement: "top",
           offset: 8,
+          flip: { boundary: scrollTarget },
+          shift: { boundary: scrollTarget, crossAxis: true, padding: 8 },
+          scrollTarget,
           onShow: () => {
             queueMicrotask(() => {
               if (!controller.signal.aborted) setBubbleOpen(true);

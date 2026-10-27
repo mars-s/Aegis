@@ -145,7 +145,8 @@ try {
   assert.deepEqual([b.cards.find(c => c.id === 'docslink').x, b.cards.find(c => c.id === 'docslink').y], [410, 200]);
   console.log('PASS copying a link keeps its preview title, description and link target');
   // Clipboard copy of the checklist, then paste into editor using the browser clipboard event.
-  await page.locator('.card[data-id=docstodo]').click({ position: { x: react ? 30 : 10, y: react ? .5 : 10 } });
+  if (react) await page.locator('.card[data-id=docstodo] .items').click({ position: { x: 5, y: 5 } });
+  else await page.locator('.card[data-id=docstodo]').click({ position: { x: 10, y: 10 } });
   if (react) await page.waitForFunction(() => aegis.canvas.selection().includes('docstodo'));
   const payload = await page.evaluate(type => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData(type); }, react ? 'application/x-aegis-cards' : 'text/x-aegis');
   assert.ok(payload.includes('docstodo'));
@@ -193,7 +194,7 @@ try {
   await page.evaluate(id => aegis.canvas.frameIds([id, 'docsnote'], 1), docId); await page.waitForTimeout(500);
   const pill = page.locator(`.card[data-id="${docId}"]`); const pillBox = await pill.boundingBox();
   const start = await page.locator('.card[data-id=docsnote]').boundingBox();
-  await page.mouse.move(start.x + 50, start.y + 20); await page.mouse.down(); await page.mouse.move(pillBox.x + 90, pillBox.y + 25, { steps: 15 }); await page.mouse.up();
+  await page.mouse.move(start.x + 50, start.y + (react ? 5 : 20)); await page.mouse.down(); await page.mouse.move(pillBox.x + 90, pillBox.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
   await page.getByRole('button', { name: 'Undo card copy', exact: true }).click();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 1; }, docId);
