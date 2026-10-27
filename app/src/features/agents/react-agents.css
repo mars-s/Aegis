@@ -15,6 +15,8 @@
 .aegis-agents :is(.agent-island, .agents-panel, .agent-error) { pointer-events: auto; }
 .aegis-agents [hidden], .aegis-agents #askPill[hidden], .aegis-agents .agent-window-body[hidden] { display: none !important; }
 .aegis-agents .composer-row { display: flex; align-items: center; }
+.aegis-agents :is(#composer.agent-composer, #askPill) { max-width: var(--composer-max-width, calc(100vw - 24px)); }
+.aegis-agents .island-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .aegis-agents .spacer { flex: 1; }
 .aegis-agents .send { border-radius: 50%; background: var(--text); color: var(--pill); }
 .aegis-agents .send svg { width: 14px; height: 14px; stroke-width: 1.6; }
