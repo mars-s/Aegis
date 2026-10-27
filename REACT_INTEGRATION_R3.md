@@ -12,3 +12,11 @@ Own npm ci passed. checkpoint-check passes the complete npm run check, including
 ## Incoming reports
 
 The reported agents head 541477b and chrome head b38eae7 are already ancestors of 0f3e614. Their authored code is covered by checkpoint-check. Decks 317593e is also already an ancestor. The explicit merge returns Already up to date; decks-merge-check repeats npm run check successfully. Creative 4b69fe0 remains to merge. WIP heads from other workers are excluded until a fresh report identifies a verified pushed head.
+
+## Editor dispatch and key priority
+
+Accepted the deck double-click/modal requests and object native-control/grid/nested-Escape requests. Board Enter runs in capture; editor keys and Escape run after local handlers. Real modal controls retain keyboard ownership. Double-click resolves the actual scene hit target and still honours the editor flush gate. Native buttons, links, editable content and grid cells retain Enter.
+
+Production editor-keys: office 13/13 and deck-studio 989/989 pass. Deck advances through double-click to its separate Open context-menu label at :180, 245 passing assertions. Editors passes sheet workflows then fails shared width at :94, 25 pass/1 fail. Strict React TypeScript, changed-file lint and whitespace checks pass.
+
+Creative report head 4b69fe0 merged as 502bd5d; creative-merge-check passes the full gate.

@@ -472,6 +472,7 @@ export function Chrome({
       if (
         event.defaultPrevented ||
         event.repeat ||
+        (event.key === "Enter" && event.target instanceof Element && !!event.target.closest("button,a,[role=gridcell]")) ||
         (event.target instanceof Element &&
           event.target.closest(
             "input,textarea,select,[contenteditable],dialog[open],.side-editor,.aegis-dropdown-menu",
