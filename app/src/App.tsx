@@ -5,11 +5,12 @@ import type { CanvasEngine } from "@aegis/scene";
 import { createWorkspace } from "./workspace/index.js";
 import type { Workspace } from "./workspace/index.js";
 import { Canvas } from "./canvas/Canvas.js";
-import { composition } from "./composition.js";
+import { createComposition } from "./composition.js";
 import type { FeatureContext } from "./composition.js";
 import { locateConnection } from "./platform/connection.js";
 import type { Connection } from "./platform/connection.js";
 import { installTestFacade } from "./platform/test-facade.js";
+import { installEditorActions } from "./platform/editor-actions.js";
 
 declare const __AEGIS_TEST_FACADE__: boolean;
 
@@ -22,6 +23,7 @@ interface Runtime {
 
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace } = runtime;
+  const composition = useMemo(() => createComposition({ assetUrl: runtime.client.assetUrl }), [runtime.client]);
   const metadata = useSyncExternalStore(workspace.metadata.subscribe, workspace.metadata.getSnapshot);
   const saving = useSyncExternalStore(workspace.saving.subscribe, workspace.saving.getSnapshot);
   const ui = useSyncExternalStore(workspace.ui.subscribe, workspace.ui.getSnapshot);
@@ -52,6 +54,9 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const context = useMemo<FeatureContext>(() => ({
     workspace, engine: () => engine.current,
     openEditor: (id, full) => {
+      const card = workspace.record(id).getSnapshot();
+      const key = card?.type === "object" ? `object:${card.kind}` : card?.type;
+      if (!composition.editors.some(editor => editor.kind === key)) return false;
       const opened = workspace.ui.getSnapshot().editor;
       if (opened && opened.id !== id && !context.closeEditor()) return false;
       workspace.act({ kind: "edit", id, view: full ? "full" : "side" });
@@ -67,7 +72,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       workspace.act({ kind: "edit-close" });
       return true;
     },
-  }), [workspace]);
+  }), [workspace, composition]);
+  useEffect(() => installEditorActions(context), [context]);
   function add(type: "note" | "title"): void {
     const camera = engine.current?.camera() ?? { x: 0, y: 0, zoom: 1 };
     workspace.submit([{ op: "create", type, text: type === "title" ? "Untitled" : "", props: { contentFit: true }, x: (innerWidth / 2 - camera.x) / camera.zoom, y: (innerHeight / 2 - camera.y) / camera.zoom }]);
@@ -87,12 +93,12 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       {composition.tools.map(tool => <button key={tool.id} data-tool={tool.id} onClick={() => tool.run(context)}>{tool.label}</button>)}
       {composition.menus.length ? <details className="react-actions"><summary>Actions</summary>{composition.menus.map(item => <button key={item.id} onClick={() => item.run(context)}>{item.label}</button>)}</details> : null}
     </nav>
-    <div className="react-save-state" role="status" data-save-state={saving.kind}>
+    <div className="react-save-state" role="status" data-saved data-save-state={saving.kind}>
       {saving.kind === "blocked" ? <><span>{saving.reason}</span><button onClick={workspace.retry}>Retry</button></> : saving.kind === "saving" ? "Saving" : "Saved"}
     </div>
     {ui.leftPanel ? composition.panels.filter(panel => panel.side === "left").map(panel => <panel.Body key={panel.id} context={context} />) : null}
     {ui.rightPanel ? composition.panels.filter(panel => panel.side === "right").map(panel => <panel.Body key={panel.id} context={context} />) : null}
-    {Editor && ui.editor && engine.current ? <aside className={`react-editor${ui.editor.view === "full" ? " full" : ""}`}><button onClick={context.closeEditor}>Close editor</button><Editor cardId={ui.editor.id} workspace={workspace} engine={engine.current} /></aside> : null}
+    {Editor && ui.editor && engine.current ? <aside className={`react-editor side-editor${ui.editor.view === "full" ? " full" : ""}`} aria-label="Card editor"><header className="react-editor-toolbar"><button data-close onClick={context.closeEditor}>Close editor</button><button aria-label={ui.editor.view === "full" ? "Half width" : "Full width"} onClick={() => ui.editor && context.openEditor(ui.editor.id, ui.editor.view !== "full")}>{ui.editor.view === "full" ? "Half width" : "Full width"}</button></header><div className="react-editor-content"><Editor cardId={ui.editor.id} workspace={workspace} engine={engine.current} /></div></aside> : null}
   </>;
 }
 

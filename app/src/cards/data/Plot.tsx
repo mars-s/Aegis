@@ -1,3 +1,4 @@
+import { openCardEditor } from "../../platform/editor-actions.js";
 import { useRef } from 'react';
 import { useChartScreen } from '../../charts/screen.js';
 import type { CardBodyProps } from '../../composition.js';
@@ -15,7 +16,7 @@ function PlotView({ cardId, workspace, engine, editing }: CardBodyProps & { read
   return <section ref={body} className={`plot-card ${editing ? 'object-editor data-editor' : 'data-card'}`}>
     <header className="win-strip">
       <span className="win-name">{card.text || 'Chart'}</span>
-      {editing ? <span data-saved role="status">{saving.kind === 'saved' ? 'Saved' : saving.kind === 'saving' ? 'Saving…' : 'Not saved'}</span> : <button className="win-open" onClick={() => workspace.act({ kind: 'edit', id: cardId, view: 'side' })}>Open</button>}
+      {editing ? <span data-saved role="status">{saving.kind === 'saved' ? 'Saved' : saving.kind === 'saving' ? 'Saving…' : 'Not saved'}</span> : <button className="win-open" onClick={() => openCardEditor(cardId)}>Open</button>}
       {editing && saving.kind === 'blocked' ? <button onClick={workspace.retry}>Retry</button> : null}
     </header>
     <div className="plot-scroll"><Plot data={card.data} title={card.text} cards={cards}
