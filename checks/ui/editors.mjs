@@ -137,17 +137,17 @@ try {
   await page.waitForTimeout(450); await page.keyboard.press('Escape');
   await page.evaluate(() => aegis.canvas.setView({ x: 0, y: 0, z: 1 }));
   await page.locator('.card[data-id=sheet001]').click({ button: 'right', position: { x: 20, y: 20 } });
-  await page.getByRole('menuitem', { name: 'Open', exact: true }).click(); await page.locator('.sheet-editor').waitFor();
+  await page.getByRole('menuitem', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Edit' : 'Open', exact: true }).click(); await page.locator('.sheet-editor').waitFor();
   await page.waitForTimeout(450); await page.keyboard.press('Escape');
   await openEvent('note0001'); assert.equal(await page.locator('.side-editor').count(), 0);
   console.log('PASS sheet double-click and context menu, header sort preservation and ignored other card kinds');
 
   await page.emulateMedia({ reducedMotion: 'reduce' }); await openEvent('sheet001');
-  const reduced = await page.locator('.sheet-editor').evaluate(el => ({ transform: getComputedStyle(el).transform, transition: getComputedStyle(el).transitionProperty }));
+  const reduced = await page.locator('.side-editor').evaluate(el => ({ transform: getComputedStyle(el).transform, transition: getComputedStyle(el).transitionProperty }));
   assert.equal(reduced.transform, 'none'); assert.equal(reduced.transition, 'opacity'); await page.keyboard.press('Escape');
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => document.body.classList.add('motion-off'));
   await openEvent('sheet001');
-  assert.equal(await page.locator('.sheet-editor').evaluate(el => getComputedStyle(el).transitionProperty), 'opacity');
+  assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionProperty), 'opacity');
   await grid.locator('[data-r="0"][data-c="0"]').click(); await grid.press('Shift+Tab');
   assert.equal(await page.getByLabel('Selected cell value', { exact: true }).evaluate(el => el === document.activeElement), true, 'Tab can leave the grid');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
