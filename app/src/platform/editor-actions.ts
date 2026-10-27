@@ -46,7 +46,12 @@ export function installEditorActions(context: FeatureContext): () => void {
   const escape = (): void => { context.closeEditor(); };
   window.addEventListener('aegis:object-escape', escape);
   const earlyKey = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' || event.target instanceof Element && event.target.closest('.side-editor')) return;
+    if (event.key === 'Escape') {
+      if (event.target instanceof Element && event.target.closest('.side-editor, input, textarea, select, [contenteditable], [role="menu"], [role="listbox"], .aegis-dropdown-menu')) return;
+      if (context.workspace.ui.getSnapshot().editor) key(event);
+      return;
+    }
+    if (event.target instanceof Element && event.target.closest('.side-editor')) return;
     key(event);
   };
   const lateKey = (event: KeyboardEvent): void => {

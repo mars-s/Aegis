@@ -19,11 +19,11 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .react-tools { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; border: 1px solid #2c3035; border-radius: 12px; background: #111316; z-index: 10; }
 .react-save-state { position: absolute; right: 24px; bottom: 26px; display: flex; gap: 10px; align-items: center; color: #a6abb4; font-size: 12px; z-index: 10; }
 .react-connection { margin: 0; position: absolute; top: 45%; width: 100%; text-align: center; color: #b9bdc5; }
-.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: var(--card); z-index: 80; border-left: 1px solid var(--line-strong); overflow: auto; }
-.react-editor.full { left: 0; }
+.react-editor { position: absolute; inset: 8px 8px 8px calc(50% + 4px); padding: 24px; background: var(--card); z-index: 80; border-radius: 8px; overflow: auto; }
+.react-editor.full { left: 8px; }
 #toast:not(:empty) { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: #24272b; border: 1px solid #4c525b; border-radius: 8px; z-index: 30; }
 #toast button { margin-left: 12px; }
-@media (max-width: 600px) { .react-tools { bottom: 18px; } .react-save-state { top: 20px; bottom: auto; } .react-editor { left: 0; } }
+@media (max-width: 600px) { .react-tools { bottom: 18px; } .react-save-state { top: 20px; bottom: auto; } .react-editor { left: 8px; } }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
 .react-editor { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .react-editor-toolbar { display: flex; flex: none; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-border); }
@@ -46,7 +46,7 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .aegis-chrome .creative-panel-tools { display: flex; flex-wrap: wrap; gap: 4px; }
 
 .react-editor { transform: translateX(100%); opacity: 0; transition-property: transform, opacity; transition-duration: .26s; transition-timing-function: cubic-bezier(.32,.72,0,1); }
-.react-editor.is-open { transform: translateX(0); opacity: 1; }
+.react-editor.is-open { transform: none; opacity: 1; }
 .react-editor.is-closing { transition-duration: .2s; pointer-events: none; }
 .react-editor.instant, body.motion-off .react-editor { transition-duration: 0s; }
 .react-editor-content, .react-editor-content > .docs-panel { transition-duration: inherit; }

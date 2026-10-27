@@ -55,8 +55,11 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       engine?.pin(opened.id, 'editor', false);
       returning?.(); returning = null;
       if (!engine || !previous || previous.board !== workspace.metadata.getSnapshot().id) return true;
-      const viewport = engine.viewport();
-      const target = { ...previous.camera, x: previous.camera.x + (viewport.width - previous.viewport.width) / 2, y: previous.camera.y + (viewport.height - previous.viewport.height) / 2 };
+      const targetForViewport = (): CameraState => {
+        const viewport = engine.viewport();
+        return { ...previous.camera, x: previous.camera.x + (viewport.width - previous.viewport.width) / 2, y: previous.camera.y + (viewport.height - previous.viewport.height) / 2 };
+      };
+      let target = targetForViewport();
       workspace.act({ kind: 'select', ids: previous.selection.filter(id => workspace.record(id).getSnapshot() !== null) });
       const input = inputVersion, selection = selectionVersion;
       const finish = (): void => {
@@ -68,9 +71,17 @@ export function createEditorController(args: { readonly workspace: Workspace; re
           document.querySelector<HTMLElement>(`.card[data-id="${CSS.escape(opened.id)}"]`)?.focus({ preventScroll: true });
         });
       };
-      returning = engine.registerFrameParticipant({ read: () => { if (!engine.busy()) finish(); } });
+      returning = engine.registerFrameParticipant({ read: () => {
+        const measured = targetForViewport();
+        if (measured.x !== target.x || measured.y !== target.y) {
+          target = measured;
+          engine.navigate({ kind: 'restore', camera: target, motion: instantMotion ? 'instant' : 'glide' });
+          args.cameraChanged();
+          return;
+        }
+        if (!engine.busy()) finish();
+      } });
       engine.navigate({ kind: 'restore', camera: target, motion: interaction === 'keyboard' ? 'instant' : 'glide' });
-      if (!engine.busy()) finish();
       args.cameraChanged();
       return true;
     },
@@ -78,7 +89,13 @@ export function createEditorController(args: { readonly workspace: Workspace; re
   const install = (): (() => void) => {
     const pointer = (): void => { interaction = 'pointer'; inputVersion++; };
     const key = (): void => { interaction = 'keyboard'; inputVersion++; };
-    const wheel = (): void => { inputVersion++; };
+    const wheel = (): void => {
+      inputVersion++;
+      if (!returning) return;
+      returning(); returning = null;
+      const engine = args.engine();
+      if (engine) engine.navigate({ kind: 'restore', camera: engine.camera(), motion: 'instant' });
+    };
     window.addEventListener('pointerdown', pointer, true); window.addEventListener('keydown', key, true); window.addEventListener('wheel', wheel, { passive: true, capture: true });
     const selection = workspace.selection.subscribe(() => { selectionVersion++; });
     const scene = workspace.scene.subscribe(change => {
