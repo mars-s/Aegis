@@ -3,6 +3,7 @@ import { decodeStoredBoard } from "@aegis/protocol/storage";
 import type { Board, CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import { benchmark } from "../canvas/benchmark.js";
+import type { AssetUpload } from '@aegis/protocol/http';
 import type { CreatedIds, WorkspaceConnection } from "@aegis/host-client";
 import type { Workspace } from "../workspace/index.js";
 import type { Connection } from "./connection.js";
@@ -41,6 +42,8 @@ export interface TestFacade {
   readonly benchmark: (count: number) => ReturnType<typeof benchmark>;
   readonly editing: { readonly history: { readonly status: { readonly undo: boolean; readonly redo: boolean } } };
   readonly host: {
+    readonly base: string;
+    readonly upload: (file: File) => Promise<AssetUpload>;
     readonly assetUrl: (url: string) => string;
     readonly get: (path: string) => Promise<unknown>;
     readonly post: (path: string, body?: unknown) => Promise<unknown>;
@@ -56,6 +59,7 @@ export function installTestFacade(args: {
   readonly replication: WorkspaceConnection;
   readonly persistCamera: () => void;
   readonly assetUrl: (url: string) => string;
+  readonly upload: (file: File) => Promise<AssetUpload>;
   readonly flushEditor?: () => boolean;
 }): () => void {
   const { workspace, engine } = args;
@@ -116,7 +120,7 @@ export function installTestFacade(args: {
     flush: async () => { if (args.flushEditor?.() === false) throw new Error('The editor has unresolved changes.'); await args.replication.settled(); },
     editing: { history: { get status() { return workspace.history.getSnapshot(); } } },
     benchmark: async count => { await args.replication.settled(); args.replication.dispose(); return benchmark(engine, workspace, count); },
-    host: { assetUrl: args.assetUrl, get: path => call(path), post: (path, body) => call(path, body ?? {}) },
+    host: { base: args.connection.base, upload: args.upload, assetUrl: args.assetUrl, get: path => call(path), post: (path, body) => call(path, body ?? {}) },
   };
   window.aegis = facade;
   window.aegisCtx = facade;

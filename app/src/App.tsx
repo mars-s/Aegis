@@ -136,8 +136,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   }, [area, workspace, runtime, persistCamera, controller]);
   useEffect(() => {
     if (!chromeEngine || !agentControls || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
-    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, flushEditor: controller.flush });
-  }, [chromeEngine, agentControls, workspace, runtime, client, persistCamera, controller]);
+    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), flushEditor: controller.flush });
+  }, [chromeEngine, agentControls, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
   useEffect(() => controller.install(), [controller]);
   useEffect(() => installEditorActions(context), [context]);
