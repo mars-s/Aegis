@@ -18,7 +18,8 @@ export class ToolController {
   private drawing: ToolPreview | null = null;
   private readonly invalidate: () => void;
   private readonly hitTest: (point: Point) => CardId | null;
-  constructor(invalidate: () => void, hitTest: (point: Point) => CardId | null) { this.invalidate = invalidate; this.hitTest = hitTest; }
+  private readonly changed: (name: string | null) => void;
+  constructor(invalidate: () => void, hitTest: (point: Point) => CardId | null, changed: (name: string | null) => void = () => {}) { this.invalidate = invalidate; this.hitTest = hitTest; this.changed = changed; }
   owns(pointer: number): boolean { return this.pointer === pointer; }
   name(): string | null { return this.current?.id ?? null; }
   isCurrent(tool: SceneTool): boolean { return this.current === tool; }
@@ -26,6 +27,7 @@ export class ToolController {
     if (tool === this.current) return;
     this.cancel('tool-change'); this.current = tool;
     if (tool) this.cancelled.delete(tool);
+    this.changed(this.name());
     this.invalidate();
   }
   preview(value: ToolPreview | null): void { this.drawing = value; this.invalidate(); }
@@ -62,7 +64,10 @@ export class ToolController {
     if (this.current && !this.cancelled.has(this.current)) affected.add(this.current);
     this.inputs.length = 0;
     for (const tool of affected) { this.inputs.push({ kind: 'cancel', tool, reason }); this.cancelled.add(tool); }
-    this.pointer = null; this.drawing = null; this.current = null; this.invalidate();
+    const hadTool = this.current !== null;
+    this.pointer = null; this.drawing = null; this.current = null;
+    if (hadTool) this.changed(null);
+    this.invalidate();
   }
   flush(): void {
     for (const input of this.inputs.splice(0)) switch (input.kind) {

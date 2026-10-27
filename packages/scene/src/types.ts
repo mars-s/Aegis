@@ -5,6 +5,7 @@ import type { ZoomTier } from './representations.js';
 
 export type { Source } from '@aegis/domain/schema';
 export type SceneOrigin = 'local' | 'agent' | 'sync';
+export type AgentLineStyle = 'solid' | 'dashed' | 'dotted';
 export interface SceneChange extends ChangeSet {
   readonly kind: 'change' | 'replace';
   readonly origin: SceneOrigin;
@@ -122,6 +123,9 @@ export interface CanvasEngine {
   readonly startTransform: (intent: { readonly kind: 'resize' | 'rotate'; readonly ids: readonly CardId[]; readonly pointer: { readonly id: number; readonly point: Point }; readonly shift: boolean }) => void;
   readonly startConnection: (id: CardId) => void;
   readonly pin: (id: CardId, reason: PinReason, pinned: boolean) => void;
+  readonly glow: (ids: readonly CardId[]) => void;
+  readonly ring: (ids: readonly CardId[], colour: string, ms?: number, label?: string, origin?: Point, lineStyle?: AgentLineStyle) => void;
+  readonly clearAgentLine: () => void;
   readonly requestMeasurement: (key: string, generation: number) => void;
   readonly registerFrameParticipant: (participant: FrameParticipant) => () => void;
   readonly viewport: () => Rect;
@@ -141,6 +145,11 @@ export interface CardDropRequest {
   readonly point: Point;
   readonly element: HTMLElement | null;
 }
+export interface DragSnapshot { readonly card: Card; readonly bounds: Rect }
+export interface DragGuide { readonly x1: number; readonly y1: number; readonly x2: number; readonly y2: number }
+export interface DragSnapRequest { readonly start: readonly DragSnapshot[]; readonly delta: Point; readonly zoom: number; readonly bypass: boolean }
+export interface DragSnapResult { readonly delta: Point; readonly guides: readonly DragGuide[] }
+export interface DropPolicyRequest { readonly cards: readonly Card[]; readonly kind: 'move' | 'resize' }
 export interface CanvasAttachment {
   readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
   readonly stage: HTMLElement;
@@ -149,6 +158,7 @@ export interface CanvasAttachment {
   readonly overlay: HTMLCanvasElement;
   readonly workspace: CanvasWorkspace;
   readonly onNavigation?: () => void;
+  readonly onToolChange?: (name: string | null) => void;
   readonly onToolCommit?: (boardId: BoardId, commit: ToolCommit) => void;
   readonly theme?: Source<SceneTheme>;
   readonly warmLeases?: number;
@@ -156,6 +166,8 @@ export interface CanvasAttachment {
   readonly snapGrid?: number;
   readonly selectForDrag?: (ids: readonly CardId[], hit: CardId, modifiers: Pick<ToolPointer, 'shift' | 'bypass'>) => readonly CardId[];
   readonly expandDrag?: (ids: readonly CardId[], modifiers: Pick<ToolPointer, 'shift' | 'bypass'>) => readonly CardId[];
+  readonly snapDrag?: (request: DragSnapRequest) => DragSnapResult;
+  readonly dropCommands?: (request: DropPolicyRequest) => readonly Command[];
   readonly canLease?: (card: Card) => boolean;
   readonly availableArea?: Source<Rect>;
 }
