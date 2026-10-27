@@ -165,19 +165,26 @@ try {
       const motion = await page.evaluate(async () => {
         const stage = document.getElementById('stage'), frames = [];
         const check = () => {
-          const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`);
-          if (!path) return;
+          const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`), canvas = document.querySelector('.scene-overlay');
+          const route = aegis.canvas.engine?.linkGeometry().find(entry => entry.id === link.id)?.route;
+          const stroke = route && canvas?.linkPaint.find(stroke => stroke.commands[0]?.method === 'moveTo' && Math.hypot(stroke.commands[0].args[0] - route.p0.x, stroke.commands[0].args[1] - route.p0.y) < .01 && Math.hypot(stroke.commands.at(-1).args.at(-2) - route.p2.x, stroke.commands.at(-1).args.at(-1) - route.p2.y) < .01);
+          if (!path && !stroke) return;
           const endpoints = [link.a, link.b].map((id, i) => {
             const el = document.querySelector(`.card[data-id="${id}"]`);
-            if (!el) return Infinity;
-            const r = el.getBoundingClientRect(), p = path.getPointAtLength(i ? path.getTotalLength() : 0);
+            const card = aegis.canvas.board.cards.find(card => card.id === id), v = aegis.canvas.view;
+            const projected = { left: card.x * v.z + v.x, top: card.y * v.z + v.y, right: (card.x + card.w) * v.z + v.x, bottom: (card.y + card.h) * v.z + v.y };
+            const onScreen = projected.left < innerWidth && projected.right > 0 && projected.top < innerHeight && projected.bottom > 0;
+            if (onScreen && (!el || el.hidden)) return Infinity;
+            const command = stroke?.commands[i ? stroke.commands.length - 1 : 0];
+            const r = el && !el.hidden ? el.getBoundingClientRect() : projected, p = command ? { x: command.args.at(-2), y: command.args.at(-1) } : path.getPointAtLength(i ? path.getTotalLength() : 0);
             return Math.min(Math.abs(p.x - r.left), Math.abs(p.x - r.right), Math.abs(p.y - r.top), Math.abs(p.y - r.bottom));
           });
           frames.push({ z: aegis.canvas.view.z, endpoints });
         };
-        stage.addEventListener('canvaspaint', check);
+        const release = aegis.canvas.engine?.registerFrameParticipant({ write: check });
+        if (!release) stage.addEventListener('canvaspaint', check);
         await new Promise(resolve => aegis.canvas.glideTo({ x: 200, y: 100, z: 1.2 }, 420, resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve)); stage.removeEventListener('canvaspaint', check); return frames;
+        await new Promise(resolve => requestAnimationFrame(resolve)); release?.(); stage.removeEventListener('canvaspaint', check); return frames;
       });
       assert.ok(motion.length >= 5); assert.ok(motion.every(f => f.endpoints.every(d => d < .3)), JSON.stringify(motion));
       await page.emulateMedia({ reducedMotion: 'reduce' });
