@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import type { AgentId, CardId } from '@aegis/domain/schema';
-import type { CameraState } from '@aegis/scene';
+import type { AgentLineStyle, CameraState } from '@aegis/scene';
 import type { FeatureContext } from '../../composition.js';
 import type { AgentSnapshot } from './schema.js';
 import { cardRect, COLLAPSED_HEIGHT, edgeLayout, freeAgentRect, intersects, WINDOW_WIDTH } from './geometry.js';
@@ -24,17 +24,20 @@ interface WindowBinding {
   readonly agent: AgentSnapshot;
   readonly element: HTMLElement;
   readonly edge: HTMLButtonElement;
+  readonly reveal: () => void;
   x: number; y: number; height: number; collapsed: boolean; closed: boolean; placed: boolean; dirty: boolean; manuallyMoved: boolean;
   screenX: number; screenY: number; offscreen: boolean;
 }
 export interface AgentScene {
-  readonly bind: (agent: AgentSnapshot, element: HTMLElement, edge: HTMLButtonElement) => () => void;
+  readonly bind: (agent: AgentSnapshot, element: HTMLElement, edge: HTMLButtonElement, reveal: () => void) => () => void;
   readonly collapsed: (id: AgentId, collapsed: boolean) => void;
   readonly closed: (id: AgentId, closed: boolean) => void;
   readonly drag: (id: AgentId, dx: number, dy: number, start: boolean, end: boolean) => void;
   readonly recover: (id: AgentId, keyboard: boolean) => void;
   readonly show: (id: AgentId) => void;
   readonly near: (id: AgentId, ids: readonly CardId[]) => void;
+  readonly result: (id: AgentId | null, ids: readonly CardId[], label: string, lineStyle: AgentLineStyle) => void;
+  readonly clearResult: () => void;
   readonly bounds: () => readonly WindowRect[];
   readonly fitBounds: (zoom: number) => readonly WindowRect[];
   readonly group: (side: EdgeSide) => EdgeGroup | undefined;
@@ -51,6 +54,7 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
   const dragOrigins = new Map<AgentId, { x: number; y: number }>();
   let camera: CameraState = { x: 0, y: 0, zoom: 1 }, area: WindowRect = { x: 0, y: 0, w: 0, h: 0 };
   let groups: readonly EdgeGroup[] = [];
+  let pendingResult: { readonly id: AgentId | null; readonly ids: readonly CardId[]; readonly label: string; readonly lineStyle: AgentLineStyle } | null = null;
   let identity: { id: AgentId; element: HTMLElement; camera: CameraState; positioned: boolean; visible: boolean; x: number; y: number } | null = null;
   let cardSpace = context.workspace.scene.snapshot().cards.map(cardRect);
   let movingSpace: WindowRect[] = [], movingTimer: ReturnType<typeof setTimeout> | null = null;
@@ -58,7 +62,8 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
   const viewport = (): WindowRect => ({ x: (area.x - camera.x) / camera.zoom, y: (area.y - camera.y) / camera.zoom, w: area.w / camera.zoom, h: area.h / camera.zoom });
   const size = (w: WindowBinding): WindowRect => ({ x: w.x, y: w.y, w: WINDOW_WIDTH / camera.zoom, h: (w.collapsed ? COLLAPSED_HEIGHT : w.height) / camera.zoom });
   const mark = (): void => { for (const w of windows.values()) w.dirty = true; schedule.invalidate(); };
-  const offScene = context.workspace.scene.subscribe(() => {
+  const offScene = context.workspace.scene.subscribe(change => {
+    if (change.kind === 'replace') pendingResult = null;
     const next = context.workspace.scene.snapshot().cards.map(cardRect);
     movingSpace = [...cardSpace, ...next]; cardSpace = next;
     if (movingTimer) clearTimeout(movingTimer);
@@ -137,6 +142,12 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
         const button = windows.get(identity.id)?.element.querySelector('.agent-window-toggle');
         if (identity.visible) button?.setAttribute('aria-describedby', 'agentIdentity'); else button?.removeAttribute('aria-describedby');
       }
+      if (pendingResult) {
+        const result = pendingResult; pendingResult = null;
+        const w = result.id === null ? undefined : windows.get(result.id);
+        const origin = w && !w.closed ? { x: w.x + WINDOW_WIDTH / 2 / camera.zoom, y: w.y + COLLAPSED_HEIGHT / camera.zoom } : undefined;
+        context.engine()?.ring(result.ids, 'var(--data)', 4000, result.label, origin, result.lineStyle);
+      }
     },
   });
   const recover = (id: AgentId, keyboard: boolean): void => {
@@ -146,9 +157,9 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
     if (keyboard) w.element.querySelector<HTMLButtonElement>('.agent-window-toggle')?.focus({ preventScroll: true });
   };
   return {
-    bind(agent, element, edge) {
+    bind(agent, element, edge, reveal) {
       const saved = savedAgentWindow(agent.id);
-      const w: WindowBinding = { agent, element, edge, x: saved?.x ?? 0, y: saved?.y ?? 0, height: COLLAPSED_HEIGHT, collapsed: saved?.collapsed ?? true, closed: saved?.closed ?? false, placed: !!saved, dirty: true, manuallyMoved: !!saved, screenX: 0, screenY: 0, offscreen: false };
+      const w: WindowBinding = { agent, element, edge, reveal, x: saved?.x ?? 0, y: saved?.y ?? 0, height: COLLAPSED_HEIGHT, collapsed: saved?.collapsed ?? true, closed: saved?.closed ?? false, placed: !!saved, dirty: true, manuallyMoved: !!saved, screenX: 0, screenY: 0, offscreen: false };
       windows.set(agent.id, w);
       const observer = new ResizeObserver(() => { w.dirty = true; schedule.invalidate(); }); observer.observe(element); schedule.invalidate();
       return () => { observer.disconnect(); windows.delete(agent.id); schedule.invalidate(); };
@@ -157,18 +168,20 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
     closed(id, closed) { const w = windows.get(id); if (w) { w.closed = closed; w.dirty = true; save(id, w); schedule.invalidate(); } },
     drag(id, dx, dy, start, end) {
       const w = windows.get(id); if (!w) return;
-      if (start) dragOrigins.set(id, { x: w.x, y: w.y });
+      if (start) { dragOrigins.set(id, { x: w.x, y: w.y }); context.engine()?.clearAgentLine(); }
       const origin = dragOrigins.get(id); if (!origin) return;
       w.x = origin.x + dx / camera.zoom; w.y = origin.y + dy / camera.zoom; w.placed = true;
       if (Math.hypot(dx, dy) >= 4) w.manuallyMoved = true;
       if (end) { dragOrigins.delete(id); w.dirty = true; save(id, w); }
       schedule.invalidate();
     },
-    recover, show(id) { const w = windows.get(id); if (w) { w.closed = false; w.collapsed = false; w.dirty = true; save(id, w); schedule.invalidate(); recover(id, true); } },
+    recover, show(id) { const w = windows.get(id); if (w) { w.closed = false; w.collapsed = false; w.dirty = true; w.reveal(); save(id, w); schedule.invalidate(); recover(id, true); } },
     near(id, ids) {
       const w = windows.get(id), target = context.workspace.scene.snapshot().cards.find(card => ids.includes(card.id));
       if (w && target && !w.manuallyMoved) { w.x = target.x - WINDOW_WIDTH / camera.zoom - 24; w.y = target.y; w.placed = true; w.dirty = true; schedule.invalidate(); }
     },
+    result(id, ids, label, lineStyle) { pendingResult = { id, ids, label, lineStyle }; schedule.invalidate(); },
+    clearResult() { pendingResult = null; context.engine()?.clearAgentLine(); },
     bounds: () => [...windows.values()].filter(w => !w.closed).map(size),
     fitBounds: zoom => [...windows.values()].filter(w => !w.closed).map(w => ({ x: w.x, y: w.y, w: WINDOW_WIDTH / zoom, h: (w.collapsed ? COLLAPSED_HEIGHT : w.height) / zoom })),
     group: side => groups.find(group => group.side === side),
@@ -176,6 +189,7 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
     frame(ids, islandHeight, instant) {
       const cards = context.workspace.scene.snapshot().cards.filter(card => ids.includes(card.id)).map(cardRect);
       if (!cards.length) return;
+      context.engine()?.glow(ids);
       const a = schedule.availableArea(), left = Math.min(...cards.map(card => card.x)), top = Math.min(...cards.map(card => card.y));
       const right = Math.max(...cards.map(card => card.x + card.w)), bottom = Math.max(...cards.map(card => card.y + card.h));
       const h = Math.max(80, a.h - islandHeight - 24);
