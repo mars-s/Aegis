@@ -70,10 +70,10 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
   function start(source: CardId): void {
     if (!workspace.record(source).getSnapshot()) return;
     choose(null);
-    const release = toolExit(engine, 'connect-creative'); let active = true;
+    const release = toolExit(engine, 'connect'); let active = true;
     const finish = () => { active = false; preview = null; dirty = true; engine.invalidate(); release(); };
     const move = (point: ToolPointer) => { if (!active) return; preview = { source, point, except: source }; dirty = true; engine.invalidate(); };
-    engine.tool({ id: 'connect-creative', accepts: point => active && point.button === 0, down: move, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
+    engine.tool({ id: 'connect', accepts: point => active && point.button === 0, down: move, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
       if (!active) return;
       const from = workspace.record(source).getSnapshot(), to = target(point, source);
       if (from && to && !duplicate(source, to.id)) {
@@ -172,7 +172,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     previewPath.setAttribute('d', `M${next.p0.x} ${next.p0.y} Q${next.control.x} ${next.control.y} ${next.p2.x} ${next.p2.y}`);
     previewGroup.style.display = ''; if (!previewGroup.isConnected) group.append(previewGroup);
   } });
-  return { start, clear: () => { choose(null); if (engine.toolName() === 'edit-connector' || engine.toolName() === 'connect-creative') engine.tool(null); }, dispose: () => { disposed = true; offFrame(); offScene(); document.removeEventListener('pointerdown', down, true); layer.remove(); } };
+  return { start, clear: () => { choose(null); if (engine.toolName() === 'edit-connector' || engine.toolName() === 'connect') engine.tool(null); }, dispose: () => { disposed = true; offFrame(); offScene(); document.removeEventListener('pointerdown', down, true); layer.remove(); } };
 }
 
 export function CreativeConnections({ context, onSelectionChange }: { readonly context: FeatureContext; readonly onSelectionChange: ConnectionSelectionChange }) {
