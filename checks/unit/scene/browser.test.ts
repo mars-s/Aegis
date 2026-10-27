@@ -54,6 +54,26 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('a queued click cannot steal newer editable focus in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const first = document.querySelector<HTMLElement>('[data-body="note-2"]'), next = document.querySelector<HTMLElement>('[data-body="note-3"]');
+        if (!first || !next) throw new Error('Missing editable focus targets');
+        let released = false;
+        first.addEventListener('pointerup', () => { released = true; }, { once: true });
+        const stop = window.sceneHarness.engine.registerFrameParticipant({ write: () => {
+          if (!released) return;
+          next.focus({ preventScroll: true }); stop();
+        } });
+      });
+      await p.locator('[data-body="note-2"]').click(); await idle(p);
+      expect(await p.locator('[data-body="note-3"]').evaluate(el => el === document.activeElement)).toBe(true);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['stage', 'card'] as const)('a touch hold opens the actual %s context path and consumes its release', async target => {
     const p = await page(), client = await observeTouch(p);
     const box = target === 'card' ? await p.locator('[data-id="note-2"]').boundingBox() : null;
