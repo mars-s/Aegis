@@ -40,6 +40,40 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test('connector controls follow the painted obstacle route at rest and during a drag', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const harness = window.sceneHarness, board = harness.board();
+      harness.load({ ...board, cards: board.cards.slice(0, 3).map((card, index) => ({ ...card, x: [80, 450, 900][index], y: index === 1 ? 80 : 100, w: 240, h: index === 1 ? 220 : 160 })), links: [{ id: 'routed-connector', a: 'note-0', b: 'note-2', bend: 0 }] });
+    });
+    await idle(p);
+    const verify = async () => {
+      const result = await p.evaluate(() => {
+        const engine = window.sceneHarness.engine, id = window.sceneHarness.board().links[0]?.id;
+        const route = id ? engine.linkRoute(id) : null;
+        if (!route) throw new Error('Missing connector route');
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', route.d);
+        const camera = engine.camera(), context = document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d');
+        const samples = [.25, .5, .75].map(fraction => {
+          const world = path.getPointAtLength(path.getTotalLength() * fraction);
+          const screen = { x: world.x * camera.zoom + camera.x, y: world.y * camera.zoom + camera.y };
+          const pixel = context?.getImageData(Math.floor(screen.x * devicePixelRatio), Math.floor(screen.y * devicePixelRatio), 1, 1).data;
+          return { hit: engine.hitTestLink(screen), alpha: pixel?.[3] ?? 0 };
+        });
+        return { d: route.d, id, samples };
+      });
+      expect(result.d).toMatch(/ L/);
+      for (const sample of result.samples) { expect(sample.hit).toBe(result.id); expect(sample.alpha).toBeGreaterThan(0); }
+    };
+    await verify();
+    await p.mouse.move(90, 200); await p.mouse.down();
+    await p.mouse.move(170, 280); await idle(p);
+    await verify();
+    await p.mouse.up(); await idle(p);
+    await verify(); await p.close();
+  });
+
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
     for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
       const p = await page();

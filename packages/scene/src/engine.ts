@@ -1,4 +1,4 @@
-import type { Card, CardId, Command, LinkId } from '@aegis/domain/schema';
+import type { Card, CardId, Command, Link, LinkId } from '@aegis/domain/schema';
 import { CanvasPainter } from './draw.js';
 import type { DrawLink } from './draw.js';
 import { clampZoom, fitBounds, fromBounds, hitRotated, intersects, project, rotatedBounds, toBounds, union, unproject } from './geometry.js';
@@ -8,6 +8,7 @@ import type { SceneNode } from './graph.js';
 import { LeasePool } from './leases.js';
 import type { LeasePlacement } from './leases.js';
 import { linkBounds, routeDistance, routeLink } from './links.js';
+import type { LinkRoute } from './links.js';
 import { FrameMetrics } from './metrics.js';
 import { ToolController } from './tools.js';
 import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
@@ -99,6 +100,16 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   function boundsFor(node: SceneNode): Rect { return positions.get(node.card.id) ?? node.layout.bounds; }
   function rotationFor(node: SceneNode): number { return rotations.get(node.card.id) ?? node.rotation; }
+  function routeWithObstacles(link: Link, a: SceneNode, b: SceneNode): LinkRoute {
+    const initial = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b));
+    const query = linkBounds(initial, '');
+    const obstacles = new Map(graph.query(query).filter(node => node !== a && node !== b).map(node => [node.card.id, fromBounds(rotatedBounds(boundsFor(node), rotationFor(node)))]));
+    for (const [id, bounds] of positions) {
+      const node = graph.nodes.get(id);
+      if (node && node !== a && node !== b && !node.hidden) obstacles.set(id, fromBounds(rotatedBounds(bounds, rotationFor(node))));
+    }
+    return routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b), 1, [...obstacles.values()]);
+  }
   function availableArea(): Rect { return args.availableArea?.getSnapshot() ?? viewport; }
 
   function cancelGesture(): void {
@@ -360,17 +371,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const { link, route } of links.values()) {
       const a = graph.nodes.get(link.a), b = graph.nodes.get(link.b);
       if (!a || !b || a.hidden || b.hidden) continue;
-      let current = route;
-      if (changedLinks.has(link.id)) {
-        const initial = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b));
-        const query = linkBounds(initial, '');
-        const obstacles = new Map(graph.query(query).filter(node => node !== a && node !== b).map(node => [node.card.id, fromBounds(rotatedBounds(boundsFor(node), rotationFor(node)))]));
-        for (const [id, bounds] of positions) {
-          const node = graph.nodes.get(id);
-          if (node && node !== a && node !== b && !node.hidden) obstacles.set(id, fromBounds(rotatedBounds(bounds, rotationFor(node))));
-        }
-        current = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b), 1, [...obstacles.values()]);
-      }
+      const current = changedLinks.has(link.id) ? routeWithObstacles(link, a, b) : route;
       const p = (point: Point): Point => ({ x: point.x * camera.zoom + camera.x, y: point.y * camera.zoom + camera.y });
       drawnLinks.push({ link, route: { p0: p(current.p0), p2: p(current.p2), control: p(current.control), label: p(current.label), points: current.points.map(p) } });
     }
@@ -591,7 +592,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     linkGeometry: () => drawnLinks.map(entry => ({ id: entry.link.id, route: entry.route })),
     tool: tool => { if (tool && !args.onToolCommit) throw new Error('Scene tools require onToolCommit.'); tools.set(tool); },
     commitTool,
-    linkRoute: id => { const entry = graph.links.get(id); if (!entry) return null; const from = graph.nodes.get(entry.link.a), to = graph.nodes.get(entry.link.b); if (!from || !to) return null; const route = routeLink(entry.link, boundsFor(from), boundsFor(to), rotationFor(from), rotationFor(to)); return { d: route.points.length ? 'M' + route.points.map(point => `${point.x} ${point.y}`).join(' L') : `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, start: route.p0, control: route.control, end: route.p2, label: route.label }; },
+    linkRoute: id => { const entry = graph.links.get(id); if (!entry) return null; const from = graph.nodes.get(entry.link.a), to = graph.nodes.get(entry.link.b); if (!from || !to) return null; const route = positions.size || rotations.size ? routeWithObstacles(entry.link, from, to) : entry.route; return { d: route.points.length ? 'M' + route.points.map(point => `${point.x} ${point.y}`).join(' L') : `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, start: route.p0, control: route.control, end: route.p2, label: route.label }; },
     toolName: () => tools.name(),
     busy: () => glide !== null || gesture !== null || inputs.length > 0,
     preview: preview => tools.preview(preview),
