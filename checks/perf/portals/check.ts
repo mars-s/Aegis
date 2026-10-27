@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createServer } from 'vite';
+import { chromium } from 'playwright';
+import type { Browser } from 'playwright';
+import type {} from './fixture.js';
+const project = process.cwd(), resolveApp = createRequire(join(project, 'app/package.json'));
+const cache = mkdtempSync(join(tmpdir(), 'aegis-portal-cache-')), data = mkdtempSync(join(tmpdir(), 'aegis-portal-data-'));
+process.env.AEGIS_DATA = data; process.env.AEGIS_VITE_CACHE = cache;
+const port = Number(process.env.AEGIS_PORT_OFFSET ?? 4900);
+const server = await createServer({ root: project, configFile: false, cacheDir: cache, resolve: { alias: ['react/jsx-runtime', 'react/jsx-dev-runtime', 'react-dom/client', 'react-dom', 'react'].map(find => ({ find, replacement: resolveApp.resolve(find) })) }, server: { host: '127.0.0.1', port, strictPort: true, fs: { allow: [project] } } });
+let browser: Browser | undefined;
+try {
+  await server.listen(); browser = await chromium.launch();
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await page.goto(`http://127.0.0.1:${port}/checks/perf/portals/index.html`);
+  await page.waitForFunction(() => window.portalCheck?.count('portal-a') === 1);
+  const before = await page.evaluate(() => window.portalCheck.count('portal-a'));
+  await page.locator('#stage').dispatchEvent('wheel', { deltaX: 200, deltaY: 0 });
+  await page.waitForFunction(() => window.portalCheck.count('portal-b') === 1);
+  const after = await page.evaluate(() => window.portalCheck.count('portal-a'));
+  assert.equal(after, before, 'entering a sibling portal must not commit the retained body');
+  await page.evaluate(() => window.portalCheck.update());
+  await page.waitForFunction(() => document.querySelector('[data-portal-body="portal-a"]')?.textContent === 'Updated retained body');
+  assert.ok(await page.evaluate(() => window.portalCheck.count('portal-a')) > after, 'real content changes still reach a memoised body');
+  process.stdout.write(JSON.stringify({ ok: true, before, after }) + '\n');
+} finally { await browser?.close(); await server.close(); rmSync(cache, { recursive: true }); rmSync(data, { recursive: true }); }

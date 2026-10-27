@@ -58,6 +58,7 @@ export class LeasePool {
     const pinnedOutside = [...this.byCard].filter(([id, shell]) => !visible.has(id) && shell.pins.size > 0).length;
     const capacity = Math.max(this.capacity, visible.size) + pinnedOutside;
     let expiresAt = Infinity;
+    // Dense views may exceed the warm target. Keep their short pan return path until expiry.
     for (const [id, shell] of this.byCard) {
       if (visible.has(id)) continue;
       if (shell.visible && (!shell.pins.size || this.isEditorOnlyPinned(id))) { shell.element.hidden = true; shell.element.inert = true; shell.visible = false; }

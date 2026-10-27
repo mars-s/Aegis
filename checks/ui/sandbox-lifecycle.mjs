@@ -54,7 +54,9 @@ try {
    check(await page.evaluate(()=>departureRetention),[{before:true,after:true}],'close retains the real editor until acknowledgement');
    check(await page.evaluate(()=>ackEvents.some(e=>e.present&&e.kind==='ok')),true,'real opaque sandbox acknowledges while editor is mounted');
    check(await page.evaluate(async()=>JSON.parse((await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c=>c.id==='snapshotwidget').data.state).custom.count),42,'queued script-only final state reaches durable host');
-   await page.reload();await page.waitForFunction(()=>window.aegis?.canvas.board);await open();await observe();
+   await page.reload();await page.waitForFunction(()=>window.aegis?.canvas.board);
+   await page.waitForFunction(()=>document.querySelector('.card[data-id="snapshotwidget"] iframe')?.clientHeight===500);
+   await open();await observe();
    check(await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>aegisState.count),42,'reload and reopen restore acknowledged state');
    await page.evaluate(()=>{departureAction='width';});await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{nextCount=43;});await page.frameLocator('.side-editor iframe').locator('#queue').click();await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.view==='full');
    check(await page.evaluate(()=>JSON.parse(aegis.canvas.board.cards.find(c=>c.id==='snapshotwidget').data.state).custom.count),43,'width change waits for final snapshot');

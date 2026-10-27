@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { memo, useEffect, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine, SlotLease } from "@aegis/scene";
@@ -12,7 +12,7 @@ export interface CardBodyProps {
 }
 
 
-function LeaseBody({ lease, workspace, engine, composition }: {
+const LeaseBody = memo(function LeaseBody({ lease, workspace, engine, composition }: {
   readonly lease: SlotLease;
   readonly workspace: Workspace;
   readonly engine: CanvasEngine;
@@ -28,7 +28,7 @@ function LeaseBody({ lease, workspace, engine, composition }: {
   const key = card.type === "object" ? `object:${card.kind}` : card.type;
   const Body = composition.cards.find(registration => registration.kind === key)?.Body;
   return Body ? <Body cardId={lease.cardId} workspace={workspace} engine={engine} /> : <div className="body card-preview">{card.text}</div>;
-}
+});
 
 export function CardPortals({ workspace, engine, composition }: {
   readonly workspace: Workspace;

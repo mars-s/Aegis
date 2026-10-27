@@ -21,9 +21,9 @@ export function Editable({
     last = useRef(value);
   useEffect(() => {
     if (
+      value !== last.current &&
       field.current &&
-      field.current.innerText !== value &&
-      value !== last.current
+      field.current.innerText !== value
     )
       field.current.textContent = value;
     last.current = value;
