@@ -764,4 +764,52 @@ body.left-open .aegis-chrome .bar-left {
 .aegis-chrome .side-resize:hover {
   background: var(--color-fill-hover);
 }
-.aegis-chrome .selection-bar { width: max-content; }
+.aegis-chrome .selection-bar {
+  width: max-content;
+}
+/* The shared menu imports legacy row rules. Keep React panel sizing local. */
+.aegis-chrome .side > .pbox[data-panel="layers"]:not(.folded) {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.aegis-chrome .side > .pbox[data-panel="layers"]:not(.folded) > .pbody {
+  flex: 0 1 auto;
+  max-height: 320px;
+}
+.aegis-chrome .side > .pbox[data-panel="library"]:not(.folded) {
+  flex: 1 1 0;
+  min-height: 240px;
+}
+.aegis-chrome
+  .side
+  > .pbox[data-panel="library"]:not(.folded)
+  .pbody:not([style*="height"]) {
+  height: auto;
+  max-height: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .side :is(.tree-row, .layer-row) {
+    height: 36px;
+    min-height: 36px;
+  }
+  .aegis-chrome .side :is(.tree-row, .layer-row) .row-more {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    min-height: 32px;
+    padding: 8px;
+  }
+  .aegis-chrome .side .layer-row .layer-fold {
+    height: 32px;
+  }
+  .aegis-chrome .side .tree-row .twisty {
+    position: static;
+    width: 10px;
+    min-height: 28px;
+    height: 28px;
+  }
+  .aegis-chrome .side .tree-row:has(.twisty) > svg {
+    visibility: visible;
+  }
+}
