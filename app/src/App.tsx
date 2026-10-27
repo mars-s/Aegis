@@ -122,11 +122,11 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'unsorted', label: 'Unsorted', side: 'left', Body: Unsorted },
     ] });
   }, [client, workspace]);
-  const controller = useMemo(() => createEditorController({ workspace, engine: () => engine.current, composition, cameraChanged: persistCamera }), [workspace, composition, persistCamera]);
+  const controller = useMemo(() => createEditorController({ workspace, engine: () => engine.current, composition, cameraChanged: persistCamera, settled: runtime.replication.settled }), [workspace, composition, persistCamera, runtime]);
   controllerRef.current = controller;
   const context = controller.context;
   const openBoard = useCallback(async (id: BoardId): Promise<boolean> => {
-    if (!controllerRef.current?.context.closeEditor() || !disposeDocumentSessions(workspace)) return false;
+    if (!await controllerRef.current?.close() || !disposeDocumentSessions(workspace)) return false;
     boardRead.current?.abort(); const own = new AbortController(); boardRead.current = own;
     const signal = AbortSignal.any([own.signal, lifetime.signal]);
     try {
@@ -157,7 +157,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   }, [chromeEngine, agentControls]);
   useEffect(() => {
     if (!chromeEngine || facadeEngine !== chromeEngine || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
-    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), notify: setNotice, flushEditor: controller.flush });
+    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), notify: setNotice, flushEditor: controller.flush, prepareEditor: controller.prepare, closeEditor: controller.close });
   }, [chromeEngine, facadeEngine, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
   useLayoutEffect(() => {

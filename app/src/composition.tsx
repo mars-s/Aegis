@@ -22,6 +22,8 @@ export interface FeatureContext {
   readonly engine: () => CanvasEngine | null;
   readonly openEditor: (id: CardId, full?: boolean, keyboard?: boolean) => boolean;
   readonly closeEditor: () => boolean;
+  readonly closeEditorAsync?: () => Promise<boolean>;
+  readonly prepare?: () => Promise<boolean>;
 }
 export interface CardRegistration {
   readonly kind: CardBodyKind;
@@ -43,6 +45,7 @@ export interface EditorRegistration {
   readonly kind: CardBodyKind;
   readonly Body: ComponentType<CardBodyProps>;
   readonly flush: (context: FeatureContext, id: CardId) => boolean;
+  readonly prepare?: (context: FeatureContext, id: CardId, signal: AbortSignal) => Promise<boolean>;
 }
 export interface Composition {
   readonly cards: readonly CardRegistration[];

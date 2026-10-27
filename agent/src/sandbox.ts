@@ -9,14 +9,14 @@ export const SANDBOX_LIMIT = 1024 * 1024;
 const RegistrationSchema = z.strictObject({
   html: z.string(), css: z.string(), js: z.string(), state: z.string().optional(),
   parentOrigin: z.string().max(2048).optional(), channel: z.string().uuid(), theme: z.string(),
-  font: z.string().regex(/^data:font\/woff2;base64,[A-Za-z0-9+/=]+$/).optional(), motionOff: z.boolean(),
+  font: z.string().regex(/^data:font\/woff2;base64,[A-Za-z0-9+/=]+$/).optional(), motionOff: z.boolean(), acknowledgeSnapshots: z.boolean().optional(),
 });
 export function createSandboxes(port: () => number) {
   const documents = new Map<string, string>();
   function registerSandbox(input: unknown) {
     const value = RegistrationSchema.parse(input);
     const data = SHAPES.html.parse(checkObject('html', { html: value.html, css: value.css, js: value.js, ...(value.state === undefined ? {} : { state: value.state }) }));
-    const document = sandboxDocument({ ...data, ...(value.parentOrigin === undefined ? {} : { parentOrigin: value.parentOrigin }) }, value.channel, value.theme, value.font ?? '', value.motionOff);
+    const document = sandboxDocument({ ...data, ...(value.parentOrigin === undefined ? {} : { parentOrigin: value.parentOrigin }) }, value.channel, value.theme, value.font ?? '', value.motionOff, value.acknowledgeSnapshots ?? false);
     if (Buffer.byteLength(document) > SANDBOX_LIMIT) throw Object.assign(new Error('sandbox is over 1 MiB'), { status: 413 });
     const id = randomBytes(32).toString('hex'); documents.set(id, document);
     const oldest = documents.keys().next().value;

@@ -215,3 +215,12 @@ test('sandbox cache evicts least recently used entries after 200 registrations',
   assert.equal((await fetch(required(latest[0]).url)).status, 200);
 });
 // item 12 sandbox end
+
+
+test('sandbox snapshot acknowledgement is an explicit registration capability', async () => {
+  const payload = { ...sandboxPayload(), acknowledgeSnapshots: true };
+  const { url } = await call('POST', '/sandbox', payload, UrlSchema);
+  const response = await fetch(url);
+  assert.equal(response.headers.get('content-security-policy'), SANDBOX_HEADER_CSP);
+  assert.equal(await response.text(), sandboxDocument(payload, payload.channel, payload.theme, '', false, true));
+});
