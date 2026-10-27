@@ -113,6 +113,7 @@ export function createHostClient(options: HostOptions): HostClient {
       read: signal => request({ method: 'GET', path: '/library', decode: value => LibrarySnapshotSchema.parse(value), signal }),
       change: (change, signal) => request({ method: 'POST', path: '/library', body: { kind: 'json', value: change }, decode: value => LibraryResultSchema.parse(value), signal }),
       createBoard: (name, parent, signal) => request({ method: 'POST', path: '/boards', body: { kind: 'json', value: { name, parent } }, decode: decodeStoredBoard, signal }),
+      createChild: (name, boardParent, at, signal) => request({ method: 'POST', path: '/boards', body: { kind: 'json', value: { name, boardParent, at } }, decode: decodeStoredBoard, signal }),
       renameBoard: (id, name, signal) => request({ method: 'POST', path: `/boards/${encodeURIComponent(id)}/name`, body: { kind: 'json', value: { name } }, decode: decodeOkResponse, signal }),
       duplicate: (id, signal) => request({ method: 'POST', path: '/library/duplicate', body: { kind: 'json', value: { id } }, decode: value => LibraryResultSchema.parse(value), signal }),
       removeBoard: (id, signal) => request({ method: 'POST', path: `/boards/${encodeURIComponent(id)}/delete`, body: { kind: 'json', value: {} }, decode: value => LibraryResultSchema.parse(value), signal }),

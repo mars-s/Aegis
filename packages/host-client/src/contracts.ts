@@ -79,6 +79,7 @@ export interface HostClient extends BoardClient {
     readonly read: (signal?: AbortSignal) => Promise<HostResult<LibrarySnapshot>>;
     readonly change: (change: LibraryChange, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;
     readonly createBoard: (name: string, parent: string | null, signal?: AbortSignal) => Promise<HostResult<Board>>;
+    readonly createChild: (name: string, parent: BoardId, at: { readonly x: number; readonly y: number }, signal?: AbortSignal) => Promise<HostResult<Board>>;
     readonly renameBoard: (id: BoardId, name: string, signal?: AbortSignal) => Promise<HostResult<void>>;
     readonly duplicate: (id: string, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;
     readonly removeBoard: (id: BoardId, signal?: AbortSignal) => Promise<HostResult<LibraryResult>>;

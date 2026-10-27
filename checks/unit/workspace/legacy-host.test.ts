@@ -71,6 +71,12 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
       const folder = value(await client.library.change({ op: 'create', kind: 'folder', parent: null, name: 'Synthetic folder' }, signal));
       if (!folder.created) throw new Error('The synthetic folder was not created');
       const child = value(await client.library.createBoard('Synthetic child', folder.created, signal));
+      const canvasParent = value(await client.library.createBoard('Nested parent', null, signal));
+      const nested = value(await client.library.createChild('Nested canvas', canvasParent.id, { x: 123, y: 456 }, signal));
+      expect(nested.parent).toBe(canvasParent.id);
+      expect(value(await client.board(canvasParent.id, signal)).cards.find(card => card.type === 'canvas')).toMatchObject({ type: 'canvas', text: 'Nested canvas', x: 123, y: 456, props: { board: nested.id } });
+      expect(value(await client.boards(signal)).find(board => board.id === nested.id)?.boardParent).toBe(canvasParent.id);
+      expect(value(await client.board(nested.id, signal)).name).toBe('Nested canvas');
       value(await client.library.renameBoard(child.id, 'Renamed child', signal));
       expect(value(await client.library.read(signal)).boards.find(board => board.id === child.id)).toMatchObject({ name: 'Renamed child', parent: folder.created });
       const duplicate = value(await client.library.duplicate(child.id, signal));
