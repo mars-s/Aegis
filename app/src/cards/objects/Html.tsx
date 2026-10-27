@@ -9,6 +9,10 @@ import {
 import type { CardBodyProps } from "../../composition.js";
 import type { ObjectData } from "./model.js";
 import type { ObjectServices } from "./services.js";
+import { useSource } from "../../workspace/index.js";
+import { retainObjectPreparation } from "../../editors/object/session.js";
+import { pinObjectDraft } from "./dirty-pins.js";
+import { createSandboxSnapshot } from "./snapshot.js";
 import { useObjectEditing } from "./context.js";
 
 export function Html({
@@ -27,8 +31,14 @@ export function Html({
 }) {
   const frame = useRef<HTMLIFrameElement>(null),
     latest = useRef(data),
-    channel = useRef("");
+    channel = useRef(""),
+    capturing = useRef(false),
+    reported = useRef<string | undefined>(undefined);
   const { set } = useObjectEditing();
+  const boardId = workspace.metadata.getSnapshot().id;
+  const opened = useSource(workspace.ui).editor;
+  const active = () => expanded === (workspace.ui.getSnapshot().editor?.id === cardId);
+
   const [src, setSrc] = useState(""),
     [failure, setFailure] = useState(""),
     [height, setHeight] = useState(data.height ?? 240);
@@ -59,7 +69,8 @@ export function Html({
       "*",
     );
   }
-  function syncState() {
+  function syncState(force = false) {
+    if (!force && active() && (capturing.current || reported.current !== undefined && latest.current.state === reported.current)) return;
     frame.current?.contentWindow?.postMessage(
       {
         type: "aegis:html-restore",
@@ -73,6 +84,7 @@ export function Html({
     const lifetime = new AbortController(),
       ownChannel = crypto.randomUUID();
     channel.current = ownChannel;
+    reported.current = undefined;
     const { theme, motionOff, scheme } = preferences(),
       state = latest.current.state;
     const request = {
@@ -87,6 +99,7 @@ export function Html({
         `color-scheme:${scheme};` +
         THEME_KEYS.map((key) => `${key}:${theme[key]};`).join(""),
       motionOff,
+      acknowledgeSnapshots: true,
     };
     setFailure("");
     void services.registerSandbox(request, lifetime.signal).then(
@@ -109,16 +122,48 @@ export function Html({
     syncState();
   }, [data.state]);
   useEffect(() => {
+    const lifetime = new AbortController(), token = Symbol("sandbox-snapshot");
+    let baseline: string | undefined, pending: Promise<boolean> | null = null;
+    const snapshot = createSandboxSnapshot({
+      source: () => frame.current?.isConnected ? frame.current.contentWindow : null,
+      channel: () => channel.current,
+      commit: state => {
+        const card = workspace.record(cardId).getSnapshot();
+        if (workspace.metadata.getSnapshot().id !== boardId || !active() || card?.type !== "object" || card.kind !== "html" || card.data.html !== html || card.data.css !== css || card.data.js !== js) return false;
+        if (card.data.state !== baseline && card.data.state !== state) return false;
+        reported.current = state;
+        return card.data.state === state || set(["state"], state);
+      },
+    });
+    const release = retainObjectPreparation(workspace, cardId, signal => {
+      if (!active()) return Promise.resolve(true);
+      if (pending) return pending;
+      const card = workspace.record(cardId).getSnapshot();
+      if (card?.type !== "object" || card.kind !== "html") return Promise.resolve(false);
+      baseline = card.data.state;
+      capturing.current = true;
+      pinObjectDraft(engine, cardId, token, true);
+      setFailure("");
+      pending = snapshot.request(AbortSignal.any([signal, lifetime.signal])).then(result => {
+        if (result.kind === "refused" && !lifetime.signal.aborted && result.reason !== "aborted") setFailure(`Could not capture custom UI (${result.reason}). Try the action again.`);
+        return result.kind === "accepted";
+      }).finally(() => { pending = null; capturing.current = false; pinObjectDraft(engine, cardId, token, false); });
+      return pending;
+    });
+    return () => { lifetime.abort(); snapshot.dispose(); release(); pinObjectDraft(engine, cardId, token, false); };
+  }, [workspace, cardId, boardId, html, css, js, expanded, engine, set]);
+  useEffect(() => {
     const receive = (event: MessageEvent<unknown>) => {
       const node = frame.current;
-      if (!node?.isConnected || !channel.current) return;
+      if (!node?.isConnected || !channel.current || !active()) return;
       const initial = reportedState(
         event,
         node.contentWindow,
         channel.current,
         "aegis:html-initial-state",
       );
-      if (initial !== null && latest.current.state === undefined)
+      if (initial !== null && latest.current.state === undefined) {
+        reported.current = initial;
         workspace.submit([
           {
             op: "initialise_html",
@@ -127,9 +172,12 @@ export function Html({
             state: initial,
           },
         ]);
+      }
       const state = reportedState(event, node.contentWindow, channel.current);
-      if (state !== null && state !== latest.current.state)
+      if (!capturing.current && state !== null && state !== latest.current.state) {
+        reported.current = state;
         set(["state"], state);
+      }
       if (
         reportedEscape(event, node.contentWindow, channel.current) &&
         expanded
@@ -168,13 +216,14 @@ export function Html({
     <>
       <iframe
         ref={frame}
+        inert={expanded !== (opened?.id === cardId)}
         title={title}
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
         src={src || undefined}
         onLoad={() => {
           syncPreferences();
-          syncState();
+          syncState(true);
         }}
         style={{ height }}
       />

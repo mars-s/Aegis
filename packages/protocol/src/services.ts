@@ -46,7 +46,7 @@ export const LinkPreviewSchema = z.object({ title: z.string(), description: z.st
 export type LinkPreview = z.output<typeof LinkPreviewSchema>;
 export const SandboxRequestSchema = z.object({
   html: z.string(), css: z.string(), js: z.string(), state: z.string().optional(), parentOrigin: z.string(),
-  channel: z.string().uuid(), font: z.string(), theme: z.string(), motionOff: z.boolean(),
+  channel: z.string().uuid(), font: z.string(), theme: z.string(), motionOff: z.boolean(), acknowledgeSnapshots: z.boolean().optional(),
 });
 export type SandboxRequest = z.output<typeof SandboxRequestSchema>;
 const SandboxResponseSchema = z.object({ url: z.url() });

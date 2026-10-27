@@ -79,9 +79,14 @@ export function collectSelection(context: FeatureContext) {
   ]);
   context.workspace.act({ kind: "select", ids: [id] });
 }
+async function afterEditorClose(context: FeatureContext, action: () => void): Promise<void> {
+  if (context.closeEditorAsync && !await context.closeEditorAsync()) return;
+  action();
+}
+
 export const editingMenus: readonly ActionRegistration[] = [
   ...navigationActions,
-  { id: "cut", label: "Cut", shortcut: "mod+x", run: context => { cutSelection(context); } },
+  { id: "cut", label: "Cut", shortcut: "mod+x", run: context => { void afterEditorClose(context, () => { cutSelection(context); }); } },
   {
     id: "copy",
     label: "Copy",
@@ -111,7 +116,7 @@ export const editingMenus: readonly ActionRegistration[] = [
     label: "Delete",
     shortcut: "Backspace",
     run: (context) => {
-      deleteSelection(context);
+      void afterEditorClose(context, () => { deleteSelection(context); });
     },
   },
   {

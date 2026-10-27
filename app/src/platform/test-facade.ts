@@ -35,6 +35,7 @@ export interface TestFacade {
     readonly fit: () => void;
     readonly load: (board: unknown) => void;
     readonly setBoard: (board: unknown) => void;
+    readonly loadAsync: (board: unknown) => Promise<void>;
     readonly inspect: CanvasEngine["inspect"];
     readonly engine: CanvasEngine;
   };
@@ -66,6 +67,8 @@ export function installTestFacade(args: {
   readonly upload: (file: File) => Promise<AssetUpload>;
   readonly notify: (message: string) => void;
   readonly flushEditor?: () => boolean;
+  readonly prepareEditor?: () => Promise<boolean>;
+  readonly closeEditor?: () => Promise<boolean>;
 }): () => void {
   const { workspace, engine } = args;
   const ids = (values: readonly string[]): CardId[] => values.map(value => CardIdSchema.parse(value));
@@ -117,6 +120,13 @@ export function installTestFacade(args: {
       clearAgentLine: engine.clearAgentLine,
       fit: () => { engine.navigate({ kind: "fit", ids: [], motion: "instant" }); args.persistCamera(); },
       load, setBoard: load,
+      loadAsync: async value => {
+        const before = workspace.metadata.getSnapshot().id;
+        if (args.closeEditor && !await args.closeEditor()) throw new Error('Could not capture the current editor.');
+        await args.replication.settled();
+        if (workspace.metadata.getSnapshot().id !== before) throw new Error('The source board changed while preparing replacement.');
+        load(value);
+      },
       inspect: engine.inspect, engine,
     },
     apply: (value, done) => {
@@ -126,7 +136,7 @@ export function installTestFacade(args: {
     },
     undo: workspace.undo,
     redo: workspace.redo,
-    flush: async () => { if (args.flushEditor?.() === false) throw new Error('The editor has unresolved changes.'); await args.replication.settled(); },
+    flush: async () => { if (args.prepareEditor && !await args.prepareEditor()) throw new Error('Could not capture the custom UI.'); if (args.flushEditor?.() === false) throw new Error('The editor has unresolved changes.'); await args.replication.settled(); },
     toast: args.notify,
     editing: { history: { get status() { return workspace.history.getSnapshot(); } } },
     benchmark: async count => { await args.replication.settled(); args.replication.dispose(); return benchmark(engine, workspace, count); },
