@@ -108,6 +108,7 @@ export function Chrome({
     document.body.dataset.toolSize = toolbar.size;
   }, [toolbar.size]);
   useLayoutEffect(() => {
+    const stage = document.getElementById('stage');
     let dirty = true, source: HTMLElement | null = null;
     let observedTool: string | null | undefined;
     const changed = (): void => { dirty = true; engine.invalidate(); };
@@ -115,6 +116,9 @@ export function Chrome({
       const name = engine.toolName();
       if (observedTool !== name) {
         observedTool = name;
+        stage?.classList.toggle('connecting', name === 'connect');
+        stage?.classList.toggle('placing', name !== null && name !== 'connect');
+        engine.invalidate();
         engine.afterInput(() => {
           refreshChrome.current();
           for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
@@ -130,7 +134,7 @@ export function Chrome({
     } });
     const offUi = context.workspace.ui.subscribe(changed), offLeases = engine.leases.subscribe(changed), offSelection = context.workspace.selection.subscribe(changed);
     changed();
-    return () => { detach(); offUi(); offLeases(); offSelection(); source?.classList.remove('editor-source'); document.getElementById('stage')?.classList.remove('editor-source-selected'); };
+    return () => { detach(); offUi(); offLeases(); offSelection(); source?.classList.remove('editor-source'); stage?.classList.remove('editor-source-selected', 'connecting', 'placing'); };
   }, [context, engine]);
   useEffect(() => {
     const refresh = () => {

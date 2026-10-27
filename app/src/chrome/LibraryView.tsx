@@ -162,6 +162,12 @@ export function Library({
     if (keep && name.trim() && name.trim() !== item.name)
       void run(() => service.rename(item, name.trim()));
   }
+  function covers(item: LibraryItem) {
+    return item.item === 'node' && item.kind === 'project' ? [
+      { title: 'Choose an image…', run: () => { coverFor.current = item.id; file.current?.click(); } },
+      { title: 'Use the first board', run: () => { void run(() => service.cover(item.id, null)); } },
+    ] : [];
+  }
   function menu(item: LibraryItem) {
     const descendants = new Set(
       items
@@ -171,23 +177,7 @@ export function Library({
         .map((candidate) => candidate.id),
     );
     return [
-      ...(item.item === "node" && item.kind === "project"
-        ? [
-            {
-              title: "Choose an image…",
-              run: () => {
-                coverFor.current = item.id;
-                file.current?.click();
-              },
-            },
-            {
-              title: "Use the first board",
-              run: () => {
-                void run(() => service.cover(item.id, null));
-              },
-            },
-          ]
-        : []),
+      ...covers(item),
       { title: "Rename", run: () => rename(item) },
       {
         title: "Move to…",
@@ -632,8 +622,8 @@ export function Library({
                     ? `${item.cards} windows`
                     : `${items.filter((candidate) => candidate.parent === item.id).length} items`}
                 </p>
+                {item.item === 'node' && item.kind === 'project' ? <MenuButton label={`Cover for ${item.name}`} dataProjectCover={item.id} items={() => covers(item)}>Cover</MenuButton> : null}
                 <MenuButton
-                  {...(item.item === "node" && item.kind === "project" ? { dataProjectCover: item.id } : {})}
                   label={`More actions for ${item.name}`}
                   items={() => menu(item)}
                 >

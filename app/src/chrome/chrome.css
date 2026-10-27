@@ -693,6 +693,7 @@
   }
 }
 @media (max-width: 700px), (pointer: coarse) {
+  .react-stage .window-actions button { min-width: 44px; min-height: 44px; }
   .aegis-chrome #tools button,
   .aegis-chrome :is(.row-more, .icon-btn, .fold, .adds button) {
     min-height: 44px;
