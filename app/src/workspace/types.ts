@@ -1,4 +1,4 @@
-import type { AgentId, BatchId, Board, Card, CardContent, CardId, ChangeSet, Command, Source } from '@aegis/domain/schema';
+import type { AgentId, BatchId, Board, Card, CardContent, CardId, ChangeSet, Command, RequestId, Source } from '@aegis/domain/schema';
 import type { HostEvent } from '@aegis/protocol/http';
 import type { SceneOrigin } from '@aegis/scene';
 import type { CreatedIds, HostFailure, LocalFieldError, ReplicationPort } from '@aegis/host-client';
@@ -51,6 +51,7 @@ export interface Workspace {
   readonly card: (id: CardId) => Source<CardContent | null>;
   readonly record: (id: CardId) => Source<Card | null>;
   readonly submit: (commands: readonly Command[]) => LocalResult;
+  readonly expectAgentUndo: (agentId: AgentId, requestId: RequestId) => () => void;
   readonly undo: () => LocalResult;
   readonly redo: () => LocalResult;
   readonly retry: () => void;

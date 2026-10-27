@@ -21,7 +21,9 @@ import type { ZoomTier } from './representations.js';
 import type { CardDropTarget, CanvasAttachment, CanvasEngine, DragGuide, DragSnapshot, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
+interface TouchHold { readonly pointer: number; readonly target: Element; readonly cardId: CardId | null; readonly client: Point; readonly epoch: number }
 type Input =
+  | { readonly kind: 'touch-hold'; readonly request: TouchHold; readonly at: number }
   | { readonly kind: 'wheel'; readonly point: Point; readonly dx: number; readonly dy: number; readonly zoom: boolean; readonly at: number }
   | { readonly kind: 'down'; readonly point: Point; readonly pointer: number; readonly pan: boolean; readonly action: 'move' | 'selection-move' | 'resize' | 'rotate'; readonly target?: CardId; readonly edit?: HTMLElement; readonly modifiers: Modifiers; readonly at: number }
   | { readonly kind: 'touch-down' | 'touch-move' | 'touch-up'; readonly point: Point; readonly pointer: number; readonly at: number }
@@ -64,9 +66,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let dropTarget: CardDropTarget | null = null, paintedDrop: HTMLElement | null = null;
   const inputs: Input[] = [], positions = new Map<CardId, Rect>(), rotations = new Map<CardId, number>(), touches = new Map<number, Point>(), measurements = new Map<string, MeasurementRequest>(), retired = new Set<CardId>();
   let touchQuarantine = false;
+  let touchHold: { readonly request: TouchHold; readonly timer: ReturnType<typeof setTimeout> } | null = null;
+  let heldPointer: number | null = null;
   const abort = new AbortController();
   const participants = new Set<FrameParticipant>();
   const tools = new ToolController(invalidate, hitTest, name => {
+    cancelTouchHold();
     if (args.onToolChange) post(() => { if (tools.name() === name) args.onToolChange?.(name); });
   });
   const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
@@ -127,6 +132,15 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   function clearResidency(): void {
     if (residencyTimer) clearTimeout(residencyTimer);
     residencyTimer = null; initialBodies.clear();
+  }
+
+  function cancelTouchHold(): void {
+    if (touchHold) clearTimeout(touchHold.timer);
+    touchHold = null;
+  }
+
+  function currentHold(request: TouchHold): boolean {
+    return request.epoch === epoch && request.target.isConnected && stage.contains(request.target) && pool.cardAt(request.target) === request.cardId && (!request.cardId || graph.nodes.get(request.cardId)?.hidden === false);
   }
 
   function invalidate(): void {
@@ -338,6 +352,16 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           }
           break;
         }
+        case 'touch-hold': {
+          const request = input.request;
+          if (touches.size !== 1 || !touchPointers.has(request.pointer) || tools.name() || !currentHold(request)) break;
+          cancelGesture(); touches.clear(); touchQuarantine = true;
+          heldPointer = request.pointer; consumeToolClick = true;
+          post(() => {
+            if (heldPointer === request.pointer && currentHold(request)) request.target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: request.client.x, clientY: request.client.y }));
+          });
+          break;
+        }
         case 'touch-move': {
           if (!touches.has(input.pointer)) break;
           touches.set(input.pointer, input.point);
@@ -415,7 +439,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
             else {
               positions.clear();
               const edit = gesture.edit;
-              if (edit?.isConnected) post(() => edit.focus({ preventScroll: true }));
+              if (edit?.isConnected) post(() => { if (edit.isConnected && stage.ownerDocument.activeElement === stage) edit.focus({ preventScroll: true }); });
             }
           } else if (gesture.kind === 'resize' || gesture.kind === 'rotate') {
             const id = gesture.id, bounds = positions.get(id), rotation = rotations.get(id);
@@ -595,6 +619,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const touchPointers = new Set<number>();
 
   stage.addEventListener('wheel', event => {
+    cancelTouchHold();
     if (editable(event.target) && !event.ctrlKey && !event.metaKey) return;
     event.preventDefault();
     const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.height : 1;
@@ -605,15 +630,24 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const inside = event.target instanceof Node && stage.contains(event.target);
     const affordance = event.target instanceof Element && event.target.closest('.agent-window,.editing-outline');
     if (!inside && !(pan && affordance)) return;
+    cancelTouchHold();
     consumeToolClick = false; textPress = null;
     if (!pan && (!editable(event.target) || tools.name() === connectionToolId) && tools.down(toolPoint(event))) { consumeToolClick = true; event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
     if (pan) tools.cancel('pan');
     if (event.pointerType === 'touch' && (touchPointers.size || tools.name())) tools.cancel('pan');
     if (event.pointerType === 'touch') {
-      if (editable(event.target) && !touchPointers.size) return;
+      if (pointerEditable(event.target) && !touchPointers.size) return;
       event.preventDefault(); event.stopImmediatePropagation(); stage.setPointerCapture(event.pointerId);
       touchPointers.add(event.pointerId);
       enqueue({ kind: 'touch-down', point: point(event), pointer: event.pointerId, at: performance.now() });
+      if (touchPointers.size === 1 && !tools.name() && event.target instanceof Element) {
+        const request: TouchHold = { pointer: event.pointerId, target: event.target, cardId: pool.cardAt(event.target), client: { x: event.clientX, y: event.clientY }, epoch };
+        touchHold = { request, timer: setTimeout(() => {
+          if (touchHold?.request !== request) return;
+          touchHold = null;
+          if (!disposed && currentHold(request)) enqueue({ kind: 'touch-hold', request, at: performance.now() });
+        }, 520) };
+      }
       return;
     }
     const handle = event.target instanceof Element ? event.target.closest('.resize,.selection-resize,.rotation-handle,.selection-move,[data-scene-gesture]') : null;
@@ -647,10 +681,20 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     consumeToolClick = false; event.preventDefault(); event.stopImmediatePropagation();
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('pointermove', event => {
+    if (touchHold?.request.pointer === event.pointerId && Math.hypot(event.clientX - touchHold.request.client.x, event.clientY - touchHold.request.client.y) > 8) cancelTouchHold();
     if (touchPointers.has(event.pointerId)) enqueue({ kind: 'touch-move', point: point(event), pointer: event.pointerId, at: performance.now() });
     else if (!gesture && !spaceHeld && tools.move((event.getCoalescedEvents?.().length ? event.getCoalescedEvents() : [event]).map(toolPoint))) return;
     else if (event.target instanceof Element && event.target.hasPointerCapture(event.pointerId)) enqueue({ kind: 'move', drop: resolveDrop(event), point: point(event), pointer: event.pointerId, bypass: event.metaKey || event.ctrlKey, at: performance.now() });
   }, { signal: abort.signal });
+  const releaseTouchHold = (event: PointerEvent): void => {
+    if (touchHold?.request.pointer === event.pointerId) cancelTouchHold();
+    if (heldPointer !== event.pointerId) return;
+    heldPointer = null; touchPointers.delete(event.pointerId);
+    event.preventDefault(); event.stopImmediatePropagation();
+    enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() });
+  };
+  view.addEventListener('pointerup', releaseTouchHold, { capture: true, signal: abort.signal });
+  view.addEventListener('pointercancel', releaseTouchHold, { capture: true, signal: abort.signal });
   stage.addEventListener('pointerup', event => {
     if (tools.up(toolPoint(event))) return;
     if (touchPointers.delete(event.pointerId)) enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() });
@@ -658,6 +702,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     stage.classList.remove('panning');
   }, { signal: abort.signal });
   stage.addEventListener('pointercancel', event => {
+    cancelTouchHold();
     textPress = null;
     if (tools.owns(event.pointerId)) { tools.cancel('pointer-cancel'); return; }
     stage.classList.remove('panning');
@@ -665,13 +710,15 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     else enqueue({ kind: 'cancel', at: performance.now() });
   }, { signal: abort.signal });
   stage.addEventListener('lostpointercapture', event => {
+    if (touchHold?.request.pointer === event.pointerId) cancelTouchHold();
     if (tools.owns(event.pointerId)) { tools.cancel('lost-capture'); return; }
     if (touchPointers.delete(event.pointerId)) { enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() }); return; }
     if (inputs.some(input => input.kind === 'touch-up' && input.pointer === event.pointerId)) return;
     if (!inputs.some(input => input.kind === 'up' && input.pointer === event.pointerId) && (gesture?.pointer === event.pointerId || inputs.some(input => input.kind === 'down' && input.pointer === event.pointerId))) enqueue({ kind: 'cancel', at: performance.now() });
   }, { signal: abort.signal });
-  view.addEventListener('blur', () => { tools.cancel('pointer-cancel'); releaseSpace(); touchPointers.clear(); stage.classList.remove('panning'); enqueue({ kind: 'cancel', at: performance.now() }); }, { signal: abort.signal });
+  view.addEventListener('blur', () => { cancelTouchHold(); heldPointer = null; tools.cancel('pointer-cancel'); releaseSpace(); touchPointers.clear(); stage.classList.remove('panning'); enqueue({ kind: 'cancel', at: performance.now() }); }, { signal: abort.signal });
   view.addEventListener('keydown', event => {
+    cancelTouchHold();
     if (event.code === 'Space') {
       if (ownsSpace(event.target) || ownsSpace(stage.ownerDocument.activeElement)) return;
       tools.cancel('pan'); spaceHeld = true; stage.classList.add('pan-ready');
@@ -686,7 +733,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (event.key === 'a' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); select(graph.all().filter(node => !node.locked).map(node => node.card.id)); invalidate(); }
   }, { capture: true, signal: abort.signal });
   view.addEventListener('keyup', event => { if (event.code === 'Space') { releaseSpace(); invalidate(); } }, { capture: true, signal: abort.signal });
-  view.addEventListener('focusin', event => { if (ownsSpace(event.target)) { releaseSpace(); invalidate(); } }, { capture: true, signal: abort.signal });
+  view.addEventListener('focusin', event => { if (ownsSpace(event.target)) { cancelTouchHold(); releaseSpace(); invalidate(); } }, { capture: true, signal: abort.signal });
   stage.addEventListener('focusin', event => {
     if (!(event.target instanceof Node)) return;
     if (focusId) pool.pin(focusId, 'focus', false);
@@ -709,6 +756,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const unsubscribeScene = workspace.scene.subscribe(change => {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
+      cancelTouchHold(); heldPointer = null;
       fitting = null;
       agentMotion.settle(); agentLine.clear(); clearGlow(); clearResidency();
       const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
@@ -792,6 +840,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
+      cancelTouchHold(); heldPointer = null;
       agentMotion.settle(); agentLine.dispose(); clearGlow(); clearResidency(); motionObserver.disconnect(); dragGuides.dispose();
       paintedDrop?.removeAttribute('data-scene-drop-target'); paintedDrop = null; dropTarget = null;
       tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); unsubscribeTheme?.(); participants.clear(); pool.dispose(); overlays.dispose();

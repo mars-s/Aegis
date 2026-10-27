@@ -42,6 +42,7 @@ import { placementTool } from './features/wireframe/tool.js';
 import { mediaPlacementTool } from './features/media/placement-tool.js';
 import { Unsorted } from './platform/Unsorted.js';
 import { CaptureButton, CaptureViews } from './features/editing/registration.js';
+import { NavigationViews } from './features/editing/NavigationViews.js';
 import { CreativeImports } from './platform/CreativeImports.js';
 import { armDeckPlacement } from './platform/deck-placement.js';
 import { createAvailableArea } from './platform/available-area.js';
@@ -239,6 +240,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
     {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
+    <NavigationViews context={context} engine={chromeEngine} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}

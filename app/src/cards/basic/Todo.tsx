@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 import { useCard } from "../../workspace/index.js";
 import type { CardBodyProps } from "../../composition.js";
 import { Editable } from "./Editable.js";
@@ -7,7 +7,14 @@ import "./basic.css";
 export function TodoBody(props: CardBodyProps) {
   const { workspace, cardId } = props,
     card = useCard(workspace, cardId),
-    root = useRef<HTMLDivElement>(null);
+    root = useRef<HTMLDivElement>(null),
+    pendingFocus = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const index = pendingFocus.current;
+    if (index === null) return;
+    pendingFocus.current = null;
+    root.current?.querySelectorAll<HTMLElement>(".todo-text")[index]?.focus({ preventScroll: true });
+  });
   if (!card || card.type !== "todo") return null;
   const items = card.items ?? [];
   function save(next: typeof items) {
@@ -103,14 +110,8 @@ export function TodoBody(props: CardBodyProps) {
                   const next = latest.map((entry) => ({ ...entry }));
                   if (add) next.splice(i + 1, 0, { text: "", done: false });
                   else if (!text) next.splice(i, 1);
+                  pendingFocus.current = add ? i + 1 : Math.max(0, i - 1);
                   save(next);
-                  queueMicrotask(() =>
-                    root.current
-                      ?.querySelectorAll<HTMLElement>(".todo-text")
-                      [add ? i + 1 : Math.max(0, i - 1)]?.focus({
-                        preventScroll: true,
-                      }),
-                  );
                 }
               }}
             />
