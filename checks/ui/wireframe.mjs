@@ -26,7 +26,7 @@ const snapshot = () => page.evaluate(() => structuredClone(aegis.canvas.board));
 const point = (x, y) => page.evaluate(([x, y]) => aegis.canvas.worldToScreen(x, y), [x, y]);
 async function clickAt(x, y) { const p = await point(x, y); await page.mouse.click(p.x, p.y); }
 async function select(id) { await page.evaluate(id => aegis.canvas.select([id]), id); await page.waitForTimeout(260); }
-async function prop(name, value) { const input = panel.getByLabel(name, { exact: true }); await input.fill(String(value)); await input.press('Tab'); await panel.locator('.wf-panel-head strong').click(); await page.waitForTimeout(260); }
+async function prop(name, value) { const input = panel.getByLabel(name, { exact: true }); if (await input.evaluate(element => element instanceof HTMLButtonElement)) { await input.click(); const editor = page.getByRole('dialog', { name: 'Colour editor', exact: true }); await editor.getByLabel('Hex', { exact: true }).fill(String(value)); await editor.getByRole('button', { name: 'Done', exact: true }).click(); } else { await input.fill(String(value)); await input.press('Tab'); } await panel.locator('.wf-panel-head strong').click(); await page.waitForTimeout(260); }
 async function drag(x, y, dx, dy, guideScreenshot) {
   const start = await point(x, y), end = await point(x + dx, y + dy);
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 12 });
@@ -76,6 +76,7 @@ try {
   // Search and swap real bundled Material Icons.
   await panel.locator('[data-wf="icon"]').click(); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('settings');
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="settings"]').click(); await clickAt(330, 125);
+  await page.locator('.card[data-type="icon"] .wf-icon').filter({ hasText: 'settings' }).waitFor();
   let icon = (await snapshot()).cards.find(c => c.type === 'icon' && c.props.name === 'settings'); assert.ok(icon);
   await select(icon.id); await panel.getByRole('button', { name: 'Change icon', exact: true }).click();
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('favorite border'); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="favorite_border"]').click();
