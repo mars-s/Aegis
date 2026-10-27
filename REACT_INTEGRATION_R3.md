@@ -98,3 +98,9 @@ Accepted the Chrome createChild request as a typed semantic HostClient operation
 The central deck action now arms the real one-shot scene placement tool instead of creating at the viewport centre. Preview and input stay in the scene scheduler; creation and editor opening occur after input. Keyboard entry and Motion off stay instant. OS reduced motion uses opacity-only pointer fade while the scene's camera preference still disables travel.
 
 The complete production deck suite passes 257/257, including B click placement, keyboard/pointer opening, both motion settings, persistence and zero browser errors. Editors remains 51/51. Editor-return completes Chromium 71 assertions and still stops on WebKit's initial agent-update timeout at :54. Strict React types, targeted lint and whitespace pass.
+
+## Discrete wireframe policies
+
+Accepted the exact selectForDrag/expandDrag attachment proposal, retaining document-drop and camera callbacks. The policies run on gesture start and reuse the owned wireframe helpers. Original wireframe advances from five to 22 passing assertions, through group/frame carry, before its colour helper attempts to fill the real controlled picker button at :89/:29. No selector or assertion was changed in this unit. Snapping, guides and atomic drop parenting remain scene follow-ups.
+
+The full CreativeConnections consumer remains deferred under the existing integration-connection-contract.md ruling: its participant rebuilds SVG hit paths for every link during busy camera frames. The requested bounded cached picker/selected-link consumer is feature work that must preserve the single scene scheduler. Link placement is already registered separately.

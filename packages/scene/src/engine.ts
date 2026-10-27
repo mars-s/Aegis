@@ -292,11 +292,11 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
                 : { kind: 'rotate', pointer: input.pointer, start: input.point, id, centre, angle: angleFrom(input.point, centre), rotation: node.rotation };
               break;
             }
-            if (input.modifiers.bypass) select([id]);
-            else if (input.modifiers.shift) select(selected.has(id) ? [...selected].filter(candidate => candidate !== id) : [...selected, id]);
-            else if (!selected.has(id)) select([id]);
+            const ids = input.modifiers.bypass ? [id] : input.modifiers.shift ? selected.has(id) ? [...selected].filter(candidate => candidate !== id) : [...selected, id] : selected.has(id) ? [...selected] : [id];
+            select(args.selectForDrag?.(ids, id, input.modifiers) ?? ids);
+            const carried = args.expandDrag?.([...selected], input.modifiers) ?? [...selected];
             const bases = new Map<CardId, Rect>();
-            for (const candidate of selected) { const current = graph.nodes.get(candidate); if (current && !current.locked) bases.set(candidate, current.layout.bounds); }
+            for (const candidate of carried) { const current = graph.nodes.get(candidate); if (current && !current.locked) bases.set(candidate, current.layout.bounds); }
             const descendants = [...bases.keys()];
             for (let index = 0; index < descendants.length; index++) {
               const parent = descendants[index];

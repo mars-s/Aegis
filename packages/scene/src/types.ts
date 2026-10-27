@@ -154,6 +154,8 @@ export interface CanvasAttachment {
   readonly warmLeases?: number;
   readonly reducedMotion?: boolean;
   readonly snapGrid?: number;
+  readonly selectForDrag?: (ids: readonly CardId[], hit: CardId, modifiers: Pick<ToolPointer, 'shift' | 'bypass'>) => readonly CardId[];
+  readonly expandDrag?: (ids: readonly CardId[], modifiers: Pick<ToolPointer, 'shift' | 'bypass'>) => readonly CardId[];
   readonly canLease?: (card: Card) => boolean;
   readonly availableArea?: Source<Rect>;
 }
