@@ -18,6 +18,7 @@ export function createMorph(shell: HTMLElement, content: HTMLElement, tiles: rea
   let crossfade = false;
   let captured = true;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  const gentle = (): boolean => matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('motion-off');
   function cancel(): void { for (const animation of animations) animation.cancel(); animations = []; }
   function capture(options: { readonly instant: boolean; readonly crossfade?: boolean }): void {
     captured = true;
@@ -35,7 +36,7 @@ export function createMorph(shell: HTMLElement, content: HTMLElement, tiles: rea
     if (instant || !before.width || !after.width || document.hidden) { before = after; return; }
     const changed = Math.abs(before.width - after.width) > .5 || Math.abs(before.height - after.height) > .5;
     if (!changed && !crossfade) return;
-    if (reduced.matches || document.body.classList.contains('motion-off')) {
+    if (gentle()) {
       animations.push(content.animate([{ opacity: .35 }, { opacity: 1 }], { duration: 160 }));
     } else {
       const frames: Keyframe[] = [], counters: Keyframe[] = [];
@@ -58,7 +59,7 @@ export function createMorph(shell: HTMLElement, content: HTMLElement, tiles: rea
     }
     before = after;
   }
-  const settle = (): void => { if (reduced.matches || document.body.classList.contains('motion-off')) cancel(); };
+  const settle = (): void => { if (gentle()) cancel(); };
   reduced.addEventListener('change', settle);
   const observer = new MutationObserver(settle);
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });

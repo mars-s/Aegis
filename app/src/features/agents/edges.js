@@ -7,7 +7,7 @@ const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 export function mountAgentEdges({ edges, recover, label }) {
   const clusters = new Map();
   for (const side of ['left', 'right', 'top', 'bottom']) {
-    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'agent-edge agent-edge-cluster'; trigger.hidden = true;
+    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.tabIndex = 0; trigger.className = 'agent-edge agent-edge-cluster'; trigger.hidden = true;
     const count = document.createElement('span'); count.className = 'agent-edge-count'; trigger.append(count); edges.append(trigger);
     const menu = document.createElement('div'); menu.className = 'agent-edge-chooser'; menu.setAttribute('aria-label', `Off-screen agents, ${side}`);
     const cluster = { trigger, count, menu, entries: [], signature: '' };

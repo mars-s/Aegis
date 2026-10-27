@@ -265,7 +265,7 @@ export function mountAgents({ canvas, host, toast, showAll, beforeUndo, afterUnd
     const at = canvas.centre();
     const w = { agent: a, x: saved?.x ?? at.x - 170, y: saved?.y ?? at.y - 180, closed: saved?.closed ?? false, collapsed: saved?.collapsed ?? true, moved: !!saved, el: document.createElement('section') };
     w.el.className = 'agent-window'; w.el.dataset.agentId = a.id; w.el.setAttribute('aria-label', 'Agent window');
-    w.edge = document.createElement('button'); w.edge.type = 'button'; w.edge.className = 'agent-edge'; w.edge.dataset.agentId = a.id; w.edge.hidden = true;
+    w.edge = document.createElement('button'); w.edge.type = 'button'; w.edge.tabIndex = 0; w.edge.className = 'agent-edge'; w.edge.dataset.agentId = a.id; w.edge.hidden = true;
     w.edge.innerHTML = `${STAR}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4"/></svg>`;
     w.edge.onpointerdown = e => e.stopPropagation();
     w.edge.onclick = e => recover(w, e);
