@@ -18,6 +18,7 @@ interface Harness {
   readonly calls: readonly (readonly Command[])[];
   readonly submit: CanvasWorkspace['submit'];
   readonly select: (ids: readonly string[]) => void;
+  readonly selection: () => readonly CardId[];
   readonly batch: (commands: unknown, origin: SceneOrigin) => void;
   readonly replace: (count: number) => void;
   readonly load: (board: unknown) => void;
@@ -124,7 +125,7 @@ function Portals() {
 const root = createRoot(element('portals')); root.render(createElement(Portals));
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
-  engine, board: () => current, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
+  engine, board: () => current, selection: () => selection, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
   update: card => update([CardSchema.parse(card)]),
   batch,
   replace: count => {

@@ -49,7 +49,7 @@ svg{max-width:100%;overflow:visible}svg text{fill:var(--muted);font:11px var(--f
 :focus-visible{outline:1.5px solid var(--text);outline-offset:2px}::selection{background:var(--data-soft)}
 ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}`;
 
-export function sandboxDocument(data: ObjectData['html'] & {parentOrigin?:string}, channel: string, theme: string, font: string, motionOff = false): string {
+export function sandboxDocument(data: ObjectData['html'] & {parentOrigin?:string}, channel: string, theme: string, font: string, motionOff = false, acknowledgeSnapshots = false): string {
   const scriptText = (text: string) => text.replace(/<\/script/gi, '<\\/script');
   const encodedChannel = JSON.stringify(channel).replace(/</g, '\\u003c');
   const bootstrap = `(() => {
@@ -109,7 +109,18 @@ export function sandboxDocument(data: ObjectData['html'] & {parentOrigin?:string
     };
     addEventListener('message', event => {
       const data = event.data;
-      if (event.source !== parent || (parentOrigin !== null && event.origin !== parentOrigin) || !data || data.channel !== ${encodedChannel}) return;
+      if (event.source !== parent || (parentOrigin !== null && event.origin !== parentOrigin) || !data || data.channel !== ${encodedChannel}) return;${acknowledgeSnapshots ? `
+      if (data.type === 'aegis:html-snapshot') {
+        if (Object.keys(data).some(key => !['type', 'channel', 'requestId'].includes(key)) || typeof data.requestId !== 'string' || !data.requestId || data.requestId.length > 128) return;
+        const requestId = data.requestId;
+        // Capture after queued event tasks, including script-only state updates.
+        setTimeout(() => {
+          const state = loaded ? snapshot() : null;
+          const result = !loaded ? { kind: 'refused', reason: 'not-ready' } : state === null ? { kind: 'refused', reason: 'invalid-state' } : { kind: 'ok', state };
+          send({ type: 'aegis:html-snapshot-result', channel: ${encodedChannel}, requestId, ...result }, '*');
+        }, 0);
+        return;
+      }` : ''}
       if (data.type === 'aegis:html-restore') {
         if (data.state !== null && !parseState(data.state)) return;
         if (data.state !== lastState) restore(data.state ?? defaultState);
@@ -174,4 +185,16 @@ export function reportedState(event:SandboxMessage,source:unknown,channel:string
   if(!source || event.source !== source || event.origin !== 'null') return null;
   const parsed=StateMessageSchema.safeParse(event.data);
   return parsed.success && parsed.data.type === type && parsed.data.channel === channel && parseHtmlState(parsed.data.state) ? parsed.data.state : null;
+}
+
+const SnapshotMessageSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ type: z.literal('aegis:html-snapshot-result'), channel: z.string(), requestId: z.string().min(1).max(128), kind: z.literal('ok'), state: z.string() }),
+  z.strictObject({ type: z.literal('aegis:html-snapshot-result'), channel: z.string(), requestId: z.string().min(1).max(128), kind: z.literal('refused'), reason: z.enum(['not-ready', 'invalid-state']) }),
+]);
+export function reportedSnapshot(event: SandboxMessage, source: unknown, channel: string, requestId: string) {
+  if (!source || event.source !== source || event.origin !== 'null') return null;
+  const parsed = SnapshotMessageSchema.safeParse(event.data);
+  if (!parsed.success || parsed.data.channel !== channel || parsed.data.requestId !== requestId) return null;
+  if (parsed.data.kind === 'ok' && !parseHtmlState(parsed.data.state)) return null;
+  return parsed.data;
 }

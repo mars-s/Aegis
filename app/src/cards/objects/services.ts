@@ -9,6 +9,7 @@ export interface SandboxRegistration extends Pick<
   readonly font: string;
   readonly theme: string;
   readonly motionOff: boolean;
+  readonly acknowledgeSnapshots?: boolean;
 }
 export interface ObjectServices {
   readonly assetUrl: (url: string) => string;

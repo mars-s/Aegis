@@ -6,7 +6,7 @@ import type {
 } from "../../composition.js";
 import { ObjectView } from "./ObjectBody.js";
 import type { ObjectServices } from "./services.js";
-import { flushObject } from "../../editors/object/session.js";
+import { flushObject, prepareObject } from "../../editors/object/session.js";
 export type { ObjectServices, SandboxRegistration } from "./services.js";
 export { ObjectView } from "./ObjectBody.js";
 export { flushObject } from "../../editors/object/session.js";
@@ -30,6 +30,7 @@ export function objectRegistrations(services: ObjectServices): {
       kind: `object:${kind}`,
       Body: Editor,
       flush: flushObject,
+      ...(kind === "html" ? { prepare: prepareObject } : {}),
     })),
   };
 }

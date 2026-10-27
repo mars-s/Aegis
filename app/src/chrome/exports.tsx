@@ -30,6 +30,7 @@ export function useChromeExports(
     documents = useDocumentServices();
   return useCallback(
     async (selection: boolean, format: "png" | "pdf") => {
+      if (context.prepare && !await context.prepare()) return false;
       const snapshot = context.workspace.scene.snapshot();
       const renderer = createExportRenderer({
         board: snapshot,
