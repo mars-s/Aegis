@@ -17,10 +17,10 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false, insets = false, attachmentBrowser = browser): Promise<Page> {
+async function page(motion: boolean | 'system' = false, insets = false, attachmentBrowser = browser): Promise<Page> {
   if (!attachmentBrowser) throw new Error('Browser not started');
   const result = await attachmentBrowser.newPage({ viewport: { width: 1440, height: 900 } });
-  await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
+  await result.goto(url + `?motion=${motion === 'system' ? 'system' : motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
   return result;
@@ -81,6 +81,116 @@ describe('real scene attachment', () => {
       await p.mouse.up(); await idle(p);
       expect(await verify()).toBe(dragged);
       expect(await p.evaluate(() => window.sceneHarness.board().cards[0]?.x)).toBeGreaterThan(80);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('retains one selected formatting body at real offscreen geometry in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness;
+        harness.select(['note-9']);
+        harness.engine.navigate({ kind: 'restore', camera: { x: -10000, y: -10000, zoom: .2 }, motion: 'instant' });
+      });
+      await p.locator('[data-body="note-9"]').waitFor({ state: 'attached' });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => { if (!(el instanceof HTMLElement)) throw new Error('Missing formatting card'); return { hidden: el.hidden, inert: el.inert, left: el.getBoundingClientRect().left, text: el.textContent }; })).toMatchObject({ hidden: false, inert: false, text: 'Note 9' });
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el.getBoundingClientRect().right)).toBeLessThan(0);
+      await p.evaluate(() => { window.sceneHarness.select([]); });
+      await idle(p);
+      expect(await p.locator('[data-id="note-9"]').evaluate(el => el instanceof HTMLElement && el.hidden)).toBe(true);
+      await p.evaluate(() => {
+        window.sceneHarness.replace(5000);
+        window.sceneHarness.select(window.sceneHarness.board().cards.map(card => card.id));
+        window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: -100000, y: -100000, zoom: .05 }, motion: 'instant' });
+      });
+      await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(32);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('uses the current motion preference when navigation starts in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page('system', false, alternate ?? browser);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      await p.emulateMedia({ reducedMotion: 'no-preference' });
+      const frames = await p.evaluate(() => new Promise<readonly number[]>(resolve => {
+        const engine = window.sceneHarness.engine, frames: number[] = [];
+        const release = engine.registerFrameParticipant({ write: () => { frames.push(engine.camera().x); if (!engine.busy()) { release(); resolve(frames); } } });
+        engine.navigate({ kind: 'restore', camera: { x: 200, y: 100, zoom: .8 }, motion: 'glide', duration: 420 });
+      }));
+      expect(frames.length).toBeGreaterThanOrEqual(5);
+      expect(frames.at(-1)).toBe(200);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      expect(await p.evaluate(() => {
+        const engine = window.sceneHarness.engine;
+        engine.navigate({ kind: 'restore', camera: { x: 20, y: 30, zoom: 1 }, motion: 'glide' });
+        return { busy: engine.busy(), camera: engine.camera() };
+      })).toEqual({ busy: false, camera: { x: 20, y: 30, zoom: 1 } });
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('agent cues follow provenance, real origins and lease retirement in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const h = window.sceneHarness, card = h.board().cards[0]; if (!card) throw new Error('Missing card');
+        h.engine.ring([card.id], '#ff0000', 4000, 'Agent test', { x: 25, y: 40 }, 'dashed');
+      });
+      expect(await p.locator('.agent-line .origin').getAttribute('cx')).toBe('25');
+      expect(await p.locator('.agent-line .origin').getAttribute('cy')).toBe('40');
+      expect(await p.locator('.card.glow').count()).toBe(1);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 100, y: 80 }], 'local'));
+      await idle(p);
+      expect(await p.locator('.agent-line .origin').count()).toBe(0);
+      await p.waitForFunction(() => !document.querySelector('.card.glow'));
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 110, y: 80 }], 'sync'));
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 120, y: 80 }], 'agent'));
+      await idle(p);
+      expect(await p.locator('.card.glow').getAttribute('data-id')).toBe('note-0');
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'delete', id: 'note-0' }], 'local'));
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.evaluate(() => { const h = window.sceneHarness, card = h.board().cards[0]; if (!card) throw new Error('Missing card'); h.engine.glow([card.id]); h.replace(10); });
+      await idle(p);
+      expect(await p.locator('.card.glow').count()).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('agent presentation retargets, yields to a drag and releases exits in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(true, false, alternate ?? browser);
+      const batch = async (commands: unknown) => { await p.evaluate(commands => window.sceneHarness.batch(commands, 'agent'), commands); await idle(p); };
+      await batch([{ op: 'move', id: 'note-2', x: 780, y: 130 }]);
+      const before = await p.locator('[data-id="note-2"]').evaluate(el => {
+        const animation = el.getAnimations().find(animation => animation.id === 'aegis-agent-card'); if (!animation) throw new Error('Missing move animation'); animation.pause(); animation.currentTime = 90;
+        return getComputedStyle(el).transform;
+      });
+      await batch([{ op: 'move', id: 'note-2', x: 550, y: 180 }]);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().find(animation => animation.id === 'aegis-agent-card')?.effect?.getTiming().duration)).toBe(320);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => { const animation = el.getAnimations().find(animation => animation.id === 'aegis-agent-card'); if (!(animation?.effect instanceof KeyframeEffect)) throw new Error('Missing effect'); animation.pause(); animation.currentTime = 0; return animation.effect.getKeyframes()[0]?.transform; })).toBe(before);
+      const box = await p.locator('[data-id="note-2"]').boundingBox(); if (!box) throw new Error('Missing animated card');
+      await p.mouse.move(box.x + 8, box.y + 90); await p.mouse.down(); await p.mouse.move(box.x + 58, box.y + 110); await p.mouse.up(); await idle(p);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
+      const dragged = await p.locator('[data-id="note-2"]').boundingBox();
+      expect(Math.abs((dragged?.x ?? Infinity) - box.x - 50)).toBeLessThanOrEqual(13);
+      await batch([{ op: 'create', type: 'note', newId: 'agententer', text: 'New result', x: 80, y: 600 }, { op: 'delete', id: 'note-3' }]);
+      expect(await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').map(animation => animation.effect?.getTiming().duration).sort())).toEqual([180, 240]);
+      await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').forEach(animation => animation.finish())); await idle(p);
+      expect(await p.locator('.card[aria-hidden="true"]').count()).toBe(0);
+      await batch([{ op: 'move', id: 'agententer', x: 120, y: 600 }]);
+      await p.evaluate(() => document.body.classList.add('motion-off'));
+      expect(await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
       await p.close();
     } finally { await alternate?.close(); }
   });
