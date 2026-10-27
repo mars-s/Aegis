@@ -36,25 +36,39 @@ export async function benchmark(engine: CanvasEngine, workspace: Workspace, coun
   await new Promise<void>(done => setTimeout(done, 100));
   engine.recordMetrics(true);
   const started = performance.now();
-  for (let index = 0; index < 150; index++) {
-    const before = engine.inspect().frameCount;
-    stage.dispatchEvent(new WheelEvent("wheel", { deltaX: 40, deltaY: 25, bubbles: true, cancelable: true }));
-    await nextFrame(before);
+  let mountedNear = 0;
+  let samples: ReturnType<CanvasEngine["samples"]>;
+  let release = (): void => {};
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await new Promise<void>((done, fail) => {
+      let index = 0;
+      const advance = (): void => {
+        try {
+          if (index === 150) mountedNear = engine.inspect().activeLeases;
+          if (index === 240) { done(); return; }
+          stage.dispatchEvent(new WheelEvent("wheel", index < 150
+            ? { deltaX: 40, deltaY: 25, bubbles: true, cancelable: true }
+            : { deltaY: 30, ctrlKey: true, clientX: 600, clientY: 400, bubbles: true, cancelable: true }));
+          index++;
+        } catch (error) { fail(error); }
+      };
+      timeout = setTimeout(() => fail(new Error("The scene stopped producing requested frames.")), 20000);
+      release = engine.registerFrameParticipant({ write: () => queueMicrotask(advance) });
+      advance();
+    });
+    samples = engine.samples();
+  } finally {
+    clearTimeout(timeout);
+    release();
+    engine.recordMetrics(false);
   }
-  const mountedNear = engine.inspect().activeLeases;
-  for (let index = 0; index < 90; index++) {
-    const before = engine.inspect().frameCount;
-    stage.dispatchEvent(new WheelEvent("wheel", { deltaY: 30, ctrlKey: true, clientX: 600, clientY: 400, bubbles: true, cancelable: true }));
-    await nextFrame(before);
-  }
-  const samples = engine.samples();
   const intervals = samples.map(sample => sample.interval).filter(interval => interval > 0);
   const result = {
     runtime: "chromium" as const, pacing: "headless, display refresh unverified", cards: count, frames: samples.length,
     seconds: (performance.now() - started) / 1000, mountedNear, mountedFar: engine.inspect().activeLeases,
     zoom: engine.camera().zoom, interval: histogram(intervals), callbackCpu: histogram(samples.map(sample => sample.cpu)), samples,
   };
-  engine.recordMetrics(false);
   document.body.dataset.bench = JSON.stringify({ cards: count, p50ms: result.interval.p50, p95ms: result.interval.p95, maxms: result.interval.max, cpuP95ms: result.callbackCpu.p95 });
   return result;
 }
