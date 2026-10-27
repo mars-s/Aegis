@@ -7,6 +7,7 @@ import { originalFile, slideIndex } from './model.js';
 import { deckSession } from './session.js';
 import { SlideView } from './Slide.js';
 import { Ribbon } from './Ribbon.js';
+import { OriginalLink } from './OriginalLink.js';
 import { Presentation } from './Presentation.js';
 import './editor.css';
 
@@ -60,7 +61,7 @@ export function DeckEditor({ cardId, workspace, engine, services }: CardBodyProp
   if (card?.type !== 'deck') return <p role="status">This deck is no longer available.</p>;
   const selectedSlide = draft.slides[draft.current];
   return <div className="deck-editor" onKeyDown={keys}>
-    <div className="deck-editor-status"><span data-saved role="status">{draft.error || saving.kind === 'blocked' ? 'Not saved' : draft.dirty || saving.kind === 'saving' ? 'Saving…' : 'Saved'}</span>{original ? <a className="deck-source" href={services.assetUrl(original.original)} download={original.name || 'Presentation'}>Original file</a> : null}</div>
+    <div className="deck-editor-status"><span data-saved role="status">{draft.error || saving.kind === 'blocked' ? 'Not saved' : draft.dirty || saving.kind === 'saving' ? 'Saving…' : 'Saved'}</span>{original ? <OriginalLink original={original} services={services} /> : null}</div>
     {draft.error ? <div className="deck-save-error" role="alert"><p>{draft.error}</p><button type="button" onClick={() => session.flush()}>Retry</button><button type="button" onClick={() => session.useLatest()}>Use latest slides</button></div> : saving.kind === 'blocked' ? <div className="deck-save-error" role="alert"><p>{saving.reason}</p><button type="button" onClick={workspace.retry}>Retry save</button></div> : null}
     <Ribbon draft={draft} session={session} services={services} present={() => { if (session.flush()) setPresenting(true); }} toggleOverview={() => session.overview(!draft.overview)} />
     <div className="deck-ed"><div className={`deck-stage${draft.overview ? ' is-overview' : ''}`} ref={stage} tabIndex={0} aria-label={draft.overview ? 'Slide overview. Scroll through all slides.' : 'Active slide'} onScroll={event => {

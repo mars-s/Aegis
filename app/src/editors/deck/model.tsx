@@ -1,6 +1,6 @@
 import { SlideSchema } from '@aegis/domain/schema';
 import { z } from 'zod/v4';
-import type { CardContent, Slide } from '@aegis/domain/schema';
+import type { CardContent, CardId, Slide } from '@aegis/domain/schema';
 
 export const SLIDE_WIDTH = 960;
 export const SLIDE_HEIGHT = 540;
@@ -35,6 +35,7 @@ export function newSlide(): IdentifiedSlide {
   return { id: crypto.randomUUID(), layout: 'title', background: 'plain', title: 'New slide', sub: '', body: '' };
 }
 export interface DeckServices {
+  readonly openEditor: (id: CardId) => boolean;
   readonly assetUrl: (url: string) => string;
   readonly menu: (options: {
     readonly trigger: HTMLElement;

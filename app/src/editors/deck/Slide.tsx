@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { CardId } from '@aegis/domain/schema';
 import type { FeatureWorkspace } from '../../composition.js';
@@ -32,10 +32,10 @@ function TextField({ value, name, field, idea, session, slideId }: {
   readonly idea?: number; readonly session?: DeckSession | undefined; readonly slideId: string;
 }) {
   const ref = useRef<HTMLParagraphElement>(null), initial = useRef(value);
-  useEffect(() => { if (ref.current && ref.current.textContent !== value && document.activeElement !== ref.current) ref.current.textContent = value; }, [value]);
+  useEffect(() => { if (ref.current && ref.current.textContent !== value) ref.current.textContent = value; }, [value]);
   const input = (element: HTMLParagraphElement) => {
     if (!session) return;
-    const text = element.textContent ?? '';
+    const text = element.innerText.replace(/\r\n/g, '\n');
     if (idea !== undefined) {
       const slide = session.getSnapshot().slides.find(slide => slide.id === slideId);
       const ideas = (slide?.body ?? '').split('\n'); ideas[idea] = text.replace(/\n/g, ' ');
@@ -57,10 +57,17 @@ export interface SlideProps {
   readonly miniature?: boolean;
   readonly session?: DeckSession;
 }
-export function SlideView({ slide, workspace, services, deckId, number = 1, miniature = false, session }: SlideProps) {
+export const SlideView = memo(function SlideView({ slide, workspace, services, deckId, number = 1, miniature = false, session }: SlideProps) {
   const fit = useRef<HTMLDivElement>(null), art = useRef<HTMLDivElement>(null), frame = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(!miniature);
+  useEffect(() => {
+    const host = fit.current; if (!host || !miniature) return;
+    const observer = new IntersectionObserver(entries => { setVisible(entries.some(entry => entry.isIntersecting)); });
+    observer.observe(host); return () => observer.disconnect();
+  }, [miniature]);
   const [box, setBox] = useState({ width: 0, height: 0, scale: 0, left: 0, top: 0 });
   const layout = slideLayout(slide), wave = layout === 'title' && (slide.background === 'sci-fi-wave' || slide.background == null);
+  const images = slideImages(slide);
   const overlap = slide.relationship === 'overlap', ideas = (slide.body ?? '').split('\n');
   useEffect(() => {
     const host = fit.current, body = frame.current, drawing = art.current;
@@ -84,16 +91,16 @@ export function SlideView({ slide, workspace, services, deckId, number = 1, mini
   return <div className="deck-fit" ref={fit}>
     <div ref={frame} className={`deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${layout === 'three' && overlap ? ' has-overlap' : ''}${slide.imageOnly === true ? ' image-only' : ''}`} style={style} data-slide={slide.id}>
       <div className="s-copy">{text('title', 'title')}{text('sub', 'subtitle')}{layout === 'text' || layout === 'image' ? text('body', 'body') : null}</div>
-      {layout === 'chart' || layout === 'three' || layout === 'image' || wave ? <div className="s-art" ref={art}>
+      {layout === 'chart' || layout === 'three' || layout === 'image' || wave ? <div className="s-art" ref={art} style={layout === 'image' ? { gridTemplateRows: `repeat(${Math.max(1, images.length)}, minmax(0, 1fr))` } : undefined}>
         {wave ? <svg viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">{ridges.map((path, index) => <path key={index} className={`deck-ridge${index === 2 ? ' hi' : ''}`} d={path} />)}</svg> : null}
         {layout === 'three' ? overlap ? <svg viewBox="0 0 200 180" role="img" aria-label="Overlapping ideas" className="deck-three" fontFamily="Inter Variable, sans-serif" fontSize="10" fontWeight="400" textRendering="geometricPrecision">
           <circle cx="78" cy="72" r="52" /><circle cx="122" cy="72" r="52" /><circle className="hi" cx="100" cy="110" r="52" />
           <text x="52" y="58">{ideas[0]}</text><text x="148" y="58">{ideas[1]}</text><text x="100" y="150">{ideas[2]}</text>
         </svg> : <div className="deck-ideas">{[0, 1, 2].map(index => <TextField key={index} field="body" idea={index} value={ideas[index] ?? ''} name={`Slide ${number} idea ${index + 1}`} session={session} slideId={slide.id} />)}</div> : null}
-        {layout === 'image' ? slideImages(slide).map((image, index) => <img key={`${image.src}:${index}`} className="s-picture" src={services.assetUrl(image.src)} alt={image.alt || slide.title || 'Slide image'} loading="lazy" decoding="async" draggable={false} />) : null}
+        {layout === 'image' ? images.map((image, index) => <div key={`${image.src}:${index}`} className="deck-picture-slot"><img className="s-picture" src={services.assetUrl(image.src)} alt={image.alt || slide.title || 'Slide image'} loading="lazy" decoding="async" draggable={false} /></div>) : null}
       </div> : null}
     </div>
-    {layout === 'chart' ? <div className="deck-chart-host" style={chartStyle}><DeckChart workspace={workspace} deckId={deckId} slideId={slide.id} chart={sharedDeckChart(slide.chart ?? {})} title={slide.title ?? 'Chart'} miniature={miniature}
+    {layout === 'chart' && visible && box.width > 0 && box.height > 0 ? <div className="deck-chart-host" style={chartStyle}><DeckChart workspace={workspace} deckId={deckId} slideId={slide.id} chart={sharedDeckChart(slide.chart ?? {})} title={slide.title ?? 'Chart'} miniature={miniature}
       presentationHeight={box.scale * SLIDE_HEIGHT} viewScale={1} onchoose={session ? id => session.patch(slide.id, { chart: { sourceId: id } }) : undefined} /></div> : null}
   </div>;
-}
+});

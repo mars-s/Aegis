@@ -21,7 +21,8 @@ export function Presentation({ slides, current, workspace, deckId, services, exi
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       event.preventDefault(); event.stopImmediatePropagation();
-      if (event.key === 'Escape') exit(latest.current);
+      if (event.key === 'Tab') host.current?.querySelector<HTMLButtonElement>('.deck-present-exit')?.focus({ preventScroll: true });
+      else if (event.key === 'Escape') exit(latest.current);
       else if (['ArrowRight', 'ArrowDown', ' ', 'PageDown', 'Enter'].includes(event.key)) setAt(index => slideIndex(index + 1, slides.length));
       else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(event.key)) setAt(index => slideIndex(index - 1, slides.length));
       else if (event.key === 'Home') setAt(0);

@@ -154,5 +154,16 @@ body.motion-off .deck-panel button:active, body.motion-off .deck-open:active { t
 .deck-body .deck-thumbs { overflow: hidden; }
 .deck-body .deck-thumb { min-height: 0; }
 .deck-body .deck-nums { overflow: hidden; }
-.deck-body .deck-source { align-self: center; min-height: 32px; }
-.deck-body .deck-open { align-self: center; min-height: 32px; padding-bottom: 0; }
+.deck-body, .deck-editor, .deck-present {
+  --text: var(--color-text); --muted: var(--color-label-secondary); --faint: var(--color-label-secondary); --ink-2: var(--color-label-secondary);
+  --line: var(--color-border); --line-strong: var(--color-border-strong); --card: var(--color-surface); --strip: var(--color-fill);
+  --inset: var(--color-fill); --hover: var(--color-fill-hover); --press: var(--color-fill-hover); --data: var(--color-ring); --focus: var(--color-ring);
+  --accent: var(--color-text); --on-accent: var(--color-surface); --r-win: var(--radius-surface);
+}
+.deck-download-error { color: var(--color-text); font-size: 12px; }
+.deck-slide.l-image .s-picture { min-width: 0; max-height: 100%; align-self: stretch; }
+/* Give each image a definite grid slot. WebKit otherwise resolves its 100%
+   height against the whole picture column and clips the lower pictures. */
+.deck-picture-slot { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.deck-picture-slot .s-picture { position: absolute; inset: 0; }
+.card.deck > .scene-body, .deck-body, .deck-body > .deck-view, .deck-body .deck-main, .deck-body .deck-main > .deck-fit { background: inherit; }
