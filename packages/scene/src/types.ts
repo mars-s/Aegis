@@ -150,6 +150,7 @@ export interface DragGuide { readonly x1: number; readonly y1: number; readonly 
 export interface DragSnapRequest { readonly start: readonly DragSnapshot[]; readonly delta: Point; readonly zoom: number; readonly bypass: boolean }
 export interface DragSnapResult { readonly delta: Point; readonly guides: readonly DragGuide[] }
 export interface DropPolicyRequest { readonly cards: readonly Card[]; readonly kind: 'move' | 'resize' }
+export interface DragCopyRequest { readonly cards: readonly Card[]; readonly delta: Point }
 export interface CanvasAttachment {
   readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
   readonly stage: HTMLElement;
@@ -168,6 +169,7 @@ export interface CanvasAttachment {
   readonly expandDrag?: (ids: readonly CardId[], modifiers: Pick<ToolPointer, 'shift' | 'bypass'>) => readonly CardId[];
   readonly snapDrag?: (request: DragSnapRequest) => DragSnapResult;
   readonly dropCommands?: (request: DropPolicyRequest) => readonly Command[];
+  readonly copyDrag?: (request: DragCopyRequest) => ToolCommit;
   readonly canLease?: (card: Card) => boolean;
   readonly availableArea?: Source<Rect>;
 }

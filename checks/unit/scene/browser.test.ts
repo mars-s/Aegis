@@ -54,6 +54,41 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('Option-drag retains originals through preview, copy and cancellation in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&wireframe=1');
+      await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      const source = await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'));
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!source || !box) throw new Error('Missing copy source');
+      const transform = await p.locator('[data-id="note-2"]').evaluate(el => el.style.transform);
+      await p.keyboard.down('Alt'); await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      await p.mouse.move(box.x + 72, box.y + 150); await idle(p);
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.style.transform)).toBe(transform);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      expect(await p.locator('#stage').evaluate(el => el.style.cursor)).toBe('copy');
+      expect(await p.evaluate(({ x, y }) => document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d')?.getImageData((x + 70) * devicePixelRatio, (y + 40) * devicePixelRatio, 1, 1).data[3] ?? 0, { x: source.x, y: source.y })).toBeGreaterThan(0);
+      await p.mouse.up(); await p.keyboard.up('Alt'); await idle(p);
+      const copied = await p.evaluate(() => window.sceneHarness.board().cards);
+      expect(copied).toHaveLength(11);
+      expect(copied.find(card => card.id === source.id)).toEqual(source);
+      expect(copied.find(card => card.id !== source.id && card.text === source.text)).toMatchObject({ x: source.x + 60, y: source.y + 40 });
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+      await p.locator('#stage').focus();
+      await p.keyboard.down('Alt'); await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      await p.mouse.move(box.x + 42, box.y + 130); await idle(p);
+      await p.keyboard.press('Escape'); await p.mouse.up(); await p.keyboard.up('Alt'); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards)).toEqual(copied);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+      await p.locator('#stage').focus(); await p.keyboard.down('Alt');
+      await p.mouse.click(box.x + 12, box.y + 110); await p.keyboard.up('Alt'); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('a queued click cannot steal newer editable focus in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
