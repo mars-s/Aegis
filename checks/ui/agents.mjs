@@ -54,10 +54,15 @@ try {
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.waitForTimeout(1500); assert.equal(await page.locator('.agent-first-hint').isVisible(), false, 'the invitation never returns');
   console.log('PASS first-use hint appears beside the 44px star, dismisses on hover and stays dismissed after reload');
-  const morphPerformance = await page.evaluate(async () => {
+  const morphPerformance = await page.evaluate(async implementation => {
     const island = document.getElementById('agentIsland'), shell = island.querySelector('.island-morph');
     const orb = document.getElementById('askPill'), prompt = document.getElementById('prompt'), stage = document.getElementById('stage');
     const click = () => orb.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+    const input = value => {
+      if (implementation === 'react') Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(prompt, value);
+      else prompt.value = value;
+      prompt.dispatchEvent(new Event('input', { bubbles: true }));
+    };
     const close = () => { document.querySelector('#composer .island-collapse').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); };
     const frame = () => new Promise(resolve => requestAnimationFrame(resolve));
     const results = [];
@@ -74,14 +79,14 @@ try {
       const sorted = [...deltas].sort((a, b) => a - b);
       results.push({ name, frames: deltas.length, p95ms: +sorted[Math.floor(sorted.length * .95)].toFixed(2), maxms: +Math.max(...deltas).toFixed(2), meanms: +(deltas.reduce((a, b) => a + b) / deltas.length).toFixed(2), maxCounterScaleError: Math.max(...scales), widths });
     }
-    await sample('orb to hover', () => island.dispatchEvent(new PointerEvent('pointerenter', { pointerType: 'mouse' })));
+    await sample('orb to hover', () => island.dispatchEvent(new PointerEvent(implementation === 'react' ? 'pointerover' : 'pointerenter', { pointerType: 'mouse', bubbles: true })));
     await sample('hover to input', click);
-    await sample('input grows vertically', () => { prompt.value = 'A thought on its own line\n'.repeat(9); prompt.dispatchEvent(new Event('input')); });
-    prompt.value = ''; prompt.dispatchEvent(new Event('input')); await new Promise(r => setTimeout(r, 280));
+    await sample('input grows vertically', () => input('A thought on its own line\n'.repeat(9)));
+    input(''); await new Promise(r => setTimeout(r, 280));
     await sample('close and reverse at 70ms', () => { close(); setTimeout(click, 70); });
     await sample('input to orb', close);
     return results;
-  });
+  }, process.env.AEGIS_UI_IMPL);
   writeFileSync(out(`island-${captureId}-morph-performance.json`), JSON.stringify(morphPerformance, null, 2));
   for (const result of morphPerformance) {
     assert.ok(result.frames >= 10); assert.ok(result.maxCounterScaleError < .02, 'content remains counter-scaled');
@@ -167,7 +172,7 @@ try {
   await page.waitForFunction(id => document.querySelector(`#agentList [data-id="${id}"] .agent-history`)?.textContent.includes('Undone'), first);
   await page.locator('#closeAgents').click(); await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Made by an agent'));
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
   console.log('PASS changed titles and times appear in both timelines, per-request Undo restores the board in one commit, and Cmd+Z reverses that Undo');
   await page.waitForFunction(() => document.getElementById('agentIsland').dataset.state === 'idle');
   await page.keyboard.press('Meta+k');
@@ -285,7 +290,7 @@ try {
     document.querySelectorAll('.agent-window:not([hidden]) .agent-close').forEach(b => b.click());
     aegis.apply([{ op: 'delete', ids: aegis.canvas.board.cards.map(c => c.id) }, ...Array.from({ length: 25 }, (_, i) => ({ op: 'create', type: 'note', newId: `undo${String(i).padStart(3, '0')}`, text: i ? `Plan ${i + 1}` : 'Review plan', x: i % 5 * 260, y: Math.floor(i / 5) * 180, w: 220, h: 120 }))]);
   });
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
   const positions = await page.evaluate(() => aegis.canvas.board.cards.map(({ id, x, y }) => ({ id, x, y })));
   const [{ id: layoutAgent }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify([['board_apply', { commands: aegis.canvas.board.cards.map(c => ({ op: 'move', id: c.id, x: c.x + 400, y: c.y + 200 })) }]]) }));
   await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, layoutAgent, { timeout: 20000 });
@@ -319,7 +324,7 @@ try {
   await mouseCentre(disclosure.locator('summary')); assert.equal(await disclosure.locator('.agent-history-window:visible').count(), 25);
   assert.deepEqual(await disclosure.locator('.agent-history-window').allTextContents(), Array.from({ length: 25 }, (_, i) => `Moved: ${i ? `Plan ${i + 1}` : 'Review plan'}`), 'every affected name remains in the disclosure');
   await page.evaluate(() => aegis.apply([{ op: 'update', id: 'undo000', set: { text: 'My later writing stays' } }]));
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
   assert.equal(await disclosure.getAttribute('open'), '', 'disclosure stays expanded when availability refreshes');
   assert.equal(await layoutHistory.getByRole('button', { name: /^Undo request:/ }).isEnabled(), true, 'text does not conflict with a move');
   await mouseCentre(disclosure.locator('summary'));
@@ -342,12 +347,12 @@ try {
   await page.locator('#stage').focus(); await page.keyboard.press('Meta+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').x === 400);
   assert.equal(await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text), 'My later writing stays');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
   const [{ id: textAgent }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify([['board_apply', { commands: [{ op: 'update', id: 'undo000', set: { text: 'Review plan' } }] }]]) }));
   await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, textAgent, { timeout: 20000 });
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'undo000').text === 'Review plan');
   await page.evaluate(() => aegis.apply([{ op: 'update', id: 'undo000', set: { text: 'My newer review' } }]));
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
   await page.mouse.move(1400, 20); await page.locator('#agentsBtn').click();
   const blocked = page.locator(`#agentList [data-id="${textAgent}"] .agent-history-entry`);
   await blocked.locator('.agent-history-undo:disabled').waitFor();

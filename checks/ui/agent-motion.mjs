@@ -144,7 +144,7 @@ try {
   assert.equal((await cardAnimations()).length, 0, 'a person takes control immediately');
   const dragged = await page.locator('.card[data-id="motion00"]').boundingBox();
   assert.ok(Math.abs(dragged.x - box.x - 50) < 2, 'drag tracks pointer from the visible position');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
 
   await batch([{ op: 'create', type: 'note', text: 'A new step', newId: 'newmotion', x: 100, y: 600 }, { op: 'delete', id: 'motion17' }]);
   animations = await cardAnimations();
@@ -165,7 +165,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.evaluate(() => aegis.apply([{ op: 'move', id: 'motion02', x: 200, y: 100 }]));
   assert.equal((await cardAnimations()).length, 0, 'local board edits stay instant');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
 
   await batch([{ op: 'delete', ids: await page.evaluate(() => aegis.canvas.board.cards.map(c => c.id)) }, ...demoBatch]);
   await settle(); await page.waitForTimeout(500);

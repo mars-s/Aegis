@@ -16,14 +16,18 @@ export function createMorph(shell: HTMLElement, content: HTMLElement, tiles: rea
   let radius = 22;
   let instant = true;
   let crossfade = false;
+  let captured = true;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   function cancel(): void { for (const animation of animations) animation.cancel(); animations = []; }
   function capture(options: { readonly instant: boolean; readonly crossfade?: boolean }): void {
+    captured = true;
     before = shell.getBoundingClientRect();
     fromRadius = radius;
     instant = options.instant; crossfade = options.crossfade ?? false;
   }
   function layout(expanded: boolean): void {
+    if (!captured) return;
+    captured = false;
     cancel();
     const after = shell.getBoundingClientRect();
     radius = expanded ? 24 : 22;
@@ -36,8 +40,9 @@ export function createMorph(shell: HTMLElement, content: HTMLElement, tiles: rea
     } else {
       const frames: Keyframe[] = [], counters: Keyframe[] = [];
       const slices: Keyframe[][] = tiles.map(() => []);
-      for (let i = 0; i <= 40; i++) {
-        const offset = i / 40, t = spring(offset);
+      const samples = 160;
+      for (let i = 0; i <= samples; i++) {
+        const offset = i / samples, t = spring(offset);
         const w = before.width + (after.width - before.width) * t, h = before.height + (after.height - before.height) * t;
         const sx = Math.max(.001, w / after.width), sy = Math.max(.001, h / after.height);
         frames.push({ offset, transform: `scale(${sx}, ${sy})` }); counters.push({ offset, transform: `scale(${1 / sx}, ${1 / sy})` });

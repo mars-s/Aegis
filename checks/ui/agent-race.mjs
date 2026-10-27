@@ -88,7 +88,7 @@ try {
     assert.equal(state.count, '');
     assert.ok(state.answer.includes(completed.text), 'the spatial conversation retains the completed reply');
     assert.match(state.history, /No board changes/);
-    assert.equal(await page.locator('#runStrip').isVisible(), false);
+    assert.equal(await page.locator('#runStrip, #agentIsland.working').isVisible(), false);
     await page.keyboard.press('Meta+k');
     assert.equal(await page.locator('#composer .island-turn.assistant .turn-text').last().textContent(), completed.text, 'opening the conversation shows the assistant turn without reload');
     if (!legacy) {

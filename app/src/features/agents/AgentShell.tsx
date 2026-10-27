@@ -18,6 +18,7 @@ import type { SettingsService } from '../settings/service.js';
 import { createPreferenceStore } from '../settings/preferences-store.js';
 import { Onboarding, Shortcuts } from '../onboarding/Onboarding.js';
 import type { ShortcutReference } from '../onboarding/Onboarding.js';
+import { shortcutReferences } from '../onboarding/shortcuts.js';
 
 export interface AgentShellControls {
   readonly runtime: AgentRuntime;
@@ -47,7 +48,7 @@ export function AgentShell(props: AgentShellProps) {
   const id = useSyncExternalStore(props.context.workspace.metadata.subscribe, props.context.workspace.metadata.getSnapshot).id;
   return <BoardAgentShell {...props} key={id} />;
 }
-function BoardAgentShell({ context, service, settingsService, schedule, shortcuts, importCsv, attached, settingsSlots, activityInChrome = false }: AgentShellProps) {
+function BoardAgentShell({ context, service, settingsService, schedule, importCsv, attached, settingsSlots, activityInChrome = false }: AgentShellProps) {
   const composer = useRef<AgentComposer | null>(null);
   const [settings, setSettings] = useState<{ readonly tab: SettingsTab } | null>(null);
   const [tour, setTour] = useState(() => !localStorage.getItem('aegis:onboarded'));
@@ -94,6 +95,6 @@ function BoardAgentShell({ context, service, settingsService, schedule, shortcut
     <FirstMinute context={context} agents={runtime} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} importCsv={importCsv} />
     <Settings open={!!settings} initialTab={settings?.tab ?? 'general'} close={() => setSettings(null)} preferences={preferences} agents={runtime} service={settingsService} replayTour={() => setTour(true)} showShortcuts={() => setHelp(true)} {...(settingsSlots ? { slots: settingsSlots } : {})} />
     <Onboarding open={tour} close={() => setTour(false)} context={context} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} openAsk={() => composer.current?.open(true)} />
-    <Shortcuts open={help} close={() => setHelp(false)} shortcuts={shortcuts} />
+    <Shortcuts open={help} close={() => setHelp(false)} shortcuts={shortcutReferences} />
   </>;
 }
