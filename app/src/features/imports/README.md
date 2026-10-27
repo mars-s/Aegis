@@ -34,7 +34,7 @@ before the host's one MB props boundary. No OCR is performed. Conversion failure
 create no partial card. Uploaded assets from a later failed conversion stay in
 the asset store, which has no deletion endpoint.
 
-`pdf-resources.ts` provides same-origin CMaps, fallback fonts and decoders in
+`scripts/pdf-resources.ts` provides same-origin CMaps, fallback fonts and decoders in
 Vite and emits the same relative paths in a production build. The worker is a
 Vite worker entry using the compatibility distribution and an original
 `Promise.withResolvers` shim in both threads. Each import terminates its worker

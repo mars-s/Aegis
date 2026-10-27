@@ -7,7 +7,7 @@ import type { Plugin } from 'vite';
 // Preserve the resource filenames pdf.js requests. Vite hashes ?url imports,
 // whereas CMaps, fallback fonts and WASM are requested by their original names.
 export function pdfResources(): Plugin {
-  const require = createRequire(import.meta.url);
+  const require = createRequire(new URL('../app/package.json', import.meta.url));
   const root = dirname(require.resolve('pdfjs-dist/package.json'));
   const files = new Map<string, string>();
   files.set('pdfjs/LICENSE', join(root, 'LICENSE'));
@@ -19,15 +19,15 @@ export function pdfResources(): Plugin {
       files.set(`pdfjs/${folder}/${file}`, join(root, folder, file));
     }
   }
-  const fonts = new URL('./fonts/', import.meta.url);
+  const fonts = new URL('../app/src/features/imports/fonts/', import.meta.url);
   for (const file of readdirSync(fonts)) files.set(`pdfjs/standard_fonts/${file}`, fileURLToPath(new URL(file, fonts)));
-  const licences = new URL('./licences/', import.meta.url);
+  const licences = new URL('../app/src/features/imports/licences/', import.meta.url);
   for (const file of readdirSync(licences)) files.set(`licences/${file}`, fileURLToPath(new URL(file, licences)));
   return {
     name: 'aegis-pdf-resources',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = files.get((req.url || '').split('?')[0].replace(/^\//, ''));
+        const path = files.get(((req.url || '').split('?')[0] ?? '').replace(/^\//, ''));
         if (!path) return next();
         res.setHeader('Content-Type', path.endsWith('.wasm') ? 'application/wasm' : 'application/octet-stream');
         res.end(readFileSync(path));

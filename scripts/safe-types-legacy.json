@@ -6,9 +6,6 @@
     "explicit-any": 1,
     "type-assertion": 1
   },
-  "app/src/features/imports/pdf-resources.ts": {
-    "node-import": 4
-  },
   "app/src/features/registry.ts": {
     "explicit-any": 2
   },

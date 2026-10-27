@@ -7,7 +7,7 @@ import { uiImplementation } from '../scripts/ui-implementation.ts';
 import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // item 14: local PDF fonts, CMaps and decoders for development and the packaged UI.
-import { pdfResources } from './src/features/imports/pdf-resources.ts';
+import { pdfResources } from '../scripts/pdf-resources.ts';
 
 // The native app's version, shown in Settings > About. A copied UI without the Tauri folder says 'dev'.
 function nativeVersion() {
