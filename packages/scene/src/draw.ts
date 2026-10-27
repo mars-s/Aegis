@@ -1,7 +1,7 @@
 import type { CardId, Link } from '@aegis/domain/schema';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { LinkRoute } from './links.js';
-import type { Representation, ToolPreview } from './types.js';
+import type { PreviewColour, Representation, SceneTheme, ToolPreview } from './types.js';
 
 export interface DrawLink { readonly link: Link; readonly route: LinkRoute }
 
@@ -11,6 +11,9 @@ export class CanvasPainter {
   private readonly grid: CanvasRenderingContext2D;
   private readonly ink: CanvasRenderingContext2D;
   private pattern: CanvasPattern | null = null;
+  private theme: SceneTheme = { dot: 'rgb(128 137 157 / .6)', text: '#eeeeef', muted: '#b5b5bd', focus: '#3f8dfd', card: '#151517', press: '#303035' };
+  themeChanged(theme: SceneTheme): void { this.theme = theme; this.patternKey = ''; }
+  private colour(colour: PreviewColour): string { return colour.kind === 'hex' ? colour.value : this.theme[colour.token]; }
   private patternKey = '';
   private width = 0;
   private height = 0;
@@ -73,6 +76,7 @@ export class CanvasPainter {
     if (preview) for (const primitive of preview.primitives) {
       const scale = primitive.space === 'world' ? camera.zoom : 1;
       ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, primitive.opacity));
       ctx.setTransform(dpr * scale, 0, 0, dpr * scale, primitive.space === 'world' ? camera.x * dpr : 0, primitive.space === 'world' ? camera.y * dpr : 0);
       let path: Path2D;
       switch (primitive.kind) {
@@ -86,8 +90,8 @@ export class CanvasPainter {
         case 'circle': path = new Path2D(); path.arc(primitive.centre.x, primitive.centre.y, primitive.radius, 0, Math.PI * 2); break;
         default: { const exhaustive: never = primitive; throw new Error(String(exhaustive)); }
       }
-      if (primitive.fill) { ctx.fillStyle = primitive.fill; ctx.fill(path); }
-      if (primitive.stroke) { ctx.strokeStyle = primitive.stroke.colour; ctx.lineWidth = primitive.stroke.width / scale; ctx.setLineDash(primitive.stroke.dash.map(value => value / scale)); ctx.stroke(path); }
+      if (primitive.fill) { ctx.fillStyle = this.colour(primitive.fill); ctx.fill(path); }
+      if (primitive.stroke) { ctx.strokeStyle = this.colour(primitive.stroke.colour); ctx.lineWidth = primitive.stroke.width / scale; ctx.setLineDash(primitive.stroke.dash.map(value => value / scale)); ctx.stroke(path); }
       ctx.restore();
     }
   }
@@ -111,7 +115,7 @@ export class CanvasPainter {
     if (this.patternKey !== key) {
       const tile = this.backdrop.ownerDocument.createElement('canvas'); tile.width = pixels; tile.height = pixels;
       const tileCtx = tile.getContext('2d');
-      if (tileCtx) { tileCtx.fillStyle = 'rgb(128 137 157 / .6)'; tileCtx.fillRect(pixels / 2 - .75 * dpr, pixels / 2 - .75 * dpr, 1.5 * dpr, 1.5 * dpr); this.pattern = ctx.createPattern(tile, 'repeat'); }
+      if (tileCtx) { tileCtx.fillStyle = this.theme.dot; tileCtx.fillRect(pixels / 2 - .75 * dpr, pixels / 2 - .75 * dpr, 1.5 * dpr, 1.5 * dpr); this.pattern = ctx.createPattern(tile, 'repeat'); }
       this.patternKey = key;
     }
     if (!this.pattern) return;

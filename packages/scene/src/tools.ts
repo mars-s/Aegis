@@ -38,7 +38,9 @@ export class ToolController {
   move(points: readonly ToolPointer[]): boolean {
     const tool = this.current;
     if (!tool || !points.length) return false;
-    this.inputs.push({ kind: 'move', tool, points }); this.invalidate(); return true;
+    const owned = points.filter(point => this.pointer === point.pointerId || this.pointer === null && point.pointerType !== 'touch' && point.buttons === 0);
+    if (!owned.length) return false;
+    this.inputs.push({ kind: 'move', tool, points: owned }); this.invalidate(); return true;
   }
   up(point: ToolPointer): boolean {
     if (!this.current || this.pointer !== point.pointerId) return false;

@@ -1,4 +1,4 @@
-import type { Board, Card, CardId, ChangeSet, Command, LinkId, Source } from '@aegis/domain/schema';
+import type { Board, BoardId, Card, CardId, ChangeSet, Command, LinkId, Source } from '@aegis/domain/schema';
 import type { LinkRoute } from './links.js';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { ZoomTier } from './representations.js';
@@ -82,7 +82,7 @@ export interface ToolPointer {
   readonly alt: boolean;
   readonly bypass: boolean;
 }
-export type ToolCancel = 'escape' | 'pointer-cancel' | 'lost-capture' | 'board-change' | 'tool-change' | 'dispose';
+export type ToolCancel = 'escape' | 'pointer-cancel' | 'lost-capture' | 'board-change' | 'tool-change' | 'pan' | 'scene-change' | 'dispose';
 export interface ToolKey { readonly key: string; readonly shift: boolean; readonly alt: boolean; readonly bypass: boolean }
 export interface SceneTool {
   readonly id?: string;
@@ -94,11 +94,14 @@ export interface SceneTool {
   readonly key: (key: ToolKey) => void;
   readonly cancel: (reason: ToolCancel) => void;
 }
-export interface PreviewStroke { readonly colour: string; readonly width: number; readonly dash: readonly number[] }
+export interface SceneTheme { readonly dot: string; readonly text: string; readonly muted: string; readonly focus: string; readonly card: string; readonly press: string }
+export type PreviewColour = { readonly kind: 'theme'; readonly token: Exclude<keyof SceneTheme, 'dot'> } | { readonly kind: 'hex'; readonly value: string };
+export interface ToolCommit { readonly commands: readonly Command[]; readonly selection: readonly CardId[] }
+export interface PreviewStroke { readonly colour: PreviewColour; readonly width: number; readonly dash: readonly number[] }
 export type ToolPrimitive =
-  | { readonly kind: 'path'; readonly space: 'world' | 'screen'; readonly d: string; readonly fill: string | null; readonly stroke: PreviewStroke | null }
-  | { readonly kind: 'rect'; readonly space: 'world' | 'screen'; readonly bounds: Rect; readonly radius: number; readonly fill: string | null; readonly stroke: PreviewStroke | null }
-  | { readonly kind: 'circle'; readonly space: 'world' | 'screen'; readonly centre: Point; readonly radius: number; readonly fill: string | null; readonly stroke: PreviewStroke | null };
+  | { readonly kind: 'path'; readonly opacity: number; readonly space: 'world' | 'screen'; readonly d: string; readonly fill: PreviewColour | null; readonly stroke: PreviewStroke | null }
+  | { readonly kind: 'rect'; readonly opacity: number; readonly space: 'world' | 'screen'; readonly bounds: Rect; readonly radius: number; readonly fill: PreviewColour | null; readonly stroke: PreviewStroke | null }
+  | { readonly kind: 'circle'; readonly opacity: number; readonly space: 'world' | 'screen'; readonly centre: Point; readonly radius: number; readonly fill: PreviewColour | null; readonly stroke: PreviewStroke | null };
 export interface ToolPreview { readonly primitives: readonly ToolPrimitive[]; readonly cursor: 'crosshair' | 'none' | 'default' }
 export interface CanvasEngine {
   readonly leases: LeaseSource;
@@ -113,6 +116,8 @@ export interface CanvasEngine {
   readonly toolName: () => string | null;
   readonly busy: () => boolean;
   readonly preview: (preview: ToolPreview | null) => void;
+  readonly linkRoute: (id: LinkId) => { readonly d: string; readonly start: Point; readonly control: Point; readonly end: Point; readonly label: Point } | null;
+  readonly commitTool: (commit: ToolCommit) => void;
   readonly afterInput: (run: () => void) => void;
   readonly startTransform: (intent: { readonly kind: 'resize' | 'rotate'; readonly ids: readonly CardId[]; readonly pointer: { readonly id: number; readonly point: Point }; readonly shift: boolean }) => void;
   readonly startConnection: (id: CardId) => void;
@@ -133,6 +138,8 @@ export interface CanvasAttachment {
   readonly backdrop: HTMLCanvasElement;
   readonly overlay: HTMLCanvasElement;
   readonly workspace: CanvasWorkspace;
+  readonly onToolCommit?: (boardId: BoardId, commit: ToolCommit) => void;
+  readonly theme?: Source<SceneTheme>;
   readonly warmLeases?: number;
   readonly reducedMotion?: boolean;
   readonly snapGrid?: number;

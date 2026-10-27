@@ -36,6 +36,15 @@ describe('continuous tool input', () => {
     controller.flush();
     expect(events).toEqual(['down:1', 'up:2', 'down:3', 'Enter']);
   });
+  test('ignores other touch pointers while preserving uncaptured mouse hover', () => {
+    const { controller, events } = fixture();
+    expect(controller.move([{ ...pointer(1), pointerType: 'touch' }])).toBe(false);
+    expect(controller.move([{ ...pointer(2), buttons: 0 }])).toBe(true);
+    controller.down(pointer(3));
+    expect(controller.move([{ ...pointer(4), pointerId: 8 }])).toBe(false);
+    controller.move([pointer(5)]); controller.flush();
+    expect(events).toEqual([[{ ...pointer(2), buttons: 0 }], 'down:3', [pointer(5)]]);
+  });
   test('board replacement drops queued input and old finish callbacks and cancels exactly once', () => {
     const { controller, events } = fixture();
     controller.down(pointer(1)); controller.cancel('tool-change');

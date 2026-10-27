@@ -41,7 +41,7 @@ describe('real scene attachment', () => {
   test('discards a deferred tool batch when its board epoch changes', async () => {
     const p = await page();
     await p.evaluate(() => {
-      window.sceneHarness.engine.afterInput(() => { window.sceneHarness.submit([{ op: 'create', type: 'note', text: 'Stale tool result' }]); });
+      window.sceneHarness.engine.commitTool({ commands: [{ op: 'create', type: 'note', text: 'Stale tool result' }], selection: [] });
       window.sceneHarness.replace(10);
     });
     await idle(p);
@@ -58,12 +58,12 @@ describe('real scene attachment', () => {
       let samples = 0;
       engine.tool({
         accepts: point => point.button === 0,
-        down: () => { events.push('down'); engine.preview({ cursor: 'crosshair', primitives: [{ kind: 'rect', space: 'screen', bounds: { x: 20, y: 20, width: 30, height: 30 }, radius: 0, fill: '#0044ff', stroke: null }] }); },
+        down: () => { events.push('down'); engine.preview({ cursor: 'crosshair', primitives: [{ kind: 'rect', opacity: 1, space: 'screen', bounds: { x: 20, y: 20, width: 30, height: 30 }, radius: 0, fill: { kind: 'hex', value: '#0044ff' }, stroke: null }] }); },
         move: points => { if (events.includes('down')) samples += points.length; },
         up: () => {
           events.push('up'); const before = engine.inspect().frameCount;
+          engine.commitTool({ commands: [{ op: 'create', type: 'note', text: 'One tool batch' }], selection: [] });
           engine.afterInput(() => {
-            window.sceneHarness.submit([{ op: 'create', type: 'note', text: 'One tool batch' }]);
             const canvas = document.querySelector<HTMLCanvasElement>('#overlay');
             const pixel = canvas?.getContext('2d')?.getImageData(25, 25, 1, 1).data;
             resolve({ events, samples, pixel: pixel ? [...pixel] : [], before, after: engine.inspect().frameCount, batches: window.sceneHarness.calls.length });

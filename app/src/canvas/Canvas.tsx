@@ -25,6 +25,12 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
     const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, ...(availableArea ? { availableArea } : {}),
+      onToolCommit: (boardId, commit) => {
+        if (workspace.metadata.getSnapshot().id !== boardId) return;
+        const result = workspace.submit(commit.commands);
+        if (result.kind === 'applied') workspace.act({ kind: 'select', ids: commit.selection });
+        else window.dispatchEvent(new CustomEvent('aegis:notice', { detail: result.errors[0]?.reason ?? 'Could not finish this gesture.' }));
+      },
       canLease: card => {
         const kind: CardBodyKind = card.type === "object" ? `object:${card.kind}` : card.type;
         return availableBodies.current.has(kind);

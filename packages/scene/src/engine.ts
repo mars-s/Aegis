@@ -14,7 +14,7 @@ import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
 import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, ToolPointer } from './types.js';
+import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, ToolCommit, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
@@ -83,6 +83,13 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     setTimeout(() => { if (!disposed && currentEpoch === epoch) operation(); }, 0);
   }
 
+  function commitTool(commit: ToolCommit): void {
+    const callback = args.onToolCommit;
+    if (!callback) throw new Error('Scene tools require onToolCommit.');
+    const boardId = workspace.scene.snapshot().id;
+    post(() => callback(boardId, commit));
+  }
+
   function select(ids: readonly CardId[]): void {
     selected = new Set(ids);
     post(() => workspace.act({ kind: 'select', ids }));
@@ -113,8 +120,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       if (!from) return;
       const bounds = to && to !== from ? boundsFor(to) : { x: point.world.x, y: point.world.y, width: 0, height: 0 };
       const route = routeLink({}, boundsFor(from), bounds, rotationFor(from), to ? rotationFor(to) : 0);
-      const stroke = { colour: '#3f8dfd', width: 1.5, dash: [] };
-      tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
+      const stroke = { colour: { kind: 'theme' as const, token: 'focus' as const }, width: 1.5, dash: [] };
+      tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', opacity: 1, space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, opacity: 1, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
     };
     tools.set({
       accepts: point => point.button === 0,
@@ -443,7 +450,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   stage.addEventListener('pointerdown', event => {
     const pan = event.button === 1 || event.button === 0 && spaceHeld;
     if (!pan && !editable(event.target) && tools.down(toolPoint(event))) { event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
-    if (pan && tools.owns(event.pointerId)) tools.cancel('pointer-cancel');
+    if (pan) tools.cancel('pan');
+    if (event.pointerType === 'touch' && (touchPointers.size || tools.name())) tools.cancel('pan');
     if (event.pointerType === 'touch') {
       if (editable(event.target) && !touchPointers.size) return;
       event.preventDefault(); event.stopImmediatePropagation(); stage.setPointerCapture(event.pointerId);
@@ -487,13 +495,13 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   view.addEventListener('keydown', event => {
     if (event.code === 'Space') {
       if (ownsSpace(event.target) || ownsSpace(stage.ownerDocument.activeElement)) return;
-      spaceHeld = true; stage.classList.add('pan-ready');
+      tools.cancel('pan'); spaceHeld = true; stage.classList.add('pan-ready');
       if (event.target === stage.ownerDocument.body || event.target instanceof Node && stage.contains(event.target)) event.preventDefault();
       invalidate(); return;
     }
     if (editable(event.target)) return;
+    if (tools.key({ key: event.key, shift: event.shiftKey, alt: event.altKey, bypass: event.metaKey || event.ctrlKey })) { event.preventDefault(); event.stopImmediatePropagation(); return; }
     if (event.key === 'Escape') tools.cancel('escape');
-    else if (tools.key({ key: event.key, shift: event.shiftKey, alt: event.altKey, bypass: event.metaKey || event.ctrlKey })) { event.preventDefault(); event.stopImmediatePropagation(); return; }
     if (event.key === '0' && !event.metaKey && !event.ctrlKey) enqueue({ kind: 'navigation', intent: { kind: 'fit', ids: [], motion: 'glide' }, at: performance.now() });
     if (event.key === 'Escape') { select([]); enqueue({ kind: 'cancel', at: performance.now() }); }
     if (event.key === 'a' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); select(graph.all().filter(node => !node.locked).map(node => node.card.id)); invalidate(); }
@@ -525,10 +533,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       cancelGesture(); touchPointers.clear(); touches.clear(); touchQuarantine = false;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
-    } else { graph.apply(change); for (const id of change.removed) retired.add(id); }
+    } else { if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); } graph.apply(change); for (const id of change.removed) retired.add(id); }
     invalidate();
   });
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
+  if (args.theme) painter.themeChanged(args.theme.getSnapshot());
+  const unsubscribeTheme = args.theme?.subscribe(() => { if (args.theme) painter.themeChanged(args.theme.getSnapshot()); invalidate(); });
   const unsubscribeArea = args.availableArea?.subscribe(invalidate);
   invalidate();
 
@@ -547,7 +557,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     hitTest,
     hitTestLink: point => { for (let index = drawnLinks.length - 1; index >= 0; index--) { const entry = drawnLinks[index]; if (entry && routeDistance(point, entry.route) <= 8) return entry.link.id; } return null; },
     linkGeometry: () => drawnLinks.map(entry => ({ id: entry.link.id, route: entry.route })),
-    tool: tool => tools.set(tool),
+    tool: tool => { if (tool && !args.onToolCommit) throw new Error('Scene tools require onToolCommit.'); tools.set(tool); },
+    commitTool,
+    linkRoute: id => { const entry = graph.links.get(id); if (!entry) return null; const from = graph.nodes.get(entry.link.a), to = graph.nodes.get(entry.link.b); if (!from || !to) return null; const route = routeLink(entry.link, boundsFor(from), boundsFor(to), rotationFor(from), rotationFor(to)); return { d: route.points.length ? 'M' + route.points.map(point => `${point.x} ${point.y}`).join(' L') : `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, start: route.p0, control: route.control, end: route.p2, label: route.label }; },
     toolName: () => tools.name(),
     busy: () => glide !== null || gesture !== null || inputs.length > 0,
     preview: preview => tools.preview(preview),
@@ -575,7 +587,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
-      tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); participants.clear(); pool.dispose(); overlays.dispose();
+      tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); unsubscribeTheme?.(); participants.clear(); pool.dispose(); overlays.dispose();
       releaseSpace(); stage.classList.remove('panning', 'far');
       metrics.record(false);
       graph.clear(); measurements.clear(); inputs.length = 0; positions.clear(); representations = []; placements = []; drawnLinks = []; candidates = [];
