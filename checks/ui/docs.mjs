@@ -31,7 +31,7 @@ const choose = async (label, value, scope = page.locator('.docs-panel')) => {
   const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) { if (['Page colour', 'Paper size'].includes(label)) await more(); else await format(); }
   await chooseDropdown(root.getByRole('combobox', { name: label, exact: true }), value);
 };
-const saved = async () => { await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
+const saved = async () => { await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
 try {
@@ -74,7 +74,7 @@ try {
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
   await more();
-  await format(); await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await format(); await page.locator('.docs-panel').getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('.docs-prose').textContent.includes('(rewritten)'));
   console.log('PASS host rewrite endpoint through the app adapter');
   await less();
@@ -84,7 +84,7 @@ try {
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear release plan.'));
   await more();
-  await format(); await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await format(); await page.locator('.docs-panel').getByRole('button', { name: 'Undo', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear plan for'));
   await saved();
   console.log('PASS selection bubble, rewrite hook and Undo');
