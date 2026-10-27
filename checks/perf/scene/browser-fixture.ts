@@ -1,0 +1,94 @@
+import { createElement, useEffect, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
+import { createRoot } from 'react-dom/client';
+import { BoardSchema, CardSchema, RevisionSchema } from '@aegis/domain/schema';
+import type { Board, Card, CardId, Command } from '@aegis/domain/schema';
+import { createCanvas } from '../../../packages/scene/src/engine.js';
+import type { CanvasEngine, CanvasWorkspace, SceneChange, SlotLease } from '../../../packages/scene/src/types.js';
+import { replay } from './replay.js';
+import type { ReplayResult } from './replay.js';
+
+interface Harness {
+  readonly engine: CanvasEngine;
+  readonly board: () => Board;
+  readonly calls: readonly (readonly Command[])[];
+  readonly replace: (count: number) => void;
+  readonly update: (card: Card) => void;
+  readonly mounted: ReadonlyMap<string, HTMLElement>;
+  readonly cleanups: readonly string[];
+  readonly notifications: () => number;
+  readonly removePortals: () => void;
+  readonly holdCleanup: (hold: boolean) => void;
+  readonly acknowledgeReleased: (stale: boolean) => void;
+  readonly replay: (scenario: ReplayResult['scenario'], frames?: number) => Promise<ReplayResult>;
+}
+declare global { interface Window { sceneHarness: Harness } }
+
+const element = (id: string): HTMLElement => { const el = document.getElementById(id); if (!el) throw new Error(`Missing ${id}`); return el; };
+const stage = element('stage'), world = element('world'), backdrop = element('backdrop'), overlay = element('overlay');
+if (!(backdrop instanceof HTMLCanvasElement) || !(overlay instanceof HTMLCanvasElement)) throw new Error('Missing scene canvases');
+
+function fixture(count: number): Board {
+  const cards = Array.from({ length: count }, (_, i) => CardSchema.parse({ id: `note-${i}`, type: i === 0 ? 'title' : 'note', text: i === 0 ? 'Thinking table' : `Note ${i}`, color: 'plain', x: (i % 70) * 320 + 80, y: Math.floor(i / 70) * 240 + 80, w: 240, h: 160 }));
+  return BoardSchema.parse({ id: `fixture-${count}`, name: 'Scene fixture', rev: 0, cards, links: [], view: { x: 0, y: 0, z: 1 } });
+}
+
+let current = fixture(10), selection: readonly CardId[] = [];
+const listeners = new Set<(change: SceneChange) => void>(), selectionListeners = new Set<() => void>();
+const calls: (readonly Command[])[] = [], mounted = new Map<string, HTMLElement>(), cleanups: string[] = [];
+let notifications = 0;
+let holdCleanup = false;
+const released: SlotLease[] = [];
+function update(cards: readonly Card[], removed: readonly CardId[] = []): void {
+  const old = current, replaced = new Map(cards.map(card => [card.id, card])), excluded = new Set(removed);
+  current = BoardSchema.parse({ ...current, rev: RevisionSchema.parse(current.rev + 1), cards: current.cards.flatMap(card => excluded.has(card.id) ? [] : [replaced.get(card.id) ?? card]) });
+  for (const listener of listeners) listener({ kind: 'change', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: cards, removed, links: null, order: null });
+}
+const workspace: CanvasWorkspace = {
+  scene: { snapshot: () => current, subscribe: listener => { listeners.add(listener); return () => listeners.delete(listener); } },
+  selection: { getSnapshot: () => selection, subscribe: listener => { selectionListeners.add(listener); return () => selectionListeners.delete(listener); } },
+  act: intent => { selection = intent.ids; for (const listener of selectionListeners) listener(); },
+  submit: commands => {
+    calls.push(commands);
+    const cards: Card[] = [];
+    for (const command of commands) {
+      const card = 'id' in command ? current.cards.find(candidate => candidate.id === command.id) : undefined;
+      if (command.op === 'move' && card) cards.push(CardSchema.parse({ ...card, x: command.x, y: command.y }));
+      if (command.op === 'measure' && card) cards.push(CardSchema.parse({ ...card, h: command.h }));
+    }
+    if (cards.length) update(cards);
+    return { kind: 'applied' };
+  },
+};
+const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: true, snapGrid: 24 });
+
+function Body({ lease }: { readonly lease: SlotLease }) {
+  const card = current.cards.find(card => card.id === lease.cardId);
+  useEffect(() => {
+    mounted.set(lease.key, lease.host);
+    return () => {
+      mounted.delete(lease.key); cleanups.push(lease.key);
+      if (holdCleanup) released.push(lease);
+      else queueMicrotask(() => engine.leases.acknowledgeUnmount(lease.key, lease.generation));
+    };
+  }, [lease]);
+  return createElement('div', null, createElement('div', { contentEditable: true, suppressContentEditableWarning: true, 'data-body': lease.cardId }, card?.text ?? ''), lease.cardId === 'note-1' ? createElement('iframe', { title: 'Lifetime fixture', srcDoc: '<script>window.frameIdentity=Math.random()</script><p>Persistent frame</p>' }) : null);
+}
+function Portals() {
+  const leases = useSyncExternalStore(engine.leases.subscribe, engine.leases.getSnapshot);
+  return leases.map(lease => createPortal(createElement(Body, { lease }), lease.host, lease.key));
+}
+const root = createRoot(element('portals')); root.render(createElement(Portals));
+engine.leases.subscribe(() => { notifications++; });
+window.sceneHarness = {
+  engine, board: () => current, calls, mounted, cleanups, notifications: () => notifications,
+  update: card => update([card]),
+  replace: count => {
+    const old = current; current = fixture(count);
+    for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
+  },
+  removePortals: () => root.unmount(),
+  holdCleanup: hold => { holdCleanup = hold; },
+  acknowledgeReleased: stale => { for (const lease of released) engine.leases.acknowledgeUnmount(lease.key, lease.generation + (stale ? 1 : 0)); if (!stale) released.length = 0; },
+  replay: (scenario, frames) => replay(engine, scenario, frames),
+};
