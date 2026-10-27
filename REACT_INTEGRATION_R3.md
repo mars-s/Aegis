@@ -11,7 +11,7 @@ Own npm ci passed. checkpoint-check passes the complete npm run check, including
 
 ## Incoming reports
 
-The reported agents head 541477b and chrome head b38eae7 are already ancestors of 0f3e614. Their authored code is covered by checkpoint-check. Decks 317593e is also already an ancestor. The explicit merge returns Already up to date; decks-merge-check repeats npm run check successfully. Creative 4b69fe0 remains to merge. WIP heads from other workers are excluded until a fresh report identifies a verified pushed head.
+The reported agents head 541477b and decks head 317593e are already ancestors of 0f3e614. The explicit decks merge returns Already up to date; decks-merge-check repeats npm run check successfully. Chrome's authored changes were present, but the final ancestry audit corrected the initial claim that b38eae7 was already an ancestor. The explicit merge of that exact reported head has no source-tree changes. Its verification is recorded in chrome-ancestry-check. Creative 4b69fe0 merged as 502bd5d. WIP heads from other workers are excluded until a fresh report identifies a verified pushed head.
 
 ## Editor dispatch and key priority
 
