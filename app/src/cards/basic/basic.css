@@ -6,8 +6,8 @@
   min-height: 0;
   font-family: var(--font);
 }
-.basic-note .body,
-.basic-todo .body {
+.react-stage .card .basic-note .body,
+.react-stage .card .basic-todo .body {
   font: inherit;
   letter-spacing: inherit;
   line-height: inherit !important;

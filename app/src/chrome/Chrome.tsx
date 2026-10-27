@@ -22,7 +22,7 @@ import {
 } from "../workspace/index.js";
 import { createMenu } from "../lib/ui/menu.js";
 import { mountDropdowns } from "../lib/ui/dropdown.js";
-import { deleteCards, duplicateCards, groupCards, submit } from "./actions.js";
+import { deleteCards, duplicateCards, groupCards, submit, undoDeletedCards } from "./actions.js";
 import type { Notice, Notify } from "./actions.js";
 import { Icon, MenuButton, PopupButton } from "./controls.js";
 import { Layers } from "./Windows.js";
@@ -217,8 +217,8 @@ export function Chrome({
     };
   }, [ui.leftPanel, ui.rightPanel, layout.width, layout.rightWidth]);
   useEffect(() => {
-    if (!notice || notice.action) return;
-    const timer = setTimeout(() => setNotice(null), 4000);
+    if (!notice || notice.action && !notice.text.startsWith("Deleted ")) return;
+    const timer = setTimeout(() => setNotice(null), notice.text.startsWith("Deleted ") ? 5000 : 4000);
     return () => clearTimeout(timer);
   }, [notice]);
   useEffect(() => {
@@ -527,7 +527,7 @@ export function Chrome({
       let handled = true;
       if (mod && name === "z") {
         if (event.shiftKey) context.workspace.redo();
-        else context.workspace.undo();
+        else if (!undoDeletedCards(context)) context.workspace.undo();
       } else if (mod && name === "d") duplicateCards(context, ids, notify);
       else if (mod && name === "g")
         groupCards(context, ids, event.shiftKey, notify);
@@ -1076,10 +1076,10 @@ export function Chrome({
       />
       {notice ? (
         <div
-          className={`toast${notice.action ? " layer-undo" : ""}`}
+          className={`toast${notice.action ? " layer-undo" : ""}${notice.text.startsWith("Deleted ") ? " canvas-undo" : ""}`}
           role="status"
         >
-          <span>{notice.text}</span>
+          <span>{notice.text}</span>{notice.text.startsWith("Deleted ") ? <span aria-hidden="true"> · </span> : null}
           {notice.action ? (
             <button
               onClick={() => {

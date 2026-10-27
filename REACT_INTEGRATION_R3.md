@@ -69,6 +69,38 @@ Canvas advances through colour picker keyboard save/focus and menu motion, then 
 
 ## Derived chart and optional preview boundaries
 
-Accepted the data chart JSON proposal and creative optional link metadata proposal. Bound charts omit the independent headline key instead of emitting undefined. Optional preview strings default to empty strings; invalid types still fail decoding. Four new boundary cases cover live/missing/saved chart sources and partial previews. The pre-fix JSON probe fails at the actual JSON boundary and the same probe passes after the fix.
+Accepted the data chart JSON proposal and creative optional link metadata proposal. Bound charts omit the independent headline key instead of emitting undefined. Optional image and favicon strings default to empty strings; title and description remain required and invalid types still fail decoding. Four new boundary cases cover live/missing/saved chart sources and partial previews. The pre-fix JSON probe fails at the actual JSON boundary and the same probe passes after the fix.
 
 All 55 domain tests pass. The pre-existing compatibility case still asserts that an old in-memory explicit undefined headline remains editable; its fixture now creates that legacy field explicitly, while the new cases prove new derived charts are valid JSON. Root and React strict types, targeted lint, safe types and whitespace pass. Production evidence-fidelity passes 2333/2333 and chart-defaults passes 105/105, both full declared engine matrices.
+
+## Notifications and synchronous board replacement
+
+The real import/error pipeline now renders a bounded 480px notification above editors, with the test facade calling that same pipeline. CSV imports report their actual filename after successful commit. Controls-polish passes 514/514 across both engines and themes. The spatial import-notice cases now pass, advancing that suite from 89 to 97 assertions; legend/recovery remain.
+
+Accepted real controlled colour values, inherited title typography, 12px editor hints and the existing 32px sidebar button variables. Registered the existing Link placement tool. Media advances from 24 to 61 assertions, covering links, real recording/upload/playback, outgoing row disconnection and original-board save. Its next failure showed setBoard did not persist the selected board ID; the facade now mirrors real board opening after successful guarded replacement. The subsequent repeat stalled earlier in portrait recording and is not a green media claim.
+
+The facade flushes React's actual board replacement synchronously while retaining schema validation and editor flush refusal. It does not substitute rows or workspace state. Strict React types, targeted lint and whitespace pass.
+
+The original Effect host boundary test rejects an invalid-only preview reply. Full-default preview strings were too broad, so title and description stay required. The original boundary and all new partial-preview tests pass with this narrower contract.
+
+## Immediate deletion with scoped Undo
+
+Accepted immediate deletion, keyboard selection restoration and a five-second Undo notice. Keyboard Undo uses the deletion transaction only while it is still the latest state; otherwise normal history keeps ownership. The toast's scoped Undo retains the existing card/link merge so later unrelated edits survive. Two real-workspace regressions verify Undo/Redo selection and preservation of later edits. Strict app/root types and targeted lint pass.
+
+Production data-trust completes all Chromium cases, including deletion/Undo, and advances to 219 passing assertions. It repeats the data owner's WebKit Text size polling timeout at :109. No wait or assertion has been relaxed.
+
+## Nested-canvas service capability
+
+Accepted the Chrome createChild request as a typed semantic HostClient operation. The existing host route receives boardParent and placement coordinates and decodes the resulting board. A real-host regression creates a nested board, reloads both boards, and verifies the persisted canvas link, position and parent relationship. Ten boundary/real-host tests, root and React strict types, targeted lint and whitespace pass. The missing Canvas UI/body/breadcrumb remains Chrome/basic work, not a no-op service placeholder.
+
+## Deck placement and motion
+
+The central deck action now arms the real one-shot scene placement tool instead of creating at the viewport centre. Preview and input stay in the scene scheduler; creation and editor opening occur after input. Keyboard entry and Motion off stay instant. OS reduced motion uses opacity-only pointer fade while the scene's camera preference still disables travel.
+
+The complete production deck suite passes 257/257, including B click placement, keyboard/pointer opening, both motion settings, persistence and zero browser errors. Editors remains 51/51. Editor-return completes Chromium 71 assertions and still stops on WebKit's initial agent-update timeout at :54. Strict React types, targeted lint and whitespace pass.
+
+## Discrete wireframe policies
+
+Accepted the exact selectForDrag/expandDrag attachment proposal, retaining document-drop and camera callbacks. The policies run on gesture start and reuse the owned wireframe helpers. Original wireframe advances from five to 22 passing assertions, through group/frame carry, before its colour helper attempts to fill the real controlled picker button at :89/:29. No selector or assertion was changed in this unit. Snapping, guides and atomic drop parenting remain scene follow-ups.
+
+The full CreativeConnections consumer remains deferred under the existing integration-connection-contract.md ruling: its participant rebuilds SVG hit paths for every link during busy camera frames. The requested bounded cached picker/selected-link consumer is feature work that must preserve the single scene scheduler. Link placement is already registered separately.
