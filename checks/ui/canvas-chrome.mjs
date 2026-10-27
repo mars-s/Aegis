@@ -50,7 +50,7 @@ try {
           const rgba = value => { const n = value.match(/[\d.]+/g)?.map(Number) || []; return [n[0] || 0, n[1] || 0, n[2] || 0, n[3] ?? 1]; };
           const over = (a, b) => [0, 1, 2].map(i => a[i] * a[3] + b[i] * (1 - a[3])).concat(1);
           const lum = rgb => rgb.slice(0, 3).map(v => v / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
-          return [...document.querySelectorAll('#world .card.window-card :is(.win-kind, .kind, .sheet-note, .footnote, .meta, .data-size)')].filter(el => el.textContent.trim() && el.getClientRects().length).map(el => {
+          return [...document.querySelectorAll('#world .card :is(.win-kind, .deck-kind, .kind, .sheet-note, .sheet .note, .footnote, .meta, .data-size)')].filter(el => el.textContent.trim() && el.getClientRects().length).map(el => {
             let bg = [255, 255, 255, 1], opacity = 1;
             const chain = []; for (let parent = el; parent; parent = parent.parentElement) chain.unshift(parent);
             for (const parent of chain) { const style = getComputedStyle(parent); bg = over(rgba(style.backgroundColor), bg); opacity *= Number(style.opacity); }

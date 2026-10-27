@@ -26,6 +26,9 @@ import { Selection } from "./Selection.js";
 import type { ChromeGestures } from "./Selection.js";
 import { useBoard } from "./model.js";
 import { Panel, SideResize } from "./Panel.js";
+import { MobileHub } from "../features/mobile/MobileHub.js";
+import { useChromeExports } from "./exports.js";
+import { toolOrder, useToolbar } from "./Preferences.js";
 import "./chrome.css";
 
 export interface ChromeProps {
@@ -62,6 +65,28 @@ export function Chrome({
   const [layout, setLayout] = useState(readLayout),
     [notice, setNotice] = useState<Notice | null>(null),
     [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
+  const toolbar = useToolbar();
+  useEffect(() => {
+    document.body.dataset.toolSize = toolbar.size;
+  }, [toolbar.size]);
+  useEffect(() => {
+    const refresh = () => {
+      const next = readLayout();
+      setLayout(next);
+      context.workspace.act({
+        kind: "panel",
+        side: "left",
+        open: next.open.left,
+      });
+      context.workspace.act({
+        kind: "panel",
+        side: "right",
+        open: next.open.right,
+      });
+    };
+    window.addEventListener("aegis:panels-changed", refresh);
+    return () => window.removeEventListener("aegis:panels-changed", refresh);
+  }, [context]);
   const [palette, setPalette] = useState(false),
     [query, setQuery] = useState("");
   const paletteDialog = useRef<HTMLDialogElement>(null),
@@ -96,6 +121,7 @@ export function Chrome({
     };
   }, [context, engine, composition, layout, ui, save, ask, cameraChanged]);
   const notify = useCallback<Notify>((value) => setNotice(value), []);
+  const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(
     (filtered: boolean, matches: number, total: number) =>
       setFilter((previous) =>
@@ -360,6 +386,13 @@ export function Chrome({
     [composition, context, engine],
   );
   const actionRef = useRef(actions);
+  const dockActions = toolOrder(
+    actions.map((action) => action.id),
+    toolbar.order,
+  ).flatMap((id) => {
+    const action = actions.find((item) => item.id === id);
+    return action && !toolbar.hidden.includes(id) ? [action] : [];
+  });
   useEffect(() => {
     actionRef.current = actions;
   }, [actions]);
@@ -378,6 +411,13 @@ export function Chrome({
         mod = event.metaKey || event.ctrlKey,
         name = event.key.toLowerCase(),
         ids = context.workspace.selection.getSnapshot();
+      if (
+        !mod &&
+        !event.altKey &&
+        event.target instanceof Element &&
+        event.target.closest("button,summary,[role=treeitem]")
+      )
+        return;
       let handled = true;
       if (mod && name === "z") {
         if (event.shiftKey) context.workspace.redo();
@@ -520,10 +560,18 @@ export function Chrome({
                 },
               },
             ]
-          : actionRef.current.map((action) => ({
-              title: action.label,
-              run: () => action.run(context),
-            })),
+          : [
+              ...actionRef.current.map((action) => ({
+                title: action.label,
+                run: () => action.run(context),
+              })),
+              ...(["png", "pdf"] as const).map((format) => ({
+                title: `Export board as ${format.toUpperCase()}`,
+                run: () => {
+                  void exportBoard(false, format);
+                },
+              })),
+            ],
       );
       menu.open(event, { x: event.clientX, y: event.clientY });
     }
@@ -532,7 +580,7 @@ export function Chrome({
       stage.removeEventListener("contextmenu", open);
       menu.destroy();
     };
-  }, [context, engine, notify]);
+  }, [context, engine, notify, exportBoard]);
   const board = useBoard(context.workspace);
   const panels = (side: "left" | "right") =>
     layout.columns[side].map((id) => {
@@ -582,6 +630,7 @@ export function Chrome({
                 .filter(
                   (panel) =>
                     panel.side === "left" &&
+                    !layout.columns.left.includes(panel.id) &&
                     !layout.columns.right.includes(panel.id),
                 )
                 .map((panel) => (
@@ -595,37 +644,46 @@ export function Chrome({
                     <panel.Body context={context} />
                   </Panel>
                 ))}
-              <Panel
-                id="keys"
-                label="Shortcuts"
-                layout={layout}
-                change={change}
-              >
-                <dl>
-                  <dt>N</dt>
-                  <dd>Note</dd>
-                  <dt>H</dt>
-                  <dd>Heading</dd>
-                  <dt>C</dt>
-                  <dd>Checklist</dd>
-                  <dt>0</dt>
-                  <dd>Fit board</dd>
-                  <dt>\\</dt>
-                  <dd>Library and Windows</dd>
-                  <dt>Shift T</dt>
-                  <dd>Reveal tools</dd>
-                  <dt>⌘ P</dt>
-                  <dd>Commands</dd>
-                  <dt>⌘ Z</dt>
-                  <dd>Undo</dd>
-                </dl>
-              </Panel>
+              {!layout.columns.left.includes("keys") &&
+              !layout.columns.right.includes("keys") ? (
+                <Panel
+                  id="keys"
+                  label="Shortcuts"
+                  layout={layout}
+                  change={change}
+                >
+                  <dl>
+                    <dt>N</dt>
+                    <dd>Note</dd>
+                    <dt>H</dt>
+                    <dd>Heading</dd>
+                    <dt>C</dt>
+                    <dd>Checklist</dd>
+                    <dt>0</dt>
+                    <dd>Fit board</dd>
+                    <dt>\\</dt>
+                    <dd>Library and Windows</dd>
+                    <dt>Shift T</dt>
+                    <dd>Reveal tools</dd>
+                    <dt>⌘ P</dt>
+                    <dd>Commands</dd>
+                    <dt>⌘ Z</dt>
+                    <dd>Undo</dd>
+                  </dl>
+                </Panel>
+              ) : null}
             </div>
           </Panel>
         );
       const registered = composition.panels.find((panel) => panel.id === id);
       return registered ? (
-        <Panel key={id} id={id} label={registered.label ?? id} layout={layout} change={change}>
+        <Panel
+          key={id}
+          id={id}
+          label={registered.label ?? id}
+          layout={layout}
+          change={change}
+        >
           <registered.Body context={context} />
         </Panel>
       ) : null;
@@ -637,6 +695,41 @@ export function Chrome({
   }
   return (
     <div className="aegis-chrome">
+      <MobileHub
+        sheets={{
+          boards: () =>
+            library ? (
+              <Library
+                service={library}
+                current={metadata.id}
+                notify={notify}
+              />
+            ) : (
+              <p>Library is unavailable.</p>
+            ),
+          layers: () => <Layers context={context} notify={notify} />,
+          add: () => (
+            <div className="tools-grid">
+              {actions.map((action) => (
+                <button key={action.id} onClick={() => action.run(context)}>
+                  {action.label}
+                </button>
+              ))}
+            </div>
+          ),
+          unsorted: () => {
+            const panel = composition.panels.find(
+              (item) => item.id === "unsorted",
+            );
+            return panel ? (
+              <panel.Body context={context} />
+            ) : (
+              <p>No unsorted ideas.</p>
+            );
+          },
+          agents: () => rightContent,
+        }}
+      />
       <header className="bar">
         <div ref={leftBar} className="bar-left">
           <button
@@ -821,11 +914,12 @@ export function Chrome({
       <nav ref={dock} id="tools" aria-label="Canvas tools">
         <button
           data-tool="select"
+          hidden={toolbar.hidden.includes("select")}
           onClick={() => context.workspace.act({ kind: "select", ids: [] })}
         >
           Select
         </button>
-        {actions.slice(0, 6).map((action) => (
+        {dockActions.slice(0, 6).map((action) => (
           <button
             key={action.id}
             data-tool={action.id}
@@ -842,7 +936,7 @@ export function Chrome({
           className="tools-popover"
         >
           <div className="tools-grid">
-            {actions.slice(6).map((action) => (
+            {dockActions.slice(6).map((action) => (
               <button
                 key={action.id}
                 data-tool={action.id}
@@ -875,6 +969,9 @@ export function Chrome({
         context={context}
         engine={engine}
         notify={notify}
+        exportSelection={(format) => {
+          void exportBoard(true, format);
+        }}
         {...(gestures ? { gestures } : {})}
         {...(ask ? { ask } : {})}
       />
