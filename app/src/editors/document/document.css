@@ -954,6 +954,26 @@
   max-width: calc(50vw - 56px);
   color: var(--text, var(--color-text));
 }
+.document-reference-restore {
+  position: absolute;
+  z-index: 6;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-muted);
+  font: 12px var(--font);
+  cursor: pointer;
+}
+.document-reference-restore:hover {
+  background: var(--color-fill-hover);
+  color: var(--color-text);
+}
+.document-reference-restore:focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 3px;
+}
 .document-context .editor-context-source {
   display: flex;
   align-items: center;
@@ -984,7 +1004,8 @@
 }
 .document-context .editor-reference-chart {
   width: 320px;
-  min-height: 180px;
+  height: 180px;
+  overflow: auto;
 }
 .document-context .editor-reference-table {
   width: 280px;
