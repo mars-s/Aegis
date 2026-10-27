@@ -18,6 +18,7 @@ const mime = { pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-off
 export interface ImportProgress { readonly fraction: number; readonly message: string; readonly filename: string }
 export function createImporter(context: FeatureContext, services: CreativeServices, progress: (value: ImportProgress | null) => void, recordings: ReturnType<typeof createRecordingStore>) {
   let queue = Promise.resolve();
+  let picker: HTMLInputElement | null = null;
   const arrival = createImportArrival(context.workspace);
   async function save(boardId: BoardId, commands: readonly Command[], instant = true) {
     if (context.workspace.metadata.getSnapshot().id === boardId) {
@@ -71,11 +72,16 @@ export function createImporter(context: FeatureContext, services: CreativeServic
     };
     queue = queue.then(task, task); return queue;
   }
-  function choose() {
+  function fileInput() {
     const input = document.createElement('input'); input.type = 'file'; input.accept = IMPORT_ACCEPT; input.multiple = true;
-    input.onchange = () => { if (input.files) void importFiles(input.files); }; input.click();
+    input.onchange = () => { if (input.files) void importFiles(input.files); input.value = ''; };
+    return input;
+  }
+  function choose() {
+    const input = picker ?? fileInput(); input.value = ''; input.click();
   }
   function install(stage: HTMLElement) {
+    const input = fileInput(); input.id = 'mediaFile'; input.hidden = true; document.body.append(input); picker = input;
     const world = stage.querySelector('#world'), disposeArrival = world instanceof HTMLElement ? arrival.install(world) : () => {};
     const editing = (target: EventTarget | null) => target instanceof Element && !!target.closest('textarea,input,select,[contenteditable="true"],[contenteditable="plaintext-only"]');
     const paste = (event: ClipboardEvent) => {
@@ -101,7 +107,7 @@ export function createImporter(context: FeatureContext, services: CreativeServic
     };
     const dragover = (event: DragEvent) => { if (event.dataTransfer?.types.some(type => ['Files', 'text/uri-list', 'text/plain'].includes(type))) event.preventDefault(); };
     document.addEventListener('paste', paste, true); stage.addEventListener('drop', drop, true); stage.addEventListener('dragover', dragover);
-    return () => { disposeArrival(); document.removeEventListener('paste', paste, true); stage.removeEventListener('drop', drop, true); stage.removeEventListener('dragover', dragover); };
+    return () => { disposeArrival(); if (picker === input) picker = null; input.remove(); document.removeEventListener('paste', paste, true); stage.removeEventListener('drop', drop, true); stage.removeEventListener('dragover', dragover); };
   }
   return { importFiles, choose, install };
 }

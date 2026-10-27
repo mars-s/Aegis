@@ -147,7 +147,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved');
   pptx = (await stored()).cards.find(card => card.id === pptx.id);
   assert.equal(pptx.props.slides[0].title, 'Edited import title'); assert.equal(pptx.props.slides[0].images.length, 2);
-  await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await page.getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Back to board' : 'Close editor', exact: true }).click();
   await page.locator('.deck-panel').waitFor({ state: 'detached' });
   console.log('PASS synthetic PPTX drop follows presentation relationship order, imports titles, bodies and pictures, and retains pictures after a slide edit');
 
