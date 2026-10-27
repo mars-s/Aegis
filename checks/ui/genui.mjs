@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
+import { verifySandboxLifecycle } from './sandbox-lifecycle.mjs';
 import { genuiSamples, galleryArtwork } from '../host/genui-fixtures.ts';
 import { OBJECT_KINDS } from '@aegis/domain/objects';
 import { THEME_KEYS } from '@aegis/protocol/sandbox';
@@ -174,7 +175,8 @@ try {
       assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'fade returns when scrolling back');
     }
     await page.keyboard.press('Escape');
-    assert.equal(await editor.count(), 0, 'Escape removes the editor immediately');
+    if (kind === 'html' && process.env.AEGIS_UI_IMPL === 'react') await editor.waitFor({ state: 'detached', timeout: 2000 });
+    assert.equal(await editor.count(), 0, kind === 'html' && process.env.AEGIS_UI_IMPL === 'react' ? 'Escape removes the editor after sandbox acknowledgement' : 'Escape removes the editor immediately');
     // Focus returns to the invoking Open action for this window (or the window itself if the action is gone).
     await page.waitForFunction(kind => { const a = document.activeElement; const id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains(`kind-${kind}`); }, kind);
     checkedOpen.add(kind);
@@ -1008,6 +1010,7 @@ try {
   assert.deepEqual(errors, []);
   writeFileSync(out(`genui-results-${stamp}.json`), JSON.stringify({ kinds: Object.keys(samples), openChecked: [...checkedOpen], screenshots: [1440, 1586, 390], outgoingSandboxRequests: outgoing, errors }, null, 2));
   console.log('pass genui: screenshots of every kind at 1440, 1586 and 390; no page errors');
+  if (process.env.AEGIS_UI_IMPL === 'react') await verifySandboxLifecycle();
 } catch (error) {
   console.error('FAIL genui:', error.stack);
   if (page) console.error('diagnostics', JSON.stringify(await page.evaluate(async () => ({ reports: window.__genuiReports, rev: aegis.canvas.board.rev, saved: document.querySelector('[data-save-state], #saveState')?.textContent, server: await aegis.host.get(`/boards/${aegis.canvas.board.id}`).then(b => ({ rev: b.rev, html: b.cards.find(c => c.kind === 'html') })), html: aegis.canvas.board.cards.find(c => c.kind === 'html'), widths: aegis.canvas.board.cards.map(c => [c.type, c.kind, c.w]) })).catch(() => null)), errors);
