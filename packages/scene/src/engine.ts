@@ -439,7 +439,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
             else {
               positions.clear();
               const edit = gesture.edit;
-              if (edit?.isConnected) post(() => edit.focus({ preventScroll: true }));
+              if (edit?.isConnected) post(() => { if (edit.isConnected && stage.ownerDocument.activeElement === stage) edit.focus({ preventScroll: true }); });
             }
           } else if (gesture.kind === 'resize' || gesture.kind === 'rotate') {
             const id = gesture.id, bounds = positions.get(id), rotation = rotations.get(id);
