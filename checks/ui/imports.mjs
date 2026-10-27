@@ -140,6 +140,7 @@ try {
   await page.evaluate(id => aegis.canvas.select([id]), pptx.id);
   await page.locator(`.window-actions [data-window-action="${pptx.id}"]`).click();
   await page.locator('.deck-panel').waitFor();
+  await page.waitForFunction(() => document.querySelector('.deck-panel')?.getAnimations().every(animation => !animation.pending && animation.playState !== 'running'));
   assert.equal(await page.locator('.deck-panel .deck-slide-wrap').count(), 2);
   await assertSlideFits(page.locator('.deck-panel .deck-slide-wrap > .deck-fit').first(), { label: 'Imported PPTX editor', pictures: 2 });
   await assertSlideFits(page.locator('.deck-panel .deck-film-item > .deck-fit').first(), { label: 'Imported PPTX filmstrip', pictures: 2 });
