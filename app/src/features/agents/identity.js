@@ -10,7 +10,6 @@ export function mountAgentIdentity({ canvas, stage, overlay, edges, windows, occ
     active = null; tip.hidden = true;
   }
   function show(w) {
-    if (stage.dataset.zoomTier && stage.dataset.zoomTier !== 'detail') return hide();
     if (!w || !w.collapsed || w.closed || w.el.hidden || canvas.view.z >= 12 / 13) return hide();
     if (active === w) return;
     hide();

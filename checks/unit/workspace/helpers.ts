@@ -46,6 +46,7 @@ export function memoryHost(initial: Board) {
       return { kind: 'ok', value: { ok: true, rev: board.rev, created: result.created } };
     },
     saveCamera: async () => ({ kind: 'ok', value: undefined }),
+    upload: async () => ({ kind: 'error', error: { kind: 'http', status: 501, message: 'This memory host has no assets' } }),
     assetUrl: url => url,
     events: args => {
       receive = args.event;

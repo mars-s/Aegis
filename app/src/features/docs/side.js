@@ -61,10 +61,7 @@ export function openSide({ title, kind, card, ctx, keyboard = false }) {
         if (node) { node.scrollTop = saved.top; node.scrollLeft = saved.left; }
       }
       if (held || document.activeElement !== stage) return;
-      // A window shown as its semantic summary (e.g. a sheet below 100%) takes focus through that summary.
-      const mounted = canvas.mountedEl(card.id);
-      const summary = document.querySelector(`.semantic-window[data-card-id="${CSS.escape(card.id)}"]`);
-      const source = mounted && !mounted.classList.contains('semantic-hidden') ? mounted : summary || mounted;
+      const source = canvas.mountedEl(card.id);
       if (source) { if (!source.hasAttribute('tabindex') && source.tagName !== 'BUTTON') source.tabIndex = -1; source.focus({ preventScroll: true }); }
     });
     // Preserve the world point at the centre if the window was resized while editing.

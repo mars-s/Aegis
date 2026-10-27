@@ -1,10 +1,8 @@
 import { cardSummary } from '@aegis/domain/summary';
 import { createDropdown } from '../../lib/ui/dropdown.js';
 import { liveReference, referenceCard } from './reference.js';
-import { summarisedCard } from '../overview/zoom.js';
 import { effectiveFlag } from '../editing/model.js';
 import { reduceMotion } from '../../lib/ui/interaction.js';
-import '../overview/overview.css';
 
 const GAP = 24;
 const centre = card => ({ x: card.x + card.w / 2, y: card.y + card.h / 2 });
@@ -32,7 +30,7 @@ function neighbours(board, source) {
   const relation = card => linked.has(card.id) ? 'Linked' : sourceSheet && sheet(card) === sourceSheet ? 'Shared data' : 'Nearby';
   const rank = { Linked: 0, 'Shared data': 1, Nearby: 2 };
   const origin = centre(source), distance = c => { const p = centre(c); return Math.hypot(p.x - origin.x, p.y - origin.y); };
-  return board.cards.filter(c => c.id !== source.id && summarisedCard(c) && !effectiveFlag(board, c, 'hidden'))
+  return board.cards.filter(c => c.id !== source.id && !['title', 'frame', 'coll', 'template-group', 'draw-ink', 'draw-shape'].includes(c.type) && !effectiveFlag(board, c, 'hidden'))
     .map(card => ({ card, relation: relation(card) }))
     .sort((a, b) => rank[a.relation] - rank[b.relation] || distance(a.card) - distance(b.card));
 }

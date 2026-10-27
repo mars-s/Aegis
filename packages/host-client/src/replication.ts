@@ -174,7 +174,7 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
           }
         },
       }).then(result => {
-        if (result.kind === 'error' && result.error.kind !== 'cancelled') options.onError?.(result.error);
+        if (!disposed && !stream.signal.aborted && result.kind === 'error' && result.error.kind !== 'cancelled') options.onError?.(result.error);
       });
       if (disposed) return;
       requestSnapshot();
@@ -190,7 +190,7 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
       yield* Effect.promise(() => listen());
     }));
     void Effect.runPromise(scope).catch(error => {
-      options.onError?.({ kind: 'protocol', message: error instanceof Error ? error.message : 'The connection scope failed' });
+      if (!disposed) options.onError?.({ kind: 'protocol', message: error instanceof Error ? error.message : 'The connection scope failed' });
     });
   }
   return {

@@ -1,12 +1,36 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2023",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "noEmit": true,
-    "types": ["react", "react-dom", "vite/client"]
+    "types": [
+      "react",
+      "react-dom",
+      "vite/client"
+    ]
   },
-  "include": ["src/main.tsx", "src/App.tsx", "src/composition.tsx", "src/workspace/**/*.ts", "src/canvas/**/*.tsx", "src/canvas/**/*.ts", "src/platform/**/*.ts", "src/cards/**/*.tsx"]
+  "include": [
+    "src/main.tsx",
+    "src/App.tsx",
+    "src/composition.tsx",
+    "src/workspace/**/*.ts",
+    "src/canvas/**/*.tsx",
+    "src/canvas/**/*.ts",
+    "src/platform/**/*.ts",
+    "src/cards/**/*.tsx",
+    "src/charts/**/*.ts",
+    "src/charts/**/*.tsx",
+    "src/editors/sheet/**/*.tsx",
+    "src/editors/dataset/**/*.ts",
+    "src/editors/dataset/**/*.tsx",
+    "src/features/data/**/*.ts",
+    "src/features/data/**/*.tsx"
+  ]
 }

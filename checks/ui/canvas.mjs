@@ -1,3 +1,4 @@
+import { assertCameraScale } from './static-geometry.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
@@ -104,6 +105,7 @@ try {
   verify('font menu Space commits the focused choice', await page.evaluate(() => aegis.canvas.board.cards.find(c => c.id === 'canvasnote').props.font === 'system-ui') && !await searchFonts.isVisible());
 
   await page.keyboard.press('Escape');
+  await assertCameraScale(page, ['canvasnote', 'canvastodo']);
   const zoom = page.getByRole('button', { name: 'Zoom menu', exact: true });
   const zoomMenu = page.getByRole('menu', { name: 'Zoom', exact: true });
   await zoom.focus(); await zoom.press('ArrowDown');
@@ -155,6 +157,7 @@ try {
   await page.getByRole('button', { name: 'Home', exact: true }).click(); await page.locator('.library-home[open]').waitFor(); await page.keyboard.press('Escape');
   const row = page.locator(`.tree-row[data-node="${project.created}"]`); await row.click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Delete', exact: true }).click(); await answer(true); await settle();
+  await page.locator('[data-library-undo]').waitFor({ state: 'visible' });
   verify('side bar deletion offers Undo', await page.locator('[data-library-undo]').isVisible().catch(() => false));
   if (!reproduce) { await page.locator('[data-library-undo]').click(); await row.waitFor(); verify('Undo restores the deleted project', (await api('/library')).nodes.some(n => n.id === project.created)); }
   if (!reproduce) {

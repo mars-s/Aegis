@@ -5,7 +5,7 @@ export function mountDeckCharts(root, { deckId, onChartSource } = {}) {
   const components = [], observers = [];
   for (const target of root.querySelectorAll('[data-chart-model]')) {
     const model = JSON.parse(target.dataset.chartModel);
-    const miniature = !!target.closest('.deck-thumb, .deck-film-item, .semantic-deck');
+    const miniature = !!target.closest('.deck-thumb, .deck-film-item');
     const fit = target.closest('.deck-fit');
     const art = target.closest('.s-art');
     const slide = art.closest('.deck-slide');

@@ -102,15 +102,10 @@ try {
     await page.locator(`.card[data-id="${sampleId}"] .object`).waitFor({ state: 'visible' });
     // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
     await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
-    // Narrow screens frame below the detail tier, where the semantic summary is the selectable surface.
-    // Sheets and tables stay summarised below 100%, so use the window's own tier, not the stage's.
-    // Select the sample through a real pointer press on its title when shown in detail (retrying if a live widget re-mounts), else via the model.
-    // A revised widget re-mounts; wait until the window is attached and painted again before pointing at it.
+    // Select the real title after a revised widget has mounted.
     await page.waitForFunction(id => { const c = document.querySelector(`#world > .card[data-id="${id}"]`); return c && c.querySelector('.win-strip h3') && c.getBoundingClientRect().width > 0; }, sampleId);
     const title = page.locator(`.card[data-id="${sampleId}"] .win-strip h3`);
-    if (!await page.locator(`.card[data-id="${sampleId}"]`).evaluate(el => el.classList.contains('semantic-hidden'))) {
-      for (let attempt = 0; attempt < 3; attempt++) { try { await title.click({ timeout: 5000 }); break; } catch (error) { if (attempt === 2) throw error; } }
-    } else await page.evaluate(id => aegis.canvas.select([id]), sampleId);
+    for (let attempt = 0; attempt < 3; attempt++) { try { await title.click({ timeout: 5000 }); break; } catch (error) { if (attempt === 2) throw error; } }
     await page.waitForTimeout(500);
     return page.locator(`.card[data-id="${sampleId}"]`);
   };
@@ -127,10 +122,8 @@ try {
       assert.equal(await card.getByRole('button', { name: /^Open(?: |$)/ }).count(), 0, `${kind} has no Open affordance`);
       checkedOpen.add(kind); return;
     }
-    // Detail tier opens from the hovered window's action strip; the summary tier (narrow screens) uses the selection toolbar.
-    const detail = !await card.first().evaluate(el => el.classList.contains('semantic-hidden'));
-    if (detail) await card.hover();
-    const open = detail ? page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true }) : page.locator('.selection-bar').getByRole('button', { name: 'Open', exact: true });
+    await card.hover();
+    const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
     await editor.waitFor({ state: 'visible', timeout: 3000 });

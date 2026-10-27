@@ -164,6 +164,14 @@ try {
     await page.waitForTimeout(100);
   };
   await panAway();
+  const stableAgentWidths = await page.locator('.agent-window:not([hidden])').evaluateAll(nodes => nodes.map(el => el.getBoundingClientRect().width));
+  for (const z of [.3, .5, .75, 1, 2]) {
+    await page.evaluate(z => aegis.canvas.setView({ x: 0, y: 0, z }), z);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.deepEqual(await page.locator('.agent-window:not([hidden])').evaluateAll(nodes => nodes.map(el => el.getBoundingClientRect().width)), stableAgentWidths, 'real agent chrome stays screen-sized at every camera scale');
+    assert.equal(await page.locator('.agent-zoom-summary').count(), 0);
+  }
+  await panAway();
   const cues = await page.locator('.agent-edge[data-agent-id]:visible').evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(); return { id: el.dataset.agentId, x: r.x, y: r.y, w: r.width, h: r.height, hit: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('[data-agent-id]')?.dataset.agentId }; }));
   observations.threeCues = cues;
   await page.screenshot({ path: out(`r6-three-edge-cues-${stamp}.png`) });
