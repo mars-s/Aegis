@@ -11,21 +11,25 @@ import { normaliseLink, spotifyOf } from '../media/link-model.js';
 import { prepareImage } from '../media/image-utils.js';
 import { fileFormat, MAX_FILE, titleOf } from './types.js';
 import { keynotePackages } from './keynote-package.js';
+import { createImportArrival } from './arrival.js';
 import './imports-react.css';
 export const IMPORT_ACCEPT = 'image/*,video/*,.csv,.tsv,text/csv,.pdf,.pptx,.key,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.apple.keynote';
 const mime = { pdf: 'application/pdf', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', key: 'application/vnd.apple.keynote' };
 export interface ImportProgress { readonly fraction: number; readonly message: string; readonly filename: string }
 export function createImporter(context: FeatureContext, services: CreativeServices, progress: (value: ImportProgress | null) => void, recordings: ReturnType<typeof createRecordingStore>) {
   let queue = Promise.resolve();
-  async function save(boardId: BoardId, commands: readonly Command[]) {
+  const arrival = createImportArrival(context.workspace);
+  async function save(boardId: BoardId, commands: readonly Command[], instant = true) {
     if (context.workspace.metadata.getSnapshot().id === boardId) {
       const result = context.workspace.submit(commands); if (result.kind === 'rejected') throw new Error(result.errors[0]?.reason ?? 'Could not import this file');
+      arrival.remember(result.ids, instant);
       context.workspace.act({ kind: 'select', ids: result.ids });
     } else await services.commitToBoard(boardId, commands);
   }
   function importFiles(files: Iterable<File>, at?: { x: number; y: number }, destination = context.workspace.metadata.getSnapshot().id) {
     const position = at ?? context.engine()?.screenToWorld({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 0, y: 0 };
     const batch = [...files];
+    const instant = arrival.viaKeyboard();
     const task = async () => {
       for (const [index, file] of batch.entries()) {
         const x = Math.round(position.x + index * 36), y = Math.round(position.y + index * 30);
@@ -42,7 +46,7 @@ export function createImporter(context: FeatureContext, services: CreativeServic
             const props = { ...imported.props, import: { format, name: file.name, original: original.url } };
             if (new TextEncoder().encode(JSON.stringify(props)).length > 900000) throw new Error('This file has too much content for one window. Split it into smaller files first.');
             const command = CommandSchema.parse({ op: 'create', type: imported.type, text: titleOf(file), x, y, w: imported.type === 'doc' ? 560 : 570, h: imported.type === 'doc' ? 620 : 420, props });
-            await save(destination, [command]);
+            await save(destination, [command], instant);
             services.notify(`Imported ${file.name}${context.workspace.metadata.getSnapshot().id === destination ? '' : ' into the original board'}.${imported.type === 'deck' && imported.notice ? ` ${imported.notice}` : ''}`);
           } else if (file.type.startsWith('image/')) {
             const prepared = await prepareImage(file), saved = await services.upload(prepared.file);
@@ -72,6 +76,7 @@ export function createImporter(context: FeatureContext, services: CreativeServic
     input.onchange = () => { if (input.files) void importFiles(input.files); }; input.click();
   }
   function install(stage: HTMLElement) {
+    const world = stage.querySelector('#world'), disposeArrival = world instanceof HTMLElement ? arrival.install(world) : () => {};
     const editing = (target: EventTarget | null) => target instanceof Element && !!target.closest('textarea,input,select,[contenteditable="true"],[contenteditable="plaintext-only"]');
     const paste = (event: ClipboardEvent) => {
       if (editing(event.target) || !event.clipboardData) return;
@@ -96,7 +101,7 @@ export function createImporter(context: FeatureContext, services: CreativeServic
     };
     const dragover = (event: DragEvent) => { if (event.dataTransfer?.types.some(type => ['Files', 'text/uri-list', 'text/plain'].includes(type))) event.preventDefault(); };
     document.addEventListener('paste', paste, true); stage.addEventListener('drop', drop, true); stage.addEventListener('dragover', dragover);
-    return () => { document.removeEventListener('paste', paste, true); stage.removeEventListener('drop', drop, true); stage.removeEventListener('dragover', dragover); };
+    return () => { disposeArrival(); document.removeEventListener('paste', paste, true); stage.removeEventListener('drop', drop, true); stage.removeEventListener('dragover', dragover); };
   }
   return { importFiles, choose, install };
 }
