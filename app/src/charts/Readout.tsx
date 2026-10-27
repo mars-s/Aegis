@@ -15,7 +15,7 @@ export function Readout({ readout, indicator = 'dot', onevidence, glyph }: Evide
     {readout.evidence.length ? <span className="chips">{readout.evidence.map(reference => <button type="button" className="chip" key={reference.key} disabled={!onevidence} title={reference.label} onClick={() => onevidence?.(reference)}>{glyph?.(reference)}<span className="host">{reference.file ? reference.label : reference.origin || reference.label}</span></button>)}</span> : null}
   </div>;
 }
-export function Tip({ reading, x, y, width, onhold, onhide, ...evidence }: EvidenceProps & { readonly reading: Reading; readonly x: number; readonly y: number; readonly width: number; readonly onhold?: () => void; readonly onhide?: () => void }) {
+export function Tip({ reading, x, y, width, onhold, onhide, indicator, ...evidence }: EvidenceProps & { readonly reading: Reading; readonly x: number; readonly y: number; readonly width: number; readonly indicator?: 'dot' | 'line'; readonly onhold?: () => void; readonly onhide?: () => void }) {
   const box = useBox<HTMLDivElement>();
-  return <div ref={box.ref} className="tip" role="tooltip" onPointerEnter={onhold} onPointerLeave={onhide} onFocusCapture={onhold} onBlurCapture={onhide} style={{ left: Math.max(0, Math.min(x - box.width / 2, width - box.width)), top: y - box.height - 10 >= -8 ? y - box.height - 10 : y + 14 }}><Readout readout={reading} {...evidence} /></div>;
+  return <div ref={box.ref} className="tip" role="tooltip" onPointerEnter={onhold} onPointerLeave={onhide} onFocusCapture={onhold} onBlurCapture={onhide} style={{ left: Math.max(0, Math.min(x - box.width / 2, width - box.width)), top: y - box.height - 10 >= -8 ? y - box.height - 10 : y + 14 }}><Readout readout={reading} indicator={indicator ?? 'dot'} {...evidence} /></div>;
 }

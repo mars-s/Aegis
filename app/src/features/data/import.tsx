@@ -25,16 +25,21 @@ export async function importDataset({ workspace, services, file, at, signal }: {
   if (signal.aborted) return { kind: 'cancelled' };
   if (file.size > DATASET_LIMITS.bytes) return { kind: 'error', message: `${file.name} is over ${DATASET_LIMITS.bytes / 1024 ** 2} MB.` };
   const boardId = workspace.metadata.getSnapshot().id;
+  const lifetime = new AbortController();
+  const abort = () => lifetime.abort();
+  signal.addEventListener('abort', abort, { once: true });
+  const unsubscribe = workspace.scene.subscribe(change => { if (change.kind === 'replace') abort(); });
   try {
-    const parsed = await parseFile(file, signal);
+    const parsed = await parseFile(file, lifetime.signal);
     if (parsed.kind === 'error') return parsed;
-    if (signal.aborted) return { kind: 'cancelled' };
-    const saved = AssetSchema.parse(await services.upload(new File([file], file.name, { type: /\.tsv$/i.test(file.name) ? 'text/tab-separated-values' : 'text/csv' }), signal));
-    if (signal.aborted || workspace.metadata.getSnapshot().id !== boardId) return { kind: 'cancelled' };
+    if (lifetime.signal.aborted) return { kind: 'cancelled' };
+    const saved = AssetSchema.parse(await services.upload(new File([file], file.name, { type: /\.tsv$/i.test(file.name) ? 'text/tab-separated-values' : 'text/csv' }), lifetime.signal));
+    if (lifetime.signal.aborted || workspace.metadata.getSnapshot().id !== boardId) return { kind: 'cancelled' };
     const result = workspace.submit([{ op: 'create', type: 'dataset', text: file.name.replace(/\.(csv|tsv)$/i, ''), x: Math.round(at.x), y: Math.round(at.y), w: 640, h: 420, ref: 'dataset', props: JsonRecordSchema.parse(JSON.parse(JSON.stringify({ src: saved.url, name: file.name, rows: parsed.rows, columns: parsed.columns, preview: parsed.preview, profile: parsed.profile }))) }]);
     if (result.kind === 'rejected') return { kind: 'error', message: result.errors.map(error => error.reason).join('. ') };
     const id = result.created.dataset;
     if (!id) return { kind: 'error', message: 'The dataset could not be created.' };
     workspace.act({ kind: 'select', ids: [id] }); return { kind: 'imported', id, rows: parsed.rows };
-  } catch (error) { return signal.aborted ? { kind: 'cancelled' } : { kind: 'error', message: `Could not read ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}` }; }
+  } catch (error) { return lifetime.signal.aborted ? { kind: 'cancelled' } : { kind: 'error', message: `Could not read ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}` }; }
+  finally { unsubscribe(); signal.removeEventListener('abort', abort); }
 }

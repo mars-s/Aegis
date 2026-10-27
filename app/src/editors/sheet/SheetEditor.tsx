@@ -6,7 +6,7 @@ import type { CardBodyProps } from '../../composition.js';
 import { useCard, useSaveState } from '../../workspace/index.js';
 import type { Sheet } from '../../cards/data/sheet-model.js';
 import { numeric } from '../../cards/data/sheet-model.js';
-import { rangeOf, rawCell, sheetSession } from './session.js';
+import { clampCell, rangeOf, rawCell, sheetSession } from './session.js';
 import type { Cell } from './session.js';
 import './sheet.css';
 function ToolIcon({ path }: { readonly path: string }) { return <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d={path} /></svg>; }
@@ -23,12 +23,13 @@ export function SheetEditor({ cardId, workspace, engine }: CardBodyProps) {
   const [scrollTop, setScrollTop] = useState(state.scroll.top);
   const [viewHeight, setViewHeight] = useState(600);
   useEffect(() => { const node = grid.current; if (!node) return; node.scrollTop = state.scroll.top; node.scrollLeft = state.scroll.left; node.focus({ preventScroll: true }); const observer = new ResizeObserver(entries => { const h = entries[0]?.contentRect.height; if (h) setViewHeight(h); }); observer.observe(node); return () => { observer.disconnect(); }; }, [cardId, session]);
-  useEffect(() => { if (state.edit.kind !== 'editing' || state.edit.input !== 'cell') return; input.current?.focus({ preventScroll: true }); input.current?.select(); }, [state.edit.kind, state.edit.kind === 'editing' ? state.edit.input : null]);
+  useEffect(() => { if (state.edit.kind !== 'editing' || state.edit.input !== 'cell') return; input.current?.focus({ preventScroll: true }); if (state.edit.selectText) input.current?.select(); else if (input.current) input.current.setSelectionRange(input.current.value.length, input.current.value.length); }, [state.edit.kind, state.edit.kind === 'editing' ? state.edit.input : null]);
   useEffect(() => { engine.pin(cardId, 'dirty', state.edit.kind === 'editing'); return () => engine.pin(cardId, 'dirty', false); }, [engine, cardId, state.edit.kind]);
+  useEffect(() => { engine.pin(cardId, 'ime', state.edit.kind === 'editing' && state.edit.composing); return () => engine.pin(cardId, 'ime', false); }, [engine, cardId, state.edit]);
   useEffect(() => { const stop = () => { dragging.current = false; }; window.addEventListener('pointerup', stop); window.addEventListener('pointercancel', stop); return () => { window.removeEventListener('pointerup', stop); window.removeEventListener('pointercancel', stop); }; }, []);
   if (card?.kind !== 'sheet') return null;
-  const data = card.data, selected = { r: Math.min(state.selected.r, data.rows.length), c: Math.min(state.selected.c, data.columns.length - 1) };
-  const range = rangeOf({ ...state, selected }), multi = range.r0 !== range.r1 || range.c0 !== range.c1;
+  const data = card.data, selected = clampCell(data, state.selected);
+  const range = rangeOf({ selected, anchor: state.anchor ? clampCell(data, state.anchor) : null }), multi = range.r0 !== range.r1 || range.c0 !== range.c1;
   const column = data.columns[selected.c];
   const values = data.rows.flatMap((row, index) => index + 1 >= Math.max(1, range.r0) && index + 1 <= range.r1 ? row.cells.slice(range.c0, range.c1 + 1).flatMap(text => { const n = Number(text.replace(/[,$%\s]/g, '')); return text.trim() && Number.isFinite(n) ? [n] : []; }) : []);
   const sum = values.reduce((a, b) => a + b, 0);
@@ -57,7 +58,7 @@ export function SheetEditor({ cardId, workspace, engine }: CardBodyProps) {
     }
   };
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+    if (event.target !== event.currentTarget || event.nativeEvent.isComposing) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'a') { event.preventDefault(); event.stopPropagation(); session.select({ r: 0, c: 0 }); session.select({ r: data.rows.length, c: data.columns.length - 1 }, true); return; }
     if (event.metaKey || event.ctrlKey || event.altKey) return;
     const moves = new Map([['ArrowUp', { r: -1, c: 0 }], ['ArrowDown', { r: 1, c: 0 }], ['ArrowLeft', { r: 0, c: -1 }], ['ArrowRight', { r: 0, c: 1 }]]);
@@ -79,7 +80,7 @@ export function SheetEditor({ cardId, workspace, engine }: CardBodyProps) {
       <button onClick={clear} aria-label="Clear selected cells"><ToolIcon path="M3 13h10M5 10l5.5-6.5 2.5 2.5L7.5 12H5z" /></button>
     </div>
     {state.error ? <p role="alert">{state.error}</p> : null}
-    <div className="sheet-bar"><output className="sheet-ref" aria-label="Cell reference">{letter(selected.c)}{selected.r + 1}</output><span className="sheet-fx">Value</span><input className="sheet-value" aria-label="Selected cell value" maxLength={selected.r ? 200 : 24} value={state.edit.kind === 'editing' ? state.edit.text : rawCell(data, selected)} onChange={event => { session.begin(undefined, 'bar'); session.change(event.currentTarget.value); }} onBlur={() => session.flush()} onKeyDown={event => { event.stopPropagation(); if (event.key === 'Enter' && session.flush()) grid.current?.focus(); if (event.key === 'Escape') { session.cancel(); grid.current?.focus(); } }} /></div>
+    <div className="sheet-bar"><output className="sheet-ref" aria-label="Cell reference">{letter(selected.c)}{selected.r + 1}</output><span className="sheet-fx">Value</span><input className="sheet-value" aria-label="Selected cell value" maxLength={selected.r ? 200 : 24} value={state.edit.kind === 'editing' ? state.edit.text : rawCell(data, selected)} onChange={event => { session.begin(undefined, 'bar'); session.change(event.currentTarget.value); }} onBlur={() => session.flush()} onCompositionStart={() => { session.begin(undefined, 'bar'); session.compose(true); }} onCompositionEnd={() => session.compose(false)} onKeyDown={event => { event.stopPropagation(); if (event.nativeEvent.isComposing) return; if (event.key === 'Enter' && session.flush()) grid.current?.focus(); if (event.key === 'Escape') { session.cancel(); grid.current?.focus(); } }} /></div>
     <div ref={grid} className="sheet-scroll" tabIndex={0} role="grid" aria-label="Sheet cells. Arrow keys move, Shift extends, Return edits." aria-multiselectable="true" aria-rowcount={data.rows.length + 2} aria-colcount={data.columns.length + 1} aria-activedescendant={`sheet-${cardId}-${selected.r}-${selected.c}`} onKeyDown={key}
       onScroll={event => { setScrollTop(event.currentTarget.scrollTop); session.update({ scroll: { top: event.currentTarget.scrollTop, left: event.currentTarget.scrollLeft } }); }}
       onPointerMove={event => { if (!dragging.current) return; const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('td'); if (target instanceof HTMLTableCellElement && event.currentTarget.contains(target)) select({ r: Number(target.dataset.r), c: Number(target.dataset.c) }, true, false); }}>
@@ -89,7 +90,7 @@ export function SheetEditor({ cardId, workspace, engine }: CardBodyProps) {
           const inside = r >= range.r0 && r <= range.r1 && c >= range.c0 && c <= range.c1;
           const col = data.columns[c];
           const editing = state.edit.kind === 'editing' && state.edit.input === 'cell' && state.edit.cell.r === r && state.edit.cell.c === c;
-          return <td key={c} id={`sheet-${cardId}-${r}-${c}`} data-r={r} data-c={c} role="gridcell" aria-selected={inside} className={[r > 0 && col && numeric(col) ? 'num' : '', selected.r === r && selected.c === c ? 'sel' : '', multi && inside ? `in-range${r === range.r0 ? ' edge-t' : ''}${r === range.r1 ? ' edge-b' : ''}${c === range.c0 ? ' edge-l' : ''}${c === range.c1 ? ' edge-r' : ''}` : ''].join(' ')} onPointerDown={event => { if (event.button !== 0 || event.target instanceof HTMLInputElement) return; event.preventDefault(); select({ r, c }, event.shiftKey, false); dragging.current = true; grid.current?.focus({ preventScroll: true }); }} onDoubleClick={() => session.begin()}>{editing && state.edit.kind === 'editing' ? <input ref={input} aria-label="Cell value" maxLength={r ? 200 : 24} value={state.edit.text} onChange={event => session.change(event.currentTarget.value)} onBlur={() => session.flush()} onKeyDown={event => { if (!['Escape', 'Enter', 'Tab'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'Escape') session.cancel(); else if (!session.flush()) return; if (event.key !== 'Escape') session.select({ r: r + (event.key === 'Enter' ? event.shiftKey ? -1 : 1 : 0), c: c + (event.key === 'Tab' ? event.shiftKey ? -1 : 1 : 0) }); grid.current?.focus(); }} /> : text}</td>;
+          return <td key={c} id={`sheet-${cardId}-${r}-${c}`} data-r={r} data-c={c} role="gridcell" aria-selected={inside} className={[r > 0 && col && numeric(col) ? 'num' : '', selected.r === r && selected.c === c ? 'sel' : '', multi && inside ? `in-range${r === range.r0 ? ' edge-t' : ''}${r === range.r1 ? ' edge-b' : ''}${c === range.c0 ? ' edge-l' : ''}${c === range.c1 ? ' edge-r' : ''}` : ''].join(' ')} onPointerDown={event => { if (event.button !== 0 || event.target instanceof HTMLInputElement) return; event.preventDefault(); select({ r, c }, event.shiftKey, false); dragging.current = true; grid.current?.focus({ preventScroll: true }); }} onDoubleClick={() => session.begin()}>{editing && state.edit.kind === 'editing' ? <input ref={input} aria-label="Cell value" maxLength={r ? 200 : 24} value={state.edit.text} onChange={event => session.change(event.currentTarget.value)} onBlur={() => session.flush()} onCompositionStart={() => session.compose(true)} onCompositionEnd={() => session.compose(false)} onKeyDown={event => { if (event.nativeEvent.isComposing) return; if (!['Escape', 'Enter', 'Tab'].includes(event.key)) return; event.preventDefault(); event.stopPropagation(); if (event.key === 'Escape') session.cancel(); else if (!session.flush()) return; if (event.key !== 'Escape') select({ r: r + (event.key === 'Enter' ? event.shiftKey ? -1 : 1 : 0), c: c + (event.key === 'Tab' ? event.shiftKey ? -1 : 1 : 0) }); grid.current?.focus(); }} /> : text}</td>;
         })}</tr>; })}
         {end < rows.length ? <tr aria-hidden="true" className="sheet-spacer"><td colSpan={data.columns.length + 1} style={{ height: (rows.length - end) * rowHeight }} /></tr> : null}
       </tbody></table>

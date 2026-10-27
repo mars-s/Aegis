@@ -233,18 +233,6 @@ export function Cartesian({ spec, shape, labels, detail, summary, height, screen
     });
   })();
 
-  /** Category names along their axis, thinned evenly so no two ever touch. */
-  const shown = (() => {
-    if (lying) return shape.rows;
-    if (shape.scale === "index") {
-      const every = Math.max(1, Math.ceil(shape.rows.length / 8));
-      return shape.rows.filter((row) => row.index % every === 0);
-    }
-    const widest = Math.max(...shape.rows.map((row) => category(row).length * CHAR), 0) + 10;
-    const room = Math.max(1, right - left);
-    const every = Math.max(1, Math.ceil((shape.rows.length * widest) / room));
-    return shape.rows.filter((_, index) => index % every === 0);
-  })();
   const timeFormat = (
     new Intl.DateTimeFormat(
       undefined,
@@ -258,6 +246,18 @@ export function Cartesian({ spec, shape, labels, detail, summary, height, screen
     if (shape.scale === "linear") return xText(row.at, "linear");
     return row.label;
   }
+  /** Category names along their axis, thinned evenly so no two ever touch. */
+  const shown = (() => {
+    if (lying) return shape.rows;
+    if (shape.scale === "index") {
+      const every = Math.max(1, Math.ceil(shape.rows.length / 8));
+      return shape.rows.filter((row) => row.index % every === 0);
+    }
+    const widest = Math.max(...shape.rows.map((row) => category(row).length * CHAR), 0) + 10;
+    const room = Math.max(1, right - left);
+    const every = Math.max(1, Math.ceil((shape.rows.length * widest) / room));
+    return shape.rows.filter((_, index) => index % every === 0);
+  })();
   /** A name cut to the room beside lying bars, whole in its title. */
   function fit(text: string, room: number) {
     const most = Math.max(3, Math.floor(room / CHAR));
@@ -306,6 +306,6 @@ export function Cartesian({ spec, shape, labels, detail, summary, height, screen
       {valueAxis ? <g className="axis" aria-hidden="true">{visibleTicks.map(tick => lying ? <text key={tick} className="tick" x={value(tick)} y={bottom + 16} textAnchor="middle">{tickLabel(tick, spec.y)}</text> : <text key={tick} className="tick" x={left - 8} y={value(tick)} textAnchor="end" dominantBaseline="central">{tickLabel(tick, spec.y)}</text>)}</g> : null}
       {!quiet && (!compact || labels.categories) ? <g className="axis" aria-hidden="true">{shown.map(row => lying ? <text key={row.key} className="tick name" x={left - 8} y={bands.start(row.index) + bands.width / 2} textAnchor="end" dominantBaseline="central"><title>{row.label}</title>{fit(row.label, nameRoom - 12)}</text> : <text key={row.key} className="tick" x={middle(row)} y={bottom + 16} textAnchor={!banded && row.index === 0 && shape.rows.length > 1 ? 'start' : !banded && row.index === shape.rows.length - 1 && shape.rows.length > 1 ? 'end' : 'middle'}>{category(row)}</text>)}</g> : !quiet && labels.ends ? <g className="axis">{shape.rows.filter((_, i) => i === 0 || i === shape.rows.length - 1).map((row, i) => <text key={row.key} className="tick" x={middle(row)} y={bottom + 14} textAnchor={i ? 'end' : 'start'}>{category(row)}</text>)}{lastRow && lines[0]?.dots[lastRow.index] ? <text className="value end" x={(lines[0].dots[lastRow.index]?.x ?? 0) + 6} y={lines[0].dots[lastRow.index]?.y} dominantBaseline="central">{labels.ends.value}</text> : null}</g> : null}
     </svg> : null}
-    {tip && active && !quiet ? <Tip onhold={hover.hold} onhide={hover.hide} reading={tip} x={lying ? value(most) : middle(active)} y={lying ? bands.start(active.index) : Math.min(value(most), bottom)} width={width} {...evidence} /> : null}
+    {tip && active && !quiet ? <Tip indicator={trend ? 'line' : 'dot'} onhold={hover.hold} onhide={hover.hide} reading={tip} x={lying ? value(most) : middle(active)} y={lying ? bands.start(active.index) : Math.min(value(most), bottom)} width={width} {...evidence} /> : null}
   </div>;
 }

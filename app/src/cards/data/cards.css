@@ -50,8 +50,8 @@
 
 
 .data-card { display:flex; flex-direction:column; height:100%; min-height:0; color:var(--text); font-family:var(--font); }
-.data-card .win-strip { display:flex; align-items:center; gap:8px; flex:none; min-height:32px; padding:0 12px; border-bottom:1px solid var(--line); }
-.data-card .win-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.data-card .win-strip, .plot-card.data-editor .win-strip { display:flex; align-items:center; gap:8px; flex:none; min-height:32px; padding:0 12px; border-bottom:1px solid var(--line); }
+.data-card .win-name, .plot-card.data-editor .win-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .data-card .win-kind { color:var(--muted); font-size:12px; }
 .data-card .win-open { margin-left:auto; background:transparent; color:var(--muted); border:0; min-height:32px; font:inherit; font-size:12px; }
 .data-card .win-open:focus-visible { outline:2px solid var(--data); }
@@ -62,3 +62,5 @@
 
 .data-card, .data-editor { --text:var(--color-text); --muted:var(--color-muted); --faint:var(--color-faint); --ink-2:var(--color-label-secondary); --line:var(--color-border); --line-strong:var(--color-border-strong); --card:var(--color-surface); --inset:var(--color-fill); --hover:var(--color-fill-hover); --data:var(--color-ring); --data-soft:color-mix(in srgb, var(--color-ring) 16%, transparent); --focus:var(--color-ring); }
 .data-grid thead th, .data-grid tbody th, .sheet-card .sheet th.rn, .sheet-card .sheet tr.letters th { background:var(--color-surface); }
+
+.plot-card.data-editor [data-saved] { margin-left:auto; color:var(--muted); font-size:12px; }

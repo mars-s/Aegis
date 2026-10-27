@@ -35,8 +35,12 @@ function chartSource(workspace: FeatureWorkspace) {
     return () => { listeners.delete(notify); if (!listeners.size) { unsubscribe?.(); unsubscribe = null; } };
   } };
 }
-export function useChartCards(workspace: FeatureWorkspace): readonly CardContent[] {
+export function chartCardsSource(workspace: FeatureWorkspace) {
   let source = sources.get(workspace);
   if (!source) { source = chartSource(workspace); sources.set(workspace, source); }
+  return source;
+}
+export function useChartCards(workspace: FeatureWorkspace): readonly CardContent[] {
+  const source = chartCardsSource(workspace);
   return useSyncExternalStore(source.subscribe, source.getSnapshot);
 }
