@@ -16,7 +16,7 @@ export interface DeckChartProps {
   readonly miniature?: boolean;
   /** Screen height of the containing slide fit, supplied by the deck view. */
   readonly presentationHeight?: number;
-  /** Scale already applied by the slide view, including its canvas camera. */
+  /** Scale applied by the slide fit. Excludes the canvas camera so zoom stays static. */
   readonly viewScale?: number;
   readonly onchoose?: ((id: CardId) => void) | undefined;
 }
