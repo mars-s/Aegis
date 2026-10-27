@@ -104,6 +104,9 @@ describe("legacy finding limits", () => {
   it("rejects removal of an entry while findings remain", () => {
     expect(checkLegacyLimits(findings, {})).not.toEqual([]);
   });
+  it("requires lowering the manifest when findings decrease", () => {
+    expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } })).not.toEqual([]);
+  });
   it("rejects increasing or adding a manifest allowance", () => {
     expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } }, manifest)).not.toEqual([]);
     expect(checkLegacyLimits(findings, manifest, {})).not.toEqual([]);

@@ -221,7 +221,10 @@ export function checkLegacyLimits(
     if (!actual.has(file)) errors.push(`${file}: remove the legacy entry for this deleted or clean file.`);
     if (Object.keys(counts).length === 0) errors.push(`${file}: empty legacy entries must be removed.`);
     for (const [rule, limit] of Object.entries(counts)) {
-      const prior = previous[file]?.[RuleSchema.parse(rule)] ?? 0;
+      const parsedRule = RuleSchema.parse(rule);
+      const count = actual.get(file)?.get(parsedRule) ?? 0;
+      if (limit > count) errors.push(`${file} [${rule}]: lower the legacy limit from ${limit} to ${count}, or remove this rule.`);
+      const prior = previous[file]?.[parsedRule] ?? 0;
       if (limit > prior) errors.push(`${file} [${rule}]: legacy limit cannot rise from ${prior} to ${limit}.`);
     }
   }
