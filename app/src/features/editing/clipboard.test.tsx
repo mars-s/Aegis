@@ -1,13 +1,15 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { LinkIdSchema } from '@aegis/domain';
-import type { FeatureContext } from '../../../app/src/composition.js';
-import { createWorkspace } from '../../../app/src/workspace/store.js';
-import { cutSelection, readClip } from '../../../app/src/features/editing/clipboard.js';
-import { boardWith, noteId, otherId } from './helpers.js';
+import { applyBatch, BoardIdSchema, CardIdSchema, emptyBoard, LinkIdSchema } from '@aegis/domain';
+import type { FeatureContext } from '../../composition.js';
+import { createWorkspace } from '../../workspace/store.js';
+import { cutSelection, readClip } from './clipboard.js';
 
 afterEach(() => vi.unstubAllGlobals());
 function setup(blocked = false) {
-  const board = boardWith([{ op: 'create', newId: noteId, text: 'First' }, { op: 'create', newId: otherId, text: 'Second' }, { op: 'connect', newId: LinkIdSchema.parse('cutlink1'), a: noteId, b: otherId }]);
+  const noteId = CardIdSchema.parse('cutnote1'), otherId = CardIdSchema.parse('cutnote2');
+  const result = applyBatch(emptyBoard(BoardIdSchema.parse('cutboard'), 'Clipboard checks'), { commands: [{ op: 'create', newId: noteId, text: 'First' }, { op: 'create', newId: otherId, text: 'Second' }, { op: 'connect', newId: LinkIdSchema.parse('cutlink1'), a: noteId, b: otherId }] });
+  if (!result.ok) throw new Error('Invalid clipboard fixture');
+  const board = result.board;
   const workspace = createWorkspace({ board });
   workspace.act({ kind: 'select', ids: [noteId, otherId] });
   const stored = new Map<string, string>();
