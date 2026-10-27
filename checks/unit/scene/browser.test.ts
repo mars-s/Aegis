@@ -9,6 +9,8 @@ import { chromium, webkit } from 'playwright';
 import type { Browser, Page } from 'playwright';
 import type {} from '../../perf/scene/browser-fixture.js';
 
+declare global { interface Window { resumeSceneFrames: () => void } }
+
 const scenePort = Number(process.env.AEGIS_PORT_OFFSET ?? 4100);
 const url = `http://127.0.0.1:${scenePort}/checks/perf/scene/index.html`;
 const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-scene-evidence-'));
@@ -109,6 +111,37 @@ describe('real scene attachment', () => {
       expect(rect.x + rect.width).toBeLessThanOrEqual(result.area.x + result.area.width + 0.01);
       expect(rect.y + rect.height).toBeLessThanOrEqual(result.area.y + result.area.height + 0.01);
     }
+    await p.close();
+  });
+
+  test('Fit includes late intrinsic measurements and yields to subsequent camera input', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const harness = window.sceneHarness, card = harness.board().cards.find(card => card.id === 'note-2');
+      if (!card) throw new Error('Missing measured card');
+      harness.update({ ...card, props: { contentFit: true } });
+      harness.engine.navigate({ kind: 'fit', ids: [card.id], motion: 'instant' });
+      const lease = harness.engine.leases.getSnapshot().find(lease => lease.cardId === card.id);
+      if (!lease) throw new Error('Missing measured lease');
+      lease.host.style.minHeight = '1100px';
+      harness.engine.requestMeasurement(lease.key, lease.generation);
+    });
+    await p.waitForFunction(() => (window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.h ?? 0) >= 1100);
+    await idle(p);
+    const fitted = await p.locator('[data-id="note-2"]').boundingBox();
+    const stage = await p.locator('#stage').boundingBox();
+    expect(fitted && stage && fitted.y >= stage.y && fitted.y + fitted.height <= stage.y + stage.height).toBe(true);
+    await p.mouse.move(1100, 700); await p.mouse.wheel(80, 40); await idle(p);
+    const camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+    await p.evaluate(() => {
+      const harness = window.sceneHarness, lease = harness.engine.leases.getSnapshot().find(lease => lease.cardId === 'note-2');
+      if (!lease) throw new Error('Missing measured lease');
+      lease.host.style.minHeight = '1200px';
+      harness.engine.requestMeasurement(lease.key, lease.generation);
+    });
+    await p.waitForFunction(() => (window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.h ?? 0) >= 1200);
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
     await p.close();
   });
 
@@ -365,6 +398,22 @@ describe('real scene attachment', () => {
     await p.mouse.click(430, 104); await p.keyboard.up('Shift'); await idle(p);
     expect(await p.locator('.scene-card.selected').count()).toBe(0);
     expect(await p.evaluate(() => window.sceneHarness.engine.inspect().pinnedLeases)).toBe(0);
+    await p.close();
+  });
+
+  test('keeps both Shift clicks when their pointer pairs arrive before a scene frame', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const request = window.requestAnimationFrame, callbacks: FrameRequestCallback[] = [];
+      window.requestAnimationFrame = callback => callbacks.push(callback);
+      window.resumeSceneFrames = () => { window.requestAnimationFrame = request; for (const callback of callbacks) callback(performance.now()); };
+    });
+    await p.keyboard.down('Shift');
+    await p.mouse.click(430, 104); await p.mouse.click(430, 104);
+    await p.keyboard.up('Shift');
+    await p.evaluate(() => window.resumeSceneFrames()); await idle(p);
+    expect(await p.locator('.scene-card.selected').count()).toBe(0);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
     await p.close();
   });
 
