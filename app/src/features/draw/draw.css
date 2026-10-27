@@ -78,3 +78,5 @@ body.motion-off .draw-emoji { animation: none !important; }
 .draw-size-preview { position: absolute; display: none; place-items: center; width: 124px; height: 124px; right: 12px; top: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); pointer-events: none; z-index: 2; }
 .draw-size-preview i { border: 1px solid var(--line); border-radius: 50%; }
 .draw-field:has(input[type="range"]:focus) .draw-size-preview, .draw-field:has(input[type="range"]:hover) .draw-size-preview { display: grid; }
+
+.card.vector-editing .draw-art { opacity: 0; }

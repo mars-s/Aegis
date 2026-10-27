@@ -6,6 +6,7 @@ import { useCard } from '../../workspace/index.js';
 import { textOutlineStyle } from '../../features/wireframe/text-style.js';
 import { WireProps } from './props.js';
 import { useCreativeServices } from '../../features/media/services.js';
+import { takeCardEdit } from '../../features/media/creation-edit.js';
 import '../../features/wireframe/wireframe.css';
 import '../../features/wireframe/react.css';
 
@@ -13,6 +14,12 @@ export function WireframeBody({ cardId, workspace, engine }: CardBodyProps) {
   const card = useCard(workspace, cardId), text = useRef<HTMLDivElement>(null), services = useCreativeServices();
   useEffect(() => { if (text.current && document.activeElement !== text.current) text.current.textContent = card?.text || (card?.type === 'frame' ? 'Screen' : card?.type === 'section' ? 'Section' : card?.type === 'font' ? 'The quick brown fox jumps over the lazy dog.' : ''); }, [card?.text, card?.type]);
   useEffect(() => () => { engine.pin(cardId, 'focus', false); engine.pin(cardId, 'ime', false); }, [cardId, engine]);
+  useEffect(() => {
+    const element = text.current;
+    if (!element || !takeCardEdit(workspace, cardId)) return;
+    element.focus({ preventScroll: true });
+    getSelection()?.selectAllChildren(element);
+  }, [workspace, cardId]);
   if (!card) return null;
   const p = WireProps.parse(card.props ?? {}), width = p.sdash === 'none' ? 0 : Math.max(0, Math.min(100, p.sw));
   const outline = textOutlineStyle(card);

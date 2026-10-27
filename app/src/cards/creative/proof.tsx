@@ -17,7 +17,11 @@ import { AppearanceColours } from '../../features/colours/AppearanceColours.js';
 import { BoardColours } from '../../features/colours/BoardColours.js';
 import { DevicesPanel } from '../../features/media/DevicesPanel.js';
 import { WireframePanel } from '../../features/wireframe/WireframePanel.js';
-import { pieceCommands, screenCommand, wireCard } from '../../features/wireframe/commands.js';
+import { placementTool } from '../../features/wireframe/tool.js';
+import { drawingTool } from '../../features/draw/tool.js';
+import { beginPointEdit } from '../../features/draw/point-editor.js';
+import { readPreferences } from '../../features/draw/preferences.js';
+import type { DrawSettings } from '../../features/draw/Inspector.js';
 import { createImporter, ImportProgressView } from '../../features/imports/react.js';
 import type { ImportProgress } from '../../features/imports/react.js';
 import { creativeCards } from './index.js';
@@ -29,6 +33,7 @@ interface Ready { readonly context: FeatureContext; readonly importer: ReturnTyp
 function Proof({ workspace, ready }: { readonly workspace: Workspace; readonly ready: (value: Ready) => void }) {
   const services = useCreativeServices(), recordings = useRecordingStore(), engine = useRef<CanvasEngine | null>(null);
   const [drawTarget, setDrawTarget] = useState<DrawTarget | null>(null);
+  const settings = useRef<DrawSettings>({ ...readPreferences(), shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' });
   const [panel, setPanel] = useState<'colours' | 'appearance' | 'devices' | 'wireframe' | null>(null), [progress, setProgress] = useState<ImportProgress | null>(null);
   const context = useMemo<FeatureContext>(() => ({ workspace, engine: () => engine.current, openEditor: () => { throw new Error('Editors are outside this creative fixture.'); }, closeEditor: () => true }), [workspace]);
   const [importer] = useState(() => createImporter(context, services, setProgress, recordings));
@@ -39,8 +44,8 @@ function Proof({ workspace, ready }: { readonly workspace: Workspace; readonly r
     {panel === 'colours' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 280, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close palette</button><BoardColours context={context} /></aside>}
     {panel === 'appearance' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 320, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close appearance</button><AppearanceColours mode="dark" board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /></aside>}
     {panel === 'devices' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 280, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close devices</button><DevicesPanel /></aside>}
-    {panel === 'wireframe' && <WireframePanel context={context} onClose={() => setPanel(null)} onPlace={request => { const at = { x: 800, y: 80 }; const commands = request.kind === 'piece' ? pieceCommands(request.name, at, workspace.scene.snapshot().cards) : request.kind === 'screen' ? [screenCommand(request.device, at)] : [wireCard({ type: request.kind, ...(request.kind === 'icon' ? { name: request.name } : {}) }, at.x, at.y)]; workspace.submit(commands); }} />}
-    {drawTarget && <DrawingInspector context={context} target={drawTarget} onSettings={() => {}} onArm={request => { if (request.kind === 'edit-points') throw new Error('Continuous input is outside this fixture.'); setDrawTarget({ kind: 'tool', tool: request.kind }); }} onFinish={() => setDrawTarget(null)} />}
+    {panel === 'wireframe' && <WireframePanel context={context} onClose={() => setPanel(null)} onPlace={request => { const scene = engine.current; if (scene) scene.tool(placementTool(scene, workspace, request)); }} />}
+    {drawTarget && <DrawingInspector context={context} target={drawTarget} onSettings={next => { settings.current = next; }} onArm={(request, next) => { settings.current = next; const scene = engine.current; if (!scene) return; if (request.kind === 'edit-points') { beginPointEdit(workspace, scene, request.id); return; } setDrawTarget({ kind: 'tool', tool: request.kind }); scene.tool(drawingTool(scene, workspace, request.kind, () => settings.current, () => setDrawTarget(null))); }} onFinish={() => { engine.current?.tool(null); setDrawTarget(null); }} />}
     <ImportProgressView value={progress} />
   </main>;
 }
@@ -54,3 +59,7 @@ export function mountProof(target: HTMLElement, workspace: Workspace, services: 
 
 export { createWorkspace } from '../../workspace/index.js';
 export { createHostClient, connectWorkspace } from '@aegis/host-client';
+export { drawingTool } from '../../features/draw/tool.js';
+export { placementTool } from '../../features/wireframe/tool.js';
+export { mediaPlacementTool } from '../../features/media/placement-tool.js';
+export { readPreferences } from '../../features/draw/preferences.js';
