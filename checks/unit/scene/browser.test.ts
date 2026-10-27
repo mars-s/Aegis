@@ -17,9 +17,9 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false, insets = false): Promise<Page> {
-  if (!browser) throw new Error('Browser not started');
-  const result = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+async function page(motion = false, insets = false, attachmentBrowser = browser): Promise<Page> {
+  if (!attachmentBrowser) throw new Error('Browser not started');
+  const result = await attachmentBrowser.newPage({ viewport: { width: 1440, height: 900 } });
   await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
@@ -40,38 +40,49 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
-  test('connector controls follow the painted obstacle route at rest and during a drag', async () => {
-    const p = await page();
-    await p.evaluate(() => {
-      const harness = window.sceneHarness, board = harness.board();
-      harness.load({ ...board, cards: board.cards.slice(0, 3).map((card, index) => ({ ...card, x: [80, 450, 900][index], y: index === 1 ? 80 : 100, w: 240, h: index === 1 ? 220 : 160 })), links: [{ id: 'routed-connector', a: 'note-0', b: 'note-2', bend: 0 }] });
-    });
-    await idle(p);
-    const verify = async () => {
-      const result = await p.evaluate(() => {
-        const engine = window.sceneHarness.engine, id = window.sceneHarness.board().links[0]?.id;
-        const route = id ? engine.linkRoute(id) : null;
-        if (!route) throw new Error('Missing connector route');
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.setAttribute('d', route.d);
-        const camera = engine.camera(), context = document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d');
-        const samples = [.25, .5, .75].map(fraction => {
-          const world = path.getPointAtLength(path.getTotalLength() * fraction);
-          const screen = { x: world.x * camera.zoom + camera.x, y: world.y * camera.zoom + camera.y };
-          const pixel = context?.getImageData(Math.floor(screen.x * devicePixelRatio), Math.floor(screen.y * devicePixelRatio), 1, 1).data;
-          return { hit: engine.hitTestLink(screen), alpha: pixel?.[3] ?? 0 };
-        });
-        return { d: route.d, id, samples };
+  test.each(['chromium', 'webkit'] as const)('connector controls follow the painted obstacle route at rest and during a drag in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, board = harness.board();
+        harness.load({ ...board, cards: board.cards.slice(0, 3).map((card, index) => ({ ...card, x: index === 0 ? 80 : index === 1 ? 450 : 900, y: index === 1 ? 80 : 100, w: 240, h: index === 1 ? 220 : 160 })), links: [{ id: 'routed-connector', a: 'note-0', b: 'note-2', bend: 0 }] });
       });
-      expect(result.d).toMatch(/ L/);
-      for (const sample of result.samples) { expect(sample.hit).toBe(result.id); expect(sample.alpha).toBeGreaterThan(0); }
-    };
-    await verify();
-    await p.mouse.move(90, 200); await p.mouse.down();
-    await p.mouse.move(170, 280); await idle(p);
-    await verify();
-    await p.mouse.up(); await idle(p);
-    await verify(); await p.close();
+      await idle(p);
+      const verify = async () => {
+        const result = await p.evaluate(() => {
+          const engine = window.sceneHarness.engine, id = window.sceneHarness.board().links[0]?.id;
+          const route = id ? engine.linkRoute(id) : null;
+          if (!route) throw new Error('Missing connector route');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', route.d);
+          const camera = engine.camera(), context = document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d');
+          const samples = [.25, .5, .75].map(fraction => {
+            const world = path.getPointAtLength(path.getTotalLength() * fraction);
+            const screen = { x: world.x * camera.zoom + camera.x, y: world.y * camera.zoom + camera.y };
+            const pixel = context?.getImageData(Math.floor(screen.x * devicePixelRatio), Math.floor(screen.y * devicePixelRatio), 1, 1).data;
+            return { hit: engine.hitTestLink(screen), alpha: pixel?.[3] ?? 0 };
+          });
+          return { d: route.d, id, samples };
+        });
+        expect(result.d).toMatch(/ L/);
+        for (const sample of result.samples) { expect(sample.hit).toBe(result.id); expect(sample.alpha).toBeGreaterThan(0); }
+        return result.d;
+      };
+      const before = await verify();
+      const source = await p.locator('[data-id="note-0"]').boundingBox();
+      if (!source) throw new Error('Missing source card');
+      const x = source.x + 8, y = source.y + 100;
+      await p.mouse.move(x, y); await p.mouse.down();
+      await p.mouse.move(x + 80, y + 80); await idle(p);
+      const dragged = await verify();
+      expect(dragged).not.toBe(before);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards[0]?.x)).toBe(80);
+      await p.mouse.up(); await idle(p);
+      expect(await verify()).toBe(dragged);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards[0]?.x)).toBeGreaterThan(80);
+      await p.close();
+    } finally { await alternate?.close(); }
   });
 
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
