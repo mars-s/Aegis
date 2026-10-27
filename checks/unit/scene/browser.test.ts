@@ -15,10 +15,10 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(): Promise<Page> {
+async function page(motion = false): Promise<Page> {
   if (!browser) throw new Error('Browser not started');
   const result = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await result.goto(url);
+  await result.goto(url + (motion ? '?motion=on' : ''));
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
   return result;
@@ -38,6 +38,52 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test('an early frame timestamp holds the glide at its start before moving monotonically', async () => {
+    const p = await page(true);
+    const result = await p.evaluate(() => {
+      const engine = window.sceneHarness.engine;
+      const from = engine.camera(), to = { x: -360, y: 180, zoom: 0.4 };
+      const request = window.requestAnimationFrame, cancel = window.cancelAnimationFrame;
+      const callbacks = new Map<number, FrameRequestCallback>();
+      let serial = 0;
+      window.requestAnimationFrame = callback => { const id = ++serial; callbacks.set(id, callback); return id; };
+      window.cancelAnimationFrame = id => { callbacks.delete(id); };
+      const advance = (timestamp: number) => {
+        const next = callbacks.entries().next();
+        if (next.done) throw new Error('The glide stopped before reaching its target');
+        const [id, callback] = next.value;
+        callbacks.delete(id); callback(timestamp);
+        return engine.camera();
+      };
+      try {
+        engine.navigate({ kind: 'restore', camera: to, motion: 'glide' });
+        const start = advance(100);
+        // A frame timestamp can precede the clock that started the animation.
+        const early = advance(80);
+        const samples = [early, advance(100), advance(120), advance(240), advance(400), advance(520)];
+        for (let i = 0; callbacks.size && i < 8; i++) advance(1000);
+        return { from, to, start, early, samples, pending: engine.inspect().pendingFrames };
+      } finally {
+        window.requestAnimationFrame = request; window.cancelAnimationFrame = cancel;
+      }
+    });
+    expect(result.start).toEqual(result.from);
+    expect(result.early).toEqual(result.from);
+    let previous = result.from;
+    for (const sample of result.samples) {
+      expect(sample.x).toBeLessThanOrEqual(previous.x);
+      expect(sample.x).toBeGreaterThanOrEqual(result.to.x);
+      expect(sample.y).toBeGreaterThanOrEqual(previous.y);
+      expect(sample.y).toBeLessThanOrEqual(result.to.y);
+      expect(sample.zoom).toBeLessThanOrEqual(previous.zoom);
+      expect(sample.zoom).toBeGreaterThanOrEqual(result.to.zoom);
+      previous = sample;
+    }
+    expect(previous).toEqual(result.to);
+    expect(result.pending).toBe(0);
+    await p.close();
+  });
+
   test('renders note/title React portals, then stops requesting idle frames', async () => {
     const p = await page();
     expect(await p.locator('.scene-card.title').innerText()).toContain('Thinking table');

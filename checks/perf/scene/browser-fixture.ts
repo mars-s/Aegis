@@ -70,7 +70,7 @@ const workspace: CanvasWorkspace = {
     return { kind: 'applied' };
   },
 };
-const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: true, snapGrid: 24 });
+const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: new URLSearchParams(location.search).get('motion') !== 'on', snapGrid: 24 });
 bindOrientationMenu(stage, engine, () => current.cards, () => {});
 
 function Body({ lease }: { readonly lease: SlotLease }) {
