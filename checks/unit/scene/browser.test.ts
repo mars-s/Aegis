@@ -69,6 +69,7 @@ describe('real scene attachment', () => {
       expect(await p.locator('[data-id="note-2"]').evaluate(el => el.style.transform)).toBe(transform);
       expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
       expect(await p.locator('#stage').evaluate(el => el.style.cursor)).toBe('copy');
+      expect(await p.evaluate(({ x, y }) => document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d')?.getImageData((x + 70) * devicePixelRatio, (y + 40) * devicePixelRatio, 1, 1).data[3] ?? 0, source)).toBeGreaterThan(0);
       await p.mouse.up(); await p.keyboard.up('Alt'); await idle(p);
       const copied = await p.evaluate(() => window.sceneHarness.board().cards);
       expect(copied).toHaveLength(11);

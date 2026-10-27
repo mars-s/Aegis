@@ -600,7 +600,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const active = gesture, delta = copyDelta;
     if (active?.kind !== 'move' || !active.copy || !delta) return tools.getPreview();
     return { cursor: 'default', primitives: active.cards.map<ToolPrimitive>(entry => ({
-      kind: 'rect', opacity: .45, space: 'world', bounds: rotatedBounds({ ...entry.bounds, x: entry.bounds.x + delta.x, y: entry.bounds.y + delta.y }, entry.card.rot ?? 0), radius: 4,
+      kind: 'rect', opacity: .45, space: 'world', bounds: fromBounds(rotatedBounds({ ...entry.bounds, x: entry.bounds.x + delta.x, y: entry.bounds.y + delta.y }, entry.card.rot ?? 0)), radius: 4,
       fill: { kind: 'theme', token: 'card' }, stroke: { colour: { kind: 'theme', token: 'focus' }, width: 1.5, dash: [6, 4] },
     })) };
   }
