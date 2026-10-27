@@ -38,6 +38,7 @@ import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
+import { createCoreTools } from "./CoreTools.js";
 import "./chrome.css";
 
 function setZoom(
@@ -96,9 +97,22 @@ export function Chrome({
     [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
   const [captureReveal, setCaptureReveal] = useState<{ readonly id: string; readonly side: 'left' | 'right' } | null>(null);
   const toolbar = useToolbar();
+  const refreshChrome = useRef<() => void>(() => {});
   useLayoutEffect(() => {
     document.body.dataset.toolSize = toolbar.size;
   }, [toolbar.size]);
+  useLayoutEffect(() => {
+    let observedTool: string | null | undefined;
+    return engine.registerFrameParticipant({ write: () => {
+      const name = engine.toolName();
+      if (observedTool === name) return;
+      observedTool = name;
+      engine.afterInput(() => {
+        refreshChrome.current();
+        for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
+      });
+    } });
+  }, [engine]);
   useEffect(() => {
     const refresh = () => {
       const next = readLayout();
@@ -151,6 +165,8 @@ export function Chrome({
     };
   }, [context, engine, composition, layout, ui, save, ask, cameraChanged]);
   const notify = useCallback<Notify>((value) => setNotice(value), []);
+  const coreTools = useMemo(() => createCoreTools(context, notify), [context, notify]);
+  useEffect(() => () => coreTools.dispose(), [coreTools]);
   const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(
     (filtered: boolean, matches: number, total: number) =>
@@ -242,6 +258,7 @@ export function Chrome({
       for (const group of groups) {
         const held =
           touch.matches ||
+          engine.toolName() !== null ||
           context.workspace.selection.getSnapshot().length > 0 ||
           near.has(group) ||
           group.contains(document.activeElement) ||
@@ -360,12 +377,14 @@ export function Chrome({
         subtree: true,
         attributeFilter: ["aria-expanded", "open"],
       });
+    refreshChrome.current = sync;
     const offSaving = context.workspace.saving.subscribe(sync);
     const offSelection = context.workspace.selection.subscribe(sync);
     touch.addEventListener("change", sync, { signal: lifetime.signal });
     sync();
     return () => {
       lifetime.abort();
+      refreshChrome.current = () => {};
       observer.disconnect();
       offSaving();
       offSelection();
@@ -402,32 +421,8 @@ export function Chrome({
     return () => observer.disconnect();
   }, [captureReveal]);
   function add(type: "note" | "title" | "todo" | "readme"): void {
-    const point = engine.screenToWorld({
-      x: innerWidth / 2,
-      y: innerHeight / 2,
-    });
-    const result = context.workspace.submit([
-      {
-        op: "create",
-        type: type === "readme" ? "note" : type,
-        text: type === "title" ? "Untitled" : "",
-        x: point.x - 120,
-        y: point.y - 60,
-        w: type === "readme" ? 260 : 240,
-        h: type === "readme" ? 150 : 120,
-        ...(type === "readme"
-          ? {
-              color: "green",
-              heading: "How this board works",
-              badge: "read me first",
-            }
-          : {}),
-      },
-    ]);
-    if (result.kind === "applied")
-      context.workspace.act({ kind: "select", ids: result.ids });
-    else
-      notify({ text: result.errors.map((error) => error.reason).join("\n") });
+    coreTools.arm(type);
+    refreshChrome.current();
   }
   function zoom(scale: number): void {
     setZoom(engine, engine.camera().zoom * scale, cameraChanged);
@@ -492,7 +487,7 @@ export function Chrome({
         type="button"
         data-tool={id}
         title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
-        onClick={() => action.run(context)}
+        onClick={() => { action.run(context); refreshChrome.current(); }}
       >
         {action.label}
       </button>
@@ -570,6 +565,7 @@ export function Chrome({
         else handled = false;
       }
       if (handled) {
+        refreshChrome.current();
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -590,7 +586,7 @@ export function Chrome({
     function open(event: MouseEvent): void {
       if (
         event.target instanceof Element &&
-        event.target.closest("input,textarea,[contenteditable]")
+        event.target.closest('input,textarea,[contenteditable="plaintext-only"]:focus')
       )
         return;
       event.preventDefault();
@@ -678,6 +674,7 @@ export function Chrome({
               },
             ]
           : [
+              { title: "New note here", run: () => { coreTools.place("note", engine.screenToWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top })); } },
               ...actionRef.current.map((action) => ({
                 title: action.label,
                 run: () => action.run(context),
@@ -697,7 +694,7 @@ export function Chrome({
       stage.removeEventListener("contextmenu", open);
       menu.destroy();
     };
-  }, [context, engine, composition, notify, exportBoard]);
+  }, [context, engine, composition, notify, exportBoard, coreTools]);
   const board = useBoard(context.workspace);
   let panelLayout = layout;
   if (captureReveal) {
