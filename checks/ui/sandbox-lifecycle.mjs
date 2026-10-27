@@ -21,14 +21,15 @@ try {
    await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);await page.waitForFunction(()=>window.aegis?.canvas.board);
    await page.evaluate(async()=>{
     const board=await aegis.host.post('/boards',{name:'Acknowledged sandbox'});aegis.canvas.setBoard(board);
-    aegis.apply([{op:'create',newId:'snapshotwidget',type:'object',kind:'html',text:'Snapshot widget',x:180,y:150,w:450,h:280,props:{fixedHeight:true},data:{html:'<button id="queue">Queue final state and depart</button><output id="value"></output>',css:'',js:'window.aegisState={count:0};window.nextCount=42;document.getElementById("queue").onclick=()=>{queueMicrotask(()=>window.aegisState.count=nextCount-1);setTimeout(()=>window.aegisState.count=nextCount,0);parent.postMessage({type:"probe-depart"},"*");};'}}]);
+    aegis.apply([{op:'create',newId:'snapshotwidget',type:'object',kind:'html',text:'Snapshot widget',x:180,y:150,w:450,h:280,props:{fixedHeight:true},data:{html:'<button id="queue">Queue final state and depart</button><output id="value"></output>',css:'',js:'window.aegisState={count:0};window.nextCount=42;document.getElementById("queue").onclick=()=>{queueMicrotask(()=>window.aegisState.count=nextCount-1);setTimeout(()=>window.aegisState.count=nextCount,0);parent.postMessage({type:"probe-depart"},"*");};const drawSize=()=>document.body.style.minHeight=(80+window.aegisState.count*10)+"px";addEventListener("aegis:restore",drawSize);drawSize();'}}]);
     aegis.apply([{op:'create',newId:'snapshotsecond',type:'object',kind:'html',text:'Second widget',x:700,y:150,w:300,h:250,data:{html:'<p id=second>Second view</p>',css:'',js:'window.aegisState={count:0};'}}]);
    });
    const open=async()=>{await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();await page.evaluate(()=>{aegis.canvas.select(['snapshotwidget']);document.getElementById('stage').focus();});await page.keyboard.press('Enter');await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.id==='snapshotwidget');await page.frameLocator('.side-editor iframe').locator('#queue').waitFor();};
    await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();await page.frameLocator('.card[data-id="snapshotsecond"] iframe').locator('#second').waitFor();await page.evaluate(()=>aegis.flush());await open();
    const observe=async()=>page.evaluate(()=>{
-    window.departureAction='close';window.ackEvents=[];window.departureRetention=[];
+    window.departureAction='close';window.ackEvents=[];window.departureRetention=[];window.canvasHeights=[];
     addEventListener('message',event=>{
+     if(event.source===document.querySelector('.card[data-id="snapshotwidget"] iframe')?.contentWindow&&event.data?.type==='aegis:html-height')canvasHeights.push(event.data.height);
      if(event.data?.type==='aegis:html-snapshot-result') ackEvents.push({present:!!document.querySelector('.side-editor'),kind:event.data.kind});
      if(event.data?.type==='probe-depart'){
       const before=!!document.querySelector('.side-editor');
@@ -49,6 +50,12 @@ try {
    check(await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>aegisState.count),42,'reload and reopen restore acknowledged state');
    await page.evaluate(()=>{departureAction='width';});await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{nextCount=43;});await page.frameLocator('.side-editor iframe').locator('#queue').click();await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.view==='full');
    check(await page.evaluate(()=>JSON.parse(aegis.canvas.board.cards.find(c=>c.id==='snapshotwidget').data.state).custom.count),43,'width change waits for final snapshot');
+   await page.waitForFunction(()=>canvasHeights.includes(510));
+   check(await page.locator('.card[data-id="snapshotwidget"] iframe').evaluate(el=>el.clientHeight),500,'expanded capture does not resize the inactive canvas');
+   await page.locator('.side-editor [data-close]').click();await page.waitForFunction(()=>!aegis.workspace.ui.getSnapshot().editor);
+   await page.waitForFunction(()=>document.querySelector('.card[data-id="snapshotwidget"] iframe')?.clientHeight===510,undefined,{timeout:2000});
+   check(await page.locator('.card[data-id="snapshotwidget"] iframe').evaluate(el=>el.clientHeight),510,'resumed canvas applies its own latest height after acknowledgement');
+   await open();
    await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{aegisState.self=aegisState;});await page.locator('.side-editor [data-close]').click();await page.getByRole('status').filter({hasText:'Could not capture'}).first().waitFor();
    check(await page.evaluate(()=>aegis.workspace.ui.getSnapshot().editor?.id),'snapshotwidget','circular state refusal retains editor');
    await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{aegisState={count:44};});await page.locator('.side-editor [data-close]').click();await page.waitForFunction(()=>!aegis.workspace.ui.getSnapshot().editor);await page.evaluate(()=>aegis.flush());await open();
@@ -84,7 +91,13 @@ try {
    check(await page.evaluate(()=>({id:aegis.canvas.board.id,editor:aegis.workspace.ui.getSnapshot().editor?.id})),{id:blockedBoard,editor:'snapshotwidget'},'Retry save cannot replay a previously refused departure');
    await page.locator('.side-editor [data-close]').click();await page.waitForFunction(()=>!aegis.workspace.ui.getSnapshot().editor);await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();
    await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('html').evaluate(()=>{aegisState={count:49};});
-   await page.locator('#stage').click({position:{x:1200,y:850},button:'right'});const download=page.waitForEvent('download');await page.getByText('Export board as PNG',{exact:true}).click();await (await download).saveAs(join(output,`${name}-acknowledged-export.png`));
+   const background=await page.evaluate(()=>{
+    const stage=document.getElementById('stage'),rect=stage.getBoundingClientRect();
+    for(let y=120;y<rect.height-80;y+=100)for(let x=100;x<rect.width-80;x+=100){const target=document.elementFromPoint(rect.x+x,rect.y+y);if(stage.contains(target)&&!target.closest('.card')&&!aegis.canvas.engine.hitTest({x,y}))return{x,y};}
+    throw Error('No visible canvas background for the export menu');
+   });
+   await page.locator('#stage').click({position:background,button:'right'});
+   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('menuitem',{name:'Export board as PNG',exact:true}).click()]);await download.saveAs(join(output,`${name}-acknowledged-export.png`));
    check(await page.evaluate(async()=>JSON.parse((await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c=>c.id==='snapshotwidget').data.state).custom.count),49,'actual export menu awaits snapshot and durable host save');
    await open();
    await page.evaluate(()=>{departureAction='board';});await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{nextCount=48;});const old=await page.evaluate(()=>aegis.canvas.board.id);await page.frameLocator('.side-editor iframe').locator('#queue').click();await page.waitForFunction(id=>aegis.canvas.board.id!==id,old);

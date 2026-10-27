@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import font from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?inline";
 import {
   reportedEscape,
@@ -33,10 +33,12 @@ export function Html({
     latest = useRef(data),
     channel = useRef(""),
     capturing = useRef(false),
-    viewState = useRef<string | undefined>(undefined);
+    viewState = useRef<string | undefined>(undefined),
+    measuredHeight = useRef(data.height ?? 240);
   const { set } = useObjectEditing();
   const boardId = workspace.metadata.getSnapshot().id;
   const opened = useSource(workspace.ui).editor;
+  const authoritative = expanded === (opened?.id === cardId);
   const active = () => expanded === (workspace.ui.getSnapshot().editor?.id === cardId);
 
   const [src, setSrc] = useState(""),
@@ -45,6 +47,16 @@ export function Html({
   const html = data.html,
     css = data.css,
     js = data.js;
+  const measure = useCallback(() => {
+    for (const lease of engine.leases.getSnapshot())
+      if (lease.cardId === cardId) engine.requestMeasurement(lease.key, lease.generation);
+  }, [engine, cardId]);
+  useEffect(() => {
+    if (authoritative && height !== measuredHeight.current) {
+      setHeight(measuredHeight.current);
+      measure();
+    }
+  }, [authoritative, height, measure]);
   useEffect(() => {
     latest.current = data;
   }, [data]);
@@ -169,7 +181,13 @@ export function Html({
   useEffect(() => {
     const receive = (event: MessageEvent<unknown>) => {
       const node = frame.current;
-      if (!node?.isConnected || !channel.current || !active()) return;
+      if (!node?.isConnected || !channel.current) return;
+      const next = reportedHeight(event, node.contentWindow, channel.current);
+      if (next !== null) {
+        measuredHeight.current = next;
+        if (active()) { setHeight(next); measure(); }
+      }
+      if (!active()) return;
       const initial = reportedState(
         event,
         node.contentWindow,
@@ -204,12 +222,6 @@ export function Html({
           }),
         );
       }
-      const next = reportedHeight(event, node.contentWindow, channel.current);
-      if (next === null) return;
-      setHeight(next);
-      for (const lease of engine.leases.getSnapshot())
-        if (lease.cardId === cardId)
-          engine.requestMeasurement(lease.key, lease.generation);
     };
     window.addEventListener("message", receive);
     const observer = new MutationObserver(syncPreferences);
@@ -225,12 +237,12 @@ export function Html({
       window.removeEventListener("message", receive);
       observer.disconnect();
     };
-  }, [cardId, workspace, engine, html, css, js, set, expanded]);
+  }, [cardId, workspace, engine, html, css, js, set, expanded, measure]);
   return (
     <>
       <iframe
         ref={frame}
-        inert={expanded !== (opened?.id === cardId)}
+        inert={!authoritative}
         title={title}
         sandbox="allow-scripts"
         referrerPolicy="no-referrer"
