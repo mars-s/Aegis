@@ -400,6 +400,8 @@ describe('real scene attachment', () => {
 
   test('waits for exact cleanup acknowledgement before shell reuse', async () => {
     const p = await page();
+    await p.locator('.card[data-id="note-1"]').click({ position: { x: 8, y: 8 } }); await idle(p);
+    expect(await p.locator('.card.selected').count()).toBe(1);
     await p.evaluate(() => {
       const harness = window.sceneHarness;
       for (const lease of harness.engine.leases.getSnapshot()) lease.host.dataset.originalGeneration = `${lease.generation}`;
@@ -407,6 +409,8 @@ describe('real scene attachment', () => {
     }); await idle(p);
     await p.waitForFunction(() => window.sceneHarness.cleanups.length >= 4);
     expect(await p.locator('.card[data-id="note-1"]').count()).toBe(1);
+    expect(await p.locator('.card.selected').count()).toBe(1);
+    expect(await p.locator('.card.selected').getAttribute('data-id')).toBe('note-1');
     expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().every(lease => !lease.host.dataset.originalGeneration))).toBe(true);
     const releasing = await p.evaluate(() => window.sceneHarness.engine.inspect().releasingLeases);
     expect(releasing).toBeGreaterThan(0);

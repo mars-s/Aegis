@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { menuShortcut } from "../lib/shortcuts.js";
+import { OrbMark } from "../lib/ui/orb-mark.js";
 import type { Card, CardId } from "@aegis/domain";
 import { CardSchema } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
@@ -300,7 +302,7 @@ export function Selection({
               }
               onClick={() => ask(ids)}
             >
-              <Icon name="ai" />
+              <span dangerouslySetInnerHTML={{ __html: OrbMark() }} />
             </button>
           ) : null}
           {isLocked ? (
@@ -620,6 +622,8 @@ export function Selection({
                       Text alignment
                     </MenuButton>
                     <button
+                      className="selection-menu-action"
+                      aria-label="Underline"
                       onClick={() =>
                         format(
                           "under",
@@ -629,7 +633,7 @@ export function Selection({
                         )
                       }
                     >
-                      Underline
+                      <span>Underline</span><span className="selection-value">{menuShortcut("underline")}</span>
                     </button>
                     <button
                       onClick={() =>

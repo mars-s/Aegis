@@ -27,7 +27,7 @@ body:has(.react-stage.panning) :is(.agent-window, .editing-outline) * { cursor: 
 .react-stage .orientation-more:is(:hover, :focus-visible) { color: #e8eaed; border-color: #7c828c; }
 .react-stage .orientation-aid { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .react-stage .orientation-aid rect, .react-stage .orientation-aid line { fill: none; stroke: rgb(63 141 253); stroke-width: 1px; }
-.react-stage .window-actions { position: absolute; display: flex; gap: 4px; z-index: 11; }
+.react-stage .window-actions { position: absolute; display: flex; gap: 4px; z-index: 13; }
 .react-stage .window-actions[hidden], .react-stage .canvas-orientation[hidden], .react-stage .orientation-more[hidden] { display: none; }
 .react-stage .window-actions button { min-height: 32px; padding: 6px 12px; }
 @media (pointer: coarse) { .react-stage .canvas-orientation span { padding-block: 14px; } }

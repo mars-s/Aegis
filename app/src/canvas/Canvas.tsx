@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createCanvas } from "@aegis/scene";
-import type { CanvasEngine, Rect, Source } from "@aegis/scene";
+import type { CanvasEngine, CardDropRequest, CardDropTarget, Rect, Source } from "@aegis/scene";
 import type { Workspace } from "../workspace/index.js";
 import type { CardBodyKind, Composition } from "../composition.js";
 import { CardPortals } from "./CardPortals.js";
@@ -8,12 +8,13 @@ import "./scene.css";
 import { createSceneTheme } from "../platform/scene-theme.js";
 import { bindOrientationMenu } from "./orientation-menu.js";
 
-export function Canvas({ workspace, composition, attached, cameraChanged, availableArea }: {
+export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop }: {
   readonly workspace: Workspace;
   readonly composition: Composition;
   readonly attached: (engine: CanvasEngine | null) => void;
   readonly cameraChanged: () => void;
   readonly availableArea?: Source<Rect>;
+  readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
 }) {
   const retainedCamera = useRef<{ readonly boardId: string; readonly camera: ReturnType<CanvasEngine["camera"]> } | null>(null);
   const theme = useMemo(createSceneTheme, []);
@@ -24,10 +25,12 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   const [engine, setEngine] = useState<CanvasEngine | null>(null);
   const bodyKinds = useMemo(() => new Set(composition.cards.map(card => card.kind)), [composition]);
   const availableBodies = useRef(bodyKinds);
+  const dropResolver = useRef(resolveCardDrop); dropResolver.current = resolveCardDrop;
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
     const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, onNavigation: cameraChanged, ...(availableArea ? { availableArea } : {}),
+      resolveCardDrop: request => dropResolver.current?.(request) ?? null,
       onToolCommit: (boardId, commit) => {
         if (workspace.metadata.getSnapshot().id !== boardId) return;
         const result = workspace.submit(commit.commands);

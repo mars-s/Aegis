@@ -51,3 +51,7 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .react-editor.instant, body.motion-off .react-editor { transition-duration: 0s; }
 .react-editor-content, .react-editor-content > .docs-panel { transition-duration: inherit; }
 @media (prefers-reduced-motion: reduce) { .react-editor { transition-duration: 0s; } }
+
+body.motion-off .react-editor { transition-property: opacity; }
+@media (prefers-reduced-motion: reduce) { .react-editor { transition-property: opacity; } }
+@media (max-width: 760px) { .react-editor { left: 8px; } }

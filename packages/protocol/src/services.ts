@@ -42,7 +42,7 @@ export interface RewriteRequest {
   readonly around: string;
   readonly model?: { readonly provider: string; readonly modelId: string };
 }
-export const LinkPreviewSchema = z.object({ title: z.string(), description: z.string(), image: z.string(), favicon: z.string() });
+export const LinkPreviewSchema = z.object({ title: z.string().default(''), description: z.string().default(''), image: z.string().default(''), favicon: z.string().default('') });
 export type LinkPreview = z.output<typeof LinkPreviewSchema>;
 export const SandboxRequestSchema = z.object({
   html: z.string(), css: z.string(), js: z.string(), state: z.string().optional(), parentOrigin: z.string(),

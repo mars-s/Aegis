@@ -132,7 +132,17 @@ export interface CanvasEngine {
   readonly samples: () => readonly FrameSample[];
   readonly dispose: () => void;
 }
+export interface CardDropTarget {
+  readonly highlight: HTMLElement;
+  readonly run: () => boolean;
+}
+export interface CardDropRequest {
+  readonly cards: readonly Card[];
+  readonly point: Point;
+  readonly element: HTMLElement | null;
+}
 export interface CanvasAttachment {
+  readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
   readonly stage: HTMLElement;
   readonly world: HTMLElement;
   readonly backdrop: HTMLCanvasElement;

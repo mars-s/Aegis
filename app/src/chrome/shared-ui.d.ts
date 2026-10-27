@@ -76,3 +76,5 @@ declare module "*lib/ui/confirm.js" {
     readonly destructive?: boolean;
   }): Promise<boolean>;
 }
+
+declare module "*lib/shortcuts.js" { export function menuShortcut(id: string): string; }
