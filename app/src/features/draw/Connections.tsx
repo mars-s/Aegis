@@ -108,7 +108,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
       }
       dirty = true; engine.invalidate();
     };
-    return { id: 'edit-connector', accepts: (point, hit) => point.button === 0 && (handleAt(point) !== 'select' || !hit && engine.hitTestLink(point.world) === selected), down: point => { current = link(); kind = handleAt(point); changed = false; bend = current?.bend ?? 0; move(point); }, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
+    return { id: 'edit-connector', accepts: (point, hit) => point.button === 0 && (handleAt(point) !== 'select' || !hit && engine.hitTestLink(point.screen) === selected), down: point => { current = link(); kind = handleAt(point); changed = false; bend = current?.bend ?? 0; move(point); }, move: points => { const point = points.at(-1); if (point) move(point); }, up: point => {
       if (current && changed && kind === 'bend') engine.commitTool({ commands: [{ op: 'link_update', id: current.id, set: { bend } }], selection: [] });
       else if (current && changed && (kind === 'a' || kind === 'b')) {
         const to = target(point, kind === 'a' ? current.b : current.a);
@@ -127,7 +127,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     if (tool && tool !== 'edit-connector') return;
     const inside = stage.contains(event.target) && !event.target.closest('.card,[data-scene-interactive],button,input,textarea,select,a,[contenteditable="true"],[contenteditable="plaintext-only"]');
     const bounds = inside ? stage.getBoundingClientRect() : null;
-    const found = bounds ? engine.hitTestLink(engine.screenToWorld({ x: event.clientX - bounds.left, y: event.clientY - bounds.top })) : null;
+    const found = bounds ? engine.hitTestLink({ x: event.clientX - bounds.left, y: event.clientY - bounds.top }) : null;
     if (found) { choose(found); engine.tool(edit()); }
     else if (selected) { choose(null); if (engine.toolName() === 'edit-connector') engine.tool(null); }
   };
