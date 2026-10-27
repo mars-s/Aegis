@@ -3,6 +3,7 @@ import '../../features/colours/legacy-menu.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mountDropdowns } from '../../lib/ui/dropdown.js';
 import { createRoot } from 'react-dom/client';
+import type { LinkId } from '@aegis/domain';
 import type { CanvasEngine } from '@aegis/scene';
 import type { Workspace } from '../../workspace/index.js';
 import type { FeatureContext } from '../../composition.js';
@@ -40,6 +41,7 @@ function Proof({ workspace, ready }: { readonly workspace: Workspace; readonly r
   const [importer] = useState(() => createImporter(context, services, setProgress, recordings));
   const attached = useCallback((instance: CanvasEngine | null) => { engine.current = instance; if (instance) ready({ context, importer, inspect: setDrawTarget }); }, [context, importer, ready]);
   const cameraChanged = useCallback(() => {}, []);
+  const connectionSelected = useCallback((id: LinkId | null) => { if (id) setDrawTarget(null); }, []);
   useEffect(() => { const stage = document.getElementById('stage'); return stage ? importer.install(stage) : undefined; }, [importer]);
   return <main className="react-app"><Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={cameraChanged} /><nav className="react-tools" aria-label="Creative verification controls"><button onClick={() => setPanel('colours')}>Board colours</button><button onClick={() => setPanel('appearance')}>Appearance colours</button><button onClick={() => setPanel('devices')}>Media devices</button><button onClick={() => setPanel('wireframe')}>Wireframe</button><button onClick={importer.choose}>Import</button></nav>
     {panel === 'colours' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 280, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close palette</button><BoardColours context={context} /></aside>}
@@ -47,7 +49,7 @@ function Proof({ workspace, ready }: { readonly workspace: Workspace; readonly r
     {panel === 'devices' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 280, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close devices</button><DevicesPanel /></aside>}
     {panel === 'wireframe' && <WireframePanel context={context} onClose={() => setPanel(null)} onPlace={request => { const scene = engine.current; if (scene) scene.tool(placementTool(scene, workspace, request)); }} />}
     {drawTarget && <DrawingInspector context={context} target={drawTarget} onSettings={next => { settings.current = next; }} onArm={(request, next) => { settings.current = next; const scene = engine.current; if (!scene) return; if (request.kind === 'edit-points') { beginPointEdit(workspace, scene, request.id); return; } setDrawTarget({ kind: 'tool', tool: request.kind }); scene.tool(drawingTool(scene, workspace, request.kind, () => settings.current, () => setDrawTarget(null))); }} onFinish={() => { engine.current?.tool(null); setDrawTarget(null); }} />}
-    <CreativeConnections context={context} />
+    <CreativeConnections context={context} onSelectionChange={connectionSelected} />
     <ImportProgressView value={progress} />
   </main>;
 }

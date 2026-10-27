@@ -1,5 +1,5 @@
 import {viteModule} from '../support/ui-snapshot.ts';
-import { assertCameraScale } from './static-geometry.mjs';
+import { readRenderedLinks, assertCameraScale } from './static-geometry.mjs';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium, webkit } from './playwright.mjs';
@@ -35,7 +35,17 @@ const persist = async check => {
   await waitForAsync(page, async () => { const b = await aegis.host.get('/boards/' + aegis.canvas.board.id); return JSON.stringify(b.cards) === JSON.stringify(aegis.canvas.board.cards) && JSON.stringify(b.links) === JSON.stringify(aegis.canvas.board.links); }, null, { timeout: 6000 });
 };
 async function drag(from, to, steps = 20) { await page.mouse.move(...from); await page.mouse.down(); await page.mouse.move(...to, { steps }); await page.mouse.up(); await pause(); }
-async function pathPoint(selector, fraction) { return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
+async function pathPoint(selector, fraction) {
+  if (selector === '.link-hit' && process.env.AEGIS_UI_IMPL === 'react') {
+    const [painted] = await readRenderedLinks(page);
+    return page.evaluate(({ painted, fraction }) => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', painted.d);
+      const point = path.getPointAtLength(path.getTotalLength() * fraction), at = aegis.canvas.worldToScreen(point.x, point.y);
+      if (aegis.canvas.engine.hitTestLink(point) !== painted.id) throw Error('The painted connector must be pickable at its stroke.');
+      return [at.x, at.y];
+    }, { painted, fraction });
+  }
+  return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
 try {
   await page.goto(built ? `http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${TOKEN}` : `http://127.0.0.1:${5182 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -114,6 +124,7 @@ try {
   await page.locator(`[data-connect-target="${shapeIds[1]}"]`).waitFor();
   await page.screenshot({ path: out('draw-connect-preview.png') });
   await page.keyboard.press('Escape');
+  if (process.env.AEGIS_UI_IMPL === 'react') await page.locator('[data-connect-preview]').waitFor({ state: 'detached' });
   assert.equal(await page.locator('[data-connect-preview]').count(), 0);
   assert.equal((await board()).links.length, 0);
   await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();
