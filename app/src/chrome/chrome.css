@@ -661,13 +661,18 @@
 .aegis-chrome .home-tile p {
   color: var(--color-muted);
 }
-@media (max-width: 700px), (pointer: coarse) {
+@media (max-width: 700px) {
   .aegis-chrome .bar {
     left: 8px;
     right: 8px;
   }
   .aegis-chrome .bar-right > :is([data-saved], button) {
     display: none;
+  }
+  .aegis-chrome .bar-right > :is([data-save-state="blocked"], #retrySave) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
   .aegis-chrome .side {
     width: min(420px, calc(100vw - 16px)) !important;
@@ -682,14 +687,13 @@
     overflow-x: auto;
     opacity: 1;
   }
-  .aegis-chrome #tools button {
-    min-width: 44px;
-    min-height: 44px;
-  }
   .aegis-chrome .bar-left,
   .aegis-chrome .bar-right {
     opacity: 1;
   }
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .aegis-chrome #tools button,
   .aegis-chrome :is(.row-more, .icon-btn, .fold, .adds button) {
     min-height: 44px;
     min-width: 44px;

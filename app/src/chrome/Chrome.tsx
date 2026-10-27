@@ -185,6 +185,24 @@ export function Chrome({
   const notify = useCallback<Notify>((value) => setNotice(value), []);
   const coreTools = useMemo(() => createCoreTools(context, notify), [context, notify]);
   useEffect(() => () => coreTools.dispose(), [coreTools]);
+  useEffect(() => {
+    const stage = document.getElementById('stage'); if (!stage) return;
+    let pending: (() => void) | null = null;
+    const double = (event: MouseEvent): void => {
+      if (event.defaultPrevented || engine.toolName() || localStorage.getItem('aegis:double-click-note') === 'off' || !(event.target instanceof Element) || event.target.closest('input,textarea,button,summary,a,[contenteditable],.canvas-orientation,.window-actions,[data-scene-interactive]')) return;
+      const bounds = stage.getBoundingClientRect(), point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      if (engine.hitTest(point)) return;
+      event.preventDefault();
+      const board = context.workspace.metadata.getSnapshot().id, at = engine.screenToWorld(point);
+      pending?.();
+      pending = engine.registerFrameParticipant({ read() {
+        pending?.(); pending = null;
+        engine.afterInput(() => { if (context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
+      } });
+    };
+    stage.addEventListener('dblclick', double);
+    return () => { pending?.(); stage.removeEventListener('dblclick', double); };
+  }, [coreTools, context, engine]);
   const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(
     (filtered: boolean, matches: number, total: number) =>
@@ -896,11 +914,11 @@ export function Chrome({
         </button>
         <div ref={rightBar} className="bar-right">
           {barContent}
-          <span data-saved data-save-state={save.kind} role="status">
+          <span data-saved data-save-state={save.kind} role="status" title={save.kind === "blocked" ? save.reason : undefined}>
             {save.kind === "saving"
               ? "Saving"
               : save.kind === "blocked"
-                ? save.reason
+                ? "Not saved"
                 : "Saved"}
           </span>
           {save.kind === "blocked" ? (
