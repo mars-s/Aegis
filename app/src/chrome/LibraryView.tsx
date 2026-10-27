@@ -86,7 +86,8 @@ export function Library({
     [query, setQuery] = useState("");
   const dialog = useRef<HTMLDialogElement>(null),
     homeButton = useRef<HTMLButtonElement>(null),
-    pending = useRef(false);
+    operations = useRef<Promise<void>>(Promise.resolve()),
+    editingId = useRef<string | null>(null);
   const life = useRef<AbortController | null>(null);
   const tree = useRef<HTMLDivElement>(null),
     file = useRef<HTMLInputElement>(null),
@@ -149,22 +150,24 @@ export function Library({
     }
   }, [home !== null]);
   async function run(action: () => Promise<unknown>): Promise<void> {
-    if (pending.current) return;
-    pending.current = true;
-    try {
-      await action();
-      if (life.current) await service.refresh(life.current.signal);
-    } catch (cause) {
-      if (life.current && !life.current.signal.aborted)
-        notify({
-          text:
-            cause instanceof Error
-              ? cause.message
-              : "Could not update Library.",
-        });
-    } finally {
-      pending.current = false;
-    }
+    const lifetime = life.current;
+    const operation = operations.current.then(async () => {
+      if (!lifetime || lifetime.signal.aborted) return;
+      try {
+        await action();
+        if (!lifetime.signal.aborted) await service.refresh(lifetime.signal);
+      } catch (cause) {
+        if (!lifetime.signal.aborted)
+          notify({
+            text:
+              cause instanceof Error
+                ? cause.message
+                : "Could not update Library.",
+          });
+      }
+    });
+    operations.current = operation;
+    await operation;
   }
   function toggle(id: string): void {
     setExpanded((previous) => {
@@ -181,10 +184,13 @@ export function Library({
     homeButton.current?.focus();
   }
   function rename(item: LibraryItem): void {
+    editingId.current = item.id;
     setEditing(item.id);
     setName(item.name);
   }
   function finish(item: LibraryItem, keep: boolean): void {
+    if (editingId.current !== item.id) return;
+    editingId.current = null;
     setEditing(null);
     if (keep && name.trim() && name.trim() !== item.name)
       void run(() => service.rename(item, name.trim()));

@@ -59,7 +59,8 @@ function positionSelection(
     return card ? [card] : [];
   });
   const box = bounds(cards);
-  if (!box || engine.busy()) {
+  const editor = context.workspace.ui.getSnapshot().editor;
+  if (!box || engine.busy() || editor?.view === "full") {
     bar.hidden = true;
     outline.hidden = true;
     return;
@@ -69,20 +70,26 @@ function positionSelection(
     right = box.right * camera.zoom + camera.x;
   const top = box.y * camera.zoom + camera.y,
     bottom = box.bottom * camera.zoom + camera.y;
+  const area = editor ? engine.availableArea() : engine.viewport();
+  const width = Math.min(size.width, Math.max(1, area.width - 24));
   const x = Math.max(
-    12,
-    Math.min(innerWidth - size.width - 12, (left + right - size.width) / 2),
+    area.x + 12,
+    Math.min(area.x + area.width - width - 12, (left + right - width) / 2),
   );
-  const y = innerWidth <= 700 ? Math.max(8, size.hubTop - size.height - 10) : Math.max(
-    8,
-    Math.min(
-      innerHeight - size.height - 12,
-      top - size.height - 40 >= 8 ? top - size.height - 40 : bottom + 12,
-    ),
-  );
+  const y =
+    innerWidth <= 700
+      ? Math.max(8, size.hubTop - size.height - 10)
+      : Math.max(
+          8,
+          Math.min(
+            innerHeight - size.height - 12,
+            top - size.height - 40 >= 8 ? top - size.height - 40 : bottom + 12,
+          ),
+        );
   // A transformed ancestor would turn the shared fixed-position popups into local
   // coordinates in WebKit. Position this small toolbar without a containing block.
   bar.hidden = false;
+  bar.style.maxWidth = `${Math.max(1, area.width - 24)}px`;
   bar.style.left = `${x}px`;
   bar.style.top = `${y}px`;
   outline.hidden = context.workspace.ui.getSnapshot().editor !== null;
@@ -141,7 +148,10 @@ export function Selection({
       read: () => {
         if (!element.hidden) {
           const rectangle = element.getBoundingClientRect();
-          if (rectangle.width && rectangle.height) { size.width = rectangle.width; size.height = rectangle.height; }
+          if (rectangle.width && rectangle.height) {
+            size.width = rectangle.width;
+            size.height = rectangle.height;
+          }
         }
         const hub = document.getElementById("mobileHub");
         if (hub && !hub.hidden) size.hubTop = hub.getBoundingClientRect().top;
@@ -150,10 +160,17 @@ export function Selection({
     });
     const dimensions = new ResizeObserver(invalidate);
     dimensions.observe(element);
-    const offSelection = context.workspace.selection.subscribe(invalidate), offScene = context.workspace.scene.subscribe(invalidate);
+    const offSelection = context.workspace.selection.subscribe(invalidate),
+      offScene = context.workspace.scene.subscribe(invalidate);
     window.addEventListener("resize", invalidate);
     invalidate();
-    return () => { detach(); dimensions.disconnect(); offSelection(); offScene(); window.removeEventListener("resize", invalidate); };
+    return () => {
+      detach();
+      dimensions.disconnect();
+      offSelection();
+      offScene();
+      window.removeEventListener("resize", invalidate);
+    };
   }, [context, engine]);
   useEffect(() => {
     if (fonts) {

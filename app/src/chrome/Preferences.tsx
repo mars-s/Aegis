@@ -51,6 +51,8 @@ export function toolbarTools(composition: Composition) {
     { id: "note", label: "Note" },
     { id: "title", label: "Heading" },
     { id: "todo", label: "Checklist" },
+    { id: "readme", label: "Read me" },
+    { id: "templates", label: "Templates" },
     ...composition.tools,
   ];
 }

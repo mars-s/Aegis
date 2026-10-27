@@ -161,7 +161,10 @@ export function MenuButton({
           ? current.current()
           : current.current,
     });
-    return () => { menu.destroy(); menuNode.current = null; };
+    return () => {
+      menu.destroy();
+      menuNode.current = null;
+    };
   }, [menuClass]);
   return (
     <button
@@ -333,7 +336,9 @@ export function Disclosure({
     element.className = `aegis-chrome selection-menu ${nested ? "selection-submenu-panel" : "selection-overflow"}`;
     return element;
   });
-  useEffect(() => { menu.setAttribute("aria-label", `${label} controls`); }, [label, menu]);
+  useEffect(() => {
+    menu.setAttribute("aria-label", `${label} controls`);
+  }, [label, menu]);
   useEffect(() => {
     const node = details.current,
       trigger = node?.querySelector("summary");

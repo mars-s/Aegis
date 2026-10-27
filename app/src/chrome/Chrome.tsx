@@ -29,6 +29,7 @@ import { Panel, SideResize } from "./Panel.js";
 import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
+import { Templates } from "./TemplateMenu.js";
 import "./chrome.css";
 
 export interface ChromeProps {
@@ -339,7 +340,7 @@ export function Chrome({
       timers.forEach((timer) => clearTimeout(timer));
     };
   }, [context]);
-  function add(type: "note" | "title" | "todo"): void {
+  function add(type: "note" | "title" | "todo" | "readme"): void {
     const point = engine.screenToWorld({
       x: innerWidth / 2,
       y: innerHeight / 2,
@@ -347,12 +348,19 @@ export function Chrome({
     const result = context.workspace.submit([
       {
         op: "create",
-        type,
+        type: type === "readme" ? "note" : type,
         text: type === "title" ? "Untitled" : "",
         x: point.x - 120,
         y: point.y - 60,
-        w: 240,
-        h: 120,
+        w: type === "readme" ? 260 : 240,
+        h: type === "readme" ? 150 : 120,
+        ...(type === "readme"
+          ? {
+              color: "green",
+              heading: "How this board works",
+              badge: "read me first",
+            }
+          : {}),
       },
     ]);
     if (result.kind === "applied")
@@ -380,19 +388,67 @@ export function Chrome({
       { id: "note", label: "Note", shortcut: "N", run: () => add("note") },
       { id: "title", label: "Heading", shortcut: "H", run: () => add("title") },
       { id: "todo", label: "Checklist", shortcut: "C", run: () => add("todo") },
+      {
+        id: "readme",
+        label: "Read me",
+        shortcut: "R",
+        run: () => add("readme"),
+      },
       ...composition.tools,
       ...composition.menus,
     ],
     [composition, context, engine],
   );
   const actionRef = useRef(actions);
-  const dockActions = toolOrder(
-    actions.map((action) => action.id),
+  const dockIds = toolOrder(
+    [
+      "select",
+      "note",
+      "title",
+      "todo",
+      "readme",
+      ...(library ? ["templates"] : []),
+      ...composition.tools.map((action) => action.id),
+    ],
     toolbar.order,
-  ).flatMap((id) => {
+  ).filter((id) => !toolbar.hidden.includes(id));
+  const toolButton = (id: string) => {
+    if (id === "templates" && library)
+      return (
+        <Templates
+          key={id}
+          context={context}
+          library={library}
+          notify={notify}
+        />
+      );
+    if (id === "select")
+      return (
+        <button
+          key={id}
+          type="button"
+          data-tool={id}
+          onClick={() => {
+            engine.tool(null);
+            context.workspace.act({ kind: "select", ids: [] });
+          }}
+        >
+          Select
+        </button>
+      );
     const action = actions.find((item) => item.id === id);
-    return action && !toolbar.hidden.includes(id) ? [action] : [];
-  });
+    return action ? (
+      <button
+        key={id}
+        type="button"
+        data-tool={id}
+        title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
+        onClick={() => action.run(context)}
+      >
+        {action.label}
+      </button>
+    ) : null;
+  };
   useEffect(() => {
     actionRef.current = actions;
   }, [actions]);
@@ -912,40 +968,14 @@ export function Chrome({
           ))}
       </aside>
       <nav ref={dock} id="tools" aria-label="Canvas tools">
-        <button
-          data-tool="select"
-          hidden={toolbar.hidden.includes("select")}
-          onClick={() => context.workspace.act({ kind: "select", ids: [] })}
-        >
-          Select
-        </button>
-        {dockActions.slice(0, 6).map((action) => (
-          <button
-            key={action.id}
-            data-tool={action.id}
-            title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
-            onClick={() => action.run(context)}
-          >
-            {action.label}
-          </button>
-        ))}
+        {dockIds.slice(0, 6).map(toolButton)}
         <PopupButton
           label="More tools"
           triggerId="toolsFold"
           menuId="toolsPopover"
           className="tools-popover"
         >
-          <div className="tools-grid">
-            {dockActions.slice(6).map((action) => (
-              <button
-                key={action.id}
-                data-tool={action.id}
-                onClick={() => action.run(context)}
-              >
-                {action.label}
-              </button>
-            ))}
-          </div>
+          <div className="tools-grid">{dockIds.slice(6).map(toolButton)}</div>
         </PopupButton>
         {customiseToolbar ? (
           <button aria-label="Customise toolbar" onClick={customiseToolbar}>
