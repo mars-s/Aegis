@@ -1,22 +1,8 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { node, button, field, dialog } from './dom.js';
 import { mediaContext, report } from './context.js';
-export function spotifyOf(value) {
-  const uri = /^spotify:(track|album|playlist|episode|show|artist):([a-z0-9]{10,40})$/i.exec(String(value).trim());
-  if (uri) return { kind: uri[1].toLowerCase(), sid: uri[2] };
-  try {
-    const url = new URL(value);
-    if (!['http:','https:'].includes(url.protocol) || url.hostname !== 'open.spotify.com') return null;
-    const m = /^\/(?:intl-[a-z-]+\/)?(?:embed\/)?(track|album|playlist|episode|show|artist)\/([a-z0-9]{10,40})\/?$/i.exec(url.pathname);
-    return m ? { kind: m[1].toLowerCase(), sid: m[2] } : null;
-  } catch { return null; }
-}
-export function normaliseLink(value) {
-  const s = spotifyOf(value); if (s) return `https://open.spotify.com/${s.kind}/${s.sid}`;
-  const u = new URL(/^[a-z][\w+.-]*:/i.test(value) ? value : `https://${value}`);
-  if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) throw new Error('Use an HTTP or HTTPS link'); return u.href;
-}
-const spotifyHeight = kind => (['track','episode'].includes(kind) ? 152 : 352) + 76;
+export { spotifyOf, normaliseLink } from './link-model.ts';
+import { spotifyOf, normaliseLink, spotifyHeight } from './link-model.ts';
 const pending = new Set();
 function loadPreview(c, api) {
   const ctx = mediaContext(), boardId = api.board.id, key = `${boardId}:${c.id}:${c.url}`;

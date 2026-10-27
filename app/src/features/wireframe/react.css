@@ -1,0 +1,16 @@
+#stage .card:has(.creative-wireframe) { padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 0; overflow: visible; contain: layout style; }
+.creative-wireframe { position: relative; width: 100%; height: 100%; }
+#stage .creative-wireframe .body { padding: 0; flex: none; }
+.creative-wireframe .wf-visual { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+.creative-wireframe.text .wf-text { min-height: 24px; width: 100%; height: auto; white-space: pre-wrap; word-break: break-word; outline: none; cursor: text; }
+.creative-wireframe.icon { container-type: size; }
+.creative-wireframe .wf-icon { display: block; width: max-content; pointer-events: none; }
+.creative-wireframe.font { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-win); padding: 16px; overflow: hidden; }
+.creative-wireframe.font strong, .creative-wireframe.font small { display: block; margin-top: 5px; }
+.creative-wireframe.font small { font: 11px var(--font); color: var(--muted); }
+.creative-wireframe.section { border: 1px solid var(--line); cursor: crosshair; }
+.wf-design button:active { transform: scale(.97); }
+.wf-design { font-family: var(--font); }
+.colour-pop { color: var(--text); background: var(--card); border: 1px solid var(--line); }
+.colour-pop::backdrop { background: #0005; }
+.colour-pop button:focus-visible, .colour-pop input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }

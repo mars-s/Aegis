@@ -1,8 +1,8 @@
 /* Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard. */
-.card.swatch { padding: 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
-.card.swatch .swatch-chip { width: 100%; flex: 1; min-height: 35px; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
+#stage .card[data-type="swatch"] { padding: 10px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+#stage .card[data-type="swatch"] .swatch-chip { width: 100%; flex: 1; min-height: 35px; border: 1px solid var(--line); border-radius: 5px; cursor: pointer; }
 .swatch-name { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.card.swatch small { color: var(--muted); font: 11px ui-monospace, monospace; }
+#stage .card[data-type="swatch"] small { color: var(--muted); font: 11px ui-monospace, monospace; }
 .colour-pop { position: fixed; z-index: 10000; width: 260px; max-height: calc(100vh - 16px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--text); box-shadow: 0 8px 35px #0003; display: flex; flex-direction: column; gap: 9px; box-sizing: border-box; }
 .colour-wheel-wrap { position: relative; width: 220px; height: 220px; margin: 0 auto; }
 .colour-wheel { width: 220px; height: 220px; touch-action: none; border-radius: 50%; }

@@ -1,18 +1,18 @@
 /* Drawing controls and system emoji. No bundled artwork. */
-.card.ink, .card.shape, .card.path, .card.stamp {
+#stage .card[data-type="ink"], #stage .card[data-type="shape"], #stage .card[data-type="path"], #stage .card[data-type="stamp"] {
   padding: 0; border: 0; border-radius: 0; background: transparent !important; box-shadow: none;
   overflow: visible; contain: layout style; pointer-events: none;
 }
-.card.ink.selected, .card.shape.selected, .card.path.selected, .card.stamp.selected { outline: 1px solid var(--focus); outline-offset: 4px; box-shadow: none; }
+#stage .card[data-type="ink"].selected, #stage .card[data-type="shape"].selected, #stage .card[data-type="path"].selected, #stage .card[data-type="stamp"].selected { outline: 1px solid var(--focus); outline-offset: 4px; box-shadow: none; }
 .draw-art { display: block; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .draw-art path, .draw-art circle { pointer-events: visiblePainted; }
-.card.ink .resize, .card.shape .resize, .card.path .resize, .card.stamp .resize { pointer-events: auto; }
+#stage .card[data-type="ink"] .resize, #stage .card[data-type="shape"] .resize, #stage .card[data-type="path"] .resize, #stage .card[data-type="stamp"] .resize { pointer-events: auto; }
 .draw-text { position: absolute; inset: 20%; display: grid; place-content: center; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; pointer-events: auto; cursor: text; }
 .draw-text:empty { pointer-events: none; }
 .draw-text[contenteditable="plaintext-only"] { pointer-events: auto; background: color-mix(in srgb, var(--card) 80%, transparent); border-radius: 4px; }
 .draw-emoji { width: 100%; height: 100%; display: grid; place-content: center; font-family: 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; font-size: 64px; line-height: 1; pointer-events: auto; container-type: size; }
-.card.stamp { container-type: size; }
-.card.stamp .draw-emoji { font-size: min(80cqw, 80cqh); }
+#stage .card[data-type="stamp"] { container-type: size; }
+#stage .card[data-type="stamp"] .draw-emoji { font-size: min(80cqw, 80cqh); }
 .draw-live, .draw-vector { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; pointer-events: none; z-index: 100000; }
 .draw-point { fill: var(--card); stroke: var(--focus); stroke-width: 1.5px; vector-effect: non-scaling-stroke; pointer-events: all; cursor: move; }
 .draw-point.on { fill: var(--focus); }

@@ -1,25 +1,8 @@
 import { createDropdown } from '../../lib/ui/dropdown.js';
 import { node, button } from './dom.js';
 import { setMediaContext, report } from './context.js';
-const key = kind => `aegis:media:${kind}`;
-export function chosenDevice(kind) { return localStorage.getItem(key(kind)) || ''; }
-export function chooseDevice(kind, id) {
-  if (id) localStorage.setItem(key(kind), id); else localStorage.removeItem(key(kind));
-  window.dispatchEvent(new Event('aegis-media-devices'));
-}
-export async function openDevices(video, shape = 'wide') {
-  if (!navigator.mediaDevices?.getUserMedia) throw new Error('Recording is unavailable here. Use an HTTPS page or import a file.');
-  const constraints = () => ({ audio: chosenDevice('microphone') ? { deviceId: { exact: chosenDevice('microphone') } } : true,
-    video: video ? { ...(chosenDevice('camera') ? { deviceId: { exact: chosenDevice('camera') } } : {}), aspectRatio: { ideal: shape === 'phone' ? 9 / 16 : 16 / 9 } } : false });
-  try { return await navigator.mediaDevices.getUserMedia(constraints()); }
-  catch (error) {
-    if (['NotFoundError','OverconstrainedError','NotReadableError'].includes(error.name) && (chosenDevice('microphone') || video && chosenDevice('camera'))) {
-      chooseDevice('microphone', ''); if (video) chooseDevice('camera', '');
-      return navigator.mediaDevices.getUserMedia(constraints());
-    }
-    throw new Error(`Could not access ${video ? 'the camera and microphone' : 'the microphone'}. Check your browser and system privacy settings. ${error.message}`);
-  }
-}
+export { chosenDevice, chooseDevice, openDevices } from './device-model.ts';
+import { chosenDevice, chooseDevice, openDevices } from './device-model.ts';
 export function deviceChoices(parent, video = true) {
   const root = node('div', 'device-choices'); parent.append(root);
   const refresh = async () => {
