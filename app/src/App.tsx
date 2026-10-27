@@ -42,6 +42,7 @@ import { mediaPlacementTool } from './features/media/placement-tool.js';
 import { Unsorted } from './platform/Unsorted.js';
 import { CaptureButton, CaptureViews } from './features/editing/registration.js';
 import { CreativeImports } from './platform/CreativeImports.js';
+import { armDeckPlacement } from './platform/deck-placement.js';
 import { createAvailableArea } from './platform/available-area.js';
 import { createEditorController } from './platform/editor-controller.js';
 import { useEditorPresence } from './platform/editor-presence.js';
@@ -102,7 +103,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       const scene = context.engine(); if (!scene) return;
       workspace.act({ kind: 'select', ids: [] }); setCreativeMode({ kind: 'tool', tool: kind }); scene.tool(drawingTool(scene, workspace, kind, () => drawSettings.current, () => setCreativeMode(null)));
     };
-    return defineComposition({ ...base, tools: [...base.tools,
+    return defineComposition({ ...base, tools: [...base.tools.map(tool => tool.id === 'deck' ? { ...tool, run: armDeckPlacement } : tool),
       { id: 'draw-ink', label: 'Draw', shortcut: 'p', run: draw('ink') },
       { id: 'draw-shape', label: 'Shapes', shortcut: 's', run: draw('shape') },
       { id: 'vector', label: 'Vector pen', shortcut: 'shift+p', run: draw('path') },

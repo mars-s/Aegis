@@ -92,3 +92,9 @@ Production data-trust completes all Chromium cases, including deletion/Undo, and
 ## Nested-canvas service capability
 
 Accepted the Chrome createChild request as a typed semantic HostClient operation. The existing host route receives boardParent and placement coordinates and decodes the resulting board. A real-host regression creates a nested board, reloads both boards, and verifies the persisted canvas link, position and parent relationship. Ten boundary/real-host tests, root and React strict types, targeted lint and whitespace pass. The missing Canvas UI/body/breadcrumb remains Chrome/basic work, not a no-op service placeholder.
+
+## Deck placement and motion
+
+The central deck action now arms the real one-shot scene placement tool instead of creating at the viewport centre. Preview and input stay in the scene scheduler; creation and editor opening occur after input. Keyboard entry and Motion off stay instant. OS reduced motion uses opacity-only pointer fade while the scene's camera preference still disables travel.
+
+The complete production deck suite passes 257/257, including B click placement, keyboard/pointer opening, both motion settings, persistence and zero browser errors. Editors remains 51/51. Editor-return completes Chromium 71 assertions and still stops on WebKit's initial agent-update timeout at :54. Strict React types, targeted lint and whitespace pass.

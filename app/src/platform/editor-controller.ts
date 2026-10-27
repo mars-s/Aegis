@@ -13,7 +13,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
   let bookmark: Bookmark | null = null, returning: (() => void) | null = null;
   let interaction: 'pointer' | 'keyboard' = 'keyboard', inputVersion = 0, selectionVersion = 0, instantMotion = true;
   const instant = (): boolean => instantMotion;
-  const reduced = (keyboard: boolean): boolean => keyboard || document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = (keyboard: boolean): boolean => keyboard || document.body.classList.contains('motion-off');
   function flush(): boolean {
     const opened = workspace.ui.getSnapshot().editor;
     if (!opened) return true;
