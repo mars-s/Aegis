@@ -26,7 +26,7 @@ function edge(rect: Rect, rotation: number, target: Point, pin: Link['pa']): Poi
   return { x: cx + x * cos - y * sin, y: cy + x * sin + y * cos };
 }
 
-export function routeLink(link: Link, a: Rect, b: Rect, aRotation = 0, bRotation = 0, scale = 1, obstacles: readonly Rect[] = []): LinkRoute {
+export function routeLink(link: Pick<Link, 'pa' | 'pb' | 'bend'>, a: Rect, b: Rect, aRotation = 0, bRotation = 0, scale = 1, obstacles: readonly Rect[] = []): LinkRoute {
   const p0 = edge(a, aRotation, { x: b.x + b.width / 2, y: b.y + b.height / 2 }, link.pa);
   const p2 = edge(b, bRotation, { x: a.x + a.width / 2, y: a.y + a.height / 2 }, link.pb);
   const dx = p2.x - p0.x, dy = p2.y - p0.y, length = Math.hypot(dx, dy) || 1;
@@ -36,6 +36,20 @@ export function routeLink(link: Link, a: Rect, b: Rect, aRotation = 0, bRotation
   const points = obstacles.some(rect => quadraticIntersects(p0, control, p2, rect)) ? routeAround(p0, p2, fromBounds(rotatedBounds(a, aRotation)), fromBounds(rotatedBounds(b, bRotation)), obstacles) ?? [] : [];
   const middle = points[Math.floor(points.length / 2)];
   return { p0, p2, control, points, label: middle ?? { x: (p0.x + 2 * control.x + p2.x) / 4, y: (p0.y + 2 * control.y + p2.y) / 4 } };
+}
+
+export function routeDistance(point: Point, route: LinkRoute): number {
+  let previous = route.p0, nearest = Infinity;
+  const steps = route.points.length ? route.points.length - 1 : 32;
+  for (let index = 1; index <= steps; index++) {
+    const t = index / steps, one = 1 - t;
+    const next = route.points[index] ?? { x: one * one * route.p0.x + 2 * one * t * route.control.x + t * t * route.p2.x, y: one * one * route.p0.y + 2 * one * t * route.control.y + t * t * route.p2.y };
+    const dx = next.x - previous.x, dy = next.y - previous.y;
+    const along = Math.max(0, Math.min(1, ((point.x - previous.x) * dx + (point.y - previous.y) * dy) / (dx * dx + dy * dy || 1)));
+    nearest = Math.min(nearest, Math.hypot(point.x - previous.x - dx * along, point.y - previous.y - dy * along));
+    previous = next;
+  }
+  return nearest;
 }
 
 /** The quadratic lies in its control hull. Include the complete label too. */

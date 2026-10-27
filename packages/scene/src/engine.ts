@@ -7,18 +7,19 @@ import { SceneGraph } from './graph.js';
 import type { SceneNode } from './graph.js';
 import { LeasePool } from './leases.js';
 import type { LeasePlacement } from './leases.js';
-import { linkBounds, routeLink } from './links.js';
+import { linkBounds, routeDistance, routeLink } from './links.js';
 import { FrameMetrics } from './metrics.js';
+import { ToolController } from './tools.js';
 import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
 import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation } from './types.js';
+import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
   | { readonly kind: 'wheel'; readonly point: Point; readonly dx: number; readonly dy: number; readonly zoom: boolean; readonly at: number }
-  | { readonly kind: 'down'; readonly point: Point; readonly pointer: number; readonly pan: boolean; readonly action: 'move' | 'selection-move' | 'resize' | 'rotate'; readonly modifiers: Modifiers; readonly at: number }
+  | { readonly kind: 'down'; readonly point: Point; readonly pointer: number; readonly pan: boolean; readonly action: 'move' | 'selection-move' | 'resize' | 'rotate'; readonly target?: CardId; readonly modifiers: Modifiers; readonly at: number }
   | { readonly kind: 'touch-down' | 'touch-move' | 'touch-up'; readonly point: Point; readonly pointer: number; readonly at: number }
   | { readonly kind: 'move' | 'up'; readonly point: Point; readonly pointer: number; readonly bypass: boolean; readonly at: number }
   | { readonly kind: 'cancel'; readonly at: number }
@@ -56,6 +57,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let touchQuarantine = false;
   const abort = new AbortController();
   const participants = new Set<FrameParticipant>();
+  const tools = new ToolController(invalidate, hitTest);
   const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
   const motionPreference = view.matchMedia('(prefers-reduced-motion: reduce)');
   const reducedMotion = (): boolean => (args.reducedMotion ?? motionPreference.matches) || stage.ownerDocument.body.classList.contains('motion-off');
@@ -102,6 +104,28 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       if (rep && hitRotated(point, rep.bounds, rep.rotation)) return rep.id;
     }
     return null;
+  }
+
+  function startConnection(id: CardId): void {
+    if (!graph.nodes.has(id)) return;
+    const update = (point: ToolPointer): void => {
+      const from = graph.nodes.get(id), target = hitTest(point.screen), to = target ? graph.nodes.get(target) : null;
+      if (!from) return;
+      const bounds = to && to !== from ? boundsFor(to) : { x: point.world.x, y: point.world.y, width: 0, height: 0 };
+      const route = routeLink({}, boundsFor(from), bounds, rotationFor(from), to ? rotationFor(to) : 0);
+      const stroke = { colour: '#3f8dfd', width: 1.5, dash: [] };
+      tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
+    };
+    tools.set({
+      accepts: point => point.button === 0,
+      down: update, move: points => { const point = points.at(-1); if (point) update(point); },
+      up: point => {
+        const target = hitTest(point.screen);
+        const duplicate = [...graph.links.values()].some(entry => entry.link.a === id && entry.link.b === target || entry.link.a === target && entry.link.b === id);
+        post(() => { if (target && target !== id && !duplicate) workspace.submit([{ op: 'connect', a: id, b: target }]); tools.set(null); });
+      },
+      acceptsKey: key => key.key === 'Enter', key: () => { tools.set(null); }, cancel: () => { tools.preview(null); },
+    });
   }
 
   function navigation(intent: Navigation, now: number): void {
@@ -221,7 +245,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           glide = null;
           if (gesture) break;
           if (input.pan) { gesture = { kind: 'pan', pointer: input.pointer, start: input.point, from: camera }; break; }
-          const id = hitTest(input.point) ?? (input.action === 'move' ? null : [...selected].at(-1) ?? null), node = id ? graph.nodes.get(id) : undefined;
+          const id = input.target ?? hitTest(input.point) ?? (input.action === 'move' ? null : [...selected].at(-1) ?? null), node = id ? graph.nodes.get(id) : undefined;
           if (id && node) {
             if (node.locked) break;
             if (input.action === 'resize' || input.action === 'rotate') {
@@ -362,7 +386,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const start = performance.now();
     const phases: Record<FramePhase, number> = { input: 0, camera: 0, cull: 0, reads: 0, writes: 0 };
     let mark = start;
-    drainInput(timestamp); phases.input = performance.now() - mark; mark = performance.now();
+    tools.flush(); drainInput(timestamp); phases.input = performance.now() - mark; mark = performance.now();
     if (glide && reducedMotion()) { camera = glide.to; glide = null; }
     if (glide) {
       const t = Math.min(1, Math.max(0, (timestamp - glide.start) / 420)), k = 1 - (1 - t) ** 3;
@@ -389,7 +413,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const { shell, height } of measuredHeights) if (shell.dataset.intrinsicHeight !== String(height)) shell.dataset.intrinsicHeight = String(height);
     measuredHeights.length = 0;
     pool.reconcile(placements, timestamp);
-    painter.paint(viewport, dpr, camera, representations, drawnLinks, id => pool.has(id), selected, marquee);
+    painter.paint(viewport, dpr, camera, representations, drawnLinks, id => pool.has(id), selected, marquee, tools.getPreview());
+    stage.style.cursor = gesture?.kind === 'pan' ? 'grabbing' : spaceHeld ? 'grab' : tools.getPreview()?.cursor ?? '';
     overlays.write();
     for (const participant of participants) participant.write();
     phases.writes = performance.now() - mark;
@@ -400,6 +425,10 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   }
 
   function point(event: MouseEvent): Point { return { x: event.clientX - stageOrigin.x, y: event.clientY - stageOrigin.y }; }
+  function toolPoint(event: PointerEvent): ToolPointer {
+    const screen = point(event);
+    return { pointerId: event.pointerId, pointerType: event.pointerType === 'pen' ? 'pen' : event.pointerType === 'touch' ? 'touch' : 'mouse', screen, world: unproject(screen, camera), pressure: event.pressure, time: event.timeStamp, button: event.button, buttons: event.buttons, shift: event.shiftKey, alt: event.altKey, bypass: event.metaKey || event.ctrlKey };
+  }
   function editable(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,button,a,video,audio,[contenteditable]:not([contenteditable="false"]),[data-scene-interactive]'); }
   function ownsSpace(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.side-editor,#agentIsland,#composer'); }
   function releaseSpace(): void { spaceHeld = false; stage.classList.remove('pan-ready'); }
@@ -412,6 +441,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     enqueue({ kind: 'wheel', point: point(event), dx: event.deltaX * scale, dy: event.deltaY * scale, zoom: event.ctrlKey || event.metaKey, at: performance.now() });
   }, { passive: false, signal: abort.signal });
   stage.addEventListener('pointerdown', event => {
+    const pan = event.button === 1 || event.button === 0 && spaceHeld;
+    if (!pan && !editable(event.target) && tools.down(toolPoint(event))) { event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
+    if (pan && tools.owns(event.pointerId)) tools.cancel('pointer-cancel');
     if (event.pointerType === 'touch') {
       if (editable(event.target) && !touchPointers.size) return;
       event.preventDefault(); event.stopImmediatePropagation(); stage.setPointerCapture(event.pointerId);
@@ -419,7 +451,6 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       enqueue({ kind: 'touch-down', point: point(event), pointer: event.pointerId, at: performance.now() });
       return;
     }
-    const pan = event.button === 1 || event.button === 0 && spaceHeld;
     const handle = event.target instanceof Element ? event.target.closest('.resize,.selection-resize,.rotation-handle,.selection-move,[data-scene-gesture]') : null;
     const action = handle?.matches('.resize,.selection-resize,[data-scene-gesture="resize"]') ? 'resize' : handle?.matches('.rotation-handle,[data-scene-gesture="rotate"]') ? 'rotate' : handle?.matches('.selection-move,[data-scene-gesture="move"]') ? 'selection-move' : 'move';
     const sceneControl = event.target instanceof Element && !!event.target.closest('.canvas-orientation,.window-actions');
@@ -431,24 +462,28 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('pointermove', event => {
     if (touchPointers.has(event.pointerId)) enqueue({ kind: 'touch-move', point: point(event), pointer: event.pointerId, at: performance.now() });
+    else if (!gesture && !spaceHeld && tools.move((event.getCoalescedEvents?.().length ? event.getCoalescedEvents() : [event]).map(toolPoint))) return;
     else if (stage.hasPointerCapture(event.pointerId)) enqueue({ kind: 'move', point: point(event), pointer: event.pointerId, bypass: event.metaKey || event.ctrlKey, at: performance.now() });
   }, { signal: abort.signal });
   stage.addEventListener('pointerup', event => {
+    if (tools.up(toolPoint(event))) return;
     if (touchPointers.delete(event.pointerId)) enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() });
     else enqueue({ kind: 'up', point: point(event), pointer: event.pointerId, bypass: event.metaKey || event.ctrlKey, at: performance.now() });
     stage.classList.remove('panning');
   }, { signal: abort.signal });
   stage.addEventListener('pointercancel', event => {
+    if (tools.owns(event.pointerId)) { tools.cancel('pointer-cancel'); return; }
     stage.classList.remove('panning');
     if (touchPointers.delete(event.pointerId)) enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() });
     else enqueue({ kind: 'cancel', at: performance.now() });
   }, { signal: abort.signal });
   stage.addEventListener('lostpointercapture', event => {
+    if (tools.owns(event.pointerId)) { tools.cancel('lost-capture'); return; }
     if (touchPointers.delete(event.pointerId)) { enqueue({ kind: 'touch-up', point: point(event), pointer: event.pointerId, at: performance.now() }); return; }
     if (inputs.some(input => input.kind === 'touch-up' && input.pointer === event.pointerId)) return;
     if (!inputs.some(input => input.kind === 'up' && input.pointer === event.pointerId) && (gesture?.pointer === event.pointerId || inputs.some(input => input.kind === 'down' && input.pointer === event.pointerId))) enqueue({ kind: 'cancel', at: performance.now() });
   }, { signal: abort.signal });
-  view.addEventListener('blur', () => { releaseSpace(); touchPointers.clear(); stage.classList.remove('panning'); enqueue({ kind: 'cancel', at: performance.now() }); }, { signal: abort.signal });
+  view.addEventListener('blur', () => { tools.cancel('pointer-cancel'); releaseSpace(); touchPointers.clear(); stage.classList.remove('panning'); enqueue({ kind: 'cancel', at: performance.now() }); }, { signal: abort.signal });
   view.addEventListener('keydown', event => {
     if (event.code === 'Space') {
       if (ownsSpace(event.target) || ownsSpace(stage.ownerDocument.activeElement)) return;
@@ -457,6 +492,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       invalidate(); return;
     }
     if (editable(event.target)) return;
+    if (event.key === 'Escape') tools.cancel('escape');
+    else if (tools.key({ key: event.key, shift: event.shiftKey, alt: event.altKey, bypass: event.metaKey || event.ctrlKey })) { event.preventDefault(); event.stopImmediatePropagation(); return; }
     if (event.key === '0' && !event.metaKey && !event.ctrlKey) enqueue({ kind: 'navigation', intent: { kind: 'fit', ids: [], motion: 'glide' }, at: performance.now() });
     if (event.key === 'Escape') { select([]); enqueue({ kind: 'cancel', at: performance.now() }); }
     if (event.key === 'a' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); select(graph.all().filter(node => !node.locked).map(node => node.card.id)); invalidate(); }
@@ -485,7 +522,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const unsubscribeScene = workspace.scene.subscribe(change => {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
-      const next = workspace.scene.snapshot(); epoch++; graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
+      const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       cancelGesture(); touchPointers.clear(); touches.clear(); touchQuarantine = false;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
     } else { graph.apply(change); for (const id of change.removed) retired.add(id); }
@@ -502,6 +539,17 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     screenToWorld: p => unproject(p, camera),
     representations: () => representations,
     hitTest,
+    hitTestLink: point => { for (let index = drawnLinks.length - 1; index >= 0; index--) { const entry = drawnLinks[index]; if (entry && routeDistance(point, entry.route) <= 8) return entry.link.id; } return null; },
+    linkGeometry: () => drawnLinks.map(entry => ({ id: entry.link.id, route: entry.route })),
+    tool: tool => tools.set(tool),
+    preview: preview => tools.preview(preview),
+    afterInput: post,
+    startTransform: intent => {
+      const id = intent.ids.at(-1); if (!id || disposed) return;
+      select(intent.ids); stage.setPointerCapture(intent.pointer.id);
+      enqueue({ kind: 'down', pointer: intent.pointer.id, point: intent.pointer.point, pan: false, action: intent.kind, target: id, modifiers: { shift: intent.shift, bypass: false }, at: performance.now() });
+    },
+    startConnection,
     pin: (id, reason, pinned) => { pool.pin(id, reason, pinned); invalidate(); },
     requestMeasurement: (key, generation) => {
       const lease = pool.find(key, generation), card = lease ? graph.nodes.get(lease.cardId)?.card : null;
@@ -519,7 +567,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
-      abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); participants.clear(); pool.dispose(); overlays.dispose();
+      tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); participants.clear(); pool.dispose(); overlays.dispose();
       releaseSpace(); stage.classList.remove('panning', 'far');
       metrics.record(false);
       graph.clear(); measurements.clear(); inputs.length = 0; positions.clear(); representations = []; placements = []; drawnLinks = []; candidates = [];

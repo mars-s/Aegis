@@ -1,7 +1,7 @@
 import type { CardId, Link } from '@aegis/domain/schema';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { LinkRoute } from './links.js';
-import type { Representation } from './types.js';
+import type { Representation, ToolPreview } from './types.js';
 
 export interface DrawLink { readonly link: Link; readonly route: LinkRoute }
 
@@ -15,6 +15,7 @@ export class CanvasPainter {
   private width = 0;
   private height = 0;
   private dpr = 1;
+  private readonly previewPaths = new Map<string, Path2D>();
 
   constructor(backdrop: HTMLCanvasElement, overlay: HTMLCanvasElement) {
     const grid = backdrop.getContext('2d'), ink = overlay.getContext('2d');
@@ -22,7 +23,7 @@ export class CanvasPainter {
     this.backdrop = backdrop; this.overlay = overlay; this.grid = grid; this.ink = ink;
   }
 
-  paint(viewport: Rect, dpr: number, camera: CameraState, representations: readonly Representation[], links: readonly DrawLink[], mounted: (id: CardId) => boolean, selected: ReadonlySet<CardId>, marquee: Rect | null): void {
+  paint(viewport: Rect, dpr: number, camera: CameraState, representations: readonly Representation[], links: readonly DrawLink[], mounted: (id: CardId) => boolean, selected: ReadonlySet<CardId>, marquee: Rect | null, preview: ToolPreview | null = null): void {
     this.resize(viewport, dpr);
     this.drawGrid(camera);
     const ctx = this.ink;
@@ -69,6 +70,26 @@ export class CanvasPainter {
       }
     }
     if (marquee) { ctx.fillStyle = '#ffffff0c'; ctx.strokeStyle = '#85858f'; ctx.fillRect(marquee.x, marquee.y, marquee.width, marquee.height); ctx.strokeRect(marquee.x, marquee.y, marquee.width, marquee.height); }
+    if (preview) for (const primitive of preview.primitives) {
+      const scale = primitive.space === 'world' ? camera.zoom : 1;
+      ctx.save();
+      ctx.setTransform(dpr * scale, 0, 0, dpr * scale, primitive.space === 'world' ? camera.x * dpr : 0, primitive.space === 'world' ? camera.y * dpr : 0);
+      let path: Path2D;
+      switch (primitive.kind) {
+        case 'path': {
+          const cached = this.previewPaths.get(primitive.d);
+          path = cached ?? new Path2D(primitive.d);
+          if (!cached) { if (this.previewPaths.size >= 32) this.previewPaths.clear(); this.previewPaths.set(primitive.d, path); }
+          break;
+        }
+        case 'rect': path = new Path2D(); path.roundRect(primitive.bounds.x, primitive.bounds.y, primitive.bounds.width, primitive.bounds.height, primitive.radius); break;
+        case 'circle': path = new Path2D(); path.arc(primitive.centre.x, primitive.centre.y, primitive.radius, 0, Math.PI * 2); break;
+        default: { const exhaustive: never = primitive; throw new Error(String(exhaustive)); }
+      }
+      if (primitive.fill) { ctx.fillStyle = primitive.fill; ctx.fill(path); }
+      if (primitive.stroke) { ctx.strokeStyle = primitive.stroke.colour; ctx.lineWidth = primitive.stroke.width / scale; ctx.setLineDash(primitive.stroke.dash.map(value => value / scale)); ctx.stroke(path); }
+      ctx.restore();
+    }
   }
 
   private resize(viewport: Rect, dpr: number): void {

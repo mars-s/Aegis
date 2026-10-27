@@ -38,6 +38,50 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test('discards a deferred tool batch when its board epoch changes', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      window.sceneHarness.engine.afterInput(() => { window.sceneHarness.submit([{ op: 'create', type: 'note', text: 'Stale tool result' }]); });
+      window.sceneHarness.replace(10);
+    });
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    expect(await p.evaluate(() => window.sceneHarness.board().cards.some(card => card.text === 'Stale tool result'))).toBe(false);
+    await p.close();
+  });
+
+  test('paints tool previews in the scene frame and commits one batch after its input callback', async () => {
+    const p = await page();
+    await p.mouse.move(1100, 700);
+    const report = p.evaluate(() => new Promise<{ readonly events: readonly string[]; readonly samples: number; readonly pixel: readonly number[]; readonly before: number; readonly after: number; readonly batches: number }>(resolve => {
+      const engine = window.sceneHarness.engine, events: string[] = [];
+      let samples = 0;
+      engine.tool({
+        accepts: point => point.button === 0,
+        down: () => { events.push('down'); engine.preview({ cursor: 'crosshair', primitives: [{ kind: 'rect', space: 'screen', bounds: { x: 20, y: 20, width: 30, height: 30 }, radius: 0, fill: '#0044ff', stroke: null }] }); },
+        move: points => { if (events.includes('down')) samples += points.length; },
+        up: () => {
+          events.push('up'); const before = engine.inspect().frameCount;
+          engine.afterInput(() => {
+            window.sceneHarness.submit([{ op: 'create', type: 'note', text: 'One tool batch' }]);
+            const canvas = document.querySelector<HTMLCanvasElement>('#overlay');
+            const pixel = canvas?.getContext('2d')?.getImageData(25, 25, 1, 1).data;
+            resolve({ events, samples, pixel: pixel ? [...pixel] : [], before, after: engine.inspect().frameCount, batches: window.sceneHarness.calls.length });
+          });
+        },
+        acceptsKey: key => key.key === 'Enter', key: key => { events.push(key.key); }, cancel: reason => { events.push(reason); },
+      });
+    }));
+    await p.mouse.down(); await p.mouse.move(1150, 740, { steps: 4 }); await p.mouse.up();
+    const result = await report;
+    expect(result.events).toEqual(['down', 'up']);
+    expect(result.samples).toBeGreaterThanOrEqual(4);
+    expect(result.pixel).toEqual([0, 68, 255, 255]);
+    expect(result.after).toBeGreaterThan(result.before);
+    expect(result.batches).toBe(1);
+    await p.close();
+  });
+
   test('runs frame participants around scene writes and fits fixed-size windows inside the supplied area', async () => {
     const p = await page(false, true);
     await p.evaluate(() => {

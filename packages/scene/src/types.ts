@@ -1,4 +1,5 @@
-import type { Board, Card, CardId, ChangeSet, Command, Source } from '@aegis/domain/schema';
+import type { Board, Card, CardId, ChangeSet, Command, LinkId, Source } from '@aegis/domain/schema';
+import type { LinkRoute } from './links.js';
 import type { CameraState, Point, Rect } from './geometry.js';
 import type { ZoomTier } from './representations.js';
 
@@ -68,6 +69,36 @@ export interface FrameParticipant {
   readonly write: () => void;
   readonly fitBounds?: (zoom: number) => readonly Rect[];
 }
+export interface ToolPointer {
+  readonly pointerId: number;
+  readonly pointerType: 'mouse' | 'pen' | 'touch';
+  readonly screen: Point;
+  readonly world: Point;
+  readonly pressure: number;
+  readonly time: number;
+  readonly button: number;
+  readonly buttons: number;
+  readonly shift: boolean;
+  readonly alt: boolean;
+  readonly bypass: boolean;
+}
+export type ToolCancel = 'escape' | 'pointer-cancel' | 'lost-capture' | 'board-change' | 'tool-change' | 'dispose';
+export interface ToolKey { readonly key: string; readonly shift: boolean; readonly alt: boolean; readonly bypass: boolean }
+export interface SceneTool {
+  readonly accepts: (point: ToolPointer, hit: CardId | null) => boolean;
+  readonly down: (point: ToolPointer, hit: CardId | null) => void;
+  readonly move: (points: readonly ToolPointer[]) => void;
+  readonly up: (point: ToolPointer) => void;
+  readonly acceptsKey: (key: ToolKey) => boolean;
+  readonly key: (key: ToolKey) => void;
+  readonly cancel: (reason: ToolCancel) => void;
+}
+export interface PreviewStroke { readonly colour: string; readonly width: number; readonly dash: readonly number[] }
+export type ToolPrimitive =
+  | { readonly kind: 'path'; readonly space: 'world' | 'screen'; readonly d: string; readonly fill: string | null; readonly stroke: PreviewStroke | null }
+  | { readonly kind: 'rect'; readonly space: 'world' | 'screen'; readonly bounds: Rect; readonly radius: number; readonly fill: string | null; readonly stroke: PreviewStroke | null }
+  | { readonly kind: 'circle'; readonly space: 'world' | 'screen'; readonly centre: Point; readonly radius: number; readonly fill: string | null; readonly stroke: PreviewStroke | null };
+export interface ToolPreview { readonly primitives: readonly ToolPrimitive[]; readonly cursor: 'crosshair' | 'none' | 'default' }
 export interface CanvasEngine {
   readonly leases: LeaseSource;
   readonly navigate: (intent: Navigation) => void;
@@ -75,6 +106,13 @@ export interface CanvasEngine {
   readonly screenToWorld: (point: Point) => Point;
   readonly representations: () => readonly Representation[];
   readonly hitTest: (point: Point) => CardId | null;
+  readonly hitTestLink: (point: Point) => LinkId | null;
+  readonly linkGeometry: () => readonly { readonly id: LinkId; readonly route: LinkRoute }[];
+  readonly tool: (tool: SceneTool | null) => void;
+  readonly preview: (preview: ToolPreview | null) => void;
+  readonly afterInput: (run: () => void) => void;
+  readonly startTransform: (intent: { readonly kind: 'resize' | 'rotate'; readonly ids: readonly CardId[]; readonly pointer: { readonly id: number; readonly point: Point }; readonly shift: boolean }) => void;
+  readonly startConnection: (id: CardId) => void;
   readonly pin: (id: CardId, reason: PinReason, pinned: boolean) => void;
   readonly requestMeasurement: (key: string, generation: number) => void;
   readonly registerFrameParticipant: (participant: FrameParticipant) => () => void;

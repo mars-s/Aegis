@@ -13,6 +13,7 @@ interface Harness {
   readonly engine: CanvasEngine;
   readonly board: () => Board;
   readonly calls: readonly (readonly Command[])[];
+  readonly submit: CanvasWorkspace['submit'];
   readonly replace: (count: number) => void;
   readonly load: (board: unknown) => void;
   readonly update: (card: unknown) => void;
@@ -96,7 +97,7 @@ function Portals() {
 const root = createRoot(element('portals')); root.render(createElement(Portals));
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
-  engine, board: () => current, calls, mounted, cleanups, notifications: () => notifications, opened: () => opened,
+  engine, board: () => current, calls, submit: workspace.submit, mounted, cleanups, notifications: () => notifications, opened: () => opened,
   update: card => update([CardSchema.parse(card)]),
   replace: count => {
     const old = current; current = fixture(count);
