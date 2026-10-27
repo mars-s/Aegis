@@ -41,10 +41,7 @@ test('only empty folders can be deleted', () => {
 });
 
 import { duplicateLibrary, deleteLibrary, moveLibraryBoard, libraryContents, createLibraryActions } from '../library.mjs';
-import { emptyBoard, applyBatch } from '../../app/src/lib/board/commands.js';
-import '../../app/src/lib/board/types/library.js';
-import '../../app/src/lib/board/types/editing.js';
-import '../../app/src/lib/board/types/media.js';
+import { emptyBoard, applyBatch } from '@aegis/domain/commands';
 import { templateCommands, frameworks, starters } from '../../app/src/features/library/templates.js';
 const ids = () => { let n = 0; return () => (++n).toString(16).padStart(8, '0'); };
 const nested = () => {

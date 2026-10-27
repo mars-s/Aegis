@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import '../../app/src/lib/board/types/docs.js';
-import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
-import { cardContent, documentUpdate, plainText, markdownHTML, migrateTitle } from '../../app/src/features/docs/content.js';
+import { applyBatch, emptyBoard, describe } from '@aegis/domain/commands';
+import { cardContent, documentUpdate, plainText, markdownHTML, migrateTitle } from '@aegis/domain/content';
 import { mathsHTML } from '../../app/src/features/docs/maths.js';
 import { toDocx } from '../../app/src/features/docs/docx.js';
 import JSZip from '../../app/node_modules/jszip/lib/index.js';

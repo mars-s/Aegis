@@ -5,7 +5,7 @@ import { mountAgents } from './features/agents/index.js';
 import { createAgentState } from './features/agents/state.js';
 import { defaultStatusModel, modelChoice, modelValue } from './features/agents/models.js';
 import { createCanvas } from './canvas/engine.js';
-import { applyBatch } from './lib/board/commands.js';
+import { applyBatch } from '@aegis/domain/commands';
 import { connect as connectHost } from './lib/host';
 import { mountObjects } from './objects/mount';
 // PM4 saving feedback: publish the existing queue state to generated views.

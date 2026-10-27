@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { genuiSamples, galleryArtwork } from '../../agent/checks/genui-fixtures.mjs';
-import { OBJECT_KINDS } from '../../app/src/lib/board/objects.js';
-import { THEME_KEYS } from '../../app/src/objects/kinds/html-sandbox.js';
+import { OBJECT_KINDS } from '@aegis/domain/objects';
+import { THEME_KEYS } from '@aegis/protocol/sandbox';
 
 const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), vitePort = 5194 + offset;
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'genui-' + process.pid;

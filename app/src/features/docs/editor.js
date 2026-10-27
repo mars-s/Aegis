@@ -1,11 +1,11 @@
-import { documentContent, wordCount, wordCountLabel } from '../../lib/board/words.js';
+import { documentContent, wordCount, wordCountLabel } from '@aegis/domain/words';
 import { createStepper } from '../../lib/ui/stepper.js';
 import { createColourPicker } from '../colors/colour-picker.js';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { Editor, generateJSON } from '@tiptap/core';
 import BubbleMenu from '@tiptap/extension-bubble-menu';
 import { extensions } from './extensions.js';
-import { cardContent, COPY_TYPES, documentUpdate, markdownHTML } from './content.js';
+import { cardContent, COPY_TYPES, documentUpdate, markdownHTML } from '@aegis/domain/content';
 import { downloadWord, printPDF } from './export.js';
 import { openSide, centreCardInLeft } from './side.js';
 import { bindDisclosure, createPopup } from '../../lib/ui/dropdown.js';

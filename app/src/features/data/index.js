@@ -1,6 +1,6 @@
 import './data.css';
 import { registerRenderer } from '../../canvas/engine.js';
-import { DATASET_LIMITS, parseCsv, profileDataset } from '../../lib/board/dataset.js';
+import { DATASET_LIMITS, parseCsv, profileDataset } from '@aegis/domain/dataset';
 import { registerCommand, registerCardMenu } from '../registry';
 import { openDataset } from './viewer.js';
 

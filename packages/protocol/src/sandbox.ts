@@ -1,3 +1,6 @@
+import { z } from 'zod/v4';
+import { parseHtmlState } from '@aegis/domain/html-state';
+import type { ObjectData } from '@aegis/domain/objects';
 // Shared with the local host. Generated code executes only in a sandboxed document served by that host.
 import { themeCss, themeHtml } from './html-theme.js';
 export const SANDBOX_CSP = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'none'; frame-src 'none'; child-src 'none'; worker-src 'none'; object-src 'none'; media-src 'none'; base-uri 'none'; form-action 'none'";
@@ -6,20 +9,8 @@ export const SANDBOX_HEADER_CSP = SANDBOX_CSP + '; sandbox allow-scripts';
 export const THEME_KEYS = ['--canvas', '--card', '--strip', '--inset', '--raised', '--pill', '--line', '--line-strong', '--edge-top', '--text', '--ink-2', '--muted', '--faint', '--hover', '--press', '--data', '--data-soft', '--danger', '--warn', '--ok', '--mono', '--font', '--r-win', '--r-menu', '--r-inset', '--ease-out', '--ease-drawer'];
 
 // JSON text is the only state boundary. Keep this function self-contained for the isolated bootstrap.
-export function parseHtmlState(value) {
-  if (typeof value !== 'string' || value.length > 65536 || new TextEncoder().encode(value).length > 65536) return null;
-  try {
-    const state = JSON.parse(value);
-    const record = (v, keys) => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => keys.includes(k));
-    const index = n => Number.isSafeInteger(n) && n >= 0 && n < 1000;
-    if (!record(state, ['version', 'controls', 'text', 'custom']) || state.version !== 1 || !Array.isArray(state.controls) || !Array.isArray(state.text) || state.controls.length > 1000 || state.text.length > 1000) return null;
-    if (!state.controls.every(c => record(c, ['index', 'tag', 'type', 'value', 'checked', 'selected']) && index(c.index) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(c.tag) && typeof c.type === 'string' && !['password', 'file'].includes(c.type) && typeof c.value === 'string' && typeof c.checked === 'boolean' && Array.isArray(c.selected) && c.selected.every(index))) return null;
-    if (!state.text.every(t => record(t, ['index', 'text']) && index(t.index) && typeof t.text === 'string')) return null;
-    // JSON.parse accepts numeric overflow. Reject it and bound nesting before widgets use custom state.
-    const json = (v, depth) => depth <= 32 && (v === null || typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'object' && Object.values(v).every(item => json(item, depth + 1))));
-    return !Object.hasOwn(state, 'custom') || json(state.custom, 0) ? state : null;
-  } catch { return null; }
-}
+export {parseHtmlState} from '@aegis/domain/html-state';
+const PARSE_STATE_SCRIPT = "function parseHtmlState(value) {\n  if (typeof value !== 'string' || value.length > 65536 || new TextEncoder().encode(value).length > 65536) return null;\n  try {\n    const state = JSON.parse(value);\n    const record = (v, keys) => v !== null && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => keys.includes(k));\n    const index = n => Number.isSafeInteger(n) && n >= 0 && n < 1000;\n    if (!record(state, ['version', 'controls', 'text', 'custom']) || state.version !== 1 || !Array.isArray(state.controls) || !Array.isArray(state.text) || state.controls.length > 1000 || state.text.length > 1000) return null;\n    if (!state.controls.every(c => record(c, ['index', 'tag', 'type', 'value', 'checked', 'selected']) && index(c.index) && ['INPUT', 'TEXTAREA', 'SELECT'].includes(c.tag) && typeof c.type === 'string' && !['password', 'file'].includes(c.type) && typeof c.value === 'string' && typeof c.checked === 'boolean' && Array.isArray(c.selected) && c.selected.every(index))) return null;\n    if (!state.text.every(t => record(t, ['index', 'text']) && index(t.index) && typeof t.text === 'string')) return null;\n    // JSON.parse accepts numeric overflow. Reject it and bound nesting before widgets use custom state.\n    const json = (v, depth) => depth <= 32 && (v === null || typeof v === 'string' || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'object' && Object.values(v).every(item => json(item, depth + 1))));\n    return !Object.hasOwn(state, 'custom') || json(state.custom, 0) ? state : null;\n  } catch { return null; }\n}";
 
 
 // The base look every widget starts from. Generated markup can stay unstyled: headings, text, controls, tables,
@@ -58,13 +49,13 @@ svg{max-width:100%;overflow:visible}svg text{fill:var(--muted);font:11px var(--f
 :focus-visible{outline:1.5px solid var(--text);outline-offset:2px}::selection{background:var(--data-soft)}
 ::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:4px}`;
 
-export function sandboxDocument(data, channel, theme, font, motionOff = false) {
-  const scriptText = text => text.replace(/<\/script/gi, '<\\/script');
+export function sandboxDocument(data: ObjectData['html'] & {parentOrigin?:string}, channel: string, theme: string, font: string, motionOff = false): string {
+  const scriptText = (text: string) => text.replace(/<\/script/gi, '<\\/script');
   const encodedChannel = JSON.stringify(channel).replace(/</g, '\\u003c');
   const bootstrap = `(() => {
     const send = parent.postMessage.bind(parent);
     const themeKeys = ${JSON.stringify(THEME_KEYS)};
-    const parseState = ${parseHtmlState.toString()};
+    const parseState = ${PARSE_STATE_SCRIPT};
     const initial = ${JSON.stringify(data.state ?? null).replace(/</g, '\\u003c')};
     const parentOrigin = ${JSON.stringify(data.parentOrigin ?? null).replace(/</g, '\\u003c')};
     let lastState, defaultState, restoring = false, loaded = false;
@@ -164,18 +155,23 @@ export function sandboxDocument(data, channel, theme, font, motionOff = false) {
 <script>${bootstrap}</script><style>${themeCss(data.css)}\n@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}html.motion-off,html.motion-off *,html.motion-off *::before,html.motion-off *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}</style></head><body>${themeHtml(data.html, data.css)}<script>${scriptText(data.js)}</script></body></html>`;
 }
 
-// Sandboxed frames have an opaque origin, serialised as "null". Sibling frames are not trusted.
-export function reportedHeight(event, source, channel) {
-  const d = event.data;
-  if (!source || event.source !== source || event.origin !== 'null' || !d || d.type !== 'aegis:html-height' || d.channel !== channel || typeof d.height !== 'number' || !Number.isFinite(d.height)) return null;
-  return Math.max(80, Math.min(2000, Math.ceil(d.height)));
+// Sandboxed frames have an opaque origin. Source and channel are capabilities.
+interface SandboxMessage {readonly data:unknown;readonly source:unknown;readonly origin:string;}
+const HeightSchema=z.object({type:z.literal('aegis:html-height'),channel:z.string(),height:z.number()});
+const EscapeSchema=z.object({type:z.literal('aegis:html-escape'),channel:z.string()});
+const StateMessageSchema=z.strictObject({type:z.string(),channel:z.string(),state:z.string()});
+export function reportedHeight(event:SandboxMessage,source:unknown,channel:string):number|null {
+  if(!source || event.source !== source || event.origin !== 'null') return null;
+  const parsed=HeightSchema.safeParse(event.data);
+  if(!parsed.success || parsed.data.channel !== channel) return null;
+  return Math.max(80,Math.min(2000,Math.ceil(parsed.data.height)));
 }
-
-export function reportedEscape(event, source, channel) {
-  return !!source && event.source === source && event.origin === 'null' && event.data?.type === 'aegis:html-escape' && event.data.channel === channel;
+export function reportedEscape(event:SandboxMessage,source:unknown,channel:string):boolean {
+  const parsed=EscapeSchema.safeParse(event.data);
+  return !!source && event.source === source && event.origin === 'null' && parsed.success && parsed.data.channel === channel;
 }
-
-export function reportedState(event, source, channel, type = 'aegis:html-state') {
-  const d = event.data;
-  return source && event.source === source && event.origin === 'null' && d?.type === type && d.channel === channel && Object.keys(d).every(key => ['type', 'channel', 'state'].includes(key)) && parseHtmlState(d.state) ? d.state : null;
+export function reportedState(event:SandboxMessage,source:unknown,channel:string,type='aegis:html-state'):string|null {
+  if(!source || event.source !== source || event.origin !== 'null') return null;
+  const parsed=StateMessageSchema.safeParse(event.data);
+  return parsed.success && parsed.data.type === type && parsed.data.channel === channel && parseHtmlState(parsed.data.state) ? parsed.data.state : null;
 }

@@ -1,6 +1,6 @@
 import { linePath } from '../../objects/chart/geometry.ts';
 import { CHART_POINT, CHART_STROKE, chartScreen } from '../../objects/chart/screen.js';
-import { resolveDeckChart } from '../../objects/chart/source.js';
+import { resolveDeckChart } from '@aegis/domain/chart-source';
 // Shared HTML for the canvas preview, editor stage and filmstrip.
 const SLIDE_WIDTH = 960, SLIDE_HEIGHT = 540;
 

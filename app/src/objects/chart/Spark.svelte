@@ -1,6 +1,6 @@
 <!-- From Zephium (zephium-browser/Zephium @ 0eaad6d, frame/src/shared/ui/data/Chart/Spark.svelte), MPL-2.0. Changes for Aegis: local imports. -->
 <script lang="ts">
-  import type { ChartSpec } from "./chart";
+  import type { ChartSpec } from "@aegis/domain/charts";
   import { band, barPath, linear, linePath, runs, type Point } from "./geometry";
   import type { Plan } from "./plan";
   /** A trend in a row: no axes, no readout, filling its box. */

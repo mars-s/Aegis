@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentContent, documentWordCount, wordCount, wordCountLabel } from '../../app/src/lib/board/words.js';
-import { documentUpdate } from '../../app/src/features/docs/content.js';
-import { cardSummary } from '../../app/src/lib/board/summary.js';
+import { documentContent, documentWordCount, wordCount, wordCountLabel } from '@aegis/domain/words';
+import { documentUpdate } from '@aegis/domain/content';
+import { cardSummary } from '@aegis/domain/summary';
 
 test('document counts stay identical through parsing, migration and save', () => {
   const card = { type: 'doc', text: 'Notes', props: { body: '# Notes\n## A clear plan\n**Three** *small* steps\n- [x] Write it\n1. Read it\n[Check source](https://example.com)\nInline $a+b$ maths\n$$\nx + y = z\n$$\n```js\nconst value = 3;\n```\n---' } };

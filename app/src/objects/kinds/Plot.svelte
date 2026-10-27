@@ -1,20 +1,13 @@
 <!-- Plot object: maps the agent's plot data onto the chart spec and draws it with the ported Zephium chart. -->
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { resolvePlot, chartCards } from '../chart/source.js';
+  import { resolvePlot, type ResolvedPlot } from '@aegis/domain/chart-source';
+  import {chartCards,renderChartSpec} from '../chart/context.js';
   import Chart from '../chart/Chart.svelte';
   import SourceStatus from '../chart/SourceStatus.svelte';
-  import { styleSpec, type ChartSpec, type ChartStyle, type ChartFormat } from '../chart/chart';
-  type Plot = {
-    smooth?: boolean;
-    source?: { cardId: string; xColumn: number; yColumns: number[] };
-    style: ChartStyle; basis: string; knowledge?: boolean;
-    x: { label?: string; kind: 'category' | 'time' | 'linear' };
-    y: { label?: string; unit?: string; format: ChartFormat; currency?: string };
-    series: { name: string; points: { x: string; y: number | null; y2?: number | null }[] }[];
-    headline?: { label: string; value: string };
-    target?: ChartSpec['target'];
-  };
+  import { styleSpec, type ChartSpec } from '@aegis/domain/charts';
+  import type {ObjectData} from '@aegis/domain/objects';
+  type Plot = ObjectData['plot'] & {target?:ChartSpec['target']};
   let { data, title, detail = 'full', onsmooth, onsource }: { data: Plot; title: string; onsmooth?: (smooth: boolean) => void; onsource?: (source: Plot['source']) => void; detail?: 'full' | 'overview' | 'tile' } = $props();
   let cards = $state(chartCards());
   onMount(() => {
@@ -23,8 +16,8 @@
     stage?.addEventListener('boardchange', refresh);
     return () => stage?.removeEventListener('boardchange', refresh);
   });
-  const resolved: Plot & { sourceStatus?: string } = $derived(resolvePlot(data, cards));
-  const spec: ChartSpec = $derived({
+  const resolved: ResolvedPlot = $derived(resolvePlot(data, cards));
+  const spec: ChartSpec = $derived(renderChartSpec({
     ...styleSpec(data.style),
     smooth: data.smooth,
     x: data.x,
@@ -37,7 +30,7 @@
       name: s.name,
       points: s.points.map(p => ({ x: data.x.kind === 'linear' ? Number(p.x) : p.x, y: p.y, ...(p.y2 != null ? { y2: p.y2 } : {}) })),
     })),
-  });
+  }));
 </script>
 
 <SourceStatus status={resolved.sourceStatus || ''} sources={cards.filter(card => card.kind === 'sheet')} onchoose={onsource ? id => onsource?.({ cardId: id, xColumn: data.source?.xColumn ?? 0, yColumns: data.source?.yColumns ?? [1] }) : undefined} />

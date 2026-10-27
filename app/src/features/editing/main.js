@@ -2,7 +2,6 @@
 import { registerRenderer, registerDragHandler, registerCardDropTarget } from '../../canvas/engine.js';
 import { registerTool, registerPanel, registerCardMenu, registerBoardMenu, selectionControls, onRegistryChange, cardMenu } from '../registry';
 import { uid, bounds, descendants, effectiveFlag, makeClip, cloneCommands, createHistory, arrange, stackCommands, collectionLayout, collectionDrop, lineHeightDefault, snapRotation } from './model.js';
-import '../../lib/board/types/editing.js';
 import { mountNavigation } from './navigation.js';
 import { exportBoard } from './export.js';
 import { fontPicker } from './fonts.js';

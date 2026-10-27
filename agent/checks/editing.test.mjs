@@ -1,8 +1,7 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { emptyBoard, applyBatch } from '../../app/src/lib/board/commands.js';
-import '../../app/src/lib/board/types/index.js';
+import { emptyBoard, applyBatch } from '@aegis/domain/commands';
 import { makeClip, cloneCommands, createHistory, arrange, collectionLayout, effectiveFlag, stackCommands } from '../../app/src/features/editing/model.js';
 const batch = (board, commands) => { const result = applyBatch(board, { commands }); assert.equal(result.ok, true, JSON.stringify(result.errors)); return result.board; };
 const seed = () => batch(emptyBoard('board-a'), [

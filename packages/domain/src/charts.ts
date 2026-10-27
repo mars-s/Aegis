@@ -6,9 +6,9 @@ export type ChartKind =
 export type ChartEvidence = {
   key: string;
   label: string;
-  origin?: string;
-  url?: string;
-  file?: boolean;
+  origin?: string | undefined;
+  url?: string | undefined;
+  file?: boolean | undefined;
 };
 export type ChartPoint = {
   /** A category, a number, or an ISO date for a time axis. */
@@ -16,45 +16,45 @@ export type ChartPoint = {
   /** Null is a gap: nothing is drawn and nothing is invented. */
   y: number | null;
   /** The top of a range; the bar spans y to y2. */
-  y2?: number;
+  y2?: number | undefined;
   /** The value as its source wrote it; the values table shows it verbatim. */
-  display?: string;
-  evidence?: readonly ChartEvidence[];
+  display?: string | undefined;
+  evidence?: readonly ChartEvidence[] | undefined;
 };
 export type ChartSeries = { name: string; points: readonly ChartPoint[] };
 export type ChartFormat = "number" | "money" | "duration" | "percent" | "bytes";
-export type ChartX = { label?: string; kind?: "category" | "time" | "linear" };
+export type ChartX = { label?: string | undefined; kind?: "category" | "time" | "linear" | undefined };
 export type ChartY = {
-  label?: string;
-  unit?: string;
-  format?: ChartFormat;
-  currency?: string;
-  min?: number;
-  max?: number;
+  label?: string | undefined;
+  unit?: string | undefined;
+  format?: ChartFormat | undefined;
+  currency?: string | undefined;
+  min?: number | undefined;
+  max?: number | undefined;
 };
 export type ChartSpec = {
   kind: ChartKind;
   /** Use a monotone curve instead of straight segments. */
-  smooth?: boolean;
+  smooth?: boolean | undefined;
   series: readonly ChartSeries[];
-  x?: ChartX;
-  y?: ChartY;
+  x?: ChartX | undefined;
+  y?: ChartY | undefined;
   /** One line, drawn under the plot when present. */
-  basis?: string;
+  basis?: string | undefined;
   /** The numbers come from what the agent knows, not a source; nothing draws it. */
-  knowledge?: boolean;
+  knowledge?: boolean | undefined;
   /** The card size: no axis labels, no legend, values on hover only. */
-  compact?: boolean;
+  compact?: boolean | undefined;
   /** Bars lie down whatever their names: the owner knows their names would collide. */
-  horizontal?: boolean;
+  horizontal?: boolean | undefined;
   /** The owner shows the exact values itself: no values table under the plot. */
-  values?: false;
+  values?: false | undefined;
   /** Areas pile up to a total instead of overlapping. */
-  stack?: boolean;
+  stack?: boolean | undefined;
   /** The one figure the chart exists to say, set large above it. */
-  headline?: { label: string; value: string };
+  headline?: { label: string; value: string } | undefined;
   /** A supplied goal, drawn as a dashed reference line. */
-  target?: { value: number; label?: string };
+  target?: { value: number; label?: string | undefined } | undefined;
 };
 
 /** The agent's plot styles, as the runtime names them. */
@@ -99,7 +99,7 @@ const NUMBER = String.raw`[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?`;
 const SYMBOL = String.raw`[$€£¥]`;
 const ONE = new RegExp(`^(${SYMBOL})?\\s*(${NUMBER})\\s*(%)?$`, "u");
 const RANGE = new RegExp(
-  `^(${SYMBOL})?\\s*(${NUMBER})\\s*(%)?\\s*(?:-|–|—|to)\\s*(${SYMBOL})?\\s*(${NUMBER})\\s*(%)?$`,
+  `^(${SYMBOL})?\\s*(${NUMBER})\\s*(%)?\\s*(?:-|–|\u2014|to)\\s*(${SYMBOL})?\\s*(${NUMBER})\\s*(%)?$`,
   "u",
 );
 const CURRENCY: Record<string, string> = { $: "USD", "€": "EUR", "£": "GBP", "¥": "JPY" };
@@ -111,13 +111,13 @@ export function parseValue(text: string): ParsedValue | null {
   if (!value || value.length > 128) return null;
   const one = ONE.exec(value);
   if (one) {
-    const y = exact(one[2]!);
+    const y = exact(one[2] ?? '');
     return y === null ? null : withMarks({ y }, one[1], !!one[3]);
   }
   const range = RANGE.exec(value);
   if (!range) return null;
-  const low = exact(range[2]!);
-  const high = exact(range[5]!);
+  const low = exact(range[2] ?? '');
+  const high = exact(range[5] ?? '');
   const symbol = range[1] ?? range[4];
   if (low === null || high === null) return null;
   if (range[1] && range[4] && range[1] !== range[4]) return null;
@@ -129,7 +129,7 @@ export function parseValue(text: string): ParsedValue | null {
 }
 
 function withMarks(value: ParsedValue, symbol: string | undefined, percent: boolean): ParsedValue {
-  if (symbol) value.currency = CURRENCY[symbol];
+  if (symbol && CURRENCY[symbol]) value.currency = CURRENCY[symbol];
   if (percent) value.percent = true;
   return value;
 }
@@ -214,7 +214,7 @@ export function formatBytes(bytes: number): string {
 export function pointText(point: ChartPoint | undefined, y?: ChartY): string {
   if (!point) return "";
   if (point.display !== undefined) return point.display;
-  if (point.y === null) return "—";
+  if (point.y === null) return "\u2014";
   const low = formatValue(point.y, y);
   return point.y2 === undefined ? low : `${low}–${formatValue(point.y2, y)}`;
 }

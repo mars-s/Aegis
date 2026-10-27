@@ -1,7 +1,7 @@
 <!-- From Zephium (zephium-browser/Zephium @ 0eaad6d, frame/src/shared/ui/data/Chart/Cartesian.svelte), MPL-2.0. Changes for Aegis: local imports. -->
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
-  import { pointText, tickLabel, xText, type ChartEvidence, type ChartSpec } from "./chart";
+  import { pointText, tickLabel, xText, type ChartEvidence, type ChartSpec } from "@aegis/domain/charts";
   import { areaPath, band, barPath, linear, linePath, runs, type Point } from "./geometry";
   import { Hover } from "./hover.svelte";
   import { readout, shortValue, type Card, type Plan, type Row } from "./plan";

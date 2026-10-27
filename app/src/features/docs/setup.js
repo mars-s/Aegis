@@ -3,7 +3,7 @@ import { registerTool, registerCardMenu, registerCommand } from '../registry';
 import { openDocument, copyIntoDocument, currentDocument, resolveDocumentDrop, installDocumentClipboard } from './editor.js';
 import { generateHTML, generateJSON } from '@tiptap/core';
 import { extensions } from './extensions.js';
-import { markdownHTML, migrateTitle } from './content.js';
+import { markdownHTML, migrateTitle } from '@aegis/domain/content';
 export { registerDocRewriter } from './editor.js';
 const icon = '<path d="M4 1.5h5l3 3v10H4z"/><path d="M9 1.5v3h3M6 7h4M6 9.5h4M6 12h2"/>';
 // A document on the canvas is a window: a 36px strip, then the document itself as a quiet read-only preview.

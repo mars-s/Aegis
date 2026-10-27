@@ -30,7 +30,10 @@
     }
   },
   "bundle": {
-    "macOS": { "infoPlist": "Info.plist", "entitlements": "Entitlements.plist" },
+    "macOS": {
+      "infoPlist": "Info.plist",
+      "entitlements": "Entitlements.plist"
+    },
     "active": true,
     "targets": [
       "app"
@@ -52,19 +55,17 @@
       "../agent/mcp-config.mjs": "agent/mcp-config.mjs",
       "../agent/mcp-content.mjs": "agent/mcp-content.mjs",
       "../plugins/aegis": "plugins/aegis",
-      "../app/src/features/docs/content.js": "app/src/features/docs/content.js",
-      "../app/src/objects/kinds/html-sandbox.js": "app/src/objects/kinds/html-sandbox.js",
-      "../app/src/objects/kinds/html-theme.js": "app/src/objects/kinds/html-theme.js",
       "../agent/status.mjs": "agent/status.mjs",
-      "../app/src/features/media/link-preview.mjs": "app/src/features/media/link-preview.mjs",
       "../agent/package.json": "agent/package.json",
       "../agent/node_modules": "agent/node_modules",
       "../agent/library.mjs": "agent/library.mjs",
-      "../app/src/lib/board": "app/src/lib/board",
-      "../app/src/objects/chart/source.js": "app/src/objects/chart/source.js",
-      "../app/src/objects/chart/chart.ts": "app/src/objects/chart/chart.ts",
       "../agent/ui-update.mjs": "agent/ui-update.mjs",
-      "../agent/skills": "agent/skills"
+      "../agent/skills": "agent/skills",
+      "../packages/domain/dist": "packages/domain/dist",
+      "../packages/domain/package.json": "packages/domain/package.json",
+      "../packages/protocol/dist": "packages/protocol/dist",
+      "../packages/protocol/package.json": "packages/protocol/package.json",
+      "../agent/dist": "agent/dist"
     }
   }
 }

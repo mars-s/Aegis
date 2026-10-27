@@ -16,7 +16,7 @@
     type ChartEvidence,
     type ChartKind,
     type ChartSpec,
-  } from "./chart";
+  } from "@aegis/domain/charts";
   import { card, legendRule, plan, valuesCsv } from "./plan";
   let {
     spec,

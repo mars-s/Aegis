@@ -1,7 +1,7 @@
 import './sheet.css';
 import '../../lib/ui/ribbon.css';
 import { registerCommand, registerCardMenu } from '../registry';
-import { checkObject } from '../../lib/board/objects.js';
+import { checkObject } from '@aegis/domain/objects';
 import { openSide, centreCardInLeft } from '../docs/side.js';
 import { openDocument } from '../docs/editor.js';
 import { createMenu } from '../../lib/ui/menu.js';

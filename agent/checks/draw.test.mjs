@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import '../../app/src/lib/board/types/draw.js';
-import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard, describe } from '@aegis/domain/commands';
 import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from '../../app/src/features/draw/geometry.js';
 import { linkGeometry } from '../../app/src/canvas/engine.js';
 const run = (b, commands) => applyBatch(b, { commands });

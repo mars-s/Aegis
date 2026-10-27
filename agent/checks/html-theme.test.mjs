@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { themeCss, themeHtml } from '../../app/src/objects/kinds/html-theme.js';
-import { sandboxDocument } from '../../app/src/objects/kinds/html-sandbox.js';
+import { themeCss, themeHtml } from '@aegis/protocol/html-theme';
+import { sandboxDocument } from '@aegis/protocol/sandbox';
 
 // The widget from the owner's screenshot: a pale green page with white text on it and a green accent.
 const capacity = `:root{--accent:#2f8f6a;--panel:#f4f6f2}body{background:#f4f6f2;color:#fff}.eyebrow{color:rgba(255,255,255,.35);letter-spacing:.2em}

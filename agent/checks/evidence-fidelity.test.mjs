@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import '../../app/src/lib/board/types/index.js';
-import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
-import { resolvePlot, resolveDeckChart, plotToDeckChart, SNAPSHOT_STATUS, MISSING_STATUS } from '../../app/src/objects/chart/source.js';
-import { cardSummary } from '../../app/src/lib/board/summary.js';
+import { applyBatch, emptyBoard } from '@aegis/domain/commands';
+import { resolvePlot, resolveDeckChart, plotToDeckChart, SNAPSHOT_STATUS, MISSING_STATUS } from '@aegis/domain/chart-source';
+import { cardSummary } from '@aegis/domain/summary';
 
 const plot = { style: 'line', basis: 'Fictional figures', x: { kind: 'category', label: 'Day' }, y: { format: 'money', currency: 'AUD', label: 'Cost' }, series: [{ name: 'Hours', points: [{ x: 'Mon', y: 3 }, { x: 'Fri', y: 2 }] }] };
 const sheet = { columns: [{ label: 'Day', kind: 'text' }, { label: 'Focus', kind: 'number' }], rows: [{ cells: ['Mon', '3'] }, { cells: ['Fri', '9'] }] };

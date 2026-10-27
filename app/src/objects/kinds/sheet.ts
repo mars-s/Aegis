@@ -1,6 +1,6 @@
 // Sheet cell rules. yesNo, rating, cellOrder, figure and bests from Zephium
 // (zephium-browser/Zephium @ 0eaad6d, frame/src/features/work/components/objects/sheet.ts), MPL-2.0.
-import { formatValue } from '../chart/chart';
+import { formatValue } from '@aegis/domain/charts';
 
 export type SheetColumn = { label: string; kind: string; unit?: string; currency?: string; best?: 'max' | 'min' };
 export type Sheet = { columns: SheetColumn[]; rows: { cells: string[] }[]; note?: string };

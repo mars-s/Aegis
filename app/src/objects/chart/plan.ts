@@ -13,7 +13,7 @@ import {
   type ChartPoint,
   type ChartSpec,
   type ChartY,
-} from "./chart";
+} from "@aegis/domain/charts";
 
 /** One category or moment: where it stands on x, and each series' point there. */
 export type Row = {

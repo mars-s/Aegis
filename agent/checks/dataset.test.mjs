@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseCsv, profileDataset, queryDataset, toDate } from '../../app/src/lib/board/dataset.js';
+import { parseCsv, profileDataset, queryDataset, toDate } from '@aegis/domain/dataset';
 
 const csv = 'amount,dept,opened,note\n10,Sales,2024-01-03 09:00:00,"a, quoted"\n30,Sales,2024-01-20,"say ""hi"""\n20,Support,2024-02-02,\n40,,2024-02-28,"two\nlines"\n';
 

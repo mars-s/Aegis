@@ -38,7 +38,7 @@ const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.b
 let docId;
 try {
   await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.stderr.on('data', d => { if (/error/i.test(String(d))) reject(new Error(String(d))); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
-  if (process.env.AEGIS_DOCS_ISOLATED) await page.route('**/src/features/index.ts', route => route.fulfill({ contentType: 'text/javascript', body: "import '/src/lib/board/types/index.js'; import '/src/features/docs/index.ts';" }));
+  if (process.env.AEGIS_DOCS_ISOLATED) await page.route('**/src/features/index.ts', route => route.fulfill({ contentType: 'text/javascript', body: "import '/src/features/docs/index.ts';" }));
   await page.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   await page.mouse.move(24, 480); await page.locator('[data-tool=doc]').click();

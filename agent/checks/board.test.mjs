@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBatch, emptyBoard, describe } from '../../app/src/lib/board/commands.js';
+import { applyBatch, emptyBoard, describe } from '@aegis/domain/commands';
 
 const board = () => applyBatch(emptyBoard('b1', 'Test'), { commands: [
   { op: 'create', type: 'note', text: 'one', newId: 'aaaaaaaa', x: 0, y: 0 },
@@ -122,15 +122,16 @@ test('restore puts back an earlier state, and board_set keeps the tray, palette 
   assert.equal(applyBatch(r.board, { commands: [{ op: 'board_set', set: { bg: 'red' } }] }).ok, false);
 });
 
-test('props merge, rot and custom colours are kept; a registered type is accepted', async () => {
-  const { registerCardType } = await import('../../app/src/lib/board/commands.js');
-  registerCardType('testthing', { size: [111, 99] });
-  let r = applyBatch(board(), { commands: [{ op: 'create', type: 'testthing', props: { a: 1, b: 2 }, rot: 5, color: '#ff8800', ref: 't' }] });
+test('props merge, rot and custom colours are kept; built-in catalogue sizes are accepted', async () => {
+  const { CARD_CATALOG } = await import('@aegis/domain/catalog');
+  assert.deepEqual(CARD_CATALOG.swatch.size, [160, 160]);
+  let r = applyBatch(board(), { commands: [{ op: 'create', type: 'swatch', props: { a: 1, b: 2 }, rot: 5, color: '#ff8800', ref: 't' }] });
   const id = r.created.t; let c = r.board.cards.find(x => x.id === id);
-  assert.deepEqual([c.w, c.h, c.rot, c.color], [111, 99, 5, '#ff8800']);
+  assert.deepEqual([c.w, c.h, c.rot, c.color], [160, 160, 5, '#ff8800']);
   r = applyBatch(r.board, { commands: [{ op: 'update', id, set: { props: { b: null, c: 3 } } }] });
   c = r.board.cards.find(x => x.id === id);
   assert.deepEqual(c.props, { a: 1, c: 3 });
+  assert.equal(applyBatch(board(), {commands:[{op:'create',type:'testthing'}]}).ok, false);
 });
 
 test('"$name" refs resolve in parent and in props.kids, on create and update', () => {
@@ -147,7 +148,6 @@ test('"$name" refs resolve in parent and in props.kids, on create and update', (
 });
 
 test('a collection made in one batch lays out its members in columns', async () => {
-  await import('../../app/src/lib/board/types/index.js');
   const r = applyBatch(emptyBoard('coll'), { commands: [
     { op: 'create', type: 'note', text: 'A', x: 900, y: 900, ref: 'a' },
     { op: 'create', type: 'note', text: 'B', x: 900, y: 900, ref: 'b' },

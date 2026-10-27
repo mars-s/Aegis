@@ -2,8 +2,10 @@
   import { onMount } from 'svelte';
   import Chart from './Chart.svelte';
   import SourceStatus from './SourceStatus.svelte';
-  import { chartCards, resolveDeckChart } from './source.js';
-  import type { ChartSpec } from './chart';
+  import { resolveDeckChart } from '@aegis/domain/chart-source';
+  import {chartCards,renderChartSpec} from './context.js';
+  import {DeckChartSchema} from '@aegis/domain/schema';
+  import type { ChartSpec } from '@aegis/domain/charts';
 
   let { chart, slideId, deckId, title, miniature = false, onchoose }: {
     chart: { sourceId?: string; spec?: ChartSpec; sourceStatus?: string };
@@ -19,8 +21,8 @@
     return () => stage?.removeEventListener('boardchange', refresh);
   });
   const current = $derived(cards.find(card => card.id === deckId)?.props?.slides?.find(slide => slide.id === slideId)?.chart);
-  const resolved = $derived(resolveDeckChart({ ...chart, ...(current?.sourceId === chart.sourceId ? current : {}) }, cards));
-  const spec = $derived(resolved.spec);
+  const resolved = $derived(resolveDeckChart(DeckChartSchema.parse({ ...chart, ...(current?.sourceId === chart.sourceId ? current : {}) }), cards));
+  const spec = $derived(resolved.spec ? renderChartSpec(resolved.spec) : undefined);
   const quiet = $derived(miniature || (!onchoose && height < 112));
   const round = $derived(spec?.kind === 'donut' || spec?.kind === 'radial');
   const legendRows = $derived(round ? 0 : Math.ceil((spec?.series.length || 0) / 3));

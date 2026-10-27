@@ -1,9 +1,8 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod/v4';
-import { cardTypeGuide } from '../app/src/lib/board/commands.js';
-import { OBJECT_GUIDE, objectSchemas } from '../app/src/lib/board/objects.js';
-import '../app/src/lib/board/types/index.js';
+import { cardTypeGuide } from '@aegis/domain/commands';
+import { OBJECT_GUIDE, objectSchemas } from '@aegis/domain/objects';
 import { assetURI, boardURI, cardAssets, boardSummary, readCard, searchBoard } from './mcp-content.mjs';
 
 const id = z.string().regex(/^[a-zA-Z0-9-]{1,64}$/);

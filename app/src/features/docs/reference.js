@@ -1,10 +1,10 @@
 import { mount, unmount } from 'svelte';
 import Chart from '../../objects/chart/Chart.svelte';
 import SourceStatus from '../../objects/chart/SourceStatus.svelte';
-import { styleSpec } from '../../objects/chart/chart.ts';
-import { resolvePlot } from '../../objects/chart/source.js';
-import { parseCsv } from '../../lib/board/dataset.js';
-import { columnLabel, cellText } from '../../lib/board/summary.js';
+import { styleSpec } from '@aegis/domain/charts';
+import { resolvePlot } from '@aegis/domain/chart-source';
+import { parseCsv } from '@aegis/domain/dataset';
+import { columnLabel, cellText } from '@aegis/domain/summary';
 
 export const referenceCard = card => card.kind === 'plot' || card.kind === 'sheet' || card.type === 'dataset';
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { cardSummary, columnLabel, cellText } from '../../app/src/lib/board/summary.js';
-import { formatValue } from '../../app/src/objects/chart/chart.ts';
+import { cardSummary, columnLabel, cellText } from '@aegis/domain/summary';
+import { formatValue } from '@aegis/domain/charts';
 
 const plot = data => ({ type: 'object', kind: 'plot', text: 'Evidence', data: { style: 'line', y: { label: 'Hours' }, series: [{ name: 'Focus', points: [{ x: 'Mon', y: 3 }, { x: 'Fri', y: 2 }] }], ...data } });
 

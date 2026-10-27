@@ -5,9 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkObject, OBJECT_SIZE, objectSchemas, OBJECT_GUIDE } from '../../app/src/lib/board/objects.js';
-import { applyBatch, emptyBoard } from '../../app/src/lib/board/commands.js';
-import { sandboxDocument, reportedHeight, reportedEscape, reportedState, parseHtmlState, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '../../app/src/objects/kinds/html-sandbox.js';
+import { checkObject, OBJECT_SIZE, objectSchemas, OBJECT_GUIDE } from '@aegis/domain/objects';
+import { applyBatch, emptyBoard } from '@aegis/domain/commands';
+import { sandboxDocument, reportedHeight, reportedEscape, reportedState, parseHtmlState, SANDBOX_CSP, SANDBOX_HEADER_CSP } from '@aegis/protocol/sandbox';
 import { genuiSamples } from './genui-fixtures.mjs';
 
 for (const [kind, data] of Object.entries(genuiSamples)) {

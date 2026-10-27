@@ -1,7 +1,7 @@
 <!-- From Zephium (zephium-browser/Zephium @ 0eaad6d, frame/src/shared/ui/data/Chart/Heat.svelte), MPL-2.0. Changes for Aegis: local imports. -->
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
-  import type { ChartEvidence, ChartSpec } from "./chart";
+  import type { ChartEvidence, ChartSpec } from "@aegis/domain/charts";
   import { band } from "./geometry";
   import { Hover } from "./hover.svelte";
   import { readout, type Plan } from "./plan";
