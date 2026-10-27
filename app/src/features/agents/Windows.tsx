@@ -77,7 +77,7 @@ function AgentWindow({ agent, agents, runtime, scene }: { readonly agent: AgentS
         </form>
       </div>
     </section>
-    <button ref={edgeRef} type="button" className="agent-edge" data-agent-id={agent.id} hidden aria-label={`Pan to ${agentName(agent, agents)}: ${shortTitle(agent)}`} title={`Pan to ${agentName(agent, agents)}`}
+    <button ref={edgeRef} type="button" tabIndex={0} className="agent-edge" data-agent-id={agent.id} hidden aria-label={`Pan to ${agentName(agent, agents)}: ${shortTitle(agent)}`} title={`Pan to ${agentName(agent, agents)}`}
       onPointerDown={event => event.stopPropagation()} onClick={event => scene.recover(agent.id, event.detail === 0)}>
       <Orb /><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg>
     </button>
@@ -91,7 +91,7 @@ function EdgeClusters({ runtime, scene }: { readonly runtime: AgentRuntime; read
   useEffect(() => { if (chooser) { menu.current?.showPopover(); menu.current?.querySelector('button')?.focus({ preventScroll: true }); } }, [chooser]);
   function close(focus: boolean): void { menu.current?.hidePopover(); setChooser(null); if (focus) opener.current?.focus({ preventScroll: true }); }
   return <div className="agent-edges">
-    {(['left', 'right', 'top', 'bottom'] as const).map(side => <button type="button" key={side} ref={node => { scene.cluster(side, node); }} className="agent-edge agent-edge-cluster" hidden
+    {(['left', 'right', 'top', 'bottom'] as const).map(side => <button type="button" tabIndex={0} key={side} ref={node => { scene.cluster(side, node); }} className="agent-edge agent-edge-cluster" hidden
       onClick={event => { opener.current = event.currentTarget; setChooser({ side, ids: scene.group(side)?.entries.map(entry => entry.id) ?? [] }); }}
       onKeyDown={event => { if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) { event.preventDefault(); event.currentTarget.click(); } }}><span className="agent-edge-count" /></button>)}
     <div ref={menu} className="agent-edge-chooser aegis-dropdown-menu" popover="auto" role="menu" aria-label={`Off-screen agents, ${chooser?.side ?? 'right'}`}
