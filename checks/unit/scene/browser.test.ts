@@ -54,6 +54,73 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('native release publishes one move before painting in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!box) throw new Error('Missing native move source');
+      const transform = await p.locator('[data-id="note-2"]').evaluate(el => el.style.transform);
+      await p.evaluate(() => { window.requestAnimationFrame = () => 123456; });
+      await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      await p.mouse.move(box.x + 72, box.y + 150, { steps: 4 }); await p.mouse.up();
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 780, y: 120 });
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.style.transform)).toBe(transform);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('native takeover cancels live agent motion before painting in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(true, false, alternate ?? browser);
+      await p.evaluate(() => { window.sceneHarness.batch([{ op: 'move', id: 'note-2', x: 880, y: 120 }], 'agent'); });
+      await p.waitForFunction(() => document.querySelector('[data-id="note-2"]')?.getAnimations().some(animation => animation.id === 'aegis-agent-card'));
+      await p.evaluate(() => {
+        for (const animation of document.querySelector('[data-id="note-2"]')?.getAnimations() ?? []) if (animation.id === 'aegis-agent-card') animation.effect?.updateTiming({ duration: 10000 });
+        window.requestAnimationFrame = () => 123456;
+      });
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!box) throw new Error('Missing animated source');
+      await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
+      await p.mouse.up(); await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('replacement keeps the new epoch discrete input when old input is queued in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!box) throw new Error('Missing epoch move source');
+      await p.evaluate(() => {
+        const stage = document.getElementById('stage');
+        if (!stage) throw new Error('Missing pointer stage');
+        stage.addEventListener('pointerdown', event => { if (event instanceof PointerEvent) stage.dataset.nativePointer = String(event.pointerId); }, { once: true });
+        window.requestAnimationFrame = () => 123456;
+      });
+      await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      const result = await p.evaluate(async point => {
+        const h = window.sceneHarness, stage = document.getElementById('stage'), node = document.querySelector('[data-id="note-2"]');
+        if (!stage?.dataset.nativePointer || !node) throw new Error('Missing captured pointer');
+        const pointerId = Number(stage.dataset.nativePointer);
+        const fire = (type: 'pointerdown' | 'pointerup', x: number, y: number) => node.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId, pointerType: 'mouse', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x, clientY: y }));
+        fire('pointerup', point.x + 30, point.y + 20);
+        h.load({ ...h.board(), id: 'epoch-replacement' });
+        fire('pointerdown', point.x, point.y); fire('pointerup', point.x + 60, point.y + 40);
+        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        return { board: h.board().id, calls: h.calls.length, card: h.board().cards.find(card => card.id === 'note-2') };
+      }, { x: box.x + 12, y: box.y + 110 });
+      expect(result.board).toBe('epoch-replacement'); expect(result.calls).toBe(1);
+      expect(result.card).toMatchObject({ x: 780, y: 120 });
+      await p.mouse.up(); await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each([
     { engine: 'chromium', insets: true }, { engine: 'webkit', insets: true },
     { engine: 'chromium', insets: false }, { engine: 'webkit', insets: false },
