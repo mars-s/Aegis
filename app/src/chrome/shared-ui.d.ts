@@ -43,6 +43,16 @@ declare module "*lib/ui/dropdown.js" {
     destroy(): void;
   }
   export function mountDropdowns(): void;
+  export function createDropdown(options: {
+    readonly label: string;
+    readonly options: readonly (readonly [string, string])[];
+    readonly value: string;
+    readonly onChange: (value: string) => void;
+  }): HTMLButtonElement & {
+    value: string;
+    setOptions(options: readonly (readonly [string, string])[]): void;
+    readonly dropdown: Popup;
+  };
   export function createPopup(options: {
     readonly trigger: HTMLElement;
     readonly menu: HTMLElement;
@@ -50,6 +60,7 @@ declare module "*lib/ui/dropdown.js" {
     readonly role?: string;
     readonly duration?: number;
     readonly onToggle?: (open: boolean) => void;
+    readonly placement?: "bottom" | "right";
   }): Popup;
   export function bindDisclosure(
     details: HTMLDetailsElement,

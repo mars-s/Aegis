@@ -210,7 +210,7 @@
   width: 32px;
   height: 32px;
 }
-.aegis-chrome .folded .pbody {
+.aegis-chrome .folded > .pbody {
   display: none;
 }
 .aegis-chrome .pbody {
@@ -245,6 +245,9 @@
 }
 .aegis-chrome .tools-panels {
   padding-bottom: 8px;
+}
+.aegis-chrome [data-panel="keys"] > .pbody {
+  max-height: 180px;
 }
 .aegis-chrome .resize-handle {
   height: 6px;
@@ -400,7 +403,7 @@
 .aegis-chrome .selection-more {
   display: inline-block;
 }
-.aegis-chrome .selection-more > summary {
+.aegis-chrome :is(.selection-more, .selection-submenu) > summary {
   display: flex;
   align-items: center;
   list-style: none;
@@ -410,6 +413,9 @@
   display: none;
 }
 .aegis-chrome .selection-overflow,
+.selection-overflow.aegis-chrome,
+.selection-submenu-panel.aegis-chrome,
+.aegis-chrome .selection-submenu-panel,
 .aegis-chrome .selection-popup-menu {
   padding: 8px;
   min-width: 240px;
@@ -812,4 +818,18 @@ body.left-open .aegis-chrome .bar-left {
   .aegis-chrome .side .tree-row:has(.twisty) > svg {
     visibility: visible;
   }
+}
+.selection-menu.aegis-chrome > :is(button, details > summary),
+.selection-menu.aegis-chrome > section > button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+}
+.selection-menu.aegis-chrome h3 {
+  margin: 8px 6px 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-muted);
 }

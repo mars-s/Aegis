@@ -331,6 +331,7 @@ export function Library({
   function title(item: LibraryItem) {
     return editing === item.id ? (
       <input
+        className="name"
         aria-label={`${item.name} name`}
         value={name}
         autoFocus

@@ -34,7 +34,8 @@ try {
     await page.addInitScript(() => { if (window.top !== window) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
-    await page.evaluate(async () => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Semantic zoom demo' })); });
+    const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Semantic zoom demo' }); aegis.canvas.setBoard(board); return board.id; });
+    await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, boardId);
     await page.evaluate(batch => aegis.apply(batch), demoBatch);
     await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
     await page.waitForTimeout(700);
@@ -52,7 +53,7 @@ try {
       // A large viewport retains every window while testing the same world coordinates at 200%.
       await page.setViewportSize({ width: 5600, height: 4400 }); await zoom(z);
       await assertStaticWindows(page, ids); await assertRealLinkEdges(page);
-      assert.ok(await page.locator('.card.object .object-host > .object > .content').evaluateAll(nodes => nodes.length === 7 && nodes.every(el => el.childElementCount > 0)), 'every object window keeps its real content DOM');
+      assert.ok(await page.locator('.card.object .object-host > .object > .content, .scene-card.object > .scene-body > .object > .content, .scene-card.object > .scene-body > .data-card').evaluateAll(nodes => nodes.length === 7 && nodes.every(el => el.childElementCount > 0)), 'every object window keeps its real content DOM');
       assert.ok(await page.locator('.card.kind-plot .cartesian svg .line').count());
       assert.ok(await page.locator('.card.kind-sheet .sheet tbody td').count());
       assert.match(await page.locator('.card.doc').textContent(), /Protect two quiet blocks/);
@@ -73,7 +74,7 @@ try {
       assert.ok(Math.abs(anchor.strip.right - anchor.card.right + 4) < 1 || Math.abs(anchor.strip.left - anchor.card.right - 8) < 1, JSON.stringify(anchor));
       assert.ok(z < .9 ? Math.abs(anchor.strip.bottom - anchor.card.top + 8) < 1 : Math.abs(anchor.strip.top - anchor.card.top - 2) < 1, JSON.stringify(anchor));
       const camera = await page.evaluate(() => ({ ...aegis.canvas.view }));
-      await action.press('Enter'); await page.locator('.docs-panel.is-open').waitFor();
+      await action.press('Enter'); await page.locator('.docs-panel.is-open, .side-editor.is-open .docs-panel').waitFor();
       assert.equal(await page.getByRole('textbox', { name: 'Document title', exact: true }).inputValue(), 'Make room for deep work');
       await page.keyboard.press('Escape'); await page.locator('.docs-panel').waitFor({ state: 'detached' }); await frames();
       assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera, 'Open returns to the same real-window view');
@@ -99,7 +100,7 @@ try {
       await page.emulateMedia({ reducedMotion: motion });
       for (const z of [.69, .70, .72, .71, .705, .719, .701, .77, .74, .85, .6, .19, .2, .21, .205, .05]) {
         await zoom(z);
-        assert.ok(await page.locator('.card').evaluateAll(nodes => nodes.length > 0 && nodes.every(el => getComputedStyle(el).opacity === '1' && !el.inert)));
+        assert.ok(await page.locator('#world > .card:not([hidden])').evaluateAll(nodes => nodes.length > 0 && nodes.every(el => getComputedStyle(el).opacity === '1' && !el.inert)));
         assert.equal(await page.locator('.semantic-window, .overview-cluster, .overview-back').count(), 0);
       }
     }
@@ -168,24 +169,26 @@ try {
     assert.equal(await page.evaluate(() => aegis.canvas.view.z), .05, 'Fit respects the existing minimum camera scale');
     console.log(`PASS ${engineName}: 450-window mixed demo, 960 pinch events in 60 frames, p95 ${timing.p95ms.toFixed(1)} ms, ${layouts ?? 'unavailable'} Chromium layouts, viewport culling`);
     const farGeometry = await page.evaluate(async () => {
-      const cards = Array.from({ length: 401 }, (_, i) => ({ id: `crowd${i}`, type: 'note', text: 'Crowded', x: i % 30 * 80, y: Math.floor(i / 30) * 60, w: 40, h: 30, props: { fixedHeight: true } }));
-      cards.push({ id: 'farrectangle', type: 'note', text: 'True rectangle', x: 3000, y: 500, w: 200, h: 100, props: { fixedHeight: true } });
-      cards.push({ id: 'farrotated', type: 'note', text: 'Rotated rectangle', x: 4000, y: 600, w: 280, h: 80, rot: 30, props: { fixedHeight: true } });
+      const cards = Array.from({ length: 401 }, (_, i) => ({ id: `crowd${i}`, type: 'note', color: 'plain', text: 'Crowded', x: i % 30 * 80, y: Math.floor(i / 30) * 60, w: 40, h: 30, props: { fixedHeight: true } }));
+      cards.push({ id: 'farrectangle', type: 'note', color: 'plain', text: 'True rectangle', x: 3000, y: 500, w: 200, h: 100, props: { fixedHeight: true } });
+      cards.push({ id: 'farrotated', type: 'note', color: 'plain', text: 'Rotated rectangle', x: 4000, y: 600, w: 280, h: 80, rot: 30, props: { fixedHeight: true } });
       const board = await aegis.host.post('/boards', { name: 'Crowded static rectangles' });
-      aegis.canvas.setBoard({ ...board, cards, links: [] });
-      const context = document.querySelector('#grid').getContext('2d'), original = context.fillRect, calls = [];
-      context.fillRect = function(x, y, w, h) {
+      for (let i = 0; i < cards.length; i += 100) await aegis.host.post(`/boards/${board.id}/batch`, { commands: cards.slice(i, i + 100).map(({ id, ...card }) => ({ op: 'create', newId: id, ...card })) });
+      aegis.canvas.setBoard(await aegis.host.get(`/boards/${board.id}`));
+      const context = document.querySelector('.scene-overlay, #grid').getContext('2d'), original = context.fillRect, originalRect = context.rect, calls = [];
+      const record = function(x, y, w, h) {
         if (w === 20 && h === 10 || w === 28 && h === 8) {
           const matrix = this.getTransform(), point = new DOMPoint(x, y).matrixTransform(matrix);
           calls.push({ x: point.x / devicePixelRatio, y: point.y / devicePixelRatio, w, h, angle: Math.atan2(matrix.b, matrix.a) });
         }
-        return original.call(this, x, y, w, h);
       };
+      context.fillRect = function(x, y, w, h) { record.call(this, x, y, w, h); return original.call(this, x, y, w, h); };
+      context.rect = function(x, y, w, h) { record.call(this, x, y, w, h); return originalRect.call(this, x, y, w, h); };
       try {
         aegis.canvas.setView({ x: 120, y: 120, z: .1 });
         await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         return { calls, far: document.getElementById('stage').classList.contains('far'), mounted: aegis.canvas.stats().mounted };
-      } finally { context.fillRect = original; }
+      } finally { context.fillRect = original; context.rect = originalRect; }
     });
     assert.equal(farGeometry.far, true); assert.equal(farGeometry.mounted, 0);
     const rectangle = farGeometry.calls.find(c => c.w === 20), rotated = farGeometry.calls.find(c => c.w === 28);
@@ -193,7 +196,7 @@ try {
     const angle = Math.PI / 6, expected = { x: 534 - 14 * Math.cos(angle) + 4 * Math.sin(angle), y: 184 - 14 * Math.sin(angle) - 4 * Math.cos(angle) };
     assert.ok(rotated && Math.abs(rotated.x - expected.x) < .01 && Math.abs(rotated.y - expected.y) < .01 && Math.abs(rotated.angle - angle) < .01, JSON.stringify(farGeometry));
     metrics.push({ engine: engineName, crowded: farGeometry });
-    assert.notEqual(await page.locator('#saveState').textContent(), 'not saved');
+    assert.notEqual(await page.locator('#saveState, [data-save-state]').textContent(), 'not saved');
     assert.deepEqual(errors, []);
     await browser.close(); browser = null;
   }

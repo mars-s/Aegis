@@ -10,7 +10,9 @@ const bodyKind = (card: Card | null) => card?.type === 'object' ? `object:${card
 export function createEditorController(args: { readonly workspace: Workspace; readonly engine: () => CanvasEngine | null; readonly composition: Composition; readonly cameraChanged: () => void }) {
   const { workspace } = args;
   let bookmark: Bookmark | null = null, returning: (() => void) | null = null;
-  let interaction: 'pointer' | 'keyboard' = 'keyboard', inputVersion = 0, selectionVersion = 0;
+  let interaction: 'pointer' | 'keyboard' = 'keyboard', inputVersion = 0, selectionVersion = 0, instantMotion = true;
+  const instant = (): boolean => instantMotion;
+  const reduced = (keyboard: boolean): boolean => keyboard || document.body.classList.contains('motion-off') || matchMedia('(prefers-reduced-motion: reduce)').matches;
   function flush(): boolean {
     const opened = workspace.ui.getSnapshot().editor;
     if (!opened) return true;
@@ -33,6 +35,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       const engine = args.engine(), opened = workspace.ui.getSnapshot().editor;
       if (opened?.id === id) { workspace.act({ kind: 'edit', id, view: full ? 'full' : 'side' }); return true; }
       if (opened && !flush()) return false;
+      instantMotion = reduced(keyboard);
       returning?.(); returning = null;
       if (engine && !bookmark) bookmark = { board: workspace.metadata.getSnapshot().id, camera: engine.camera(), viewport: engine.viewport(), selection: [...workspace.selection.getSnapshot()] };
       if (opened) engine?.pin(opened.id, 'editor', false);
@@ -45,6 +48,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
       const opened = workspace.ui.getSnapshot().editor;
       if (!opened) return true;
       if (!flush()) return false;
+      instantMotion = reduced(interaction === 'keyboard');
       workspace.act({ kind: 'edit-close' });
       const engine = args.engine(), previous = bookmark;
       bookmark = null;
@@ -84,5 +88,5 @@ export function createEditorController(args: { readonly workspace: Workspace; re
     });
     return () => { window.removeEventListener('pointerdown', pointer, true); window.removeEventListener('keydown', key, true); window.removeEventListener('wheel', wheel, true); selection(); scene(); returning?.(); returning = null; };
   };
-  return { context, flush, install };
+  return { context, flush, install, instant };
 }

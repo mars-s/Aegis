@@ -64,7 +64,9 @@ export function readLayout(): PanelLayout {
           "library",
           "tools",
           ...parsed.columns.left.filter(
-            (id) => !["layers", "library", "tools"].includes(id),
+            (id) =>
+              !["layers", "library", "tools"].includes(id) &&
+              (id !== "keys" || parsed.columns.left.includes("tools")),
           ),
         ],
         right: parsed.columns.right.filter(
@@ -78,4 +80,8 @@ export function readLayout(): PanelLayout {
 }
 export function saveLayout(layout: PanelLayout): void {
   localStorage.setItem("aegis:panels", JSON.stringify(layout));
+  window.dispatchEvent(new Event("aegis:panels-changed"));
+}
+export function resetLayout(): void {
+  saveLayout(LayoutSchema.parse({ open: { left: true, right: false } }));
 }

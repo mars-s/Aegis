@@ -1,5 +1,5 @@
 // Windows tree behaviour ported from Mochiboard, MIT. See LICENSE.mochiboard.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent } from "react";
 import type { Card, CardId, Command } from "@aegis/domain";
 import type { FeatureContext } from "../composition.js";
@@ -74,7 +74,7 @@ export function Layers({
     }
     return output;
   }, [matches, parents, folded, query]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     onFilter?.(!!query, matches.length, board.cards.length);
   }, [query, matches.length, board.cards.length, onFilter]);
   useEffect(() => {
