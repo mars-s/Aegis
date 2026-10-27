@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CardId } from '@aegis/domain/schema';
 import type { FeatureContext } from '../../composition.js';
 import type { AgentRuntime } from './runtime.js';
@@ -6,6 +6,8 @@ import type { AgentScene } from './scene.js';
 import { agentName } from './results.js';
 
 export function FollowControls({ context, runtime, scene }: { readonly context: FeatureContext; readonly runtime: AgentRuntime; readonly scene: AgentScene }) {
+  const agents = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot).agents;
+  const running = agents.filter(agent => agent.running).length;
   const [follow, setFollow] = useState(() => localStorage.getItem('aegis:follow') !== 'off');
   const [pending, setPending] = useState<{ readonly ids: readonly CardId[]; readonly description: string } | null>(null);
   const touched = useRef(performance.now());
@@ -31,5 +33,5 @@ export function FollowControls({ context, runtime, scene }: { readonly context: 
     return () => { off(); for (const type of ['pointerdown', 'wheel', 'keydown']) removeEventListener(type, touch, true); };
   }, [context, runtime, scene]);
   const reveal = (): void => { if (pending) scene.frame(pending.ids, 0, false); setPending(null); };
-  return <><button type="button" id="followBtn" role="switch" aria-label="Follow agents" aria-checked={follow} onClick={() => { const next = !follow; setFollow(next); localStorage.setItem('aegis:follow', next ? 'on' : 'off'); if (next) reveal(); }}>Follow</button><button type="button" id="showChip" hidden={!pending} aria-description={pending?.description} onClick={reveal}>Show changes</button></>;
+  return <><span className="status" id="status" aria-live="polite">{running ? `${running} agent${running > 1 ? 's' : ''} working` : ''}</span><button type="button" id="followBtn" role="switch" aria-label="Follow agents" aria-checked={follow} onClick={() => { const next = !follow; setFollow(next); localStorage.setItem('aegis:follow', next ? 'on' : 'off'); if (next) reveal(); }}>Follow</button><button type="button" id="showChip" hidden={!pending} aria-description={pending?.description} onClick={reveal}>Show changes</button></>;
 }

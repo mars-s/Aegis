@@ -11,8 +11,13 @@ export function createAvailableArea() {
     const observed = new Set<Element>();
     invalidate = () => { dirty = true; engine.invalidate(); };
     const resized = new ResizeObserver(() => invalidate?.());
+    const layoutTargets = '#stage, #side, #sideRight, .side-editor, #agentIsland';
     const changed = new MutationObserver(records => {
-      if (records.some(record => !(record.target instanceof Element) || !record.target.closest('#stage'))) invalidate?.();
+      for (const record of records) for (const node of [...record.addedNodes, ...record.removedNodes]) {
+        if (node instanceof Element && (node.matches(layoutTargets) || node.querySelector(layoutTargets))) {
+          invalidate?.(); return;
+        }
+      }
     });
     changed.observe(document.body, { subtree: true, childList: true });
     const release = engine.registerFrameParticipant({
@@ -21,7 +26,7 @@ export function createAvailableArea() {
         dirty = false;
         const viewport = engine.viewport();
         let left = 0, right = viewport.width, bottom = viewport.height - 24;
-        const elements = document.querySelectorAll<HTMLElement>('#stage, #side, #sideRight, .side-editor, #agentIsland');
+        const elements = document.querySelectorAll<HTMLElement>(layoutTargets);
         for (const element of elements) {
           if (!observed.has(element)) { observed.add(element); resized.observe(element); }
           if (element.hidden || element.id === 'stage') continue;

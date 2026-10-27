@@ -154,7 +154,9 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const cards = runtime.workspace.scene.snapshot().cards.filter(card => state.pinned.includes(card.id));
   const names = cards.map(card => (card.heading || card.text || (card.type === 'object' ? card.kind : card.type) || 'Window').split('\n')[0]?.trim().slice(0, 40) || 'Window');
   const show = (id: AgentId): void => { runtime.select(id); setShown(previous => ({ id, serial: (previous?.serial ?? 0) + 1 })); };
-  return <div className="aegis-agents aegis-feature">
+  return <div className="aegis-agents aegis-feature" onKeyDown={event => {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && ['Enter', ' ', 'Home', 'End', 'ArrowUp', 'ArrowDown'].includes(event.key) && event.target instanceof Element && event.target.closest('button')) event.stopPropagation();
+  }}>
     <AgentWindows runtime={runtime} scene={scene} shown={shown} />
     <AgentDrafts runtime={runtime} scene={scene} />
     <div ref={island} id="agentIsland" className={`agent-island${agent?.running ? ' working' : ''}${agent?.error ? ' failed' : ''}${phase === 'done' && result ? ' has-result' : ''}`} data-state={phase}

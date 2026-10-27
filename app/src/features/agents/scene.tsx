@@ -141,8 +141,8 @@ export function createAgentScene(context: FeatureContext, schedule: AgentFrameSc
   });
   const recover = (id: AgentId, keyboard: boolean): void => {
     const w = windows.get(id), engine = context.engine(); if (!w || !engine) return;
-    const v = engine.camera();
-    engine.navigate({ kind: 'restore', camera: { x: area.x + area.w / 2 - w.x * v.zoom - WINDOW_WIDTH / 2, y: area.y + area.h / 2 - w.y * v.zoom - (w.collapsed ? COLLAPSED_HEIGHT : w.height) / 2, zoom: v.zoom }, motion: keyboard ? 'instant' : 'glide' });
+    const v = engine.camera(), viewport = engine.viewport();
+    engine.navigate({ kind: 'restore', camera: { x: viewport.x + viewport.width / 2 - w.x * v.zoom - WINDOW_WIDTH / 2, y: viewport.y + viewport.height / 2 - w.y * v.zoom - (w.collapsed ? COLLAPSED_HEIGHT : w.height) / 2, zoom: v.zoom }, motion: keyboard ? 'instant' : 'glide' });
     if (keyboard) w.element.querySelector<HTMLButtonElement>('.agent-window-toggle')?.focus({ preventScroll: true });
   };
   return {

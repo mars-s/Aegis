@@ -48,6 +48,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let viewport: Rect = { x: 0, y: 0, width: Math.max(1, initialRect.width), height: Math.max(1, initialRect.height) }, stageOrigin: Point = { x: initialRect.x, y: initialRect.y };
   let dpr = view.devicePixelRatio || 1, viewportDirty = false, disposed = false, pending = 0, frameCount = 0, epoch = 0, resetLeases = false;
   let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false;
+  let fitting: Extract<Navigation, { readonly kind: 'fit' }> | null = null, measuring = false;
   let previousFrame = 0, inputAt: number | null = null, discardedMeasurements = 0;
   let representations: Representation[] = [], candidates: SceneNode[] = [], drawnLinks: DrawLink[] = [];
   let placements: LeasePlacement[] = [];
@@ -136,6 +137,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   }
 
   function navigation(intent: Navigation, now: number): void {
+    fitting = intent.kind === 'fit' ? intent : null;
     let target: CameraState;
     switch (intent.kind) {
       case 'restore': target = { x: intent.camera.x, y: intent.camera.y, zoom: clampZoom(intent.camera.zoom) }; break;
@@ -208,6 +210,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       switch (input.kind) {
         case 'navigation': navigation(input.intent, now); break;
         case 'wheel': {
+          fitting = null;
           glide = null;
           if (input.zoom) {
             const anchor = unproject(input.point, camera), zoom = clampZoom(camera.zoom * Math.exp(-input.dy * 0.01));
@@ -216,6 +219,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           break;
         }
         case 'touch-down': {
+          fitting = null;
           glide = null;
           touches.set(input.pointer, input.point);
           if (touchQuarantine) break;
@@ -249,6 +253,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
           break;
         }
         case 'down': {
+          fitting = null;
           glide = null;
           if (gesture) break;
           if (input.pan) { gesture = { kind: 'pan', pointer: input.pointer, start: input.point, from: camera }; break; }
@@ -383,7 +388,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (commits.length) post(() => {
       const commands: Command[] = [];
       for (const { request, id, height } of commits) if (pool.find(request.key, request.generation) && graph.nodes.get(id)?.card === request.card) commands.push({ op: 'measure', id, h: height, baseHeight: request.card.h });
-      if (commands.length) workspace.submit(commands);
+      if (commands.length) {
+        measuring = true;
+        try { workspace.submit(commands); } finally { measuring = false; }
+        // Newly mounted content can change saved heights and compact-grid positions.
+        if (fitting) { navigation({ ...fitting, motion: 'instant' }, performance.now()); invalidate(); }
+      }
     });
   }
 
@@ -439,6 +449,14 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   function editable(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,button,a,video,audio,[contenteditable]:not([contenteditable="false"]),[data-scene-interactive]'); }
   function ownsSpace(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.side-editor,#agentIsland,#composer'); }
   function releaseSpace(): void { spaceHeld = false; stage.classList.remove('pan-ready'); }
+  function pointerInFlight(): boolean {
+    let pointer = gesture?.pointer ?? null;
+    for (const input of inputs) {
+      if (input.kind === 'down') pointer = input.pointer;
+      else if (input.kind === 'cancel' || input.kind === 'up' && input.pointer === pointer) pointer = null;
+    }
+    return pointer !== null;
+  }
   const touchPointers = new Set<number>();
 
   stage.addEventListener('wheel', event => {
@@ -462,7 +480,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const handle = event.target instanceof Element ? event.target.closest('.resize,.selection-resize,.rotation-handle,.selection-move,[data-scene-gesture]') : null;
     const action = handle?.matches('.resize,.selection-resize,[data-scene-gesture="resize"]') ? 'resize' : handle?.matches('.rotation-handle,[data-scene-gesture="rotate"]') ? 'rotate' : handle?.matches('.selection-move,[data-scene-gesture="move"]') ? 'selection-move' : 'move';
     const sceneControl = event.target instanceof Element && !!event.target.closest('.canvas-orientation,.window-actions');
-    if ((!pan && (event.button !== 0 || sceneControl || !handle && editable(event.target))) || gesture || inputs.some(input => input.kind === 'down')) return;
+    if ((!pan && (event.button !== 0 || sceneControl || !handle && editable(event.target))) || pointerInFlight()) return;
     event.preventDefault(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId);
     if (pan) { stage.classList.add('panning'); event.stopImmediatePropagation(); }
     else if (handle) event.stopImmediatePropagation();
@@ -530,10 +548,11 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const unsubscribeScene = workspace.scene.subscribe(change => {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
+      fitting = null;
       const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       cancelGesture(); touchPointers.clear(); touches.clear(); touchQuarantine = false;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
-    } else { if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); } graph.apply(change); for (const id of change.removed) retired.add(id); }
+    } else { if (!measuring && change.origin !== 'sync') fitting = null; if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); } graph.apply(change); for (const id of change.removed) retired.add(id); }
     invalidate();
   });
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
