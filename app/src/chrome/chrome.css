@@ -552,8 +552,8 @@
 }
 .aegis-chrome .selection-resize {
   position: absolute;
-  right: -16px;
-  bottom: -16px;
+  right: -32px;
+  bottom: -32px;
   pointer-events: auto;
   width: 32px;
   height: 32px;

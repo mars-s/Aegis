@@ -139,9 +139,9 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     };
     const collapse = (event: PointerEvent): void => { if (event.target instanceof Element && event.target.closest('#stage') && !event.target.closest('.agent-window')) composer.current?.close(); };
     const visibility = (): void => { document.body.classList.toggle('agents-hidden', document.hidden); };
-    addEventListener('keydown', key); document.addEventListener('ask-about-selection', selection); document.addEventListener('capture-to-agent', capture);
+    addEventListener('keydown', key, true); document.addEventListener('ask-about-selection', selection); document.addEventListener('capture-to-agent', capture);
     document.addEventListener('pointerdown', collapse); document.addEventListener('visibilitychange', visibility); visibility();
-    return () => { removeEventListener('keydown', key); document.removeEventListener('ask-about-selection', selection); document.removeEventListener('capture-to-agent', capture); document.removeEventListener('pointerdown', collapse); document.removeEventListener('visibilitychange', visibility); if (leave.current) clearTimeout(leave.current); };
+    return () => { removeEventListener('keydown', key, true); document.removeEventListener('ask-about-selection', selection); document.removeEventListener('capture-to-agent', capture); document.removeEventListener('pointerdown', collapse); document.removeEventListener('visibilitychange', visibility); if (leave.current) clearTimeout(leave.current); };
   }, [runtime]);
   useEffect(() => {
     const pinned = new Set(state.pinned);

@@ -71,7 +71,7 @@ export class SceneOverlays {
     }, { passive: true, signal });
     view?.addEventListener('keydown', () => { this.keyboard = true; this.hovered = null; invalidate(); }, { capture: true, signal });
     view?.addEventListener('focusin', () => invalidate(), { signal });
-    view?.addEventListener('blur', () => { this.pointer = null; this.edge = false; this.near = false; this.hovered = null; invalidate(); }, { signal });
+    view?.addEventListener('blur', () => { this.pointer = null; this.edge = false; this.near = false; this.hovered = null; this.hoveredWindow = null; invalidate(); }, { signal });
     this.layer.addEventListener('pointerdown', event => event.stopPropagation(), { signal });
     this.layer.addEventListener('click', event => event.stopPropagation(), { signal });
     this.strip.addEventListener('pointerdown', event => event.stopPropagation(), { signal });

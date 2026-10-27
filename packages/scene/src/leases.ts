@@ -146,6 +146,8 @@ export class LeasePool {
     this.byCard.delete(lease.cardId); shell.residency = { kind: 'releasing', lease };
     shell.element.hidden = true; shell.element.inert = true; shell.visible = false;
     delete shell.element.dataset.id; delete shell.element.dataset.type; delete shell.element.dataset.kind;
+    shell.element.classList.remove('selected', 'locked', 'fixed-height', 'editor-source', 'in-context');
+    delete shell.element.dataset.color; delete shell.element.dataset.parent; delete shell.element.dataset.fixedHeight;
     if (shell.typeClass) shell.element.classList.remove(shell.typeClass);
     if (shell.kindClass) shell.element.classList.remove(shell.kindClass);
     shell.typeClass = ''; shell.kindClass = ''; shell.appearance = '';

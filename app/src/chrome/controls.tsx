@@ -38,6 +38,7 @@ export function TextField({
 }
 
 export function ValuePicker({
+  id,
   label,
   value,
   options,
@@ -45,6 +46,7 @@ export function ValuePicker({
   size = false,
   disabled = false,
 }: {
+  readonly id?: string;
   readonly label: string;
   readonly value: string;
   readonly options: readonly (readonly [string, string])[];
@@ -68,6 +70,7 @@ export function ValuePicker({
     control.addEventListener("click", () =>
       control.focus({ preventScroll: true }),
     );
+    if (id) control.id = id;
     if (size) control.dataset.size = "";
     picker.current = control;
     host.current?.append(control);
@@ -76,7 +79,7 @@ export function ValuePicker({
       control.remove();
       picker.current = null;
     };
-  }, [label, size]);
+  }, [id, label, size]);
   useEffect(() => {
     picker.current?.setOptions(options);
     if (picker.current) {

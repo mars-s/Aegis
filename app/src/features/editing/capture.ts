@@ -2,6 +2,7 @@ import { BoardIdSchema, CardSchema, CommandSchema } from "@aegis/domain";
 import type { Board, BoardId, CardId, Command } from "@aegis/domain";
 import type { FeatureWorkspace } from "../../composition.js";
 import { cloneCommands } from "./operations.js";
+import { capturedItems } from "../../platform/tray.js";
 
 type CaptureCreate = Extract<Command, { readonly op: "create" }>;
 export function parseCapture(value: string): CaptureCreate[] {
@@ -80,7 +81,7 @@ export function putCaptured(workspace: FeatureWorkspace, receipt: CaptureReceipt
   const board = workspace.scene.snapshot();
   if (board.id !== receipt.boardId || receipt.location.kind !== 'tray') return null;
   const captured = new Set(receipt.trayIds);
-  const cards = CardSchema.array().parse(board.tray ?? []).filter(card => captured.has(card.id));
+  const cards = capturedItems(board).filter(card => captured.has(card.id));
   if (!cards.length) return null;
   const cloned = cloneCommands({ from: BoardIdSchema.parse('tray'), cards, links: [], text: '' }, board, at, 0);
   const cols = Math.min(3, cards.length);
