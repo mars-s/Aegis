@@ -13,7 +13,9 @@ const previewColour = (value: string): PreviewColour => { const hex = colour(val
 const stroke = (value = 'ink', width = 1.5) => ({ colour: previewColour(value), width, dash: [] });
 export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, kind: 'ink' | 'shape' | 'path' | 'stamp', settings: () => DrawSettings, finished: () => void): SceneTool {
   const name = kind === 'ink' ? 'draw-ink' : kind === 'path' ? 'vector' : `draw-${kind}`;
-  const exit = toolExit(engine, name, finished);
+  const release = toolExit(engine, name, finished);
+  let active = true;
+  const exit = () => { active = false; release(); };
   let start: ToolPointer | null = null, samples: InkPoint[] = [], points: VectorPoint[] = [], erased = new Set<CardId>();
   let lastTap: ToolPointer | null = null;
   function clear(): void { start = null; samples = []; points = []; erased = new Set(); engine.preview(null); }
@@ -43,8 +45,9 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
   }
   return {
     id: name,
-    accepts: point => point.button === 0,
+    accepts: point => active && point.button === 0,
     down: point => {
+      if (!active) return;
       if (kind === 'path') {
         const first = points[0], last = points.at(-1);
         if (first && points.length > 2 && Math.hypot(point.world.x - first.x, point.world.y - first.y) * engine.camera().zoom < 10) { finishPath(true); return; }
@@ -56,9 +59,9 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
       }
       start = point; paint(point);
     },
-    move: values => { for (const point of values) { if (kind === 'path' && start && point.buttons) { const last = points.at(-1); if (last) points[points.length - 1] = { ...last, ox: point.world.x, oy: point.world.y, ix: point.alt ? last.x : last.x * 2 - point.world.x, iy: point.alt ? last.y : last.y * 2 - point.world.y }; } paint(point); } },
+    move: values => { if (!active) return; for (const point of values) { if (kind === 'path' && start && point.buttons) { const last = points.at(-1); if (last) points[points.length - 1] = { ...last, ox: point.world.x, oy: point.world.y, ix: point.alt ? last.x : last.x * 2 - point.world.x, iy: point.alt ? last.y : last.y * 2 - point.world.y }; } paint(point); } },
     up: point => {
-      if (!start) return;
+      if (!active || !start) return;
       if (kind === 'path') { start = null; return; }
       const prefs = settings(), newId = id();
       if (kind === 'ink' && prefs.pen === 'eraser') { if (erased.size) commit([{ op: 'delete', ids: [...erased] }], []); }

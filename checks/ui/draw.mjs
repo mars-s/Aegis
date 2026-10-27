@@ -108,7 +108,7 @@ try {
   const shapeIds = (await board()).cards.filter(c => c.type === 'shape' && c.props.shape !== 'line').map(c => c.id);
   await page.evaluate(id => aegis.canvas.select([id]), shapeIds[0]); await pause();
   assert.equal(await page.locator('[data-connect-card]').count(), 0);
-  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await page.mouse.move(870, 520);
   await page.locator(`[data-connect-target="${shapeIds[1]}"]`).waitFor();
@@ -116,7 +116,7 @@ try {
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('[data-connect-preview]').count(), 0);
   assert.equal((await board()).links.length, 0);
-  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await drag([500, 520], [870, 520]);
   await persist(() => aegis.canvas.board.links.length === 1);
