@@ -171,6 +171,7 @@ export function createDropdown({ label, options = [], value, onChange = () => {}
       if (e.key.length === 1 && e.key !== ' ') popup.key(e);
     }
   };
+  trigger.addEventListener('click', () => trigger.focus({ preventScroll: true }));
   setOptions(options); return trigger;
 }
 

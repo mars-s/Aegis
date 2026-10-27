@@ -121,7 +121,9 @@ export function Selection({
   gestures,
   ask,
   exportSelection,
+  canOpen,
 }: {
+  readonly canOpen: (card: Card) => boolean;
   readonly context: FeatureContext;
   readonly engine: CanvasEngine;
   readonly notify: Notify;
@@ -356,7 +358,7 @@ export function Selection({
                   <span className="inline-size">
                     <Stepper
                       label="Text size"
-                      value={numberProp(first, "size", 15)}
+                      value={numberProp(first, "size", first?.type === "title" ? 24 : first && ["note", "todo", "coll"].includes(first.type) ? 15 : 13)}
                       min={8}
                       max={120}
                       step={1}
@@ -401,7 +403,7 @@ export function Selection({
                     </div>
                   </PopupButton>
                 </>
-              ) : cards.length === 1 && !media ? (
+              ) : cards.length === 1 && !media && first && canOpen(first) ? (
                 <button
                   aria-label="Open"
                   onClick={() => {
@@ -545,7 +547,7 @@ export function Selection({
                     {cards.length > 1 ? (
                       <Stepper
                         label="Text size"
-                        value={numberProp(first, "size", 15)}
+                        value={numberProp(first, "size", first?.type === "title" ? 24 : first && ["note", "todo", "coll"].includes(first.type) ? 15 : 13)}
                         min={8}
                         max={120}
                         step={1}

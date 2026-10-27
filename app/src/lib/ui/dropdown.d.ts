@@ -15,6 +15,6 @@ export interface Dropdown extends HTMLButtonElement {
 export interface Combobox extends HTMLInputElement { readonly dropdown: Popup }
 export function createDropdown(options: { readonly label: string; readonly options: readonly DropdownOption[]; readonly value?: string; readonly onChange: (value: string) => void }): Dropdown;
 export function createCombobox(options: { readonly label: string; readonly options: readonly string[] }): Combobox;
-export function createPopup(options: { readonly trigger: HTMLElement; readonly menu: HTMLElement; readonly portal?: boolean; readonly role?: string; readonly duration?: number; readonly onToggle?: (opened: boolean) => void }): Popup;
+export function createPopup(options: { readonly trigger: HTMLElement; readonly menu: HTMLElement; readonly portal?: boolean; readonly role?: string; readonly duration?: number; readonly placement?: 'bottom' | 'right'; readonly onToggle?: (opened: boolean) => void }): Popup;
 export function bindDisclosure(details: HTMLDetailsElement, options: { readonly label?: string; readonly role?: string }): Popup;
 export function mountDropdowns(): void;

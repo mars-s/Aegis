@@ -165,10 +165,11 @@ export function MenuButton({
       trigger: button.current,
       menu: menuElement,
       label: menuLabel.current,
-      items: () =>
-        typeof current.current === "function"
+      items: () => [
+        ...(typeof current.current === "function"
           ? current.current()
-          : current.current,
+          : current.current),
+      ],
     });
     return () => {
       menu.destroy();
@@ -358,12 +359,13 @@ export function Disclosure({
     const node = details.current,
       trigger = node?.querySelector("summary");
     if (!node || !trigger) return;
+    const placement: 'bottom' | 'right' = nested ? 'right' : 'bottom';
     const options = {
       trigger,
       menu,
       portal: true,
       role: "dialog",
-      placement: nested ? "right" : "bottom",
+      placement,
       onToggle: (open: boolean) => {
         node.open = open;
         if (open)

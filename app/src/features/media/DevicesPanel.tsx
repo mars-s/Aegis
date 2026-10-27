@@ -1,3 +1,4 @@
+import { ValuePicker } from "../../chrome/controls.js";
 import { useEffect, useState } from 'react';
 import { chooseDevice, chosenDevice, openDevices } from './device-model.js';
 import { useCreativeServices } from './services.js';
@@ -14,7 +15,7 @@ export function DeviceChoices({ video = true, disabled = false }: { readonly vid
     navigator.mediaDevices?.addEventListener('devicechange', changed); window.addEventListener('aegis-media-devices', changed); changed();
     return () => { active = false; navigator.mediaDevices?.removeEventListener('devicechange', changed); window.removeEventListener('aegis-media-devices', changed); };
   }, []);
-  return <div className="device-choices">{(['microphone', ...(video ? ['camera'] as const : [])] as const).map(kind => <label key={kind} className="media-field">{kind === 'camera' ? 'Camera' : 'Microphone'}<select data-native-select="" aria-label={kind === 'camera' ? 'Camera' : 'Microphone'} value={kind === 'camera' ? camera : microphone} disabled={disabled} onChange={event => chooseDevice(kind, event.currentTarget.value)}><option value="">System default</option>{devices.filter(device => device.kind === (kind === 'camera' ? 'videoinput' : 'audioinput')).map((device, i) => <option key={device.deviceId} value={device.deviceId}>{device.label || `${kind === 'camera' ? 'Camera' : 'Microphone'} ${i + 1}`}</option>)}</select></label>)}</div>;
+  return <div className="device-choices">{(['microphone', ...(video ? ['camera'] as const : [])] as const).map(kind => <label key={kind} className="media-field">{kind === 'camera' ? 'Camera' : 'Microphone'}<ValuePicker label={kind === 'camera' ? 'Camera' : 'Microphone'} value={kind === 'camera' ? camera : microphone} disabled={disabled} options={[["", "System default"], ...devices.filter(device => device.kind === (kind === 'camera' ? 'videoinput' : 'audioinput')).map((device, i) => [device.deviceId, device.label || `${kind === 'camera' ? 'Camera' : 'Microphone'} ${i + 1}`] as const)]} onChange={value => chooseDevice(kind, value)} /></label>)}</div>;
 }
 export function DevicesPanel() {
   const services = useCreativeServices();

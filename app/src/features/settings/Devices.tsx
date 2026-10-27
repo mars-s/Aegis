@@ -1,3 +1,4 @@
+import { ValuePicker } from "../../chrome/controls.js";
 import { useEffect, useRef, useState } from 'react';
 
 export function MediaDevices() {
@@ -49,7 +50,7 @@ export function MediaDevices() {
   return <section className="sheet-sec"><h3>Media devices</h3>
     {(['microphone', 'camera'] as const).map(kind => {
       const label = kind === 'microphone' ? 'Microphone' : 'Camera';
-      return <label key={kind}>{label}<select aria-label={label} value={kind === 'microphone' ? microphone : camera} onChange={event => choose(kind, event.target.value)}><option value="">System default</option>{devices.filter(device => device.kind === (kind === 'microphone' ? 'audioinput' : 'videoinput')).map((device, i) => <option key={device.deviceId || i} value={device.deviceId}>{device.label || `${label} ${i + 1}`}</option>)}</select></label>;
+      return <label key={kind}>{label}<ValuePicker label={label} value={kind === 'microphone' ? microphone : camera} options={[["", "System default"], ...devices.filter(device => device.kind === (kind === 'camera' ? 'videoinput' : 'audioinput')).map((device, i) => [device.deviceId, device.label || `${kind === 'camera' ? 'Camera' : 'Microphone'} ${i + 1}`] as const)]} onChange={value => choose(kind, value)} /></label>;
     })}
     <button type="button" disabled={busy} onClick={() => { void allow(); }}>Allow access to show device names</button>
     <p className="muted">Device choices are remembered on this computer. A missing device falls back to the system default.</p>
