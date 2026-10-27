@@ -1,0 +1,18 @@
+.deck-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; height: 100%; }
+.deck-editor-status { flex: none; display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 24px; padding: 0 12px; color: var(--muted); font-size: 12px; }
+.deck-editor-status .deck-source { min-height: 24px; }
+.deck-save-error { flex: none; padding: 8px 12px; color: var(--color-text, var(--text)); }
+.deck-save-error p { margin: 0 0 8px; }
+.deck-save-error button + button { margin-left: 8px; }
+.deck-editor .deck-stage [hidden] { display: none; }
+.deck-editor .deck-film-item { flex: none; display: grid; grid-template-rows: 63px 18px; gap: 4px; width: 112px; padding: 0; border: 0; background: transparent; color: var(--muted); font-size: 12px; text-align: left; }
+.deck-editor .deck-film-add { flex: none; display: grid; place-items: center; width: 96px; height: 63px; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.deck-editor .deck-film-item.on { color: var(--text); }
+.deck-editor button:active { transform: scale(.97); }
+.deck-editor :focus-visible, .deck-body :focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
+.deck-present-exit { position: fixed; top: 16px; right: 20px; opacity: 0; background: #18191b; color: #fff; }
+.deck-present:hover .deck-present-exit, .deck-present:focus-within .deck-present-exit { opacity: 1; }
+.deck-editor .deck-slide-actions button { width: auto; padding: 0 8px; font-size: 12px; }
+.deck-editor [contenteditable]::selection { background: var(--data); color: #fff; }
+@media (prefers-reduced-motion: reduce) { .deck-editor button:active { transform: none; } }
+body.motion-off .deck-editor button:active { transform: none; }
