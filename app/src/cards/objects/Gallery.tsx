@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ObjectData } from "./model.js";
 import { Text } from "./Text.js";
 export function Gallery({
@@ -37,11 +37,12 @@ export function Gallery({
       alive.current = false;
     };
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (selected !== null)
       inspection.current
         ?.querySelector<HTMLButtonElement>("[data-inspection-close]")
         ?.focus({ preventScroll: true });
+    else opener.current?.focus({ preventScroll: true });
   }, [selected !== null]);
   useEffect(() => {
     const node = viewport.current;
@@ -72,7 +73,6 @@ export function Gallery({
     if (!alive.current) return;
     setSelected(null);
     setMagnified(false);
-    queueMicrotask(() => opener.current?.focus({ preventScroll: true }));
   }
   function select(index: number) {
     setMagnified(false);

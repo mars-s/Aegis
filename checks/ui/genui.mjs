@@ -166,11 +166,11 @@ try {
       assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'right-edge fade reveals more columns');
       await page.screenshot({ path: out(`r4-table-overflow-start-${stamp}.png`) });
       await scroll.hover(); await page.mouse.wheel(800, 0);
-      await page.waitForFunction(() => { const el = document.querySelector('.object-editor .table-scroll'); return el.scrollWidth - el.clientWidth - el.scrollLeft <= 1; });
+      await page.waitForFunction(() => { const el = document.querySelector('.side-editor .object.expanded .table-scroll'); return el.scrollWidth - el.clientWidth - el.scrollLeft <= 1; });
       assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '0', 'fade disappears at the last column after real horizontal wheel input');
       await page.screenshot({ path: out(`r4-table-overflow-end-${stamp}.png`) });
       await page.mouse.wheel(-800, 0);
-      await page.waitForFunction(() => document.querySelector('.object-editor .table-scroll').scrollLeft === 0);
+      await page.waitForFunction(() => document.querySelector('.side-editor .object.expanded .table-scroll').scrollLeft === 0);
       assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'fade returns when scrolling back');
     }
     await page.keyboard.press('Escape');
@@ -339,7 +339,7 @@ try {
     const card = await frame(kind); await card.hover();
     const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
     if (keyboard) await open.press('Enter'); else await open.click();
-    const editor = page.locator('.side-editor.object-editor.is-open');
+    const editor = page.locator('.side-editor.is-open:has(.object.expanded)');
     await editor.waitFor({ state: 'visible' });
     assert.equal(await editor.evaluate(el => el.contains(document.activeElement)), true);
     await page.waitForFunction(() => document.querySelector('.side-editor.is-open').getBoundingClientRect().right <= innerWidth);
@@ -356,7 +356,7 @@ try {
   assert.equal(await inspection.locator('figcaption').textContent(), samples.gallery.images[0].caption);
   assert.equal(await inspection.getByRole('button', { name: 'Close image inspection' }).evaluate(el => el === document.activeElement), true);
   await page.waitForTimeout(220);
-  const fitted = await inspection.boundingBox(), pane = await galleryEditor.editor.locator('.side-editor-body').boundingBox();
+  const fitted = await inspection.boundingBox(), pane = await galleryEditor.editor.locator(':is(.side-editor-body, .react-editor-content)').boundingBox();
   assert.ok(Math.abs(fitted.x - pane.x) < 1 && Math.abs(fitted.y - pane.y) < 1 && Math.abs(fitted.width - pane.width) < 1 && Math.abs(fitted.height - pane.height) < 1, 'inspection fills only the editor pane');
   await page.screenshot({ path: out(`r6-gallery-inspection-1440-${stamp}.png`) });
   await page.keyboard.press('ArrowRight');
@@ -509,7 +509,7 @@ try {
   const projectField = formGuidance.editor.getByLabel('Project name (required)', { exact: true });
   await projectField.click();
   const activeHint = formGuidance.editor.locator('[data-field-index="0"] .commit-hint');
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('.object-editor [data-field-index="0"] .commit-hint')).opacity === '1');
+  await page.waitForFunction(() => getComputedStyle(document.querySelector('.side-editor .object.expanded [data-field-index="0"] .commit-hint')).opacity === '1');
   assert.equal(await activeHint.textContent(), 'Saves when you leave the field');
   assert.ok((await projectField.getAttribute('aria-describedby')).includes(await activeHint.getAttribute('id')), 'the active control describes its commit boundary');
   await page.keyboard.press('Tab');
@@ -524,7 +524,7 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.keyboard.press('Tab');
   await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.kind === 'form').data.fields[0].value.endsWith(' with guidance'));
-  await page.waitForFunction(() => [...document.querySelectorAll('.object-editor .commit-hint')].every(el => getComputedStyle(el).opacity === '0'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.side-editor .object.expanded .commit-hint')].every(el => getComputedStyle(el).opacity === '0'));
   await projectField.click();
   assert.equal(await activeHint.getAttribute('aria-hidden'), 'true', 'guidance stays quiet after the first commit');
   await projectField.fill('A useful result'); await page.keyboard.press('Tab');
@@ -555,7 +555,7 @@ try {
   });
   await page.screenshot({ path: out(`genui-table-editing-${stamp}.png`) });
   // PM4 saving feedback: hold a real save response, then fail the next edit.
-  await page.waitForFunction(() => document.querySelector('#saveState').textContent === 'saved');
+  await page.waitForFunction(() => (document.querySelector('[data-save-state]')?.getAttribute('data-save-state') ?? document.querySelector('#saveState')?.textContent) === 'saved');
   let releaseSave;
   const heldResponse = new Promise(resolve => { releaseSave = resolve; });
   const holdSave = async route => { await heldResponse; await route.continue(); };
@@ -566,7 +566,7 @@ try {
   await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: 'Saving…' }).waitFor({ state: 'attached' });
   await page.screenshot({ path: out(`r5-table-saving-${stamp}.png`) });
   releaseSave();
-  await page.waitForFunction(() => document.querySelector('.object-editor [data-saved]').textContent === 'Saved');
+  await page.waitForFunction(() => document.querySelector('.side-editor:has(.object.expanded) [data-saved]').textContent === 'Saved');
   await page.locator('.card.kind-table [data-object-saved]').filter({ hasText: /^\s*Saved\s*$/ }).waitFor({ state: 'attached' });
   await page.unroute('**/boards/*/batch', holdSave);
   await page.screenshot({ path: out(`r5-table-saved-${stamp}.png`) });
@@ -592,11 +592,11 @@ try {
   await page.screenshot({ path: out(`r5-table-retry-${stamp}.png`) });
   await page.unroute('**/boards/*/batch', refuseSave);
   await expanded.editor.getByRole('button', { name: 'Retry save', exact: true }).click();
-  await page.waitForFunction(async () => document.querySelector('.object-editor [data-saved]').textContent === 'Saved' && (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Retry table draft');
+  await page.waitForFunction(async () => document.querySelector('.side-editor:has(.object.expanded) [data-saved]').textContent === 'Saved' && (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Retry table draft');
   await expandedDay.press('Enter');
   await expanded.editor.getByRole('textbox', { name: 'Edit Day, row 1', exact: true }).fill('Monday review');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('.object-editor [data-saved]').textContent === 'Saved');
+  await page.waitForFunction(() => document.querySelector('.side-editor:has(.object.expanded) [data-saved]').textContent === 'Saved');
   console.log('pass genui: table shows Saving, host-confirmed Saved, failure Retry and successful recovery in Open and canvas headers');
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'table').data.rows[0].cells[0] === 'Monday review');
@@ -618,7 +618,7 @@ try {
   await expanded.editor.getByRole('button', { name: 'Full width', exact: true }).click();
   assert.equal(await expanded.editor.getByRole('button', { name: 'Side panel', exact: true }).getAttribute('aria-pressed'), 'true');
   assert.ok((await expanded.editor.boundingBox()).width > 1400, 'full width gives the board room');
-  await expanded.editor.locator('.side-editor-body').focus();
+  await expanded.editor.locator('.object.expanded > .content').focus();
   await page.keyboard.press('Meta+z');
   await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.kind === 'kanban').data.cards[0].column === 'doing');
   assert.ok(await expanded.editor.locator('.lane[aria-label="In progress"] .ticket').filter({ hasText: 'Write the brief' }).isVisible(), 'undo updates the open view');
@@ -987,7 +987,7 @@ try {
   expanded = await openEditor('timeline', true);
   const timelineContent = expanded.editor.locator('.content');
   await page.keyboard.press('PageDown');
-  await page.waitForFunction(() => document.querySelector('.object-editor .content').scrollTop > 0);
+  await page.waitForFunction(() => document.querySelector('.side-editor .object.expanded > .content').scrollTop > 0);
   assert.ok(await timelineContent.evaluate(el => el.scrollHeight > el.clientHeight && el === document.activeElement), 'long expanded content supports keyboard scrolling');
   await page.keyboard.press('Escape');
   await page.evaluate(data => aegis.apply([{ op: 'revise', id: aegis.canvas.board.cards.find(c => c.kind === 'timeline').id, data }]), originalTimeline);
