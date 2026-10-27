@@ -89,6 +89,15 @@ const workspace: CanvasWorkspace = {
 const insetArea = { x: 240, y: 68, width: 800, height: 600 };
 const areaListeners = new Set<() => void>();
 const engine = createCanvas({ onNavigation: () => { navigationNotifications++; }, onToolCommit: (boardId, commit) => { if (boardId === current.id) { workspace.submit(commit.commands); workspace.act({ kind: 'select', ids: commit.selection }); } }, stage, world, backdrop, overlay, workspace, warmLeases: 32, ...(new URLSearchParams(location.search).get('motion') === 'system' ? {} : { reducedMotion: new URLSearchParams(location.search).get('motion') !== 'on' }), snapGrid: 24,
+  ...(new URLSearchParams(location.search).has('drop') ? {
+    resolveCardDrop: () => ({
+      highlight: stage,
+      run: (moves?: readonly Command[]) => {
+        workspace.submit([...(moves ?? []), { op: 'update', id: CardIdSchema.parse('note-2'), set: { text: 'Dropped into collection' } }]);
+        return true;
+      },
+    }),
+  } : {}),
   ...(wireframe ? { ...wireframePolicies(() => current), canLease: () => true } : {}),
   ...(new URLSearchParams(location.search).has('insets') ? { availableArea: { getSnapshot: () => insetArea, subscribe: (listener: () => void) => { areaListeners.add(listener); return () => { areaListeners.delete(listener); }; } } } : {}),
 });

@@ -45,9 +45,11 @@ export class AgentMotion {
       const snapshot = !after && element ? element.cloneNode(true) : null;
       const exit = snapshot instanceof HTMLElement ? snapshot : null;
       if (exit) {
+        exit.classList.remove('selected', 'glow', 'editor-source', 'in-context');
         exit.removeAttribute('data-id'); exit.removeAttribute('data-type'); exit.removeAttribute('data-kind');
         exit.setAttribute('aria-hidden', 'true'); exit.inert = true; exit.style.pointerEvents = 'none';
         for (const frame of exit.querySelectorAll('iframe')) frame.remove();
+        for (const descendant of exit.querySelectorAll('[id]')) descendant.removeAttribute('id');
       }
       this.pending.set(id, { id, before, after, exit, index: index++, presentation: null });
     }

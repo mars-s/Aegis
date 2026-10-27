@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { CardId } from '@aegis/domain/schema';
 import type { FeatureContext } from '../../composition.js';
 import type { AgentRuntime } from './runtime.js';
@@ -32,6 +32,19 @@ export function FollowControls({ context, runtime, scene }: { readonly context: 
     });
     return () => { off(); for (const type of ['pointerdown', 'wheel', 'keydown']) removeEventListener(type, touch, true); };
   }, [context, runtime, scene]);
-  const reveal = (): void => { if (pending) scene.frame(pending.ids, 0, false); setPending(null); };
-  return <><span className="status" id="status" aria-live="polite">{running ? `${running} agent${running > 1 ? 's' : ''} working` : ''}</span><button type="button" id="followBtn" role="switch" aria-label="Follow agents" aria-checked={follow} onClick={() => { const next = !follow; setFollow(next); localStorage.setItem('aegis:follow', next ? 'on' : 'off'); if (next) reveal(); }}>Follow</button><button type="button" id="showChip" hidden={!pending} aria-description={pending?.description} onClick={reveal}>Show changes</button></>;
+  const reveal = useCallback((instant: boolean): void => { if (pending) scene.frame(pending.ids, 0, instant); setPending(null); }, [pending, scene]);
+  const toggle = useCallback((instant: boolean): void => {
+    const next = !enabled.current; enabled.current = next;
+    setFollow(next); localStorage.setItem('aegis:follow', next ? 'on' : 'off');
+    if (next) reveal(instant);
+  }, [reveal]);
+  useEffect(() => {
+    const key = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || !event.shiftKey || event.metaKey || event.ctrlKey || event.altKey || event.key.toLowerCase() !== 'f' || document.querySelector('dialog:modal') || event.target instanceof Element && event.target.closest('input,textarea,select,[contenteditable]')) return;
+      event.preventDefault(); toggle(true);
+    };
+    addEventListener('keydown', key);
+    return () => removeEventListener('keydown', key);
+  }, [toggle]);
+  return <><span className="status" id="status" aria-live="polite">{running ? `${running} agent${running > 1 ? 's' : ''} working` : ''}</span><button type="button" id="followBtn" role="switch" aria-label="Follow agents" aria-checked={follow} onClick={event => toggle(event.detail === 0)}>Follow</button><button type="button" id="showChip" hidden={!pending} aria-description={pending?.description} onClick={event => reveal(event.detail === 0)}>Show changes</button></>;
 }
