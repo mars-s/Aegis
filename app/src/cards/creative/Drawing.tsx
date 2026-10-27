@@ -12,7 +12,7 @@ function ShapeText({ cardId, workspace, engine }: CardBodyProps) {
   const props = DrawingProps.parse(card.props ?? {}), fill = colour(props.fill, '#aed3ff');
   const rgb = /^#[0-9a-f]{6}$/i.test(fill) ? [parseInt(fill.slice(1, 3), 16), parseInt(fill.slice(3, 5), 16), parseInt(fill.slice(5, 7), 16)] : [];
   const [r = 255, g = 255, b = 255] = rgb;
-  return <div ref={body} className="draw-text" data-scene-interactive="" aria-label="Text inside shape" role="textbox" tabIndex={0} style={{ color: rgb.length === 3 ? r * .299 + g * .587 + b * .114 > 150 ? '#202124' : '#ffffff' : undefined }} suppressContentEditableWarning
+  return <div ref={body} className="draw-text" aria-label="Text inside shape" role="textbox" tabIndex={0} style={{ color: rgb.length === 3 ? r * .299 + g * .587 + b * .114 > 150 ? '#202124' : '#ffffff' : undefined }} suppressContentEditableWarning
     onDoubleClick={event => { event.stopPropagation(); event.currentTarget.contentEditable = 'plaintext-only'; engine.pin(cardId, 'focus', true); event.currentTarget.focus(); }}
     onKeyDown={event => { if (event.currentTarget.isContentEditable) event.stopPropagation(); if (event.key === 'Escape') event.currentTarget.blur(); }}
     onCompositionStart={() => engine.pin(cardId, 'ime', true)} onCompositionEnd={() => engine.pin(cardId, 'ime', false)}

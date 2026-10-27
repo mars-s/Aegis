@@ -434,6 +434,11 @@
 .aegis-chrome .selection-overflow button {
   text-align: left;
 }
+.aegis-chrome .selection-popup-menu > button {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+}
 .aegis-chrome .selection-colours {
   display: grid;
   grid-template-columns: repeat(4, 40px);
@@ -832,4 +837,20 @@ body.left-open .aegis-chrome .bar-left {
   font-size: 12px;
   font-weight: 500;
   color: var(--color-muted);
+}
+body[data-tool-size="small"] .aegis-chrome #tools {
+  width: 40px;
+}
+body[data-tool-size="small"] .aegis-chrome #tools [data-tool] {
+  width: 32px;
+  min-height: 32px;
+  height: 32px;
+}
+body[data-tool-size="large"] .aegis-chrome #tools {
+  width: 52px;
+}
+body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
 }

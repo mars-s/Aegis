@@ -27,7 +27,7 @@ debug.on('Debugger.scriptFailedToParse', async info => { console.error('SCRIPT P
 const errors = []; page.on('pageerror', error => errors.push(error.stack || error.message));
 const log = message => console.log(message);
 const centreCard = async type => { await page.evaluate(type => { const card = aegis.canvas.board.cards.find(c => c.type === type); aegis.canvas.frameIds([card.id], 1); }, type); await page.waitForTimeout(400); };
-const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${name}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
+const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const id = process.env.AEGIS_UI_IMPL === 'react' ? ({ 'voice-memo': 'audio', 'camera-recording': 'video' }[name] || name) : name; const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
 try {
   await page.goto(`http://127.0.0.1:${5183 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -99,9 +99,9 @@ try {
   await page.screenshot({ path: out('media-appearance.png') });
   await appearance.getByRole('button', { name: 'Reset colours for this mode', exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--canvas')), '');
-  await page.locator('#theme [data-v="dark"]').click();
+  await page.locator('#theme').getByText('Dark', { exact: true }).click();
   await setColour('Grid dots', '#333344');
-  await page.locator('#theme [data-v="light"]').click();
+  await page.locator('#theme').getByText('Light', { exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--dot')), '');
   await page.locator('#closeSettings').click();
   log('Global colour preferences, panel contrast, theme separation, reset and board background priority verified');
@@ -175,14 +175,14 @@ try {
   };
   await page.route('**/link-preview?url=https%3A%2F%2Fpreview.test%2F', previewRoute);
   await tool('link'); await page.locator('.url-input').fill('https://preview.test/'); await page.locator('.url-input').press('Enter');
-  const pendingLink = page.locator('.card.link');
-  await pendingLink.getByRole('status').waitFor(); assert.equal(await pendingLink.getAttribute('aria-busy'), 'true');
+  const pendingLink = page.locator('.card.link'), busyLink = page.locator('.card.link[aria-busy], .card.link [aria-busy]');
+  await pendingLink.getByRole('status').waitFor(); assert.equal(await busyLink.getAttribute('aria-busy'), 'true');
   assert.equal(await pendingLink.getByRole('status').textContent(), 'Loading preview…');
   await page.screenshot({ path: out('media-link-loading.png') }); releasePreview();
-  await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).waitFor(); assert.equal(await pendingLink.getAttribute('aria-busy'), 'false');
+  await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).waitFor(); assert.equal(await busyLink.getAttribute('aria-busy'), 'false');
   await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).click();
   await pendingLink.getByText('Loaded preview', { exact: true }).waitFor();
-  assert.equal(await pendingLink.getAttribute('aria-busy'), 'false'); assert.equal(await pendingLink.locator('.link-loading-status').count(), 0);
+  assert.equal(await busyLink.getAttribute('aria-busy'), 'false'); assert.equal(await pendingLink.locator('.link-loading-status').count(), 0);
   assert.equal(await pendingLink.locator('.link-description').textContent(), 'Loaded summary');
   const checkedLink = await pendingLink.getAttribute('data-id');
   await page.evaluate(id => aegis.apply([{ op: 'delete', ids: [id] }]), checkedLink);
@@ -324,7 +324,7 @@ try {
     document.getElementById('stage').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: clipboard }));
   });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.url === 'https://example.com/') && aegis.canvas.board.cards.some(c => c.url?.includes('/album/4aawyAB9vmqN3uQ7FjRGTy')));
-  await page.locator('#settingsBtn').click(); await page.locator('#theme [data-v="dark"]').click(); await page.locator('#closeSettings').click();
+  await page.locator('#settingsBtn').click(); await page.locator('#theme').getByText('Dark', { exact: true }).click(); await page.locator('#closeSettings').click();
   await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--dot') === '#333344');
   await page.screenshot({ path: out('media-dark.png') });
   assert.deepEqual(errors, []); log('PASS. Persistent data: ' + data);

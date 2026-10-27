@@ -13,7 +13,7 @@ import {
   TextField,
   ValuePicker,
 } from "./controls.js";
-import { arrange, bounds, locked, useBoard } from "./model.js";
+import { arrange, locked, useBoard } from "./model.js";
 import {
   deleteCards,
   duplicateCards,
@@ -46,20 +46,37 @@ function numberProp(
   return typeof value === "number" ? value : fallback;
 }
 
+interface SelectionBounds {
+  readonly x: number;
+  readonly y: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+function selectionBounds(context: FeatureContext): SelectionBounds | null {
+  let x = Infinity,
+    y = Infinity,
+    right = -Infinity,
+    bottom = -Infinity;
+  for (const id of context.workspace.selection.getSnapshot()) {
+    const card = context.workspace.record(id).getSnapshot();
+    if (!card) continue;
+    x = Math.min(x, card.x);
+    y = Math.min(y, card.y);
+    right = Math.max(right, card.x + card.w);
+    bottom = Math.max(bottom, card.y + card.h);
+  }
+  return x === Infinity ? null : { x, y, right, bottom };
+}
 function positionSelection(
   context: FeatureContext,
   engine: CanvasEngine,
   bar: HTMLElement,
   outline: HTMLElement,
   size: { width: number; height: number; hubTop: number },
+  box: SelectionBounds | null,
 ): void {
-  const ids = context.workspace.selection.getSnapshot();
-  const cards = ids.flatMap((id) => {
-    const card = context.workspace.record(id).getSnapshot();
-    return card ? [card] : [];
-  });
-  const box = bounds(cards);
-  if (!box || engine.busy()) {
+  const editor = context.workspace.ui.getSnapshot().editor;
+  if (!box || engine.busy() || editor?.view === "full") {
     bar.hidden = true;
     outline.hidden = true;
     return;
@@ -69,20 +86,26 @@ function positionSelection(
     right = box.right * camera.zoom + camera.x;
   const top = box.y * camera.zoom + camera.y,
     bottom = box.bottom * camera.zoom + camera.y;
+  const area = editor ? engine.availableArea() : engine.viewport();
+  const width = Math.min(size.width, Math.max(1, area.width - 24));
   const x = Math.max(
-    12,
-    Math.min(innerWidth - size.width - 12, (left + right - size.width) / 2),
+    area.x + 12,
+    Math.min(area.x + area.width - width - 12, (left + right - width) / 2),
   );
-  const y = innerWidth <= 700 ? Math.max(8, size.hubTop - size.height - 10) : Math.max(
-    8,
-    Math.min(
-      innerHeight - size.height - 12,
-      top - size.height - 40 >= 8 ? top - size.height - 40 : bottom + 12,
-    ),
-  );
+  const y =
+    innerWidth <= 700
+      ? Math.max(8, size.hubTop - size.height - 10)
+      : Math.max(
+          8,
+          Math.min(
+            innerHeight - size.height - 12,
+            top - size.height - 40 >= 8 ? top - size.height - 40 : bottom + 12,
+          ),
+        );
   // A transformed ancestor would turn the shared fixed-position popups into local
   // coordinates in WebKit. Position this small toolbar without a containing block.
   bar.hidden = false;
+  bar.style.maxWidth = `${Math.max(1, area.width - 24)}px`;
   bar.style.left = `${x}px`;
   bar.style.top = `${y}px`;
   outline.hidden = context.workspace.ui.getSnapshot().editor !== null;
@@ -136,24 +159,53 @@ export function Selection({
       edges = outline.current;
     if (!element || !edges) return;
     const size = { width: 280, height: 38, hubTop: innerHeight - 80 };
-    const invalidate = () => engine.invalidate();
+    let geometryDirty = true,
+      chromeDirty = true;
+    let box: SelectionBounds | null = null;
+    const invalidate = () => {
+      geometryDirty = true;
+      engine.invalidate();
+    };
+    const resized = () => {
+      chromeDirty = true;
+      engine.invalidate();
+    };
     const detach = engine.registerFrameParticipant({
       read: () => {
+        if (geometryDirty) {
+          box = selectionBounds(context);
+          geometryDirty = false;
+        }
+        if (!chromeDirty) return;
+        chromeDirty = false;
         if (!element.hidden) {
           const rectangle = element.getBoundingClientRect();
-          if (rectangle.width && rectangle.height) { size.width = rectangle.width; size.height = rectangle.height; }
+          if (rectangle.width && rectangle.height) {
+            size.width = rectangle.width;
+            size.height = rectangle.height;
+          }
         }
         const hub = document.getElementById("mobileHub");
         if (hub && !hub.hidden) size.hubTop = hub.getBoundingClientRect().top;
       },
-      write: () => positionSelection(context, engine, element, edges, size),
+      write: () =>
+        positionSelection(context, engine, element, edges, size, box),
     });
-    const dimensions = new ResizeObserver(invalidate);
+    const dimensions = new ResizeObserver(resized);
     dimensions.observe(element);
-    const offSelection = context.workspace.selection.subscribe(invalidate), offScene = context.workspace.scene.subscribe(invalidate);
-    window.addEventListener("resize", invalidate);
+    const offSelection = context.workspace.selection.subscribe(invalidate),
+      offScene = context.workspace.scene.subscribe(invalidate),
+      offUi = context.workspace.ui.subscribe(resized);
+    window.addEventListener("resize", resized);
     invalidate();
-    return () => { detach(); dimensions.disconnect(); offSelection(); offScene(); window.removeEventListener("resize", invalidate); };
+    return () => {
+      detach();
+      dimensions.disconnect();
+      offSelection();
+      offScene();
+      offUi();
+      window.removeEventListener("resize", resized);
+    };
   }, [context, engine]);
   useEffect(() => {
     if (fonts) {
@@ -198,7 +250,9 @@ export function Selection({
   function fontClose(): void {
     fontDialog.current?.close();
     setFonts(false);
-    fontTrigger.current?.focus();
+    bar.current
+      ?.querySelector<HTMLElement>(".selection-more > summary")
+      ?.focus();
   }
   const textCards = cards.filter((card) =>
     ["note", "title", "todo", "text", "shape", "coll"].includes(card.type),
@@ -460,6 +514,7 @@ export function Selection({
               <Disclosure
                 label="More selection controls"
                 caption={<Icon name="more" />}
+                dismissed={fonts}
               >
                 <section>
                   <h3>Actions</h3>
@@ -889,6 +944,7 @@ export function Selection({
           aria-label="Font picker"
           onCancel={(event) => {
             event.preventDefault();
+            event.stopPropagation();
             fontClose();
           }}
           onKeyDown={(event) => event.stopPropagation()}

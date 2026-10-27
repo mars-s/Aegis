@@ -160,7 +160,8 @@ export function ObjectView({
   }, [card, cardId, engine, exporting, expanded]);
   if (card?.type !== "object") return null;
   const generative = generatedKinds.has(card.kind),
-    name = objectNames[card.kind];
+    name = objectNames[card.kind],
+    saveMessage = saving.kind === "saved" ? "Saved" : saving.kind === "saving" ? "Saving…" : "Not saved";
   return (
     <ObjectEditingContext value={editing}>
       <section
@@ -181,6 +182,20 @@ export function ObjectView({
           );
         }}
         onKeyDown={(event) => {
+          if (
+            expanded &&
+            (event.metaKey || event.ctrlKey) &&
+            event.key.toLowerCase() === "z" &&
+            !event.nativeEvent.isComposing &&
+            !(event.target instanceof Element && event.target.closest('input,textarea,[contenteditable]:not([contenteditable="false"])'))
+          ) {
+            event.preventDefault(); event.stopPropagation();
+            if (flushObjectDrafts(workspace, cardId)) {
+              const result = event.shiftKey ? workspace.redo() : workspace.undo();
+              if (result.kind === "rejected") setError(result.errors.map(field => field.reason).join('. '));
+            }
+            return;
+          }
           if (
             expanded &&
             event.key !== "Escape" &&
@@ -208,11 +223,7 @@ export function ObjectView({
                 role="status"
                 data-object-saved
               >
-                {saving.kind === "saved"
-                  ? "Saved"
-                  : saving.kind === "saving"
-                    ? "Saving…"
-                    : "Not saved"}
+                {saveMessage}
                 {saving.kind === "blocked" ? (
                   <button
                     type="button"
@@ -267,13 +278,17 @@ export function ObjectView({
             if (
               event.target instanceof Element &&
               event.target.closest("input,textarea,summary,button") &&
-              event.key !== "Escape"
+              event.key !== "Escape" &&
+              (!(event.metaKey || event.ctrlKey) || !["k", "z"].includes(event.key.toLowerCase()) || !!event.target.closest("input,textarea"))
             )
               event.stopPropagation();
           }}
         >
-          {expanded && generative && card.kind !== "html" ? (
+          {expanded && generative ? (
             <div className="text-edit-actions">
+              <span data-saved role="status">{saveMessage}</span>
+              {saving.kind === "blocked" ? <button type="button" aria-label="Retry save" onClick={workspace.retry}>Retry</button> : null}
+              {card.kind !== "html" ? (
               <button
                 type="button"
                 className="text-edit-toggle"
@@ -285,6 +300,7 @@ export function ObjectView({
               >
                 {editingText ? "Done editing" : "Edit text"}
               </button>
+              ) : null}
             </div>
           ) : null}
           {exporting && card.kind === "html" ? (

@@ -34,6 +34,13 @@ function CaptureDialog({ entry, capture, close, error }: {
       if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
     };
   }, []);
+  useLayoutEffect(() => {
+    const field = input.current;
+    if (field) {
+      field.style.height = '0px';
+      field.style.height = `${Math.min(innerHeight * .34, Math.max(122, field.scrollHeight))}px`;
+    }
+  }, [text]);
   function ask(): void {
     if (!text.trim() || document.getElementById('send')?.hasAttribute('disabled')) return;
     close();
@@ -78,15 +85,22 @@ function CaptureConfirmation({ context, receipt, update, dismiss }: {
     const engine = context.engine();
     if (receipt.location.kind === 'tray') {
       context.workspace.act({ kind: 'panel', side: 'left', open: true });
+      document.querySelector('[data-panel="unsorted"]')?.dispatchEvent(new CustomEvent('panelreveal', { bubbles: true, detail: { capture: true } }));
       const rows = new Set<HTMLElement>();
+      let revealed = false;
       const ids = new Set<string>(receipt.trayIds);
       const highlight = (): void => {
         for (const row of document.querySelectorAll<HTMLElement>('.tray-item')) {
-          if (row.dataset.id && ids.has(row.dataset.id)) { row.classList.add('capture-highlight'); rows.add(row); }
+          if (row.dataset.id && ids.has(row.dataset.id)) {
+            if (!revealed && row.getClientRects().length) {
+              row.scrollIntoView({ block: 'nearest', behavior: 'instant' }); revealed = true;
+            }
+            row.classList.add('capture-highlight'); rows.add(row);
+          }
         }
       };
       const observer = new MutationObserver(highlight);
-      observer.observe(document.getElementById('app') ?? document.body, { childList: true, subtree: true }); highlight();
+      observer.observe(document.getElementById('app') ?? document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden'] }); highlight();
       const clear = (): void => { observer.disconnect(); for (const row of rows) row.classList.remove('capture-highlight'); };
       const timeout = setTimeout(clear, 1200);
       return () => { clearTimeout(timeout); clear(); };

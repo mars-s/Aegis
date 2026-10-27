@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { CardIdSchema } from '@aegis/domain/schema';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { sharedDeckChart } from './chart.js';
+import { ValueChart } from './ValueChart.js';
 
 describe('saved deck chart compatibility', () => {
   it('retains every value, category, zero target and unit in a shared chart spec', () => {
@@ -18,5 +21,12 @@ describe('saved deck chart compatibility', () => {
       expect(Number.isFinite(y?.min)).toBe(true); expect(Number.isFinite(y?.max)).toBe(true);
       expect(y?.max ?? 0).toBeGreaterThan(y?.min ?? 0);
     }
+  });
+  it('renders all saved points with whole-hour ticks, category labels, unit and target', () => {
+    const html = renderToStaticMarkup(createElement(ValueChart, { chart: { values: [2, 4, 3, 2, 3], labels: ['Mon', 'Tue', 'Wed', 'Thu', '<Fri>'], unit: 'hours', target: 3 }, width: 520, height: 210, presentationHeight: 540 }));
+    expect(html.match(/class="pt"/g)).toHaveLength(5);
+    expect([...html.matchAll(/class="axis y-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['2', '3', '4']);
+    expect([...html.matchAll(/class="axis x-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['Mon', 'Tue', 'Wed', 'Thu', '&lt;Fri&gt;']);
+    expect(html).toContain('class="target"'); expect(html).toContain('>hours</text>');
   });
 });
