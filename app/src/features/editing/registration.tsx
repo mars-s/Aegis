@@ -193,6 +193,7 @@ export {
 export { collectionDrop, collectionLayout } from "./collection-operations.js";
 export { layerParents, layerDescendants } from "./layers.js";
 export { parseCapture } from "./capture.js";
+export { CaptureButton, CaptureViews } from "./CaptureViews.js";
 
 export { exportBoard, imagePdf, prepareExportCard } from "./board-export.js";
 export type { ExportServices, ExportContext } from "./board-export.js";
