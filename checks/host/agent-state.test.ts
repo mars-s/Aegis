@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAgentState } from '../../app/src/features/agents/state.js';
+import { createAgentState } from './legacy/agent-state.ts';
 
 const working = { id: 'one', revision: 2, running: true, text: '', turns: [], history: [] };
 const completed = { ...working, revision: 3, running: false, text: 'Answer', turns: [{ role: 'assistant', text: 'Answer' }], history: [{ finished: 100 }] };

@@ -1,18 +1,17 @@
+import { required } from './required.ts';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { EventEmitter } from 'node:events';
-import { Readable } from 'node:stream';
-import { spawn } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { applyBatch, emptyBoard } from '@aegis/domain/commands';
-import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from '../../app/src/features/colors/model.js';
-import { contrastText } from '../../app/src/features/colors/settings.js';
-import { uploadRecording } from '../../app/src/features/media/upload.js';
-import { cropBox } from '../../app/src/features/media/images.js';
-import { spotifyOf, normaliseLink } from '../../app/src/features/media/links.js';
-import { publicAddress, parsePreview, linkPreview } from '../dist/link-preview.js';
+import { z } from 'zod/v4';
+import { hostFixture } from './fixture.ts';
+import { transport } from './preview-transport.ts';
+import { applyBatch } from './batch.ts';
+import { emptyBoard } from '@aegis/domain/commands';
+import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from './legacy/media.ts';
+import { contrastText } from './legacy/media.ts';
+import { uploadRecording } from './legacy/media.ts';
+import { cropBox } from './legacy/media.ts';
+import { spotifyOf, normaliseLink } from './legacy/media.ts';
+import { publicAddress, parsePreview, linkPreview } from '../../agent/dist/link-preview.js';
 
 test('media cards retain asset references, colour names and independent crop settings', () => {
   const original = emptyBoard('media');
@@ -24,18 +23,18 @@ test('media cards retain asset references, colour names and independent crop set
   ] });
   assert.equal(r.ok, true); const id = r.created.image;
   r = applyBatch(r.board, { commands: [{ op: 'update', id, set: { props: { crop: { x: .1, y: .2, w: .8, h: .6 } } } }] });
-  const image = r.board.cards.find(c => c.id === id);
-  assert.equal(image.url, 'asset:original.png'); assert.equal(image.props.tagText, 'Original');
-  assert.deepEqual(image.props.crop, { x: .1, y: .2, w: .8, h: .6 });
+  const image = required(r.board.cards.find(c => c.id === id));
+  assert.equal(image.url, 'asset:original.png'); assert.equal(required(image.props).tagText, 'Original');
+  assert.deepEqual(required(image.props).crop, { x: .1, y: .2, w: .8, h: .6 });
   assert.equal(original.cards.length, 0);
-  assert.equal(r.board.cards[1].props.label, 'Sky'); assert.match(r.board.cards[3].url, /open.spotify.com/);
+  assert.equal(required(required(r.board.cards[1]).props).label, 'Sky'); assert.match(required(required(r.board.cards[3]).url), /open.spotify.com/);
   r = applyBatch(r.board, { commands: [{ op: 'update', id, set: { props: { crop: null } } }] });
-  assert.equal(r.board.cards.find(c => c.id === id).props.crop, undefined);
+  assert.equal(required(required(r.board.cards.find(c => c.id === id)).props).crop, undefined);
 });
 test('palette and background are per board, validated and removed without deleting swatches', () => {
   const a = emptyBoard('a'), b = emptyBoard('b');
   let r = applyBatch(a, { commands: [{ op: 'board_set', set: { bg: '#112233', palette: [{ hex: '#ABCDEF', name: 'Morning' }] } }, { op: 'create', type: 'swatch', props: { hex: '#abcdef' } }] });
-  assert.equal(r.ok, true); assert.equal(b.bg, undefined); assert.equal(r.board.palette[0].hex, '#abcdef');
+  assert.equal(r.ok, true); assert.equal(b.bg, undefined); assert.equal(required(required(r.board.palette)[0]).hex, '#abcdef');
   const invalid = applyBatch(r.board, { commands: [{ op: 'board_set', set: { palette: [{ hex: 'url(evil)', name: 'Bad' }] } }] });
   assert.equal(invalid.ok, false); assert.equal(invalid.board, r.board);
   r = applyBatch(r.board, { commands: [{ op: 'board_set', set: { palette: [], bg: null } }] });
@@ -61,8 +60,8 @@ test('crop drags cannot leave the image or shrink below eight per cent', () => {
   assert.equal(cropBox(full, 'se', -100, -100).w, .08);
 });
 test('Spotify URL and URI parsing stays on the real host', () => {
-  for (const kind of ['track','album','playlist','episode','show','artist']) assert.equal(spotifyOf(`spotify:${kind}:1234567890123456789012`).kind, kind);
-  assert.equal(spotifyOf('https://open.spotify.com/intl-au/embed/track/1234567890123456789012?si=abc').kind, 'track');
+  for (const kind of ['track','album','playlist','episode','show','artist']) assert.equal(required(spotifyOf(`spotify:${kind}:1234567890123456789012`)).kind, kind);
+  assert.equal(required(spotifyOf('https://open.spotify.com/intl-au/embed/track/1234567890123456789012?si=abc')).kind, 'track');
   assert.equal(spotifyOf('https://open.spotify.com.evil.test/track/1234567890123456789012'), null);
   assert.equal(normaliseLink('example.com'), 'https://example.com/'); assert.throws(() => normaliseLink('javascript:alert(1)'));
 });
@@ -77,67 +76,70 @@ test('preview blocks local, private, mapped and reserved addresses', async () =>
   for (const url of ['file:///etc/passwd','http://127.1/','http://0x7f000001/','http://[::1]/','http://user:pass@example.com/']) await assert.rejects(linkPreview(url));
   await assert.rejects(linkPreview('https://rebound.test', { resolve: async () => [{ address: '127.0.0.1', family: 4 }] }), /blocked/);
 });
-function transport(response) {
-  return (url, options, cb) => { const req = new EventEmitter(); req.end = () => queueMicrotask(() => {
-    const data = response(url, options), res = Readable.from(data.chunks || [Buffer.from('<title>Safe page</title>')]); res.statusCode = data.status || 200; res.headers = data.headers || { 'content-type': 'text/html' }; cb(res);
-  }); return req; };
-}
 test('preview pins approved DNS, rechecks redirect hosts and enforces the body cap', async () => {
   const resolve = async () => [{ address: '93.184.215.14', family: 4 }];
   const p = await linkPreview('https://example.com/', { resolve, transport: transport((url, options) => {
-    options.lookup(url.hostname, {}, (error, address) => assert.equal(address, '93.184.215.14')); return {};
+    required(options.lookup)(url.hostname, { all: false }, (error, address) => assert.equal(address, '93.184.215.14')); return {};
   }) }); assert.equal(p.title, 'Safe page');
   await assert.rejects(linkPreview('https://example.com/', { resolve, transport: transport(() => ({ status: 302, headers: { location: 'http://127.0.0.1/secrets' } })) }), /blocked/);
   await assert.rejects(linkPreview('https://example.com/', { resolve, transport: transport(() => ({ chunks: [Buffer.alloc(1024 * 1024 + 1)] })) }), /1 MB/);
 });
-let child, base; const token = `media-check-${process.pid}`;
-before(async () => {
-  const data = await mkdtemp(join(tmpdir(), 'aegis-media-check-'));
-  child = spawn(process.execPath, ['--no-warnings','server.mjs'], { cwd: new URL('..', import.meta.url), env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
-  const port = await new Promise((accept, reject) => { child.stdout.on('data', d => { const match = /"port":(\d+)/.exec(String(d)); if (match) accept(match[1]); }); child.once('exit', code => reject(new Error(`Host exited ${code}`))); }); base = `http://127.0.0.1:${port}`;
-});
-after(() => child?.kill());
+let host: Awaited<ReturnType<typeof hostFixture>>;
+before(async () => { host = await hostFixture(); });
+after(async () => { await host.close(); });
 test('preview also times out during DNS resolution', async () => {
   await assert.rejects(linkPreview('https://example.com/', { resolve: () => new Promise(() => {}), timeoutMs: 25 }), /timed out/);
 });
 test('real host requires authentication for previews and accepts playable audio assets with seeking', async () => {
-  assert.equal((await fetch(`${base}/link-preview?url=https://example.com`)).status, 401);
-  const blocked = await fetch(`${base}/link-preview?url=http://127.0.0.1`, { headers: { authorization: `Bearer ${token}` } }); assert.equal(blocked.status, 400);
+  assert.equal((await fetch(`${host.base}/link-preview?url=https://example.com`)).status, 401);
+  const blocked = await fetch(`${host.base}/link-preview?url=http://127.0.0.1`, { headers: { authorization: `Bearer ${host.token}` } }); assert.equal(blocked.status, 400);
   for (const type of ['audio/webm;codecs=opus','audio/mp4','audio/ogg','audio/wav','audio/mpeg']) {
-    const r = await fetch(base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': type }, body: Buffer.from('recording-fixture') }); assert.equal(r.status, 200, type);
-    const { url } = await r.json(); const asset = await fetch(base + '/assets/' + url.slice(6), { headers: { range: 'bytes=0-3' } }); assert.equal(asset.status, 206); assert.equal(asset.headers.get('content-type'), type.split(';')[0]); assert.equal(await asset.text(), 'reco');
+    const r = await fetch(host.base + '/assets', { method: 'POST', headers: { authorization: `Bearer ${host.token}`, 'content-type': type }, body: Buffer.from('recording-fixture') }); assert.equal(r.status, 200, type);
+    const { url } = z.object({ url: z.string() }).parse(await r.json()); const asset = await fetch(host.base + '/assets/' + url.slice(6), { headers: { range: 'bytes=0-3' } }); assert.equal(asset.status, 206); assert.equal(asset.headers.get('content-type'), required(type.split(';')[0])); assert.equal(await asset.text(), 'reco');
   }
 });
 
 test('recording uploads report measured progress and wait for host confirmation', async () => {
-  const originalStorage = globalThis.sessionStorage, originalRequest = globalThis.XMLHttpRequest;
-  const progress = []; let request;
-  globalThis.sessionStorage = { getItem: () => JSON.stringify({ port: '12345', token: 'test-only-token' }) };
-  globalThis.XMLHttpRequest = class {
-    upload = {}; headers = {};
-    constructor() { request = this; }
-    open(method, url) { this.method = method; this.url = url; }
-    setRequestHeader(name, value) { this.headers[name] = value; }
-    send(body) { this.body = body; }
-  };
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  const originalRequest = Object.getOwnPropertyDescriptor(globalThis, 'XMLHttpRequest');
+  const progress: number[] = [];
+  const requests: RecordingRequest[] = [];
+  class RecordingRequest {
+    upload: { onprogress?: (event: Pick<ProgressEvent, 'lengthComputable' | 'loaded' | 'total'>) => void } = {};
+    headers: Record<string, string> = {};
+    method = '';
+    url = '';
+    body: unknown;
+    status = 0;
+    response: unknown;
+    onload?: () => void;
+    constructor() { requests.push(this); }
+    open(method: string, url: string) { this.method = method; this.url = url; }
+    setRequestHeader(name: string, value: string) { this.headers[name] = value; }
+    send(body: unknown) { this.body = body; }
+  }
+  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: () => JSON.stringify({ port: '12345', token: 'test-only-token' }) } });
+  Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: RecordingRequest });
   try {
     const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
     let complete = false;
     const saving = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
+    const request = required(requests[0]);
     assert.equal(request.method, 'POST'); assert.equal(request.url, 'http://127.0.0.1:12345/assets'); assert.equal(request.body, file);
     assert.equal(request.headers.authorization, 'Bearer test-only-token');
-    request.upload.onprogress({ lengthComputable: true, loaded: 42, total: 100 });
-    request.upload.onprogress({ lengthComputable: false, loaded: 1, total: 0 });
-    request.upload.onprogress({ lengthComputable: true, loaded: 100, total: 100 });
+    required(request.upload.onprogress)({ lengthComputable: true, loaded: 42, total: 100 });
+    required(request.upload.onprogress)({ lengthComputable: false, loaded: 1, total: 0 });
+    required(request.upload.onprogress)({ lengthComputable: true, loaded: 100, total: 100 });
     await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
-    request.status = 200; request.response = { url: 'asset:clip.webm' }; request.onload();
+    request.status = 200; request.response = { url: 'asset:clip.webm' }; required(request.onload)();
     assert.equal((await saving).url, 'asset:clip.webm'); assert.equal(complete, true);
     const failed = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, () => {});
-    request.status = 500; request.response = { error: 'Disk full' }; request.onload();
+    const failedRequest = required(requests[1]);
+    failedRequest.status = 500; failedRequest.response = { error: 'Disk full' }; required(failedRequest.onload)();
     await assert.rejects(failed, /Disk full/);
     await assert.rejects(uploadRecording({ base: 'https://other.example' }, file, () => {}), /Reconnect/);
   } finally {
-    if (originalStorage === undefined) delete globalThis.sessionStorage; else globalThis.sessionStorage = originalStorage;
-    if (originalRequest === undefined) delete globalThis.XMLHttpRequest; else globalThis.XMLHttpRequest = originalRequest;
+    if (originalStorage === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage'); else Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
+    if (originalRequest === undefined) Reflect.deleteProperty(globalThis, 'XMLHttpRequest'); else Object.defineProperty(globalThis, 'XMLHttpRequest', originalRequest);
   }
 });

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectCard, cardBounds, fitView } from '../../app/src/canvas/geometry.js';
-import { boardSubtitle } from '@aegis/domain/summary';
-const card = (id, type, text, x, props = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
+import { projectCard, cardBounds, fitView } from './legacy/geometry.ts';
+import { boardSubtitle } from './legacy/summary.ts';
+const card = (id: string, type: string, text: string, x: number, props = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
 
 test('every kind keeps its world rectangle through every camera scale', () => {
   for (const type of ['doc', 'object', 'dataset', 'deck', 'note', 'title']) for (const z of [.05, .3, .5, .75, 1, 2, 4]) {
