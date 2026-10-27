@@ -82,6 +82,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const agentLine = new AgentLine(world), agentMotion = new AgentMotion(world, pool, view);
   const dragGuides = new DragGuides(world);
   const flashes = new Map<CardId, number>();
+  const initialBodies = new Map<CardId, number>();
+  let residencyTimer: ReturnType<typeof setTimeout> | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   const motionObserver = new MutationObserver(() => { if (reducedMotion(true)) { agentMotion.settle(); agentLine.settle(); } });
   motionObserver.observe(stage.ownerDocument.body, { attributes: true, attributeFilter: ['class'] });
@@ -109,6 +111,22 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   function clearGlow(): void {
     if (flashTimer) clearTimeout(flashTimer);
     flashTimer = null; flashes.clear(); pool.highlight(new Set());
+  }
+
+  function scheduleResidency(): void {
+    if (residencyTimer) clearTimeout(residencyTimer);
+    residencyTimer = null;
+    if (initialBodies.size) residencyTimer = setTimeout(() => {
+      residencyTimer = null;
+      const now = performance.now();
+      for (const [id, until] of initialBodies) if (until <= now) initialBodies.delete(id);
+      invalidate(); scheduleResidency();
+    }, Math.max(1, Math.min(...initialBodies.values()) - performance.now()));
+  }
+
+  function clearResidency(): void {
+    if (residencyTimer) clearTimeout(residencyTimer);
+    residencyTimer = null; initialBodies.clear();
   }
 
   function invalidate(): void {
@@ -441,10 +459,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     // A single formatting target stays live at its saved geometry, even offscreen.
     // Multi-selection never turns the whole board into mounted bodies.
+    const retained = new Set(initialBodies.keys());
     const formattingId = selected.size === 1 ? selected.values().next().value : undefined;
-    const formattingNode = formattingId ? graph.nodes.get(formattingId) : undefined;
-    if (formattingNode && !formattingNode.hidden && canLease(formattingNode.card) && !placements.some(placement => placement.node === formattingNode)) {
-      placements.push({ node: formattingNode, ...boundsFor(formattingNode), rotation: rotationFor(formattingNode), selected: true });
+    if (formattingId) retained.add(formattingId);
+    for (const id of retained) {
+      const node = graph.nodes.get(id);
+      if (node && !node.hidden && canLease(node.card) && !placements.some(placement => placement.node === node)) placements.push({ node, ...boundsFor(node), rotation: rotationFor(node), selected: selected.has(id) });
     }
     // Selected bodies have first admission when a dense view exceeds warm capacity.
     placements.sort((a, b) => Number(b.selected) - Number(a.selected) || a.node.rank - b.node.rank);
@@ -690,16 +710,26 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
       fitting = null;
-      agentMotion.settle(); agentLine.clear(); clearGlow();
+      agentMotion.settle(); agentLine.clear(); clearGlow(); clearResidency();
       const next = workspace.scene.snapshot(); epoch++; tools.reset('board-change'); graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       cancelGesture(); touchPointers.clear(); touches.clear(); touchQuarantine = false;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
     } else {
+      const created = change.origin === 'agent' ? change.upserted.filter(card => !graph.nodes.has(card.id)).slice(0, 12) : [];
       if (!measuring && change.origin !== 'sync') fitting = null;
       if (!measuring) agentMotion.prepare(change, graph.nodes, card => intersects(project({ x: card.x, y: card.y, width: card.w, height: card.h }, camera), viewport), reducedMotion(true));
       if (change.origin !== 'local' && (change.upserted.length || change.removed.length)) { tools.cancel('scene-change'); cancelGesture(); }
       graph.apply(change); agentLine.reconcile(graph.nodes);
-      for (const id of change.removed) { retired.add(id); flashes.delete(id); }
+      for (const id of change.removed) { retired.add(id); flashes.delete(id); initialBodies.delete(id); }
+      for (const id of pool.ids()) if (graph.nodes.get(id)?.hidden) { retired.add(id); agentMotion.cancel(id); }
+      for (const id of initialBodies.keys()) if (!graph.nodes.has(id) || graph.nodes.get(id)?.hidden) initialBodies.delete(id);
+      for (const card of created) {
+        const node = graph.nodes.get(card.id);
+        if (!node || node.hidden || !canLease(card)) continue;
+        initialBodies.delete(card.id); initialBodies.set(card.id, performance.now() + 2000);
+      }
+      while (initialBodies.size > 12) { const oldest = initialBodies.keys().next().value; if (oldest === undefined) break; initialBodies.delete(oldest); }
+      scheduleResidency();
       if (change.origin === 'agent') glow(change.upserted.map(card => card.id));
     }
     invalidate();
@@ -762,7 +792,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
-      agentMotion.settle(); agentLine.dispose(); clearGlow(); motionObserver.disconnect(); dragGuides.dispose();
+      agentMotion.settle(); agentLine.dispose(); clearGlow(); clearResidency(); motionObserver.disconnect(); dragGuides.dispose();
       paintedDrop?.removeAttribute('data-scene-drop-target'); paintedDrop = null; dropTarget = null;
       tools.dispose(); stage.style.cursor = ''; abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); unsubscribeTheme?.(); participants.clear(); pool.dispose(); overlays.dispose();
       releaseSpace(); stage.classList.remove('panning', 'far');

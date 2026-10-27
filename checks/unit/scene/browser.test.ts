@@ -182,7 +182,9 @@ describe('real scene attachment', () => {
       await batch([{ op: 'move', id: 'note-2', x: 550, y: 180 }]);
       expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().find(animation => animation.id === 'aegis-agent-card')?.effect?.getTiming().duration)).toBe(320);
       expect(await p.locator('[data-id="note-2"]').evaluate(el => { const animation = el.getAnimations().find(animation => animation.id === 'aegis-agent-card'); if (!(animation?.effect instanceof KeyframeEffect)) throw new Error('Missing effect'); animation.pause(); animation.currentTime = 0; return animation.effect.getKeyframes()[0]?.transform; })).toBe(before);
+      await idle(p);
       const box = await p.locator('[data-id="note-2"]').boundingBox(); if (!box) throw new Error('Missing animated card');
+      expect(await p.evaluate(point => document.elementFromPoint(point.x, point.y)?.closest('.card')?.getAttribute('data-id'), { x: box.x + 8, y: box.y + 90 })).toBe('note-2');
       await p.mouse.move(box.x + 8, box.y + 90); await p.mouse.down(); await p.mouse.move(box.x + 58, box.y + 110); await p.mouse.up(); await idle(p);
       expect(await p.locator('[data-id="note-2"]').evaluate(el => el.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
       const dragged = await p.locator('[data-id="note-2"]').boundingBox();
@@ -263,6 +265,43 @@ describe('real scene attachment', () => {
       await p.close();
     } finally { await alternate?.close(); }
   });
+
+  test.each(['chromium', 'webkit'] as const)('hidden ancestors immediately retire real descendant leases and selection decorations in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'hideparent', type: 'note', text: 'Parent', color: 'plain', x: 80, y: 80, w: 240, h: 160 }, { id: 'hidechild', type: 'note', text: 'Child', parent: 'hideparent', color: 'plain', x: 400, y: 80, w: 240, h: 160 }, { id: 'hidegrandchild', type: 'note', text: 'Grandchild', parent: 'hidechild', color: 'plain', x: 720, y: 80, w: 240, h: 160 }], links: [] });
+        h.select(['hideparent']);
+      });
+      await p.locator('[data-id="hidegrandchild"]').waitFor(); await idle(p);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'hideparent', set: { props: { hidden: true } } }], 'local')); await idle(p);
+      expect(await p.locator('.card[data-id]').count()).toBe(0);
+      expect(await p.locator('.card.selected').count()).toBe(0);
+      expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().length)).toBe(0);
+      await p.evaluate(() => window.sceneHarness.batch([{ op: 'update', id: 'hideparent', set: { props: { hidden: false } } }], 'local'));
+      await p.locator('[data-id="hidegrandchild"]').waitFor(); await idle(p);
+      expect(await p.locator('.card[data-id]').count()).toBe(3);
+      expect(await p.locator('.card.selected').count()).toBe(1);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('new agent bodies get bounded temporary offscreen measurement residency in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser), camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+      await p.evaluate(() => window.sceneHarness.batch(Array.from({ length: 40 }, (_, index) => ({ op: 'create', newId: `warm${String(index).padStart(2, '0')}`, type: 'note', text: `Offscreen ${index}`, x: 5000 + index * 300, y: 5000, w: 240, h: 160 })), 'agent'));
+      await p.waitForFunction(() => document.querySelectorAll('.card[data-id^="warm"]').length === 12); await idle(p);
+      expect(await p.locator('.card[data-id^="warm"]').evaluateAll(nodes => nodes.every(node => node instanceof HTMLElement && !node.hidden && !node.inert && node.textContent?.startsWith('Offscreen') && node.getBoundingClientRect().left > innerWidth))).toBe(true);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+      expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(17);
+      await p.waitForFunction(() => !document.querySelector('.card[data-id^="warm"]'), undefined, { timeout: 7000 });
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+      await p.close();
+    } finally { await alternate?.close(); }
+  }, 10000);
 
   test('Connect consumes target card text and button presses instead of activating their content', async () => {
     for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
