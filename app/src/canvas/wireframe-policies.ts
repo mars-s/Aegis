@@ -12,7 +12,11 @@ export function wireframePolicies(board: () => Board): Policies {
     },
     snapDrag: request => {
       const result = snapDrag(request.start.map(entry => ({ c: entry.card, x: entry.bounds.x, y: entry.bounds.y })), request.delta.x, request.delta.y, board(), { z: request.zoom }, { grid: localStorage.getItem('aegis:wireframe-grid') === 'on', disabled: request.bypass });
-      return { delta: { x: result.dx, y: result.dy }, guides: result.guides };
+      const anchor = request.start[0]?.bounds;
+      const delta = anchor && !request.bypass && localStorage.getItem('aegis:snap') === 'on'
+        ? { x: Math.round((anchor.x + result.dx) / 24) * 24 - anchor.x, y: Math.round((anchor.y + result.dy) / 24) * 24 - anchor.y }
+        : { x: result.dx, y: result.dy };
+      return { delta, guides: result.guides };
     },
     dropCommands: request => {
       const moved = new Map(request.cards.map(card => [card.id, card]));
