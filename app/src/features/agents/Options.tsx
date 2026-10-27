@@ -30,7 +30,7 @@ export function Options({ runtime, show, addNotes, showAll, changed }: {
       onClick={() => { if (opened) close(); else { setPage('options'); setOpened(true); menu.current?.showPopover(); } }}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" /><circle cx="6" cy="4" r="1.5" /><circle cx="10" cy="8" r="1.5" /><circle cx="6" cy="12" r="1.5" /></svg>
     </button>
-    <div ref={menu} id="orbMenu" popover="auto" className="orb-menu aegis-dropdown-menu" role="menu" aria-label={label}
+    <div ref={menu} id="orbMenu" popover="auto" className="orb-menu aegis-dropdown-menu aegis-surface" role="menu" aria-label={label}
       onToggle={event => setOpened(event.newState === 'open')}
       onKeyDown={event => {
         event.stopPropagation();
