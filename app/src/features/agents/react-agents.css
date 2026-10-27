@@ -41,4 +41,5 @@
 .mobile-content .agent-composer-host #composer { width: 100%; max-height: 60dvh; }
 .aegis-agents ::selection { background: var(--data-soft); color: var(--text); }
 .card.in-context { outline: 1px solid var(--chart-1); outline-offset: 3px; }
+.aegis-chrome .bar-right:has(> #showChip:not([hidden])) { opacity: 1; pointer-events: auto; transform: none; }
 @media (max-width: 700px) { .aegis-agents .agents-panel { inset: auto 12px 160px; width: auto; max-height: 50dvh; } }

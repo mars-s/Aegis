@@ -96,6 +96,7 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   }, [expanded]);
   useEffect(() => {
     const old = previous.current;
+    if (old?.running && agent && !agent.running && agent.id === old.id && !agent.error && agent.history.at(-1)?.finished === null) return;
     previous.current = agent ? { id: agent.id, running: agent.running } : null;
     if (old?.running && agent && !agent.running && agent.id === old.id) {
       if (!agent.error) setResolved(true);
