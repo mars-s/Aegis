@@ -141,7 +141,7 @@ try {
     }
     console.log(`PASS ${engineName}: document, sheet and deck context, retained sources, true camera geometry and exact return`);
 
-    // Closing restores the invoking Open control even when the source is summarised.
+    // Closing restores the invoking Open control with real source content retained.
     for (const selector of [react ? '.card[data-id="contextdoc"] .win-open' : '.window-actions [data-window-action="contextdoc"]', '#selectionBar [aria-label="Open"]']) {
       await prepare('contextdoc', 1);
       await page.evaluate(() => aegis.canvas.select(['contextdoc']));
@@ -241,7 +241,10 @@ try {
 
     before = await prepare('contextdoc'); await open('contextdoc');
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'create', type: 'note', newId: 'addedreference', text: 'An extra source to drag into the document.', x: 300, y: 400 }], resolve)));
-    if (react) assert.equal(await page.locator('.card[data-id="addedreference"]').isVisible(), true, 'new board windows remain available for document drag and drop');
+    if (react) {
+      await page.locator('.card[data-id="addedreference"]').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('.card[data-id="addedreference"]').isVisible(), true, 'new board windows remain available for document drag and drop');
+    }
     else assert.equal(await page.locator('.editor-context').isVisible(), false, 'new board windows remain available for document drag and drop');
     await close(before);
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['addedreference'] }], resolve)));

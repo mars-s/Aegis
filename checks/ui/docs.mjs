@@ -40,7 +40,10 @@ try {
   if (process.env.AEGIS_DOCS_ISOLATED) await page.route('**/src/features/index.ts', route => route.fulfill({ contentType: 'text/javascript', body: "import '/src/features/docs/index.ts';" }));
   await page.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
-  await page.mouse.move(24, 480); await page.locator('[data-tool=doc]').click();
+  await page.mouse.move(24, 480);
+  const documentTool = page.locator('#tools [data-tool=doc]');
+  if (!await documentTool.isVisible()) await page.locator('#toolsFold').click();
+  await documentTool.click();
   await page.locator('#stage').click({ position: { x: 590, y: 260 } });
   await page.getByLabel('Document title', { exact: true }).fill('Project brief');
   await page.getByLabel('Document title', { exact: true }).press('Enter');

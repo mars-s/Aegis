@@ -770,6 +770,7 @@
   color: var(--text);
   background: var(--data-soft);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--data) 35%, transparent);
+  transition-property: transform, background-color, border-color;
 }
 .docs-panel .docs-ribbon button.ribbon-btn {
   height: 32px;
