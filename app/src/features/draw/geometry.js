@@ -1,47 +1,6 @@
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
-export function pathD(pts, closed, R = 0, k = 1) {
-    const n = pts.length, f = v => +v.toFixed(2); if (!n) return ''; const P = i => pts[(i + n) % n];
-    const node = i => { const q = P(i), r = (q.r ?? R) * k, hasPrev = closed || i > 0, hasNext = closed || i < n - 1;
-      if (!(r > 0) || !hasPrev || !hasNext || q.ix != null || q.ox != null || P(i - 1).ox != null || P(i + 1).ix != null) return { p: q, s: q, e: q };
-      const a = P(i - 1), b = P(i + 1), la = Math.hypot(q.x - a.x, q.y - a.y) || 1, lb = Math.hypot(b.x - q.x, b.y - q.y) || 1, kk = Math.min(r, la / 2, lb / 2);
-      return { p: q, round: true, s: { x: q.x + (a.x - q.x) * kk / la, y: q.y + (a.y - q.y) * kk / la }, e: { x: q.x + (b.x - q.x) * kk / lb, y: q.y + (b.y - q.y) * kk / lb } }; };
-    const N = pts.map((_, i) => node(i));
-    const seg = (A, B) => A.p.ox == null && B.p.ix == null ? ` L${f(B.s.x)} ${f(B.s.y)}` : ` C${f(A.p.ox ?? A.p.x)} ${f(A.p.oy ?? A.p.y)} ${f(B.p.ix ?? B.p.x)} ${f(B.p.iy ?? B.p.y)} ${f(B.p.x)} ${f(B.p.y)}`;
-    const corner = B => B.round ? ` Q${f(B.p.x)} ${f(B.p.y)} ${f(B.e.x)} ${f(B.e.y)}` : '';
-    let d = `M${f(N[0].e.x)} ${f(N[0].e.y)}`;
-    for (let i = 1; i < n; i++) d += seg(N[i - 1], N[i]) + corner(N[i]);
-    if (closed && n > 2) d += seg(N[n - 1], N[0]) + corner(N[0]) + ' Z';
-    return d;
-  }
-
-export function butter(raw, finished, BASE) {
-    const pts = []; let acc = 0;
-    for (let i = 0; i < raw.length; i++) {
-      if (i === 0) { pts.push({ x: raw[0][0], y: raw[0][1] }); continue; }
-      const a = raw[i - 1], b = raw[i], seg = Math.hypot(b[0] - a[0], b[1] - a[1]), dt = Math.max(1, b[2] - a[2]);
-      let d = acc; while (d < seg) { const k = d / seg; pts.push({ x: a[0] + (b[0] - a[0]) * k, y: a[1] + (b[1] - a[1]) * k, v: seg / dt }); d += 3; }
-      acc = d - seg;
-    }
-    if (pts.length < 2) return '';
-    if (finished && pts.length > 6) { const a = pts[0], z = pts[pts.length - 1]; if (Math.hypot(a.x - z.x, a.y - z.y) < 14) pts.splice(-2, 2); }
-    let s = pts[1]?.v || .3; const lens = [0]; for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y));
-    const total = lens[lens.length - 1], MIN = Math.max(1, BASE / 9), ramp = Math.min(54, BASE * 6);
-    const width = i => { s += ((pts[i].v == null ? s : pts[i].v) - s) * .08; const slow = Math.max(0, Math.min(1, 1 - s / 1.8));
-      let w = MIN + (BASE - MIN) * (.22 + .78 * slow * slow); const inR = Math.min(1, lens[i] / ramp), outR = finished ? Math.min(1, (total - lens[i]) / ramp) : 1;
-      return w * Math.pow(inR, .8) * Math.pow(outR, .8) * (1 + .12 * Math.sin(lens[i] / 11)) + .4; };
-    const L = [], R = [];
-    for (let i = 0; i < pts.length; i++) { const p0 = pts[Math.max(0, i - 1)], p1 = pts[Math.min(pts.length - 1, i + 1)]; let nx = -(p1.y - p0.y), ny = p1.x - p0.x; const n = Math.hypot(nx, ny) || 1; nx /= n; ny /= n;
-      const w = width(i) / 2; L.push([pts[i].x + nx * w, pts[i].y + ny * w]); R.push([pts[i].x - nx * w, pts[i].y - ny * w]); }
-    const seq = L.concat(R.reverse()); let d = `M${seq[0][0].toFixed(1)} ${seq[0][1].toFixed(1)}`;
-    for (let i = 1; i < seq.length; i++) { const m = seq[i - 1], c = seq[i]; d += ` Q${m[0].toFixed(1)} ${m[1].toFixed(1)} ${((m[0] + c[0]) / 2).toFixed(1)} ${((m[1] + c[1]) / 2).toFixed(1)}`; }
-    return d + ' Z';
-  }
-  function centerline(p) {
-    if (p.length < 3) return `M${p[0][0]} ${p[0][1]} L${p[p.length - 1][0] + .1} ${p[p.length - 1][1]}`;
-    let d = `M${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`;
-    for (let i = 1; i < p.length - 1; i++) d += ` Q${p[i][0].toFixed(1)} ${p[i][1].toFixed(1)} ${((p[i][0] + p[i + 1][0]) / 2).toFixed(1)} ${((p[i][1] + p[i + 1][1]) / 2).toFixed(1)}`;
-    return d + ` L${p[p.length - 1][0].toFixed(1)} ${p[p.length - 1][1].toFixed(1)}`;
-  }
+export { pathD, butter } from './art.ts';
+import { pathD, butter, centerline } from './art.ts';
 
 export function squigPath(c) {
     const n = Math.max(.5, c.waves ?? 6), r = (c.round ?? 60) / 100, wob = (c.wobble ?? 0) / 100, A = 46, st = c.squig;

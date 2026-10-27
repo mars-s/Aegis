@@ -15,10 +15,8 @@ function readSettings() {
   } catch { /* Invalid preferences fall back to the app colours. */ }
   return clean;
 }
-export function contrastText(hex) {
-  const rgb = [1,3,5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
-  return .2126 * rgb[0] + .7152 * rgb[1] + .0722 * rgb[2] > .179 ? '#111111' : '#ffffff';
-}
+export { contrastText } from '../colours/contrast.ts';
+import { contrastText } from '../colours/contrast.ts';
 export function installColourSettings(ctx) {
   const settings = document.getElementById('settings'); if (!settings || settings.querySelector('[data-colour-settings]')) return;
   const root = document.documentElement, section = node('section', 'sheet-sec colour-settings'); section.dataset.colourSettings = '';

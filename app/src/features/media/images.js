@@ -2,16 +2,9 @@
 import { node, button, field, dialog } from './dom.js';
 import { paletteFromPixels } from '../colors/model.js';
 import { mediaContext, report } from './context.js';
+export { cropBox, prepareImage } from './image-utils.ts';
+import { cropBox, prepareImage } from './image-utils.ts';
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-export function cropBox(start, handle, dx, dy, min = { w: .08, h: .08 }) {
-  const b = { ...start };
-  if (handle === 'move') { b.x = clamp(start.x + dx, 0, 1 - start.w); b.y = clamp(start.y + dy, 0, 1 - start.h); return b; }
-  if (handle.includes('w')) { b.x = clamp(start.x + dx, 0, start.x + start.w - min.w); b.w = start.x + start.w - b.x; }
-  if (handle.includes('e')) b.w = clamp(start.w + dx, min.w, 1 - start.x);
-  if (handle.includes('n')) { b.y = clamp(start.y + dy, 0, start.y + start.h - min.h); b.h = start.y + start.h - b.y; }
-  if (handle.includes('s')) b.h = clamp(start.h + dy, min.h, 1 - start.y);
-  return b;
-}
 export async function pullColours(c, api) {
   try {
     const boardId = api.board.id, img = new Image(); img.crossOrigin = 'anonymous'; img.src = api.resolveUrl(c.url); await img.decode();
@@ -125,28 +118,6 @@ export function renderImage(el, c, api) {
   viewport.append(img); el.append(viewport);
   if (c.props?.tagText) el.append(node('div', 'image-caption', c.props.tagText));
   button('Pull colours', () => pullColours(c, api), actions); button('Crop', () => editCrop(c, api), actions); button('Caption', () => caption(c, api), actions); el.append(actions);
-}
-// Shared by board imports and the capture tray. The caller owns uploading and placement.
-export async function prepareImage(file) {
-  if (!file.type.startsWith('image/')) throw new Error('Choose an image file');
-  const source = URL.createObjectURL(file), img = new Image();
-  try {
-    img.src = source; await img.decode();
-    const animated = ['image/gif', 'image/webp', 'image/apng'].includes(file.type);
-    if (animated && file.size <= 12e6) return { file, width: img.naturalWidth, height: img.naturalHeight, flattened: false };
-    const scale = Math.min(1, 2800 / Math.max(img.naturalWidth, img.naturalHeight)), cv = node('canvas');
-    cv.width = Math.max(1, Math.round(img.naturalWidth * scale)); cv.height = Math.max(1, Math.round(img.naturalHeight * scale));
-    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-    const encode = type => new Promise((resolve, reject) => cv.toBlob(blob => blob ? resolve(blob) : reject(new Error('Could not prepare this image')), type, .9));
-    let blob;
-    if (['image/png', 'image/svg+xml'].includes(file.type)) {
-      blob = await encode('image/png');
-      // Match the reference's six-million-character PNG data URL limit.
-      if ('data:image/png;base64,'.length + Math.ceil(blob.size / 3) * 4 >= 6e6) blob = await encode('image/jpeg');
-    } else blob = await encode('image/jpeg');
-    const name = file.name.replace(/\.[^.]+$/, '') + (blob.type === 'image/png' ? '.png' : '.jpg');
-    return { file: new File([blob], name, { type: blob.type }), width: cv.width, height: cv.height, flattened: animated };
-  } finally { URL.revokeObjectURL(source); }
 }
 export async function importImages(ctx, files, at = ctx.canvas.centre()) {
   const boardId = ctx.canvas.board.id; let dx = 0;

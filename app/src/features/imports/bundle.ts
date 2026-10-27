@@ -1,22 +1,26 @@
-import { unzipSync, strFromU8 } from 'fflate';
-import { prepareImage } from '../media/images.js';
+import { strFromU8 } from 'fflate';
+import { prepareImage } from '../media/image-utils.js';
+import { BundleResponseSchema } from './bundle-protocol.js';
 import { MAX_SLIDES, yieldToUI } from './types';
 import type { Imported, ImportHost, Progress, Slide, Picture } from './types';
 
-const MAX_EXPANDED = 128 * 1024 * 1024;
-const MAX_ENTRY = 24 * 1024 * 1024;
-const pictureType = (path: string) => ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' })[path.split('.').pop()?.toLowerCase() || ''];
-
-async function openBundle(file: File, wanted: (name: string) => boolean) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let entries = 0, expanded = 0;
-  await yieldToUI();
-  return unzipSync(bytes, { filter(entry) {
-    if (++entries > 5000) throw new Error('This bundle has over 5,000 files. Export a smaller presentation first.');
-    expanded += entry.originalSize;
-    if (expanded > MAX_EXPANDED || entry.originalSize > MAX_ENTRY) throw new Error('This bundle expands beyond the import limit of 128 MB, or has a file over 24 MB.');
-    return wanted(entry.name);
-  } });
+const pictureTypes = new Map(Object.entries({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' }));
+const pictureType = (path: string) => pictureTypes.get(path.split('.').pop()?.toLowerCase() || '');
+async function openBundle(file: File, format: 'pptx' | 'key'): Promise<Record<string, Uint8Array>> {
+  const bytes = new Uint8Array(await file.arrayBuffer()), worker = new Worker(new URL('./bundle-worker.ts', import.meta.url), { type: 'module' });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await new Promise((resolve, reject) => {
+      timer = setTimeout(() => reject(new Error('The presentation reader took too long. Export a smaller file and retry.')), 30000);
+      worker.addEventListener('error', event => { event.preventDefault(); reject(new Error('The presentation reader could not start. Reopen Aegis and try again.')); });
+      worker.addEventListener('message', (event: MessageEvent<unknown>) => {
+        const response = BundleResponseSchema.safeParse(event.data);
+        if (!response.success) { reject(new Error('The presentation reader returned invalid data. Reopen Aegis and retry.')); return; }
+        if (response.data.kind === 'error') reject(new Error(response.data.message)); else resolve(response.data.entries);
+      });
+      worker.postMessage({ bytes, format }, [bytes.buffer]);
+    });
+  } finally { clearTimeout(timer); worker.terminate(); }
 }
 function xml(bytes: Uint8Array | undefined, name: string) {
   if (!bytes) throw new Error(`The presentation is missing ${name}. Export it again and retry.`);
@@ -50,7 +54,7 @@ async function uploadPicture(bytes: Uint8Array, path: string, host: ImportHost):
 }
 
 export async function importPPTX(file: File, host: ImportHost, progress: Progress): Promise<Imported> {
-  const bundle = await openBundle(file, name => /^ppt\/(presentation\.xml|_rels\/presentation\.xml\.rels|slides\/.*|media\/.*)$/.test(name));
+  const bundle = await openBundle(file, 'pptx');
   const presentation = xml(bundle['ppt/presentation.xml'], 'ppt/presentation.xml');
   const rels = relationships(bundle, 'ppt/presentation.xml');
   const paths = all(presentation, 'sldId').map(node => rels.get(attr(node, 'id') || ''));
@@ -77,8 +81,9 @@ export async function importPPTX(file: File, host: ImportHost, progress: Progres
     const images: Picture[] = [];
     for (const blip of all(doc, 'blip')) {
       const imagePath = slideRels.get(attr(blip, 'embed') || '');
-      if (!imagePath || !bundle[imagePath] || !pictureType(imagePath)) { skipped++; continue; }
-      if (!pictures.has(imagePath)) pictures.set(imagePath, await uploadPicture(bundle[imagePath], imagePath, host));
+      const bytes = imagePath ? bundle[imagePath] : undefined;
+      if (!imagePath || !bytes || !pictureType(imagePath)) { skipped++; continue; }
+      if (!pictures.has(imagePath)) pictures.set(imagePath, await uploadPicture(bytes, imagePath, host));
       const picture = pictures.get(imagePath);
       if (picture) images.push(picture);
     }
@@ -88,7 +93,7 @@ export async function importPPTX(file: File, host: ImportHost, progress: Progres
 }
 
 export async function importKeynote(file: File, host: ImportHost, progress: Progress): Promise<Imported> {
-  const bundle = await openBundle(file, name => /(?:^|\/)Data\/st-[^/]+\.(jpe?g|png)$/i.test(name) || /(?:^|\/)(?:QuickLook\/|preview(?:-web|-micro)?\.(?:jpe?g|png)$)/i.test(name));
+  const bundle = await openBundle(file, 'key');
   const names = Object.keys(bundle), natural = new Intl.Collator('en', { numeric: true });
   const data = names.filter(name => /(?:^|\/)Data\/st-[^/]+\.(jpe?g|png)$/i.test(name));
   const quick = names.filter(name => /QuickLook\/.*\.(jpe?g|png)$/i.test(name));
@@ -99,7 +104,9 @@ export async function importKeynote(file: File, host: ImportHost, progress: Prog
   for (const [index, path] of previews.entries()) {
     progress(index / previews.length, `Saving preview ${index + 1} of ${previews.length}`);
     await yieldToUI();
-    slides.push({ id: crypto.randomUUID(), layout: 'image', imageOnly: true, title: `Slide ${index + 1}`, body: '', sub: '', images: [await uploadPicture(bundle[path], path, host)] });
+    const bytes = bundle[path];
+    if (!bytes) throw new Error(`The presentation is missing ${path}.`);
+    slides.push({ id: crypto.randomUUID(), layout: 'image', imageOnly: true, title: `Slide ${index + 1}`, body: '', sub: '', images: [await uploadPicture(bytes, path, host)] });
   }
   return { type: 'deck', props: { slides, current: 0 } };
 }
