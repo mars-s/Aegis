@@ -9,6 +9,8 @@ import { chromium, webkit } from 'playwright';
 import type { Browser, Page } from 'playwright';
 import type {} from '../../perf/scene/browser-fixture.js';
 
+declare global { interface Window { resumeSceneFrames: () => void } }
+
 const scenePort = Number(process.env.AEGIS_PORT_OFFSET ?? 4100);
 const url = `http://127.0.0.1:${scenePort}/checks/perf/scene/index.html`;
 const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-scene-evidence-'));
@@ -396,6 +398,22 @@ describe('real scene attachment', () => {
     await p.mouse.click(430, 104); await p.keyboard.up('Shift'); await idle(p);
     expect(await p.locator('.scene-card.selected').count()).toBe(0);
     expect(await p.evaluate(() => window.sceneHarness.engine.inspect().pinnedLeases)).toBe(0);
+    await p.close();
+  });
+
+  test('keeps both Shift clicks when their pointer pairs arrive before a scene frame', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const request = window.requestAnimationFrame, callbacks: FrameRequestCallback[] = [];
+      window.requestAnimationFrame = callback => callbacks.push(callback);
+      window.resumeSceneFrames = () => { window.requestAnimationFrame = request; for (const callback of callbacks) callback(performance.now()); };
+    });
+    await p.keyboard.down('Shift');
+    await p.mouse.click(430, 104); await p.mouse.click(430, 104);
+    await p.keyboard.up('Shift');
+    await p.evaluate(() => window.resumeSceneFrames()); await idle(p);
+    expect(await p.locator('.scene-card.selected').count()).toBe(0);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
     await p.close();
   });
 

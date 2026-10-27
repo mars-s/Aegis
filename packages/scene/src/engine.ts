@@ -449,6 +449,14 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   function editable(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,button,a,video,audio,[contenteditable]:not([contenteditable="false"]),[data-scene-interactive]'); }
   function ownsSpace(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.side-editor,#agentIsland,#composer'); }
   function releaseSpace(): void { spaceHeld = false; stage.classList.remove('pan-ready'); }
+  function pointerInFlight(): boolean {
+    let pointer = gesture?.pointer ?? null;
+    for (const input of inputs) {
+      if (input.kind === 'down') pointer = input.pointer;
+      else if (input.kind === 'cancel' || input.kind === 'up' && input.pointer === pointer) pointer = null;
+    }
+    return pointer !== null;
+  }
   const touchPointers = new Set<number>();
 
   stage.addEventListener('wheel', event => {
@@ -472,7 +480,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const handle = event.target instanceof Element ? event.target.closest('.resize,.selection-resize,.rotation-handle,.selection-move,[data-scene-gesture]') : null;
     const action = handle?.matches('.resize,.selection-resize,[data-scene-gesture="resize"]') ? 'resize' : handle?.matches('.rotation-handle,[data-scene-gesture="rotate"]') ? 'rotate' : handle?.matches('.selection-move,[data-scene-gesture="move"]') ? 'selection-move' : 'move';
     const sceneControl = event.target instanceof Element && !!event.target.closest('.canvas-orientation,.window-actions');
-    if ((!pan && (event.button !== 0 || sceneControl || !handle && editable(event.target))) || gesture || inputs.some(input => input.kind === 'down')) return;
+    if ((!pan && (event.button !== 0 || sceneControl || !handle && editable(event.target))) || pointerInFlight()) return;
     event.preventDefault(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId);
     if (pan) { stage.classList.add('panning'); event.stopImmediatePropagation(); }
     else if (handle) event.stopImmediatePropagation();
