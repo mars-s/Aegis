@@ -1,7 +1,6 @@
 // Editing behaviour adapted from Mochiboard, MIT. See LICENSE.mochiboard.
 import { CardIdSchema, CommandSchema, LinkIdSchema } from "@aegis/domain";
 import type { Board, Card, CardId, Command } from "@aegis/domain";
-import { confirmAction } from "../lib/ui/confirm.js";
 import type { FeatureContext } from "../composition.js";
 import { descendants, locked } from "./model.js";
 
@@ -27,89 +26,51 @@ export function submit(
   return false;
 }
 
-export async function deleteCards(
-  context: FeatureContext,
-  ids: readonly CardId[],
-  notify: Notify,
-): Promise<void> {
-  const before = context.workspace.scene.snapshot();
-  const removable = descendants(before, ids).filter(
-    (card) => !locked(before, card),
-  );
-  if (!removable.length) return;
-  const label =
-    removable.length === 1 && removable[0]
-      ? `Delete ${removable[0].props?.layerName || removable[0].heading || "this window"}?`
-      : `Delete ${removable.length} windows?`;
-  if (
-    !(await confirmAction({
-      title: label,
-      body: "You can undo this deletion.",
-    }))
-  )
-    return;
-  // Resolve again after the dialog, so a remote edit cannot reintroduce a deleted card.
-  if (context.workspace.metadata.getSnapshot().id !== before.id) return;
+interface DeletedSelection {
+  readonly boardId: Board['id'];
+  readonly signature: string;
+  readonly ids: readonly CardId[];
+  readonly restore: () => boolean;
+}
+const deletedSelections = new WeakMap<FeatureContext['workspace'], DeletedSelection>();
+const deletionSignature = (board: Board): string => JSON.stringify([board.cards, board.links, board.tray, board.palette]);
+
+export function undoDeletedCards(context: FeatureContext, scoped = false): boolean {
+  const pending = deletedSelections.get(context.workspace);
+  if (!pending) return false;
+  const board = context.workspace.scene.snapshot();
+  if (board.id !== pending.boardId) { deletedSelections.delete(context.workspace); return false; }
+  const unchanged = deletionSignature(board) === pending.signature;
+  if (!unchanged && !scoped) return false;
+  const restored = unchanged ? context.workspace.undo().kind === 'applied' : pending.restore();
+  if (!restored) return false;
+  deletedSelections.delete(context.workspace);
+  context.workspace.act({ kind: 'select', ids: pending.ids.filter(id => context.workspace.record(id).getSnapshot() !== null) });
+  return true;
+}
+
+export async function deleteCards(context: FeatureContext, ids: readonly CardId[], notify: Notify): Promise<void> {
   const current = context.workspace.scene.snapshot();
-  const cards = current.cards.filter(
-    (card) =>
-      removable.some((item) => item.id === card.id) && !locked(current, card),
-  );
-  const removed = new Set(cards.map((card) => card.id));
-  const links = current.links.filter(
-    (link) => removed.has(link.a) || removed.has(link.b),
-  );
-  if (!submit(context, [{ op: "delete", ids: [...removed] }], notify)) return;
-  context.workspace.act({ kind: "select", ids: [] });
-  let restored = false;
-  notify({
-    text: `${cards.length === 1 ? "Window" : `${cards.length} windows`} deleted`,
-    action: {
-      label: "Undo",
-      run: () => {
-        if (
-          restored ||
-          context.workspace.metadata.getSnapshot().id !== before.id
-        )
-          return;
-        const next = context.workspace.scene.snapshot();
-        const present = new Set(next.cards.map((card) => card.id));
-        const restoredCards = [...next.cards];
-        for (const card of cards) {
-          if (present.has(card.id)) continue;
-          const index = current.cards.findIndex((item) => item.id === card.id);
-          const following = current.cards
-            .slice(index + 1)
-            .find((item) => present.has(item.id));
-          const at = following
-            ? restoredCards.findIndex((item) => item.id === following.id)
-            : restoredCards.length;
-          restoredCards.splice(at, 0, card);
-          present.add(card.id);
-        }
-        const available = new Set(restoredCards.map((card) => card.id));
-        restored = submit(
-          context,
-          [
-            {
-              op: "restore",
-              cards: restoredCards,
-              links: [
-                ...next.links,
-                ...links.filter(
-                  (link) =>
-                    available.has(link.a) &&
-                    available.has(link.b) &&
-                    !next.links.some((item) => item.id === link.id),
-                ),
-              ],
-            },
-          ],
-          notify,
-        );
-      },
-    },
-  });
+  const cards = descendants(current, ids).filter(card => !locked(current, card));
+  if (!cards.length) return;
+  const removed = new Set(cards.map(card => card.id));
+  const links = current.links.filter(link => removed.has(link.a) || removed.has(link.b));
+  if (!submit(context, [{ op: 'delete', ids: [...removed] }], notify)) return;
+  context.workspace.act({ kind: 'select', ids: [] });
+  const restore = (): boolean => {
+    const next = context.workspace.scene.snapshot(), present = new Set(next.cards.map(card => card.id));
+    const restoredCards = [...next.cards];
+    for (const card of cards) {
+      if (present.has(card.id)) continue;
+      const index = current.cards.findIndex(item => item.id === card.id);
+      const following = current.cards.slice(index + 1).find(item => present.has(item.id));
+      const at = following ? restoredCards.findIndex(item => item.id === following.id) : restoredCards.length;
+      restoredCards.splice(at, 0, card); present.add(card.id);
+    }
+    return submit(context, [{ op: 'restore', cards: restoredCards, links: [...next.links, ...links.filter(link => present.has(link.a) && present.has(link.b) && !next.links.some(item => item.id === link.id))] }], notify);
+  };
+  deletedSelections.set(context.workspace, { boardId: current.id, ids, signature: deletionSignature(context.workspace.scene.snapshot()), restore });
+  notify({ text: `Deleted ${cards.length} window${cards.length === 1 ? '' : 's'}`, action: { label: 'Undo', run: () => { undoDeletedCards(context, true); document.getElementById('stage')?.focus({ preventScroll: true }); } } });
 }
 
 export function duplicateCards(

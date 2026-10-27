@@ -82,3 +82,9 @@ Accepted real controlled colour values, inherited title typography, 12px editor 
 The facade flushes React's actual board replacement synchronously while retaining schema validation and editor flush refusal. It does not substitute rows or workspace state. Strict React types, targeted lint and whitespace pass.
 
 The original Effect host boundary test rejects an invalid-only preview reply. Full-default preview strings were too broad, so title and description stay required. The original boundary and all new partial-preview tests pass with this narrower contract.
+
+## Immediate deletion with scoped Undo
+
+Accepted immediate deletion, keyboard selection restoration and a five-second Undo notice. Keyboard Undo uses the deletion transaction only while it is still the latest state; otherwise normal history keeps ownership. The toast's scoped Undo retains the existing card/link merge so later unrelated edits survive. Two real-workspace regressions verify Undo/Redo selection and preservation of later edits. Strict app/root types and targeted lint pass.
+
+Production data-trust completes all Chromium cases, including deletion/Undo, and advances to 219 passing assertions. It repeats the data owner's WebKit Text size polling timeout at :109. No wait or assertion has been relaxed.
