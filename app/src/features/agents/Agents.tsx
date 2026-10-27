@@ -33,6 +33,7 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const [phase, setPhase] = useState<Phase>('idle');
   const [prompt, setPrompt] = useState('');
   const [resolved, setResolved] = useState(false);
+  const composerRevision = useRef(0);
   const island = useRef<HTMLDivElement>(null), input = useRef<HTMLTextAreaElement>(null), orb = useRef<HTMLButtonElement>(null);
   const morph = useRef<ReturnType<typeof createMorph> | null>(null);
   const composer = useRef<AgentComposer | null>(null);
@@ -51,9 +52,11 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const hint = useOrbHint(runtime, island);
   function change(next: Phase, instant: boolean): void { morph.current?.capture({ instant, crossfade: next !== phase }); setPhase(next); }
   function open(keyboard = false): void {
+    composerRevision.current++;
     hint.dismiss(); change(runtime.current() ? 'conversation' : 'typing', keyboard);
   }
   function close(keyboard = false): void {
+    composerRevision.current++;
     change(runtime.current()?.running ? 'running' : 'idle', keyboard);
     suppressHover.current = island.current?.matches(':hover') ?? false;
     pendingOrbFocus.current = island.current?.contains(document.activeElement) ?? false;
@@ -115,7 +118,9 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     observer.observe(root); return () => observer.disconnect();
   }, [scene]);
   async function send(text: string, forceNew = false): Promise<boolean> {
+    const revision = composerRevision.current;
     const sent = await runtime.send(text, forceNew);
+    if (revision !== composerRevision.current) return sent;
     if (sent) { setPrompt(''); close(true); } else open(true);
     return sent;
   }
@@ -193,7 +198,7 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
             <Conversation agent={agent} className="island-turns" />
             <div id="islandContext" className="island-context" hidden={!state.pinned.length} title={names.join('\n')}><span className="context-label">{names.length === 1 ? names[0] : `${names.length} windows · ${names.slice(0, 2).join(', ')}${names.length > 2 ? '…' : ''}`}</span><button type="button" className="context-clear" aria-label="Clear selected context" onClick={() => { runtime.pin([]); input.current?.focus({ preventScroll: true }); }}>×</button></div>
             <textarea ref={input} id="prompt" aria-label="Message" rows={1} value={prompt} placeholder={state.pinned.length ? state.pinned.length === 1 ? 'What should the agent do with this window?' : `What should the agent do with these ${state.pinned.length} windows?` : agent ? 'Follow up with this agent…' : 'Ask about your board…'}
-              onChange={event => { morph.current?.capture({ instant: false }); setPrompt(event.target.value); }}
+              onChange={event => { composerRevision.current++; morph.current?.capture({ instant: false }); setPrompt(event.target.value); }}
               onKeyDown={event => { if (event.key !== 'Enter' || event.nativeEvent.isComposing) return; if (event.metaKey || event.ctrlKey) { event.preventDefault(); addNotes(); } else if (!event.shiftKey) { event.preventDefault(); if (!state.sending) void send(event.currentTarget.value, event.altKey); } }} />
             <div className="composer-row"><Options runtime={runtime} show={show} addNotes={addNotes} showAll={openActivity} changed={() => open(true)} /><span className="island-hint">Return to send <span>· Shift Return for a new line</span></span><span className="spacer" /><button id="send" type="submit" className="island-icon send" disabled={state.sending} aria-label={agent ? 'Send follow-up' : 'Start agent'}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3m-4 4 4-4 4 4" /></svg></button></div>
           </form>

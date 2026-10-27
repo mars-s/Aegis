@@ -59,6 +59,16 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
   const runtime = useMemo(() => createAgentRuntime({ workspace: context.workspace, service, requireSignIn: () => setSettings({ tab: 'accounts' }) }), [context.workspace, service]);
   const preferences = useMemo(createPreferenceStore, []);
   useEffect(() => runtime.start(), [runtime]);
+  useEffect(() => {
+    let previous: string | null = null;
+    const notify = (): void => {
+      const error = runtime.getSnapshot().error;
+      if (error && error !== previous) dispatchEvent(new CustomEvent('aegis:notice', { detail: error }));
+      previous = error;
+    };
+    notify();
+    return runtime.subscribe(notify);
+  }, [runtime]);
   useEffect(() => preferences.attach(), [preferences]);
   useEffect(() => { const instance = createAgentScene(context, schedule); setScene(instance); return () => instance.dispose(); }, [context, schedule]);
   useEffect(() => {

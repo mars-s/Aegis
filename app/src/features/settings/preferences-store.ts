@@ -16,19 +16,24 @@ export interface PreferenceStore extends Source<Preferences> {
   readonly set: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
   readonly attach: () => () => void;
 }
+export function readPreferences(): Preferences {
+  const fields = Object.fromEntries(Object.entries(keys).map(([field, key]) => [field, localStorage.getItem(`aegis:${key}`) ?? undefined]));
+  const legacyGrid = localStorage.getItem('aegis:grid');
+  if (fields.gridVisible === undefined && legacyGrid === 'none') fields.gridVisible = 'off';
+  if (fields.gridShape === undefined && legacyGrid !== null) fields.gridShape = legacyGrid;
+  const clean = Object.fromEntries(Object.entries(PreferencesSchema.shape).map(([name, schema]) => {
+    const parsed = schema.safeParse(fields[name]);
+    return [name, parsed.success ? parsed.data : undefined];
+  }));
+  return PreferencesSchema.parse(clean);
+}
+
 export function createPreferenceStore(): PreferenceStore {
-  const read = (): Preferences => {
-    const fields = Object.fromEntries(Object.entries(keys).map(([field, key]) => [field, localStorage.getItem(`aegis:${key}`) ?? undefined]));
-    const clean = Object.fromEntries(Object.entries(PreferencesSchema.shape).map(([name, schema]) => {
-      const parsed = schema.safeParse(fields[name]);
-      return [name, parsed.success ? parsed.data : undefined];
-    }));
-    return PreferencesSchema.parse(clean);
-  };
-  let snapshot = read();
+  let snapshot = readPreferences();
   const listeners = new Set<() => void>();
   const appearance = (): void => {
     document.body.classList.toggle('motion-off', snapshot.motion === 'off');
+    localStorage.setItem('aegis:grid', snapshot.gridVisible === 'off' ? 'none' : snapshot.gridShape);
     document.documentElement.dataset.theme = snapshot.theme === 'system' ? matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' : snapshot.theme;
   };
   const publish = (): void => { appearance(); for (const listener of listeners) listener(); };
@@ -41,7 +46,7 @@ export function createPreferenceStore(): PreferenceStore {
     },
     attach() {
       const media = matchMedia('(prefers-color-scheme: dark)');
-      const storage = (event: StorageEvent): void => { if (event.storageArea === localStorage && event.key?.startsWith('aegis:')) { snapshot = read(); publish(); } };
+      const storage = (event: StorageEvent): void => { if (event.storageArea === localStorage && event.key?.startsWith('aegis:')) { snapshot = readPreferences(); publish(); } };
       media.addEventListener('change', appearance); addEventListener('storage', storage); appearance();
       return () => { media.removeEventListener('change', appearance); removeEventListener('storage', storage); };
     },

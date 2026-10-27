@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { ReactNode } from "react";
 import { z } from 'zod/v4';
+import { CardIdSchema } from '@aegis/domain';
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type {
@@ -38,6 +39,7 @@ import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
+import { restack, stackMenu, stacking } from './Stacking.js';
 import { createCoreTools } from "./CoreTools.js";
 import "./chrome.css";
 
@@ -138,6 +140,7 @@ export function Chrome({
   const dock = useRef<HTMLElement>(null),
     leftBar = useRef<HTMLDivElement>(null),
     rightBar = useRef<HTMLDivElement>(null);
+  const previousRightOpen = useRef(ui.rightPanel);
   const arrows = useRef<{
     left: HTMLButtonElement | null;
     right: HTMLButtonElement | null;
@@ -201,6 +204,13 @@ export function Chrome({
     context.workspace.act({ kind: "panel", side, open });
     change({ ...layout, open: { ...layout.open, [side]: open } });
   }
+  useLayoutEffect(() => {
+    const closed = previousRightOpen.current && !ui.rightPanel;
+    previousRightOpen.current = ui.rightPanel;
+    if (!closed) return;
+    if (layout.open.right) change({ ...layout, open: { ...layout.open, right: false } });
+    arrows.current.right?.focus({ preventScroll: true });
+  }, [change, layout, ui.rightPanel]);
   useEffect(() => {
     mountDropdowns();
     const saved = readLayout();
@@ -439,9 +449,10 @@ export function Chrome({
         run: () => add("readme"),
       },
       ...composition.tools,
-      ...composition.menus,
+      ...composition.menus.filter(action => !stacking.some(stack => stack.id === action.id)),
+      ...stacking.map(action => ({ id: action.id, label: action.label, shortcut: action.shortcut, run: (target: FeatureContext) => restack(target, target.workspace.selection.getSnapshot(), action.id, notify) })),
     ],
-    [composition, context, engine],
+    [composition, context, engine, notify],
   );
   const actionRef = useRef(actions);
   const dockIds = toolOrder(
@@ -516,7 +527,8 @@ export function Chrome({
         !mod &&
         !event.altKey &&
         event.target instanceof Element &&
-        event.target.closest("button,summary,[role=treeitem]")
+        event.target.closest("button,summary,[role=treeitem]") &&
+        !event.target.closest("#askPill")
       )
         return;
       let handled = true;
@@ -541,6 +553,11 @@ export function Chrome({
             [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel,
           },
         });
+      } else if (mod && !event.shiftKey && !event.altKey && (name === "[" || name === "]")) {
+        const side = name === "[" ? "left" : "right", opened = context.workspace.ui.getSnapshot();
+        change({ ...current.current.layout, open: { ...current.current.layout.open, [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel } });
+      } else if (mod && event.altKey && (event.code === 'BracketLeft' || event.code === 'BracketRight')) {
+        restack(context, ids, event.code === 'BracketRight' ? event.shiftKey ? 'front' : 'forward' : event.shiftKey ? 'back' : 'backward', notify);
       } else if (mod && name === "0") {
         setZoom(engine, 1, current.current.cameraChanged);
       } else if (mod && (name === "+" || name === "=" || name === "-")) {
@@ -629,28 +646,7 @@ export function Chrome({
               },
               {
                 title: "Arrange",
-                items: [
-                  {
-                    title: "Bring to front",
-                    run: () => {
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "front" }],
-                        notify,
-                      );
-                    },
-                  },
-                  {
-                    title: "Send to back",
-                    run: () => {
-                      submit(
-                        context,
-                        [{ op: "order", ids: [...ids], to: "back" }],
-                        notify,
-                      );
-                    },
-                  },
-                ],
+                items: stackMenu(context, ids, notify),
               },
               {
                 title: "Lock",
@@ -689,9 +685,22 @@ export function Chrome({
       );
       menu.open(event, { x: event.clientX, y: event.clientY });
     }
+    const layer = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      const parsed = z.object({ x: z.number().finite(), y: z.number().finite(), ids: CardIdSchema.array() }).safeParse(detail);
+      if (!parsed.success) return;
+      const ids = parsed.data.ids.filter(id => context.workspace.record(id).getSnapshot() !== null);
+      context.workspace.act({ kind: 'select', ids });
+      menu.setTrigger(stage);
+      menu.setItems(stackMenu(context, ids, notify));
+      menu.open(event, { x: parsed.data.x, y: parsed.data.y });
+    };
     stage.addEventListener("contextmenu", open);
+    stage.addEventListener('layercontext', layer);
     return () => {
       stage.removeEventListener("contextmenu", open);
+      stage.removeEventListener('layercontext', layer);
       menu.destroy();
     };
   }, [context, engine, composition, notify, exportBoard, coreTools]);
@@ -999,8 +1008,16 @@ export function Chrome({
         className={`side side-right${ui.rightPanel ? " open" : ""}${captureReveal?.side === 'right' ? ' capture-reveal' : ''}`}
         aria-label="Agent activity and panels"
         hidden={!ui.rightPanel}
+        aria-hidden={!ui.rightPanel}
         style={{ width: layout.rightWidth }}
+        onKeyDown={event => {
+          if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); setOpen("right", false); arrows.current.right?.focus(); }
+        }}
+        onClick={event => {
+          if (event.target instanceof Element && event.target.closest("#closeAgents")) { setOpen("right", false); arrows.current.right?.focus(); }
+        }}
       >
+        {!rightContent ? (
         <div className="side-head">
           <span>Agent activity</span>
           <button
@@ -1014,6 +1031,7 @@ export function Chrome({
             <Icon name="close" />
           </button>
         </div>
+        ) : null}
         {rightContent}
         {panels("right")}
         <SideResize side="right" layout={layout} change={change} />
