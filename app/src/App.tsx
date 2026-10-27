@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
 import type { BoardId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
@@ -139,8 +139,10 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), flushEditor: controller.flush });
   }, [chromeEngine, agentControls, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
-  useEffect(() => controller.install(), [controller]);
-  useEffect(() => installEditorActions(context), [context]);
+  useLayoutEffect(() => {
+    const stopController = controller.install(), stopActions = installEditorActions(context);
+    return () => { stopActions(); stopController(); };
+  }, [controller, context]);
   useEffect(() => installDocumentClipboard(workspace), [workspace]);
   useEffect(() => { const notice = (event: Event): void => { if (event instanceof CustomEvent && typeof event.detail === 'string') setNotice(event.detail); }; window.addEventListener('aegis:notice', notice); return () => window.removeEventListener('aegis:notice', notice); }, []);
   useEffect(() => { installNativeDownloads(setNotice); }, []);
