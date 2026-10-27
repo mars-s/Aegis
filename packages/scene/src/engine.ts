@@ -67,7 +67,12 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   });
   const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
   const motionPreference = view.matchMedia('(prefers-reduced-motion: reduce)');
-  const reducedMotion = (): boolean => (args.reducedMotion ?? motionPreference.matches) || stage.ownerDocument.body.classList.contains('motion-off');
+  let systemReducedMotion = motionPreference.matches;
+  const reducedMotion = (refresh = false): boolean => {
+    if (refresh) systemReducedMotion = view.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    return (args.reducedMotion ?? systemReducedMotion) || stage.ownerDocument.body.classList.contains('motion-off');
+  };
+  motionPreference.addEventListener('change', event => { systemReducedMotion = event.matches; invalidate(); }, { signal: abort.signal });
   const canLease = args.canLease ?? ((card: Card): boolean => card.type === 'note' || card.type === 'title');
   const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? LIVE_LIMIT), invalidate);
   const overlays = new SceneOverlays(stage, world, invalidate, (id, keyboard) => enqueue({ kind: 'navigation', intent: { kind: 'fit', ids: [id], motion: keyboard ? 'instant' : 'glide' }, at: performance.now() }));
@@ -177,7 +182,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       }
       default: { const exhaustive: never = intent; return exhaustive; }
     }
-    if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) { camera = target; glide = null; }
+    if (intent.motion === 'instant' || reducedMotion(true) || intent.duration === 0) { camera = target; glide = null; }
     else glide = { from: camera, to: target, start: now, duration: Math.max(1, intent.duration ?? 420) };
     if (args.onNavigation) post(args.onNavigation);
   }
@@ -635,7 +640,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     leases: pool.source,
     navigate: intent => {
       if (disposed) return;
-      if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) {
+      if (intent.motion === 'instant' || reducedMotion(true) || intent.duration === 0) {
         for (let index = inputs.length - 1; index >= 0; index--) if (inputs[index]?.kind === 'wheel' || inputs[index]?.kind === 'navigation') inputs.splice(index, 1);
         navigation(intent, performance.now()); invalidate();
       } else enqueue({ kind: 'navigation', intent, at: performance.now() });

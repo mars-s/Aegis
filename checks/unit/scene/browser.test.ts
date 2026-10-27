@@ -17,10 +17,10 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false, insets = false, attachmentBrowser = browser): Promise<Page> {
+async function page(motion: boolean | 'system' = false, insets = false, attachmentBrowser = browser): Promise<Page> {
   if (!attachmentBrowser) throw new Error('Browser not started');
   const result = await attachmentBrowser.newPage({ viewport: { width: 1440, height: 900 } });
-  await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
+  await result.goto(url + `?motion=${motion === 'system' ? 'system' : motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
   return result;
@@ -108,6 +108,29 @@ describe('real scene attachment', () => {
       });
       await idle(p);
       expect(await p.evaluate(() => window.sceneHarness.engine.inspect().activeLeases)).toBeLessThanOrEqual(32);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('uses the current motion preference when navigation starts in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page('system', false, alternate ?? browser);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      await p.emulateMedia({ reducedMotion: 'no-preference' });
+      const frames = await p.evaluate(() => new Promise<readonly number[]>(resolve => {
+        const engine = window.sceneHarness.engine, frames: number[] = [];
+        const release = engine.registerFrameParticipant({ write: () => { frames.push(engine.camera().x); if (!engine.busy()) { release(); resolve(frames); } } });
+        engine.navigate({ kind: 'restore', camera: { x: 200, y: 100, zoom: .8 }, motion: 'glide', duration: 420 });
+      }));
+      expect(frames.length).toBeGreaterThanOrEqual(5);
+      expect(frames.at(-1)).toBe(200);
+      await p.emulateMedia({ reducedMotion: 'reduce' });
+      expect(await p.evaluate(() => {
+        const engine = window.sceneHarness.engine;
+        engine.navigate({ kind: 'restore', camera: { x: 20, y: 30, zoom: 1 }, motion: 'glide' });
+        return { busy: engine.busy(), camera: engine.camera() };
+      })).toEqual({ busy: false, camera: { x: 20, y: 30, zoom: 1 } });
       await p.close();
     } finally { await alternate?.close(); }
   });
