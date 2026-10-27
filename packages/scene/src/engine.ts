@@ -62,7 +62,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let touchQuarantine = false;
   const abort = new AbortController();
   const participants = new Set<FrameParticipant>();
-  const tools = new ToolController(invalidate, hitTest);
+  const tools = new ToolController(invalidate, hitTest, name => {
+    if (args.onToolChange) post(() => { if (tools.name() === name) args.onToolChange?.(name); });
+  });
   const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
   const motionPreference = view.matchMedia('(prefers-reduced-motion: reduce)');
   const reducedMotion = (): boolean => (args.reducedMotion ?? motionPreference.matches) || stage.ownerDocument.body.classList.contains('motion-off');

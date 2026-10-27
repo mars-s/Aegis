@@ -9,13 +9,14 @@ import "./scene.css";
 import { createSceneTheme } from "../platform/scene-theme.js";
 import { bindOrientationMenu } from "./orientation-menu.js";
 
-export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop }: {
+export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop, toolChanged }: {
   readonly workspace: Workspace;
   readonly composition: Composition;
   readonly attached: (engine: CanvasEngine | null) => void;
   readonly cameraChanged: () => void;
   readonly availableArea?: Source<Rect>;
   readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
+  readonly toolChanged?: (name: string | null) => void;
 }) {
   const retainedCamera = useRef<{ readonly boardId: string; readonly camera: ReturnType<CanvasEngine["camera"]> } | null>(null);
   const theme = useMemo(createSceneTheme, []);
@@ -27,11 +28,13 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   const bodyKinds = useMemo(() => new Set(composition.cards.map(card => card.kind)), [composition]);
   const availableBodies = useRef(bodyKinds);
   const dropResolver = useRef(resolveCardDrop); dropResolver.current = resolveCardDrop;
+  const toolObserver = useRef(toolChanged); toolObserver.current = toolChanged;
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
     const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, onNavigation: cameraChanged, ...(availableArea ? { availableArea } : {}),
       resolveCardDrop: request => dropResolver.current?.(request) ?? null,
+      onToolChange: name => toolObserver.current?.(name),
       selectForDrag: (ids, hit, modifiers) => selectForDrag(ids, hit, workspace.scene.snapshot(), { shiftKey: modifiers.shift, metaKey: modifiers.bypass }),
       expandDrag: (ids, modifiers) => {
         const board = workspace.scene.snapshot();
