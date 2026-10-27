@@ -67,6 +67,13 @@ export async function readRenderedLinks(page) {
 export async function readConnectionPreview(page, at) {
   return page.evaluate(at => {
     const canvas = document.querySelector('.scene-overlay');
+    const creative = document.querySelector('.creative-connections [data-connect-preview]');
+    if (creative) {
+      const target = document.querySelector('.creative-connections [data-connect-target]'), matrix = creative.getScreenCTM(), style = getComputedStyle(creative);
+      if (!target || !matrix || creative.getTotalLength() === 0 || style.stroke === 'none' || Number.parseFloat(style.strokeWidth) <= 0) throw Error('The creative connection preview is not painted');
+      const end = creative.getPointAtLength(creative.getTotalLength()).matrixTransform(matrix);
+      return { target: target.getAttribute('data-connect-target'), end: { x: end.x, y: end.y } };
+    }
     if (!canvas) {
       const target = document.querySelector('[data-connect-target]'), path = document.querySelector('[data-connect-preview]');
       const end = path.getPointAtLength(path.getTotalLength());

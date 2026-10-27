@@ -165,7 +165,7 @@ function installConnections(workspace: FeatureWorkspace, engine: CanvasEngine, n
     if (!preview) { previewGroup.remove(); return; }
     const from = workspace.record(preview.source).getSnapshot(), to = target(preview.point, preview.except);
     if (!from) { previewGroup.remove(); return; }
-    const end = to ? rect(to) : { ...preview.point.world, width: 0, height: 0 }, next = routeLink({}, rect(from), end, from.rot, to?.rot);
+    const end = to ? rect(to) : { ...preview.point.world, width: 0, height: 0 }, next = routeLink({ pa: pin(from, preview.point.world), ...(to ? { pb: pin(to, preview.point.world) } : {}) }, rect(from), end, from.rot, to?.rot);
     const display = to ? '' : 'none'; if (previewTarget.style.display !== display) previewTarget.style.display = display;
     if (to) setSvgAttributes(previewTarget, { ...rect(to), 'data-connect-target': to.id });
     else previewTarget.removeAttribute('data-connect-target');

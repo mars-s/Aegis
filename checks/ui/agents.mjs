@@ -1,4 +1,5 @@
 import { choose as pick } from './dropdown.mjs';
+import { verifyAgentSubmission } from './agents-submit.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -365,5 +366,6 @@ try {
   console.log('PASS compact history fits one readable name and +24 more at 320px and 200px; real mouse disclosure reveals all 25 names and survives updates; one named activity close control works with real mouse input and Escape restores focus; request Undo restores positions, retains later text, is one board change and normal-undoable; overlapping text disables Undo with a reason in both timelines');
   assert.deepEqual(errors, []);
   console.log('PASS island idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models and menu keyboard navigation, fade-only motion, durable chat reload, phone options and hidden-page pause');
+  if (process.env.AEGIS_UI_IMPL === 'react') await verifyAgentSubmission();
 } catch (e) { writeFileSync(out(`island-${captureId}-failure.log`), String(e.stack ?? e)); console.error(e); console.error('page errors', errors); console.error('requests', requests); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }
 finally { await browser.close(); host.kill(); vite.kill(); }

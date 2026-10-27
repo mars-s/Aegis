@@ -118,10 +118,12 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     observer.observe(root); return () => observer.disconnect();
   }, [scene]);
   async function send(text: string, forceNew = false): Promise<boolean> {
-    const revision = composerRevision.current;
-    const sent = await runtime.send(text, forceNew);
+    if (runtime.getSnapshot().sending) return false;
+    const request = runtime.send(text, forceNew), submitting = runtime.getSnapshot().sending;
+    if (submitting) { setPrompt(''); close(true); }
+    const revision = composerRevision.current, sent = await request;
     if (revision !== composerRevision.current) return sent;
-    if (sent) { setPrompt(''); close(true); } else open(true);
+    if (!sent) { if (submitting) setPrompt(text); open(true); }
     return sent;
   }
   function addNotes(): void {

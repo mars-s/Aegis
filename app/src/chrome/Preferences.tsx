@@ -191,6 +191,7 @@ export function PanelPreferences({
     <label key={panel.id}>
       <input
         type="checkbox"
+        className="aegis-switch"
         aria-label={`Show ${panel.label}`}
         data-panel-visibility={panel.id}
         checked={!layout.off[panel.id]}

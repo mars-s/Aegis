@@ -313,11 +313,11 @@ try {
   const firstBoard = await page.evaluate(() => aegis.canvas.board.id);
   const otherBoard = await page.evaluate(async () => aegis.host.post('/boards', { name: 'Separate palette' }));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  await page.getByText('Separate palette', { exact: true }).click();
+  await (process.env.AEGIS_UI_IMPL === 'react' ? page.locator(`.tree-row.board[data-board="${otherBoard.id}"]`) : page.getByText('Separate palette', { exact: true })).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, otherBoard.id);
   assert.equal(await page.evaluate(() => aegis.canvas.board.bg || null), null);
   assert.equal(await page.evaluate(() => aegis.canvas.board.palette?.length || 0), 0);
-  await page.getByText('First board', { exact: true }).last().click();
+  await (process.env.AEGIS_UI_IMPL === 'react' ? page.locator(`.tree-row.board[data-board="${firstBoard}"]`) : page.getByText('First board', { exact: true }).last()).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, firstBoard);
   await centreCard('video'); await page.screenshot({ path: out('media-persisted.png') });
   await page.evaluate(() => {
