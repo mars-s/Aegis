@@ -65,7 +65,7 @@ try {
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       const fresh = async () => {
         await close(); await saved();
-        const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Spatial memory' }); localStorage.setItem('aegis:board', board.id); aegis.canvas.setBoard(board); return board.id; });
+        const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Spatial memory' }); if (aegis.flush) await aegis.flush(); localStorage.setItem('aegis:board', board.id); aegis.canvas.setBoard(board); return board.id; });
         await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, boardId);
         await apply(fixtures); await settle(); await saved();
       };
