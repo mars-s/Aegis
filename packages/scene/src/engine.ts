@@ -643,7 +643,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const text = target.closest<HTMLElement>('[contenteditable]:not([contenteditable="false"])');
     return !!text && text.contains(stage.ownerDocument.activeElement);
   }
-  function ownsSpace(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),.side-editor,#agentIsland,#composer'); }
+  function ownsSpace(target: EventTarget | null): boolean { return target instanceof Element && !!target.closest('input,textarea,select,summary,[contenteditable]:not([contenteditable="false"]),[role=menu],[role=listbox],[role=dialog],.side-editor,#agentIsland,#composer'); }
   function releaseSpace(): void { spaceHeld = false; stage.classList.remove('pan-ready'); }
   function pointerInFlight(): boolean {
     let pointer = gesture?.pointer ?? null;
@@ -771,7 +771,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       if (event.target === stage.ownerDocument.body || event.target instanceof Node && stage.contains(event.target)) event.preventDefault();
       invalidate(); return;
     }
-    if (editable(event.target)) return;
+    if (editable(event.target) || event.target instanceof Element && !!event.target.closest('summary,[role=menu],[role=listbox],[role=dialog]')) return;
     if (tools.key({ key: event.key, shift: event.shiftKey, alt: event.altKey, bypass: event.metaKey || event.ctrlKey })) { event.preventDefault(); event.stopImmediatePropagation(); return; }
     if (event.key === 'Escape') tools.cancel('escape');
     if (event.key === '0' && !event.metaKey && !event.ctrlKey) enqueue({ kind: 'navigation', intent: { kind: 'fit', ids: [], motion: 'glide' }, at: performance.now() });

@@ -41,9 +41,9 @@ export function toolOrder(
   defaults: readonly string[],
   saved: readonly string[],
 ): string[] {
-  return [
-    ...new Set([...saved.filter((id) => defaults.includes(id)), ...defaults]),
-  ];
+  const order = [...new Set(saved.filter(id => defaults.includes(id)))];
+  defaults.forEach((id, index) => { if (!order.includes(id)) order.splice(Math.min(index, order.length), 0, id); });
+  return order;
 }
 export function toolbarTools(composition: Composition) {
   return [

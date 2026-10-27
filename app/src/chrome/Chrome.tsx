@@ -508,7 +508,11 @@ export function Chrome({
       ...composition.tools.map((action) => action.id),
     ],
     toolbar.order,
-  ).filter((id) => !toolbar.hidden.includes(id));
+  );
+  const toolbarIdentity = dockIds.join(',');
+  useLayoutEffect(() => {
+    for (const button of dock.current?.querySelectorAll<HTMLElement>('[data-tool]') ?? []) button.hidden = toolbar.hidden.includes(button.dataset.tool ?? '');
+  }, [toolbar.hidden, toolbarIdentity]);
   const toolButton = (id: string) => {
     if (id === "templates" && library)
       return (
@@ -1076,8 +1080,8 @@ export function Chrome({
           closeOnResize
           className="tools-popover"
         >
-          <div className="tools-grid">{dockIds.slice(7).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
-          {dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
+          <div className="tools-grid">{dockIds.slice(7).filter(id => toolbar.order.length || !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          {!toolbar.order.length && dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
             <h3>Media</h3>
             <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
           </section> : null}
