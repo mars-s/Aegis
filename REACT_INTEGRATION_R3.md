@@ -69,7 +69,7 @@ Canvas advances through colour picker keyboard save/focus and menu motion, then 
 
 ## Derived chart and optional preview boundaries
 
-Accepted the data chart JSON proposal and creative optional link metadata proposal. Bound charts omit the independent headline key instead of emitting undefined. Optional preview strings default to empty strings; invalid types still fail decoding. Four new boundary cases cover live/missing/saved chart sources and partial previews. The pre-fix JSON probe fails at the actual JSON boundary and the same probe passes after the fix.
+Accepted the data chart JSON proposal and creative optional link metadata proposal. Bound charts omit the independent headline key instead of emitting undefined. Optional image and favicon strings default to empty strings; title and description remain required and invalid types still fail decoding. Four new boundary cases cover live/missing/saved chart sources and partial previews. The pre-fix JSON probe fails at the actual JSON boundary and the same probe passes after the fix.
 
 All 55 domain tests pass. The pre-existing compatibility case still asserts that an old in-memory explicit undefined headline remains editable; its fixture now creates that legacy field explicitly, while the new cases prove new derived charts are valid JSON. Root and React strict types, targeted lint, safe types and whitespace pass. Production evidence-fidelity passes 2333/2333 and chart-defaults passes 105/105, both full declared engine matrices.
 
@@ -80,3 +80,5 @@ The real import/error pipeline now renders a bounded 480px notification above ed
 Accepted real controlled colour values, inherited title typography, 12px editor hints and the existing 32px sidebar button variables. Registered the existing Link placement tool. Media advances from 24 to 61 assertions, covering links, real recording/upload/playback, outgoing row disconnection and original-board save. Its next failure showed setBoard did not persist the selected board ID; the facade now mirrors real board opening after successful guarded replacement. The subsequent repeat stalled earlier in portrait recording and is not a green media claim.
 
 The facade flushes React's actual board replacement synchronously while retaining schema validation and editor flush refusal. It does not substitute rows or workspace state. Strict React types, targeted lint and whitespace pass.
+
+The original Effect host boundary test rejects an invalid-only preview reply. Full-default preview strings were too broad, so title and description stay required. The original boundary and all new partial-preview tests pass with this narrower contract.
