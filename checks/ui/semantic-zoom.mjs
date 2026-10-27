@@ -2,6 +2,7 @@
 import { chromium, webkit } from './playwright.mjs';
 import { assertStaticWindows, assertRealLinkEdges, assertFitBounds } from './static-geometry.mjs';
 import { demoBatch } from '../demo-batch.mjs';
+import { waitForAsync } from './poll.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -37,7 +38,7 @@ try {
     const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Semantic zoom demo' }); aegis.canvas.setBoard(board); return board.id; });
     await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, boardId);
     await page.evaluate(batch => aegis.apply(batch), demoBatch);
-    await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
+    await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9);
     await page.waitForTimeout(700);
     await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await page.waitForTimeout(250);
     await page.screenshot({ path: join(output, `after-fit-${engineName}.png`) });
@@ -108,11 +109,21 @@ try {
     await zoom(.85);
     const agentId = await page.evaluate(async () => (await aegis.host.post('/agents', { boardId: aegis.canvas.board.id, brief: 'FAKE []', model: { provider: 'fake', modelId: 'fake' } }))[0].id);
     const agent = page.locator(`.agent-window[data-agent-id="${agentId}"]`);
+    // Compare camera scales with the same completed content in the agent window.
+    const completed = await waitForAsync(page, async id => {
+      const agent = (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(agent => agent.id === id);
+      return agent && !agent.running ? agent : null;
+    }, agentId);
+    const status = completed.status;
+    await page.waitForFunction(({ id, status }) => {
+      const element = document.querySelector(`.agent-window[data-agent-id="${id}"]`);
+      return element && !element.classList.contains('running') && element.querySelector('.agent-window-status')?.textContent === status;
+    }, { id: agentId, status });
     await agent.waitFor(); await agent.locator('.agent-window-toggle').evaluate(el => el.click());
     await frames(); const expanded = await agent.boundingBox();
     for (const z of [.05, .3, .5, .75, 1, 2]) {
       await zoom(z); const bounds = await agent.boundingBox();
-      assert.ok(Math.abs(bounds.width - expanded.width) < 1 && Math.abs(bounds.height - expanded.height) < 1, 'agent chrome keeps its expanded screen size');
+      assert.ok(Math.abs(bounds.width - expanded.width) < 1 && Math.abs(bounds.height - expanded.height) < 1, `agent chrome keeps its expanded screen size: ${JSON.stringify({ z, expanded, bounds })}`);
       assert.equal(await agent.locator('.agent-window-body').evaluate(el => el.inert), false);
       assert.equal(await agent.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'true');
       assert.equal(await agent.locator('.agent-zoom-summary').count(), 0);

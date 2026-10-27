@@ -465,8 +465,11 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const scale = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? viewport.height : 1;
     enqueue({ kind: 'wheel', point: point(event), dx: event.deltaX * scale, dy: event.deltaY * scale, zoom: event.ctrlKey || event.metaKey, at: performance.now() });
   }, { passive: false, signal: abort.signal });
-  stage.addEventListener('pointerdown', event => {
+  view.addEventListener('pointerdown', event => {
     const pan = event.button === 1 || event.button === 0 && spaceHeld;
+    const inside = event.target instanceof Node && stage.contains(event.target);
+    const affordance = event.target instanceof Element && event.target.closest('.agent-window,.editing-outline');
+    if (!inside && !(pan && affordance)) return;
     if (!pan && !editable(event.target) && tools.down(toolPoint(event))) { event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
     if (pan) tools.cancel('pan');
     if (event.pointerType === 'touch' && (touchPointers.size || tools.name())) tools.cancel('pan');

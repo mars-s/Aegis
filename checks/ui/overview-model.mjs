@@ -42,7 +42,7 @@ async function verifySummaryTruth(name, width, theme) {
     aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Summary truth fixtures' }));
     await new Promise(resolve => aegis.apply([...fixtures, { op: 'connect', a: 'truthsheet', b: 'truthline' }, { op: 'connect', a: 'truthdoc', b: 'truthsheet' }], resolve));
   }, fixtures);
-  await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
+  await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9);
   const card = id => page.locator(`#world > .card[data-id="${id}"]`);
   const zoom = async z => { await page.evaluate(z => { aegis.canvas.select([]); aegis.canvas.setView({ x: 110, y: 80, z }); }, z); await settle(); };
   await zoom(.6);
@@ -125,7 +125,7 @@ try {
       await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async batch => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Overview model' })); aegis.apply(batch); }, demoBatch);
-      await page.waitForFunction(() => aegis.canvas.board.cards.length === 9); await page.waitForTimeout(700);
+      await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9); await page.waitForTimeout(700);
       await page.evaluate(() => { const [doc, plot] = ['doc', 'plot'].map(type => aegis.canvas.board.cards.find(c => c.type === type || c.kind === type)); aegis.apply([{ op: 'connect', newId: 'overviewlink', a: doc.id, b: plot.id, }, { op: 'link_update', id: 'overviewlink', set: { arrow: 'end' } }]); });
       await page.waitForTimeout(150); await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await settle();
       await page.waitForFunction(() => [...document.querySelectorAll('.card.object, .card.doc')].every(el => el.dataset.intrinsicHeight && Math.abs(aegis.canvas.board.cards.find(c => c.id === el.dataset.id).h - Number(el.dataset.intrinsicHeight)) <= 1));

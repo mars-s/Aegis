@@ -8,6 +8,8 @@
 .media-dialog button:focus-visible, .media-dialog input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .card:has(.creative-wireframe) .scene-body { overflow: visible; }
 .card[data-type="swatch"] .scene-body { gap: 5px; }
+.react-stage .card:is(.audio, .video) .scene-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.react-stage .card.video .camera-preview { flex-basis: 0; }
 .creative-root .aegis-dialog.colour-pop { width: 284px; max-height: calc(100dvh - 24px); padding: 16px; font: var(--text-label)/1.5 var(--font); }
 :root[data-theme="dark"]:has(.creative-root) { color-scheme: dark; }
 :root[data-theme="dark"]:has(.creative-root) { --canvas: #000000; }

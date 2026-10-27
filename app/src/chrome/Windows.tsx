@@ -415,6 +415,7 @@ export function Layers({
               <MenuButton
                 label={`More actions for ${label}`}
                 className="row-more icon-btn"
+                menuClass="ctx-menu"
                 tabIndex={activeId === card.id ? 0 : -1}
                 items={[
                   {
