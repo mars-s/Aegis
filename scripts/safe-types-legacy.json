@@ -16,10 +16,6 @@
   "app/src/main.ts": {
     "non-null": 1
   },
-  "app/src/objects/chart/geometry.ts": {
-    "non-null": 17,
-    "type-assertion": 2
-  },
   "app/src/objects/chart/plan.ts": {
     "non-null": 6
   },

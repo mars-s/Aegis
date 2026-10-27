@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
   import type { ChartEvidence, ChartSpec } from "@aegis/domain/charts";
-  import { band } from "./geometry";
+  import { band } from "../../charts/geometry.js";
   import { Hover } from "./hover.svelte";
   import { readout, type Plan } from "./plan";
   import Tip from "./Tip.svelte";

@@ -1,4 +1,4 @@
-import { linePath } from '../../objects/chart/geometry.ts';
+import { linePath } from '../../charts/geometry.ts';
 import { CHART_POINT, CHART_STROKE, chartScreen } from '../../objects/chart/screen.js';
 import { resolveDeckChart } from '@aegis/domain/chart-source';
 // Shared HTML for the canvas preview, editor stage and filmstrip.

@@ -2,7 +2,7 @@
 <script lang="ts">
   import { onDestroy, type Snippet } from "svelte";
   import { pointText, tickLabel, xText, type ChartEvidence, type ChartSpec } from "@aegis/domain/charts";
-  import { areaPath, band, barPath, linear, linePath, runs, type Point } from "./geometry";
+  import { areaPath, band, barPath, linear, linePath, runs, type Point } from "../../charts/geometry.js";
   import { Hover } from "./hover.svelte";
   import { readout, shortValue, type Card, type Plan, type Row } from "./plan";
   import { chartScreen } from "./screen.js";
