@@ -43,6 +43,7 @@ import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
 import { MobileTools } from "./MobileTools.js";
 import { createCoreTools } from "./CoreTools.js";
 import { restack, stackMenu, stacking } from './Stacking.js';
+import { KeyboardHints, ShortcutReference } from "./Shortcuts.js";
 import "./chrome.css";
 
 function setZoom(
@@ -822,24 +823,7 @@ export function Chrome({
                   layout={layout}
                   change={change}
                 >
-                  <dl>
-                    <dt>N</dt>
-                    <dd>Note</dd>
-                    <dt>H</dt>
-                    <dd>Heading</dd>
-                    <dt>C</dt>
-                    <dd>Checklist</dd>
-                    <dt>0</dt>
-                    <dd>Fit board</dd>
-                    <dt>\\</dt>
-                    <dd>Library and Windows</dd>
-                    <dt>Shift T</dt>
-                    <dd>Reveal tools</dd>
-                    <dt>⌘ P</dt>
-                    <dd>Commands</dd>
-                    <dt>⌘ Z</dt>
-                    <dd>Undo</dd>
-                  </dl>
+                  <ShortcutReference />
                 </Panel>
               ) : null}
             </div>
@@ -1110,6 +1094,7 @@ export function Chrome({
           Redo
         </button>
       </nav>
+      <KeyboardHints />
       <Selection
         canOpen={card => composition.editors.some(editor => editor.kind === (card.type === "object" ? `object:${card.kind}` : card.type))}
         context={context}
