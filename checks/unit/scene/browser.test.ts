@@ -40,13 +40,31 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
-  test('Escape and pan cancel Connect without rearming it on the next pointer move', async () => {
-    const p = await page();
-    for (const cancel of ['escape', 'space', 'middle'] as const) {
+  test('Connect consumes target card text and button presses instead of activating their content', async () => {
+    for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
+      const p = await page();
       await p.evaluate(() => {
         const harness = window.sceneHarness, source = harness.board().cards[0];
         if (!source) throw new Error('Missing connection source');
-        document.getElementById('stage')?.focus();
+        harness.engine.startConnection(source.id);
+      });
+      const before = await p.locator('[data-body="note-2"]').textContent();
+      await p.locator(target).click(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.flat().filter(command => command.op === 'connect'))).toEqual([{ op: 'connect', a: 'note-0', b: 'note-2' }]);
+      expect(await p.locator('[data-body="note-2"]').textContent()).toBe(before);
+      expect(await p.locator('[data-body="note-2"]').evaluate(element => element === document.activeElement)).toBe(false);
+      expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(0);
+      await p.close();
+    }
+  });
+
+  test('Escape and pan cancel Connect without rearming it on the next pointer move', async () => {
+    const p = await page();
+    for (const cancel of ['escape', 'space', 'middle'] as const) {
+      await p.locator('[data-body="note-2"]').focus();
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, source = harness.board().cards[0];
+        if (!source) throw new Error('Missing connection source');
         harness.engine.startConnection(source.id);
       });
       await p.mouse.move(1100, 700); await idle(p);

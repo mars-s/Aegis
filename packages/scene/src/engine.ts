@@ -34,6 +34,7 @@ type Gesture =
 interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number; readonly duration: number }
 interface MeasurementRequest { readonly key: string; readonly generation: number; readonly card: Card; readonly epoch: number }
 const windowTypes = new Set<Card['type']>(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'canvas', 'font']);
+const connectionToolId = 'connect';
 
 /** Sole owner of scene frames. Events enqueue data; layout reads precede writes. */
 export function createCanvas(args: CanvasAttachment): CanvasEngine {
@@ -47,7 +48,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const initialRect = stage.getBoundingClientRect();
   let viewport: Rect = { x: 0, y: 0, width: Math.max(1, initialRect.width), height: Math.max(1, initialRect.height) }, stageOrigin: Point = { x: initialRect.x, y: initialRect.y };
   let dpr = view.devicePixelRatio || 1, viewportDirty = false, disposed = false, pending = 0, frameCount = 0, epoch = 0, resetLeases = false;
-  let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false;
+  let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false, consumeToolClick = false;
   let fitting: Extract<Navigation, { readonly kind: 'fit' }> | null = null, measuring = false;
   let previousFrame = 0, inputAt: number | null = null, discardedMeasurements = 0;
   let representations: Representation[] = [], candidates: SceneNode[] = [], drawnLinks: DrawLink[] = [];
@@ -116,6 +117,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   function startConnection(id: CardId): void {
     if (!graph.nodes.has(id)) return;
+    stage.focus({ preventScroll: true });
     const update = (point: ToolPointer): void => {
       const from = graph.nodes.get(id), target = hitTest(point.screen), to = target ? graph.nodes.get(target) : null;
       if (!from) return;
@@ -125,6 +127,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', opacity: 1, space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, opacity: 1, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
     };
     const tool: SceneTool = {
+      id: connectionToolId,
       accepts: point => point.button === 0,
       down: update, move: points => { const point = points.at(-1); if (point) update(point); },
       up: point => {
@@ -472,7 +475,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const inside = event.target instanceof Node && stage.contains(event.target);
     const affordance = event.target instanceof Element && event.target.closest('.agent-window,.editing-outline');
     if (!inside && !(pan && affordance)) return;
-    if (!pan && !editable(event.target) && tools.down(toolPoint(event))) { event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
+    consumeToolClick = false;
+    if (!pan && (!editable(event.target) || tools.name() === connectionToolId) && tools.down(toolPoint(event))) { consumeToolClick = true; event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
     if (pan) tools.cancel('pan');
     if (event.pointerType === 'touch' && (touchPointers.size || tools.name())) tools.cancel('pan');
     if (event.pointerType === 'touch') {
@@ -490,6 +494,10 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (pan) { stage.classList.add('panning'); event.stopImmediatePropagation(); }
     else if (handle) event.stopImmediatePropagation();
     enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, modifiers: { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey }, at: performance.now() });
+  }, { capture: true, signal: abort.signal });
+  stage.addEventListener('click', event => {
+    if (!consumeToolClick || event.detail === 0) return;
+    consumeToolClick = false; event.preventDefault(); event.stopImmediatePropagation();
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('pointermove', event => {
     if (touchPointers.has(event.pointerId)) enqueue({ kind: 'touch-move', point: point(event), pointer: event.pointerId, at: performance.now() });
