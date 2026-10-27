@@ -125,9 +125,12 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     if (!instance) return;
     const offArea = area.attach(instance);
     const offFit = instance.registerFrameParticipant({ fitBounds: zoom => controls.current?.scene.fitBounds(zoom).map(rect => ({ x: rect.x, y: rect.y, width: rect.w, height: rect.h })) ?? [] });
-    const offFacade = import.meta.env.DEV || __AEGIS_TEST_FACADE__ ? installTestFacade({ workspace, engine: instance, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, flushEditor: controller.flush }) : null;
-    engineCleanup.current = () => { offArea(); offFit(); offFacade?.(); };
+    engineCleanup.current = () => { offArea(); offFit(); };
   }, [area, workspace, runtime, persistCamera, controller]);
+  useEffect(() => {
+    if (!chromeEngine || !agentControls || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
+    return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, flushEditor: controller.flush });
+  }, [chromeEngine, agentControls, workspace, runtime, client, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
   useEffect(() => controller.install(), [controller]);
   useEffect(() => installEditorActions(context), [context]);
