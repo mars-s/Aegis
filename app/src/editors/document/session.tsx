@@ -23,6 +23,7 @@ export interface DocumentSession extends Source<SessionState> {
   readonly title: () => string;
   readonly setTitle: (title: string) => void;
   readonly flush: () => boolean;
+  readonly setComposing: (active: boolean) => void;
   readonly resolveConflict: (choice: "local" | "remote") => void;
   readonly attach: (element: HTMLElement) => () => void;
   readonly destroy: () => void;
@@ -101,7 +102,8 @@ function createSession(
   const listeners = new Set<() => void>();
   let destroyed = false,
     submitting = false,
-    mounted = false;
+    mounted = false,
+    composing = false;
   const publish = (next: SessionState) => {
     state = next;
     for (const listener of listeners) listener();
@@ -138,6 +140,7 @@ function createSession(
     if (timer) clearTimeout(timer);
     timer = null;
     if (destroyed) return true;
+    if (composing || (mounted && editor.view.composing)) return false;
     if (mounted)
       editor.view.dom
         .querySelector<
@@ -222,6 +225,14 @@ function createSession(
       }
     },
     flush,
+    setComposing(active) {
+      composing = active;
+      engine.pin(cardId, "ime", active);
+      if (active && timer) {
+        clearTimeout(timer);
+        timer = null;
+      } else if (!active && state.kind === "dirty") schedule();
+    },
     getSnapshot: () => state,
     subscribe: (listener) => {
       listeners.add(listener);
@@ -256,6 +267,7 @@ function createSession(
       return () => {
         flush();
         mounted = false;
+        composing = false;
         editor.unmount();
         engine.pin(cardId, "focus", false);
         engine.pin(cardId, "ime", false);

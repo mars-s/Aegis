@@ -7,8 +7,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
+const react = process.env.AEGIS_UI_IMPL === 'react';
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
-const output = join(repo, '.scratch/live-references/editor-context'); mkdirSync(output, { recursive: true });
+const output = process.env.AEGIS_CHECK_OUT || join(repo, '.scratch/live-references/editor-context'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-editor-context-')), token = `editor-context-${process.pid}`;
@@ -63,10 +64,46 @@ try {
       await page.waitForFunction(before => ['x', 'y', 'z'].every(key => aegis.canvas.view[key] === before.view[key]), before);
       assert.deepEqual(await snapshot(), before, 'closing restores the original camera and selection');
       await page.locator('.side-editor').waitFor({ state: 'detached' });
-      assert.equal(await page.locator('.editor-context').count(), 0);
+      assert.equal(await page.locator(react ? '.document-context' : '.editor-context').count(), 0);
       assert.deepEqual(await page.locator('#stage').evaluate(el => [el.scrollLeft, el.scrollTop]), [0, 0], 'focus cannot scroll the stage');
     };
+    async function staticComposition(name, expected) {
+      await page.waitForFunction(() => {
+        const id = aegis.workspace.ui.getSnapshot().editor?.id;
+        return id && aegis.canvas.mountedEl(id)?.textContent;
+      });
+      const result = await page.evaluate(() => {
+        const rect = el => { const r = el.getBoundingClientRect(); return { left:r.left, right:r.right, top:r.top, bottom:r.bottom, width:r.width, height:r.height }; };
+        const editor = document.querySelector('.side-editor'), stage = document.getElementById('stage');
+        const id = aegis.workspace.ui.getSnapshot().editor.id, board = aegis.canvas.board;
+        const mounted = board.cards.flatMap(card => { const el = aegis.canvas.mountedEl(card.id); return el ? [{id:card.id,card,rect:rect(el),visibility:getComputedStyle(el).visibility,display:getComputedStyle(el).display,content:el.textContent}] : []; });
+        return { id, view:aegis.canvas.view, board, editor:rect(editor), stage:rect(stage), mounted,
+          blockedLeft:Math.max(stage.getBoundingClientRect().left,...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el=>el.getBoundingClientRect().right)),
+          marker:document.querySelector('.document-context .editor-context-source') ? rect(document.querySelector('.document-context .editor-context-source')) : null };
+      });
+      const source = result.mounted.find(card=>card.id===result.id);
+      assert.ok(source, `${name}: the actual editing source stays mounted`);
+      assert.equal(source.visibility, 'visible', `${name}: the source is visible`);
+      assert.ok(source.content.trim().length>0, `${name}: real source content remains available`);
+      assert.ok(source.rect.left >= result.blockedLeft + 24 - .1 && source.rect.right <= result.editor.left - 24 + .1, `${name}: source has horizontal clearance beside the actual editor`);
+      assert.ok(source.rect.top >= result.stage.top + 24 - .1 && source.rect.bottom <= result.stage.bottom - 24 + .1, `${name}: source has vertical clearance`);
+      for (const item of result.mounted) {
+        if (item.display === 'none') {
+          const left=result.stage.left+result.view.x+item.card.x*result.view.z, top=result.stage.top+result.view.y+item.card.y*result.view.z;
+          assert.ok(left+item.card.w*result.view.z<result.stage.left || left>result.stage.right || top+item.card.h*result.view.z<result.stage.top || top>result.stage.bottom, `${name}: only offscreen source bodies can be culled`);
+          continue;
+        }
+        if (item.card.props?.hidden) { assert.equal(item.visibility,'hidden',`${name}: hidden cards stay hidden`); continue; }
+        assert.equal(item.visibility,'visible',`${name}: real windows remain visible`);
+        for (const [actual,wanted] of [[item.rect.left,result.stage.left+result.view.x+item.card.x*result.view.z],[item.rect.top,result.stage.top+result.view.y+item.card.y*result.view.z],[item.rect.width,item.card.w*result.view.z],[item.rect.height,item.card.h*result.view.z]]) assert.ok(Math.abs(actual-wanted)<.1,`${name}: ${item.id} retains true camera geometry (${actual} vs ${wanted})`);
+      }
+      if (expected) for (const id of expected) assert.ok(result.board.cards.some(card=>card.id===id),`${name}: context source ${id} is retained at its authored position`);
+      if (result.marker) assert.equal(result.marker.height,40,'the Editing marker remains one 40px header');
+      assert.equal(await page.locator('.editor-context-window, .semantic-summaries, .board-overview').count(),0,'static sources have no repacked summaries or adaptive overlays');
+      metrics.push({engine:engineName,name,...result});await shot(name);
+    }
     async function composition(name, expected) {
+      if (react) return staticComposition(name, expected);
       await page.waitForFunction(() => {
         const stage = document.getElementById('stage').getBoundingClientRect(), editor = document.querySelector('.side-editor').getBoundingClientRect();
         const left = Math.max(stage.left, ...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el => el.getBoundingClientRect().right));
@@ -102,10 +139,10 @@ try {
       await composition(`${id}-${keyboard ? 'keyboard' : 'pointer'}`, id === 'contextdoc' ? ['contextdoc', 'linkednote', 'nearnote'] : undefined);
       await close(before);
     }
-    console.log(`PASS ${engineName}: document, sheet and deck context, linked priority, quiet empty references, readable summaries and exact return`);
+    console.log(`PASS ${engineName}: document, sheet and deck context, retained sources, true camera geometry and exact return`);
 
-    // Closing restores the invoking Open control even when the source is summarised.
-    for (const selector of ['.window-actions [data-window-action="contextdoc"]', '#selectionBar [aria-label="Open"]']) {
+    // Closing restores the invoking Open control with real source content retained.
+    for (const selector of [react ? '.card[data-id="contextdoc"] .win-open' : '.window-actions [data-window-action="contextdoc"]', '#selectionBar [aria-label="Open"]']) {
       await prepare('contextdoc', 1);
       await page.evaluate(() => aegis.canvas.select(['contextdoc']));
       const invoker = page.locator(selector);
@@ -121,7 +158,10 @@ try {
     console.log(`PASS ${engineName}: focus returns to the window action and selection Open after clearing the editor source`);
 
     const original = await prepare('contextsheet'); await open('contextsheet');
-    await page.locator('.editor-context-open[data-card-id="contextdoc"]').click();
+    if (react) {
+      await page.evaluate(() => aegis.canvas.frameIds(['contextdoc'], .5));
+      await page.locator('.card[data-id="contextdoc"] .win-open').click();
+    } else await page.locator('.editor-context-open[data-card-id="contextdoc"]').click();
     await page.locator('.docs-panel').waitFor(); await page.waitForTimeout(500);
     await close(original);
     console.log(`PASS ${engineName}: opening a neighbouring editor preserves the original camera and selection bookmark`);
@@ -133,12 +173,13 @@ try {
     await page.locator('.side-editor').evaluate(el => { el.style.width = ''; });
     await page.locator('#sideBtn').click(); await page.locator('#side.open:not([hidden])').waitFor();
     await page.waitForTimeout(500); await composition('sidebar-open');
-    await page.getByRole('button', { name: 'Hide windows and library', exact: true }).click();
+    if (react) await page.locator('#sideBtn').click();
+    else await page.getByRole('button', { name: 'Hide windows and library', exact: true }).click();
     await page.locator('#side').waitFor({ state: 'hidden' });
     await page.setViewportSize({ width: 1586, height: 992 }); await page.waitForTimeout(500); await composition('resized');
     const expand = page.getByRole('button', { name: 'Full width', exact: true }); await expand.click();
     const side = page.getByRole('button', { name: 'Side panel', exact: true }); assert.equal(await side.getAttribute('aria-pressed'), 'true');
-    await page.waitForTimeout(100); assert.equal(await page.locator('.editor-context').isVisible(), false); await shot('full-width');
+    await page.waitForTimeout(100); assert.equal(await page.locator(react ? '.document-context' : '.editor-context').isVisible(), false); await shot('full-width');
     await side.click(); await page.waitForTimeout(500); await composition('side-again');
     await close({ ...before, view: { ...before.view, x: before.view.x + 73, y: before.view.y + 46 } });
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -149,7 +190,8 @@ try {
     await page.waitForTimeout(120); const moving = await snapshot(); assert.notDeepEqual(moving.view, before.view);
     await page.mouse.move(600, 700); await page.mouse.wheel(40, 100); await page.waitForTimeout(60);
     const interrupted = await snapshot(); await page.waitForTimeout(430); assert.deepEqual((await snapshot()).view, interrupted.view, 'opening remains interrupted');
-    assert.equal(await page.locator('.editor-context').isVisible(), false, 'manual navigation restores the ordinary canvas windows');
+    if (react) assert.ok(await page.locator('#world > .card').evaluateAll(cards=>cards.some(el=>getComputedStyle(el).visibility==='visible')), 'manual navigation retains actual source windows');
+    else assert.equal(await page.locator('.editor-context').isVisible(), false, 'manual navigation restores the ordinary canvas windows');
     await close(before);
     for (const gesture of ['space', 'middle']) {
       before = await prepare('contextdoc'); await open('contextdoc');
@@ -160,7 +202,8 @@ try {
       await page.mouse.move(640, 730, { steps: 4 });
       await page.mouse.up({ button: gesture === 'middle' ? 'middle' : 'left' });
       if (gesture === 'space') await page.keyboard.up('Space');
-      assert.equal(await page.locator('.editor-context').isVisible(), false, `${gesture} pan restores ordinary windows`);
+      if (react) assert.ok(await page.locator('#world > .card').evaluateAll(cards=>cards.some(el=>getComputedStyle(el).visibility==='visible')), `${gesture} pan retains actual windows`);
+      else assert.equal(await page.locator('.editor-context').isVisible(), false, `${gesture} pan restores ordinary windows`);
       await close(before);
     }
     for (const mode of ['reduce', 'off']) {
@@ -180,7 +223,7 @@ try {
     await close(before); await page.waitForFunction(scroll => document.querySelector('#world > .card[data-id="contextdoc"] .doc-view')?.scrollTop === scroll, scroll);
 
     await page.setViewportSize({ width: 700, height: 800 }); before = await prepare('contextdoc'); await open('contextdoc');
-    assert.equal(await page.locator('.editor-context').isVisible(), false, 'a full viewport editor leaves no usable reference rectangle'); await shot('narrow-editor'); await close(before);
+    assert.equal(await page.locator(react ? '.document-context' : '.editor-context').isVisible(), false, 'a full viewport editor leaves no usable reference rectangle'); await shot('narrow-editor'); await close(before);
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'update', id: 'linkednote', set: { x: 8000, y: -5000 } }], resolve)));
     before = await prepare('contextdoc'); await open('contextdoc'); await composition('distant-link', ['contextdoc', 'linkednote', 'nearnote']); await close(before);
@@ -198,7 +241,11 @@ try {
 
     before = await prepare('contextdoc'); await open('contextdoc');
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'create', type: 'note', newId: 'addedreference', text: 'An extra source to drag into the document.', x: 300, y: 400 }], resolve)));
-    assert.equal(await page.locator('.editor-context').isVisible(), false, 'new board windows remain available for document drag and drop');
+    if (react) {
+      await page.locator('.card[data-id="addedreference"]').waitFor({ state: 'visible' });
+      assert.equal(await page.locator('.card[data-id="addedreference"]').isVisible(), true, 'new board windows remain available for document drag and drop');
+    }
+    else assert.equal(await page.locator('.editor-context').isVisible(), false, 'new board windows remain available for document drag and drop');
     await close(before);
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['addedreference'] }], resolve)));
 
@@ -301,7 +348,7 @@ try {
     await fontMenu.getByRole('option', { name: 'Georgia', exact: true }).click();
     await page.getByLabel('Format document', { exact: true }).click();
 
-    const rewrite = page.locator('.ribbon-ai [data-chooser="Rewrite selection"] button');
+    const rewrite = page.locator('.docs-ribbon .ribbon-ai [data-chooser="Rewrite selection"] button');
     assert.equal(await rewrite.locator('.orb-inline').count(), 1);
     const animations = () => rewrite.locator('.orb-inline').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length);
     assert.equal(await animations(), 0, 'inline orb is still at rest'); await rewrite.hover(); assert.equal(await animations(), 0, 'hover does not animate inline AI');
@@ -327,11 +374,11 @@ try {
       await page.evaluate(off => document.body.classList.toggle('motion-off', off), off);
       await page.locator('.docs-prose').click(); await page.locator('.docs-prose').press('ControlOrMeta+a');
       await choose(rewrite, 'Shorter');
-      await page.waitForFunction(() => document.querySelector('.ribbon-ai')?.getAttribute('aria-busy') === 'true');
+      await page.waitForFunction(() => document.querySelector('.docs-ribbon .ribbon-ai')?.getAttribute('aria-busy') === 'true');
       assert.equal(await animations(), motion === 'reduce' || off ? 0 : 2, `working orb respects ${off ? 'Motion off' : motion}`);
       assert.deepEqual(await rewrite.locator('.orb-inline').evaluate(el => { const r = el.getBoundingClientRect(); return [r.width, r.height]; }), [16, 16]);
       if (motion !== 'reduce' && !off) await shot('rewrite-working');
-      await page.waitForFunction(() => document.querySelector('.ribbon-ai')?.getAttribute('aria-busy') === 'false'); assert.equal(await animations(), 0);
+      await page.waitForFunction(() => document.querySelector('.docs-ribbon .ribbon-ai')?.getAttribute('aria-busy') === 'false'); assert.equal(await animations(), 0);
     };
     await runRewrite('no-preference'); await runRewrite('reduce'); await runRewrite('no-preference', true);
     await page.evaluate(() => document.body.classList.remove('motion-off'));

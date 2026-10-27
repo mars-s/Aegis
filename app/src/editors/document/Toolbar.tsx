@@ -155,7 +155,7 @@ export function Toolbar({
         ? "code"
         : (paragraph.kind ?? "body");
   const chooseBlock = (value: string) => {
-    let chain = editor.chain().focus().clearNodes();
+    let chain = editor.chain().clearNodes();
     if (value === "title" || value === "heading" || value === "sub")
       chain = chain.setHeading({
         level: value === "title" ? 1 : value === "heading" ? 2 : 3,

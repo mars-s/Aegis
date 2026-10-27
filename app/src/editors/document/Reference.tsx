@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { z } from "zod/v4";
 import { CardIdSchema } from "@aegis/domain/schema";
 import type { Board, Card, CardId } from "@aegis/domain";
@@ -227,6 +227,32 @@ export function DocumentContext({
       context.workspace.ui.subscribe,
       context.workspace.ui.getSnapshot,
     );
+  const root = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const engine = context.engine(), element = root.current;
+    if (!engine || !element) return;
+    let left = 0, top = 0, width = 0, hidden = false, height = 0;
+    const stop = engine.registerFrameParticipant({
+      read() {
+        const area = engine.availableArea(), viewport = engine.viewport();
+        height = element.offsetHeight || height;
+        width = Math.min(322, Math.max(0, area.width - 48));
+        left = area.x + 24;
+        top = area.y + 24;
+        hidden = viewport.width <= 760 || width < 200 || area.height < height + 48;
+      },
+      write() {
+        if (element.hidden !== hidden) element.hidden = hidden;
+        if (element.style.left !== `${left}px`) element.style.left = `${left}px`;
+        if (element.style.top !== `${top}px`) element.style.top = `${top}px`;
+        if (element.style.width !== `${width}px`) element.style.width = `${width}px`;
+      },
+    });
+    const observer = new ResizeObserver(() => engine.invalidate());
+    observer.observe(element);
+    engine.invalidate();
+    return () => { observer.disconnect(); stop(); };
+  }, [context, sourceId, ui.editor?.view]);
   const parsed = RegionSchema.safeParse(source?.props?.editorReference);
   const candidates = source ? referenceCandidates(board, source) : [];
   const initial = candidates.find((item) => item.relation !== "Nearby");
@@ -253,12 +279,12 @@ export function DocumentContext({
   if (!source || ui.editor?.view === "full") return null;
   const summary = cardSummary(source);
   return (
-    <section className="document-context" aria-label="Editor context">
+    <section ref={root} className="document-context" aria-label="Editor context">
       <button
         className="editor-context-source"
         onClick={() =>
           document
-            .querySelector<HTMLInputElement>(".docs-title")
+            .querySelector<HTMLElement>(".side-editor input, .side-editor [tabindex=\"0\"]")
             ?.focus({ preventScroll: true })
         }
       >
