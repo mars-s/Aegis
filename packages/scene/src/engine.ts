@@ -1,4 +1,4 @@
-import type { Card, CardId, Command, LinkId } from '@aegis/domain/schema';
+import type { Card, CardId, Command, Link, LinkId } from '@aegis/domain/schema';
 import { CanvasPainter } from './draw.js';
 import type { DrawLink } from './draw.js';
 import { clampZoom, fitBounds, fromBounds, hitRotated, intersects, project, rotatedBounds, toBounds, union, unproject } from './geometry.js';
@@ -8,13 +8,14 @@ import type { SceneNode } from './graph.js';
 import { LeasePool } from './leases.js';
 import type { LeasePlacement } from './leases.js';
 import { linkBounds, routeDistance, routeLink } from './links.js';
+import type { LinkRoute } from './links.js';
 import { FrameMetrics } from './metrics.js';
 import { ToolController } from './tools.js';
 import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
 import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, ToolCommit, ToolPointer } from './types.js';
+import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation, SceneTool, ToolCommit, ToolPointer } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
@@ -34,6 +35,7 @@ type Gesture =
 interface Glide { readonly from: CameraState; readonly to: CameraState; readonly start: number; readonly duration: number }
 interface MeasurementRequest { readonly key: string; readonly generation: number; readonly card: Card; readonly epoch: number }
 const windowTypes = new Set<Card['type']>(['object', 'dataset', 'doc', 'image', 'video', 'audio', 'spotify', 'link', 'web', 'frame', 'deck', 'canvas', 'font']);
+const connectionToolId = 'connect';
 
 /** Sole owner of scene frames. Events enqueue data; layout reads precede writes. */
 export function createCanvas(args: CanvasAttachment): CanvasEngine {
@@ -47,7 +49,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const initialRect = stage.getBoundingClientRect();
   let viewport: Rect = { x: 0, y: 0, width: Math.max(1, initialRect.width), height: Math.max(1, initialRect.height) }, stageOrigin: Point = { x: initialRect.x, y: initialRect.y };
   let dpr = view.devicePixelRatio || 1, viewportDirty = false, disposed = false, pending = 0, frameCount = 0, epoch = 0, resetLeases = false;
-  let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false;
+  let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false, consumeToolClick = false;
   let fitting: Extract<Navigation, { readonly kind: 'fit' }> | null = null, measuring = false;
   let previousFrame = 0, inputAt: number | null = null, discardedMeasurements = 0;
   let representations: Representation[] = [], candidates: SceneNode[] = [], drawnLinks: DrawLink[] = [];
@@ -98,6 +100,16 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   function boundsFor(node: SceneNode): Rect { return positions.get(node.card.id) ?? node.layout.bounds; }
   function rotationFor(node: SceneNode): number { return rotations.get(node.card.id) ?? node.rotation; }
+  function routeWithObstacles(link: Link, a: SceneNode, b: SceneNode): LinkRoute {
+    const initial = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b));
+    const query = linkBounds(initial, '');
+    const obstacles = new Map(graph.query(query).filter(node => node !== a && node !== b).map(node => [node.card.id, fromBounds(rotatedBounds(boundsFor(node), rotationFor(node)))]));
+    for (const [id, bounds] of positions) {
+      const node = graph.nodes.get(id);
+      if (node && node !== a && node !== b && !node.hidden) obstacles.set(id, fromBounds(rotatedBounds(bounds, rotationFor(node))));
+    }
+    return routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b), 1, [...obstacles.values()]);
+  }
   function availableArea(): Rect { return args.availableArea?.getSnapshot() ?? viewport; }
 
   function cancelGesture(): void {
@@ -116,6 +128,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   function startConnection(id: CardId): void {
     if (!graph.nodes.has(id)) return;
+    stage.focus({ preventScroll: true });
     const update = (point: ToolPointer): void => {
       const from = graph.nodes.get(id), target = hitTest(point.screen), to = target ? graph.nodes.get(target) : null;
       if (!from) return;
@@ -124,16 +137,18 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       const stroke = { colour: { kind: 'theme' as const, token: 'focus' as const }, width: 1.5, dash: [] };
       tools.preview({ cursor: 'crosshair', primitives: [{ kind: 'path', opacity: 1, space: 'world', d: `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, fill: null, stroke }, ...(to && to !== from ? [{ kind: 'rect' as const, opacity: 1, space: 'world' as const, bounds, radius: 4, fill: null, stroke }] : [])] });
     };
-    tools.set({
+    const tool: SceneTool = {
+      id: connectionToolId,
       accepts: point => point.button === 0,
       down: update, move: points => { const point = points.at(-1); if (point) update(point); },
       up: point => {
         const target = hitTest(point.screen);
         const duplicate = [...graph.links.values()].some(entry => entry.link.a === id && entry.link.b === target || entry.link.a === target && entry.link.b === id);
-        post(() => { if (target && target !== id && !duplicate) workspace.submit([{ op: 'connect', a: id, b: target }]); tools.set(null); });
+        post(() => { if (!tools.isCurrent(tool)) return; if (target && target !== id && !duplicate) workspace.submit([{ op: 'connect', a: id, b: target }]); tools.set(null); });
       },
-      acceptsKey: key => key.key === 'Enter', key: () => { tools.set(null); }, cancel: () => { tools.preview(null); },
-    });
+      acceptsKey: key => key.key === 'Enter', key: () => { tools.set(null); }, cancel: () => { if (tools.isCurrent(tool)) tools.set(null); },
+    };
+    tools.set(tool);
   }
 
   function navigation(intent: Navigation, now: number): void {
@@ -159,6 +174,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     if (intent.motion === 'instant' || reducedMotion() || intent.duration === 0) { camera = target; glide = null; }
     else glide = { from: camera, to: target, start: now, duration: Math.max(1, intent.duration ?? 420) };
+    if (args.onNavigation) post(args.onNavigation);
   }
 
   function moveGesture(point: Point, bypass: boolean): void {
@@ -355,17 +371,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const { link, route } of links.values()) {
       const a = graph.nodes.get(link.a), b = graph.nodes.get(link.b);
       if (!a || !b || a.hidden || b.hidden) continue;
-      let current = route;
-      if (changedLinks.has(link.id)) {
-        const initial = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b));
-        const query = linkBounds(initial, '');
-        const obstacles = new Map(graph.query(query).filter(node => node !== a && node !== b).map(node => [node.card.id, fromBounds(rotatedBounds(boundsFor(node), rotationFor(node)))]));
-        for (const [id, bounds] of positions) {
-          const node = graph.nodes.get(id);
-          if (node && node !== a && node !== b && !node.hidden) obstacles.set(id, fromBounds(rotatedBounds(bounds, rotationFor(node))));
-        }
-        current = routeLink(link, boundsFor(a), boundsFor(b), rotationFor(a), rotationFor(b), 1, [...obstacles.values()]);
-      }
+      const current = changedLinks.has(link.id) ? routeWithObstacles(link, a, b) : route;
       const p = (point: Point): Point => ({ x: point.x * camera.zoom + camera.x, y: point.y * camera.zoom + camera.y });
       drawnLinks.push({ link, route: { p0: p(current.p0), p2: p(current.p2), control: p(current.control), label: p(current.label), points: current.points.map(p) } });
     }
@@ -470,7 +476,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     const inside = event.target instanceof Node && stage.contains(event.target);
     const affordance = event.target instanceof Element && event.target.closest('.agent-window,.editing-outline');
     if (!inside && !(pan && affordance)) return;
-    if (!pan && !editable(event.target) && tools.down(toolPoint(event))) { event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
+    consumeToolClick = false;
+    if (!pan && (!editable(event.target) || tools.name() === connectionToolId) && tools.down(toolPoint(event))) { consumeToolClick = true; event.preventDefault(); event.stopImmediatePropagation(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId); return; }
     if (pan) tools.cancel('pan');
     if (event.pointerType === 'touch' && (touchPointers.size || tools.name())) tools.cancel('pan');
     if (event.pointerType === 'touch') {
@@ -488,6 +495,10 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     if (pan) { stage.classList.add('panning'); event.stopImmediatePropagation(); }
     else if (handle) event.stopImmediatePropagation();
     enqueue({ kind: 'down', point: point(event), pointer: event.pointerId, pan, action, modifiers: { shift: event.shiftKey, bypass: event.metaKey || event.ctrlKey }, at: performance.now() });
+  }, { capture: true, signal: abort.signal });
+  stage.addEventListener('click', event => {
+    if (!consumeToolClick || event.detail === 0) return;
+    consumeToolClick = false; event.preventDefault(); event.stopImmediatePropagation();
   }, { capture: true, signal: abort.signal });
   stage.addEventListener('pointermove', event => {
     if (touchPointers.has(event.pointerId)) enqueue({ kind: 'touch-move', point: point(event), pointer: event.pointerId, at: performance.now() });
@@ -581,7 +592,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     linkGeometry: () => drawnLinks.map(entry => ({ id: entry.link.id, route: entry.route })),
     tool: tool => { if (tool && !args.onToolCommit) throw new Error('Scene tools require onToolCommit.'); tools.set(tool); },
     commitTool,
-    linkRoute: id => { const entry = graph.links.get(id); if (!entry) return null; const from = graph.nodes.get(entry.link.a), to = graph.nodes.get(entry.link.b); if (!from || !to) return null; const route = routeLink(entry.link, boundsFor(from), boundsFor(to), rotationFor(from), rotationFor(to)); return { d: route.points.length ? 'M' + route.points.map(point => `${point.x} ${point.y}`).join(' L') : `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, start: route.p0, control: route.control, end: route.p2, label: route.label }; },
+    linkRoute: id => { const entry = graph.links.get(id); if (!entry) return null; const from = graph.nodes.get(entry.link.a), to = graph.nodes.get(entry.link.b); if (!from || !to) return null; const route = positions.size || rotations.size ? routeWithObstacles(entry.link, from, to) : entry.route; return { d: route.points.length ? 'M' + route.points.map(point => `${point.x} ${point.y}`).join(' L') : `M${route.p0.x} ${route.p0.y} Q${route.control.x} ${route.control.y} ${route.p2.x} ${route.p2.y}`, start: route.p0, control: route.control, end: route.p2, label: route.label }; },
     toolName: () => tools.name(),
     busy: () => glide !== null || gesture !== null || inputs.length > 0,
     preview: preview => tools.preview(preview),
