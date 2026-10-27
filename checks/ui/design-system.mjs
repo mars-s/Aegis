@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `design-system-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-design-system-')), AEGIS_UI: repo + '/app/dist',
   AEGIS_FAKE_MODEL: '1', AEGIS_PORT: '0', AEGIS_TOKEN: token,
 }, stdio: ['ignore', 'pipe', 'pipe'] });

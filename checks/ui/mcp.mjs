@@ -2,7 +2,7 @@
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { waitForAsync } from './poll.mjs';
-import { codexMcpClient } from '../mcp/codex-client.mjs';
+import { codexMcpClient } from '../mcp/codex-client.ts';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -15,7 +15,7 @@ import { StdioClientTransport } from '../../agent/node_modules/@modelcontextprot
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const data = await mkdtemp(join(tmpdir(), 'aegis-mcp-ui-'));
 const token = `mcp-ui-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_UI: repo + '/app/dist',
 }, stdio: ['pipe', 'pipe', 'pipe'] });
 let hostErrors = '';

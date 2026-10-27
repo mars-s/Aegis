@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'parity-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-parity-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT:'0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL:'1' }, stdio:['ignore','pipe','pipe'] });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT:'0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL:'1' }, stdio:['ignore','pipe','pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve,reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if(m) resolve(m[1]); }); host.on('exit', reject); });
 const vite = spawn('npx', ['vite','--port',String(5187 + PORT_OFFSET),'--strictPort'], {cwd:repo+'/app',stdio:'pipe'});

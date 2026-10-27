@@ -9,7 +9,7 @@ import { join } from 'node:path';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'svelte-' + process.pid;
 const theme = process.argv[2] || 'dark';
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-sv-')), AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-sv-')), AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise(r => host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) r(m[1]); }));
 const vite = spawn('npx', ['vite', '--port', String(5187 + PORT_OFFSET)], { cwd: repo + '/app', stdio: 'pipe' });

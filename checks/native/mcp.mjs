@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { once } from 'node:events';
 import { Client } from '../../agent/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { StdioClientTransport } from '../../agent/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js';
-import { codexMcpClient } from '../mcp/codex-client.mjs';
+import { codexMcpClient } from '../mcp/codex-client.ts';
 
 const repo = new URL('../..', import.meta.url).pathname;
 const bundle = resolve(process.argv[2] || join(repo, 'src-tauri/target/release/bundle/macos/Aegis.app'));

@@ -11,7 +11,7 @@ import type {} from '../../../app/src/platform/test-facade.js';
 export async function withApplication(implementation: 'legacy' | 'react', run: (page: Page) => Promise<void>): Promise<void> {
   const root = fileURLToPath(new URL('../../../', import.meta.url)), token = `scene-${process.pid}`;
   const env = { ...process.env, AEGIS_UI_IMPL: implementation, AEGIS_TEST_FACADE: '1', AEGIS_FAKE_MODEL: '1', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-scene-app-')), AEGIS_VITE_CACHE: mkdtempSync(join(tmpdir(), 'aegis-scene-cache-')) };
-  const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(root, 'agent'), env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(root, 'agent'), env, stdio: ['ignore', 'pipe', 'pipe'] });
   const port = Number(process.env.AEGIS_PORT_OFFSET ?? 4400) + 1;
   let web: ChildProcess | null = null, browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   function ready(child: ChildProcess, pattern: RegExp): Promise<string> {

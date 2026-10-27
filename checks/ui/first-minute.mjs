@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = 'first-minute-' + process.pid, data = mkdtempSync(join(tmpdir(), 'aegis-first-minute-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 const port = await new Promise((resolve, reject) => {
   let output = ''; host.stdout.on('data', d => { output += d; const m = /"port":(\d+)/.exec(output); if (m) resolve(m[1]); });
   host.stderr.on('data', d => process.stderr.write(d)); host.on('exit', code => reject(Error('Host exited ' + code)));

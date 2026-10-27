@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['run', 'build'], { cwd: repo + '/app', encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `ask-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-ask-')), capture = join(data, 'model-input.jsonl');
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_CAPTURE_INPUT: capture }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 const port = await new Promise((resolve, reject) => {

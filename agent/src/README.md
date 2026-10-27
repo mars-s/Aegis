@@ -1,7 +1,7 @@
 # Agent host
 
 `main.ts` is the loopback HTTP entry. It compiles to `agent/dist/main.js`.
-The root `agent/server.mjs` is a temporary launcher for existing native and browser callers.
+Native, browser and test callers launch `agent/dist/main.js`, built from `agent/src/main.ts`.
 It contains no host implementation.
 
 The host keeps Pi Durable as the conversation and run engine. `lifetime.ts` gives

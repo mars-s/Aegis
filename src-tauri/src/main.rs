@@ -112,10 +112,10 @@ fn node_ok(p: &Path) -> bool {
 // In development the host runs from the repository; in a bundle, from Resources.
 fn host_script(app: &tauri::AppHandle) -> PathBuf {
     if let Ok(dir) = app.path().resource_dir() {
-        let p = dir.join("runtime/agent/server.mjs");
+        let p = dir.join("runtime/agent/dist/main.js");
         if p.exists() { return p; }
     }
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../agent/server.mjs")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../agent/dist/main.js")
 }
 
 fn start_agent(app: &tauri::AppHandle) -> Result<(), String> {

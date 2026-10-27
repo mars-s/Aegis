@@ -13,7 +13,7 @@ const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate work
 const built = process.env.AEGIS_DRAW_BUILT === '1', engineName = process.env.AEGIS_BROWSER || 'chromium';
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'draw-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-draw-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise((resolve, reject) => { host.on('error', reject); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); });
 let vite;

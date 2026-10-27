@@ -12,7 +12,7 @@ const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), vitePort = 5195 + off
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const token = `imports-${process.pid}`, stamp = Date.now(), built = process.env.AEGIS_IMPORTS_BUILT === '1';
 const data = mkdtempSync(join(tmpdir(), 'aegis-imports-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => appendFileSync(out(`imports-host-${stamp}.txt`), d));
 let vite, browser, page, snapshotUi;
 const errors = [], workerRequests = [];

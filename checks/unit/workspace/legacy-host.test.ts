@@ -21,7 +21,7 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
   const data = await mkdtemp(join(tmpdir(), 'aegis-workspace-host-'));
   const cache = await mkdtemp(join(tmpdir(), 'aegis-workspace-vite-'));
   const token = `workspace-synthetic-${process.pid}`;
-  const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+  const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
     cwd: fileURLToPath(new URL('../../../agent/', import.meta.url)),
     env: { ...process.env, AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4100', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
     stdio: ['ignore', 'pipe', 'pipe'],

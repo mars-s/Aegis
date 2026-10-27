@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'media-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-media-smoke-'));
-const host = spawn(process.execPath, ['--no-warnings','server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings','dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((accept, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) accept(m[1]); }); host.once('exit', reject); });
 // Freeze all UI sources for the run, so concurrent feature ports cannot interrupt capture with HMR.

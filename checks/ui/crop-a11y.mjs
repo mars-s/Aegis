@@ -13,7 +13,7 @@ const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo,
 assert.equal(build.status, 0, build.stdout + build.stderr);
 writeFileSync(out('crop-build.log'), build.stdout + build.stderr);
 const token = `crop-a11y-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-crop-a11y-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_FAKE_MODEL: '1', AEGIS_PORT: '0', AEGIS_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 host.stderr.on('data', bytes => process.stderr.write(bytes));

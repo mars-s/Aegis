@@ -54,7 +54,7 @@ test('Pi Durable activity includes current tool arguments and streamed partial t
 test('the real host broadcasts fake status while running, retains the model choice and stops', async () => {
   const { spawn } = await import('node:child_process'); const { mkdtemp } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
   const token = 'status-check-' + process.pid;
-  const child = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: new URL('../../agent/', import.meta.url).pathname, env: { ...process.env, AEGIS_DATA: await mkdtemp(join(tmpdir(), 'aegis-status-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1200' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: new URL('../../agent/', import.meta.url).pathname, env: { ...process.env, AEGIS_DATA: await mkdtemp(join(tmpdir(), 'aegis-status-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1200' }, stdio: ['ignore', 'pipe', 'pipe'] });
   const abort = new AbortController();
   try {
     const port = await new Promise<string>((resolve, reject) => { child.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m?.[1]) resolve(m[1]); }); child.on('exit', code => reject(Error('Host exited ' + code))); });

@@ -46,7 +46,7 @@ if (live) {
   for (const name of ['agents.sqlite', 'agents.sqlite-wal', 'agents.sqlite-shm', 'runs.json']) await rm(join(data, name), { force: true });
 }
 const token = `speed-${process.pid}`, records = [];
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(root, 'agent'), env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(root, 'agent'), env: {
   ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_PROFILE_TOOLS: '1',
   AEGIS_FAKE_MODEL: live ? '' : '1', AEGIS_FAKE_CAPTURE_INPUT: live ? '' : join(data, 'model-input.jsonl'), AEGIS_FAKE_DELAY_MS: process.env.AEGIS_FAKE_DELAY_MS || '60',
 }, stdio: ['ignore', 'pipe', 'pipe'] });

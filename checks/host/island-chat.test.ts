@@ -21,7 +21,7 @@ const token = 'island-chat-' + process.pid;
 const answer = 'I grouped your existing cards by topic and kept every card. '.repeat(18);
 const fixture = `
 import assert from 'node:assert/strict';
-import { fake } from './server.mjs';
+import { fake } from './dist/main.js';
 import { fauxAssistantMessage as say, fauxToolCall as tool } from '@earendil-works/pi-ai/providers/faux';
 const respond = async ctx => {
   fake.appendResponses([step]);

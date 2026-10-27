@@ -18,7 +18,7 @@ const ready = (child, pattern) => new Promise((resolve, reject) => {
 let host, web, browser, page;
 const observations = [], errors = [];
 try {
-  host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-pan-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+  host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-pan-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
   const port = await ready(host, /"port":(\d+)/);
   const webPort = 5202 + Number(process.env.AEGIS_PORT_OFFSET || 0);
   web = spawn('npx', ['vite', '--port', String(webPort), '--strictPort'], { cwd: repo + '/app' }); await ready(web, /Local:.*:(\d+)/);

@@ -16,7 +16,7 @@ const BoardProbeSchema = z.object({
 export async function checkStagedRuntime(staged: string): Promise<void> {
   const relocated = join(mkdtempSync(join(tmpdir(), "aegis-runtime-relocated-")), "runtime");
   cpSync(staged, relocated, { recursive: true, verbatimSymlinks: true });
-  const script = join(relocated, "agent/server.mjs");
+  const script = join(relocated, "agent/dist/main.js");
   assert.ok(existsSync(script), "staged host entry exists");
   const token = randomUUID();
   const isolated = process.platform === "darwin";

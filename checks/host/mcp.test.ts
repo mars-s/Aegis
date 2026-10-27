@@ -34,7 +34,7 @@ const token = `mcp-check-${process.pid}`;
 let data = '', base = '';
 let child: ChildProcessWithoutNullStreams, httpClient: Client, stdioClient: Client;
 async function startHost() {
-  child = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+  child = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
     cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });

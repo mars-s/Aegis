@@ -20,7 +20,7 @@ export async function withReactBrowser<T>(run: (page: Page) => Promise<T>): Prom
     AEGIS_VITE_CACHE: mkdtempSync(join(tmpdir(), "aegis-react-vite-")),
     AEGIS_TOKEN: token, AEGIS_PORT: "0", AEGIS_FAKE_MODEL: "1", AEGIS_UI_IMPL: "react", AEGIS_TEST_FACADE: "1", AEGIS_PRINT_TOKEN: "",
   };
-  const host = spawn(process.execPath, ["--no-warnings", "server.mjs"], { cwd: join(root, "agent"), env: environment, stdio: ["ignore", "pipe", "pipe"] });
+  const host = spawn(process.execPath, ["--no-warnings", "dist/main.js"], { cwd: join(root, "agent"), env: environment, stdio: ["ignore", "pipe", "pipe"] });
   let web: ChildProcess | null = null;
   let browser: Awaited<ReturnType<typeof chromium.launch>> | null = null;
   const errors: string[] = [];

@@ -14,7 +14,7 @@ const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo,
 writeFileSync(join(output, 'build.log'), build.stdout + build.stderr);
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-spatial-memory-')), token = `memory-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(repo, 'agent'), env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(repo, 'agent'), env: {
   ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1',
 } });
 const fixtures = demoBatch.map(cmd => cmd.op === 'create' ? { ...cmd, newId: `memory${cmd.ref}` } : cmd);

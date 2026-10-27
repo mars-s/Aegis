@@ -15,7 +15,7 @@ assert.equal(exactWidthLabel.x, exactWidthArea.x, 'a label fills the available w
 
 const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'motion-' + process.pid;
 const data = await mkdtemp(join(tmpdir(), 'aegis-motion-')), stamp = Date.now();
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '60' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '60' }, stdio: ['ignore', 'pipe', 'pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', reject); });
 const webPort = 5200 + Number(process.env.AEGIS_PORT_OFFSET || 0);

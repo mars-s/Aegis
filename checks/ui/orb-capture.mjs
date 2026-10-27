@@ -12,7 +12,7 @@ let assertions = 0;
 function check(value, message) { assert.ok(value, message); assertions++; }
 for (const name of ['chromium', 'webkit']) {
   const token = `orb-capture-${name}-${process.pid}`;
-  const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+  const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
     cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync('/tmp/aegis-orb-capture-'), AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_TPS: '300', AEGIS_FAKE_DELAY_MS: '1200' }, stdio: ['ignore', 'pipe', 'pipe'],
   });
   const port = await new Promise((resolve, reject) => {

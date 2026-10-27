@@ -19,7 +19,7 @@ const answer = async yes => {
 };
 const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), repo = new URL('../..', import.meta.url).pathname;
 const token = `canvas-${process.pid}`, reproduce = process.argv.includes('--reproduce');
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-canvas-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-canvas-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 const ready = (proc, pattern) => new Promise((resolve, reject) => { let output = ''; const timer = setTimeout(() => reject(new Error(output || 'Startup timed out')), 20000); proc.stdout.on('data', d => { output += d; const m = pattern.exec(output); if (m) { clearTimeout(timer); resolve(m[1]); } }); proc.stderr.on('data', d => output += d); proc.on('exit', () => { clearTimeout(timer); reject(new Error(output)); }); });
 let web, browser, page;
 const errors = [], results = [];

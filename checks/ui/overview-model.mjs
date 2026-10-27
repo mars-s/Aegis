@@ -12,7 +12,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const output = join(repo, '.scratch/summary-truth/overview-model'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' }); assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-overview-model-')), token = `overview-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 let browser, page; const results = [];
 const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const measure = () => page.evaluate(() => ({ view: { ...aegis.canvas.view }, area: aegis.canvas.availableArea, rectangles: aegis.canvas.board.cards.map(c => { const r = aegis.canvas.representationRect(c.id); return { id: c.id, left: r?.left, top: r?.top, width: r?.width, height: r?.height }; }) }));

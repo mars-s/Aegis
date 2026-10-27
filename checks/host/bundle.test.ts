@@ -33,6 +33,6 @@ test('every file the host imports is bundled with the app', () => {
       try { if (statSync(next).isFile()) walk(next); } catch { missing.push(relative(root, next) + ' (not found)'); }
     }
   };
-  walk(join(runtime, 'agent/server.mjs'));
+  walk(join(runtime, 'agent/dist/main.js'));
   assert.deepEqual(missing, []);
 });

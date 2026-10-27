@@ -51,7 +51,7 @@ See [Local MCP for Codex and Claude](docs/local-mcp.md) for tools, setup and lim
 | `app/src/features/` | Docs, drawing, wireframes, colours and media, library, editing, phone layout, settings, first-run tour. Each has a README |
 | `app/src/lib/board/types/` | Feature card types and the one-line guide agents read for each |
 | `checks/ui/` | Browser checks and the canvas benchmark |
-| `agent/server.mjs` | Agent host: Pi Durable, board and object tools, parts (lead and helpers), skills, sign-in, loopback HTTP and live events |
+| `agent/src/main.ts` (built as `agent/dist/main.js`) | Agent host: Pi Durable, board and object tools, parts (lead and helpers), skills, sign-in, loopback HTTP and live events |
 | `agent/skills/` | How to do a kind of job (analyse data, explain a flow and so on); your own skills in the data folder override them |
 | `agent/ui-update.mjs` | Build, check, swap and roll back the installed UI |
 | `src-tauri` | Tauri shell: starts the agent host with a per-launch token and stops it on quit |

@@ -42,9 +42,6 @@ export function stageRuntime(args: { readonly root: string; readonly destination
     const raw: unknown = JSON.parse(readFileSync(join(source, "package.json"), "utf8"));
     const metadata = PackageSchema.parse(raw);
     if (workspace === "agent") {
-      for (const file of readdirSync(source)) {
-        if (file.endsWith(".mjs")) copyTree(join(source, file), join(target, file));
-      }
       copyTree(join(source, "skills"), join(target, "skills"));
       if (!existsSync(join(source, "dist/main.js"))) throw new Error("Agent host has no built entry. Run npm run build:shared first.");
       copyTree(join(source, "dist"), join(target, "dist"));

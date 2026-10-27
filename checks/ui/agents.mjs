@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0);
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'agents-' + process.pid;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-agents-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1800' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-agents-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1800' }, stdio: ['ignore', 'pipe', 'pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((ok, no) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) ok(m[1]); }); host.on('exit', no); });
 const vite = spawn('npx', ['vite', '--port', String(5193 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });

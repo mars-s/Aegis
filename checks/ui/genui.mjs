@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
-import { genuiSamples, galleryArtwork } from '../../agent/checks/genui-fixtures.mjs';
+import { genuiSamples, galleryArtwork } from '../host/genui-fixtures.ts';
 import { OBJECT_KINDS } from '@aegis/domain/objects';
 import { THEME_KEYS } from '@aegis/protocol/sandbox';
 
@@ -25,7 +25,7 @@ function ready(child, pattern) {
   });
 }
 try {
-  host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-genui-ui-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+  host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-genui-ui-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
   const port = await ready(host, /"port":(\d+)/);
 
   browser = await chromium.launch();

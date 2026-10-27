@@ -39,7 +39,7 @@ const stickyProvider = async menu => {
 };
 
 try {
-  host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   host.stderr.on('data', data => process.stderr.write(data));
   const port = await ready(host, /"port":(\d+)/);
   vite = spawn('npx', ['vite', '--port', String(vitePort), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
