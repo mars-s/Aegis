@@ -27,6 +27,20 @@ export function createEditorController(args: { readonly workspace: Workspace; re
     return args.composition.editors.find(editor => editor.kind === bodyKind(card))?.flush(context, opened.id) ?? true;
   }
   function flush(): boolean { return pending === null && flushFields(); }
+  function waitForSave(signal: AbortSignal): Promise<boolean> {
+    if (signal.aborted || workspace.saving.getSnapshot().kind === 'blocked') return Promise.resolve(false);
+    return new Promise(resolve => {
+      let finished = false;
+      const finish = (ok: boolean): void => {
+        if (finished) return;
+        finished = true; stop(); signal.removeEventListener('abort', aborted); resolve(ok);
+      };
+      const aborted = () => finish(false);
+      const stop = workspace.saving.subscribe(() => { if (workspace.saving.getSnapshot().kind === 'blocked') finish(false); });
+      signal.addEventListener('abort', aborted, { once: true });
+      void Promise.resolve().then(args.settled).then(() => finish(workspace.saving.getSnapshot().kind !== 'blocked'), () => finish(false));
+    });
+  }
   function continuePrepared(key: string, ids: readonly CardId[], action: () => boolean, durable = false): Promise<boolean> {
     if (pending?.key === key) return pending.promise;
     const previous = pending;
@@ -44,8 +58,7 @@ export function createEditorController(args: { readonly workspace: Workspace; re
         if (!current()) return false;
       }
       if (durable) {
-        try { await args.settled(); } catch { return false; }
-        if (!current() || workspace.saving.getSnapshot().kind === 'blocked') return false;
+        if (!await waitForSave(abort.signal) || !current()) return false;
       }
       prepared = true;
       try { return action(); } finally { prepared = false; }

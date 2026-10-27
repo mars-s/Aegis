@@ -126,7 +126,11 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   controllerRef.current = controller;
   const context = controller.context;
   const openBoard = useCallback(async (id: BoardId): Promise<boolean> => {
-    if (!await controllerRef.current?.close() || !disposeDocumentSessions(workspace)) return false;
+    if (!await controllerRef.current?.close()) {
+      if (workspace.saving.getSnapshot().kind === 'blocked') setNotice('Save is blocked. Retry saving, then open the board again.');
+      return false;
+    }
+    if (!disposeDocumentSessions(workspace)) return false;
     boardRead.current?.abort(); const own = new AbortController(); boardRead.current = own;
     const signal = AbortSignal.any([own.signal, lifetime.signal]);
     try {

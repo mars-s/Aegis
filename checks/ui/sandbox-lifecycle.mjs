@@ -62,10 +62,26 @@ try {
    check(await page.evaluate(()=>JSON.parse(aegis.canvas.board.cards.find(c=>c.id==='snapshotwidget').data.state).custom.count),46,'open-other preserves the requested destination and final source state');
    await page.frameLocator('.side-editor iframe').locator('#second').waitFor();
    await page.evaluate(()=>dispatchEvent(new CustomEvent('aegis:open-card',{detail:{id:'snapshotwidget',keyboard:true}})));await page.waitForFunction(()=>aegis.workspace.ui.getSnapshot().editor?.id==='snapshotwidget');await page.frameLocator('.side-editor iframe').locator('#queue').waitFor();
+   await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{aegisState={count:47};});
+   await page.evaluate(()=>{
+    const newer=event=>{
+     if(event.source!==document.querySelector('.side-editor iframe')?.contentWindow||event.data?.type!=='aegis:html-snapshot-result')return;
+     removeEventListener('message',newer);
+     const card=aegis.canvas.board.cards.find(c=>c.id==='snapshotwidget'),state=JSON.parse(card.data.state);state.custom={count:88};aegis.apply([{op:'object_set',id:card.id,path:['state'],value:JSON.stringify(state)}]);
+    };
+    addEventListener('message',newer);
+    document.querySelector('.side-editor [data-close]').click();
+   });
+   await page.waitForFunction(()=>document.querySelector('.side-editor')?.textContent.includes('(conflict)'));
+   check(await page.evaluate(()=>({editor:aegis.workspace.ui.getSnapshot().editor?.id,count:JSON.parse(aegis.canvas.board.cards.find(c=>c.id==='snapshotwidget').data.state).custom.count})),{editor:'snapshotwidget',count:88},'external state conflict retains the editor and newer workspace state');
+   await page.waitForFunction(()=>document.querySelector('.side-editor iframe')?.isConnected);
+   check(await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>aegisState.count),88,'conflict restores newer state before any retry can overwrite it');
    await page.route('**/boards/*/batch',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:'Snapshot save fixture offline'})}));
    await page.evaluate(()=>{departureAction='board';});await page.frameLocator('.side-editor iframe').locator('html').evaluate(()=>{nextCount=47;});const blockedBoard=await page.evaluate(()=>aegis.canvas.board.id);await page.frameLocator('.side-editor iframe').locator('#queue').click();await page.waitForFunction(()=>aegis.workspace.saving.getSnapshot().kind==='blocked');
+   await page.getByRole('status').filter({hasText:'Retry saving, then open the board again.'}).waitFor();
    check(await page.evaluate(()=>({id:aegis.canvas.board.id,editor:aegis.workspace.ui.getSnapshot().editor?.id})),{id:blockedBoard,editor:'snapshotwidget'},'blocked host save retains the source board and editor');
    await page.unroute('**/boards/*/batch');await page.evaluate(()=>aegis.workspace.retry());await page.waitForFunction(()=>aegis.workspace.saving.getSnapshot().kind==='saved');
+   check(await page.evaluate(()=>({id:aegis.canvas.board.id,editor:aegis.workspace.ui.getSnapshot().editor?.id})),{id:blockedBoard,editor:'snapshotwidget'},'Retry save cannot replay a previously refused departure');
    await page.locator('.side-editor [data-close]').click();await page.waitForFunction(()=>!aegis.workspace.ui.getSnapshot().editor);await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('#queue').waitFor();
    await page.frameLocator('.card[data-id="snapshotwidget"] iframe').locator('html').evaluate(()=>{aegisState={count:49};});
    await page.locator('#stage').click({position:{x:1200,y:850},button:'right'});const download=page.waitForEvent('download');await page.getByText('Export board as PNG',{exact:true}).click();await (await download).saveAs(join(output,`${name}-acknowledged-export.png`));
