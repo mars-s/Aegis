@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diagramLayout } from '../../app/src/features/overview/summary.js';
+import { diagramLayout } from './legacy/overview.ts';
 
 test('a shuffled four-step chain folds into two readable rows and retains all real edges', () => {
   const nodes = ['Decide', 'Collect', 'Share', 'Try it'].map(name => ({ id: name, name }));

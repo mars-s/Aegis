@@ -1,8 +1,10 @@
+import { required } from './required.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { boardClusters } from '../../app/src/features/overview/clusters.js';
-import { boardSubtitle } from '@aegis/domain/summary';
-const card = (id, type, text, x, props = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
+import { boardClusters } from './legacy/overview.ts';
+import { boardSubtitle } from './legacy/summary.ts';
+import type { JsonRecord } from '@aegis/domain/schema';
+const card = (id: string, type: string, text: string, x: number, props: JsonRecord = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
 
 test('named headings collect nearby work and count windows, excluding the headings', () => {
   const board = { name: 'Research', cards: [card('a', 'title', 'Discover', 0), card('b', 'doc', 'Interviews', 20), card('c', 'title', 'Decide', 1500), card('d', 'dataset', 'Results', 1520)] };
@@ -20,13 +22,13 @@ test('nested collections frame their descendants and hidden groups stay absent',
   ] };
   const clusters = boardClusters(board);
   assert.equal(clusters.length, 2);
-  assert.deepEqual(clusters[0].ids, ['root', 'nested', 'doc']); assert.equal(clusters[0].count, 1);
-  assert.deepEqual(clusters[1].ids, ['nested', 'doc']); assert.equal(clusters[1].count, 1);
+  assert.deepEqual(required(clusters[0]).ids, ['root', 'nested', 'doc']); assert.equal(required(clusters[0]).count, 1);
+  assert.deepEqual(required(clusters[1]).ids, ['nested', 'doc']); assert.equal(required(clusters[1]).count, 1);
 });
 
 test('an ungrouped board retains its name and a heading or document supplies its content cue', () => {
   const board = { name: 'Weekly plan', cards: [card('doc', 'doc', 'A calmer week', 0)] };
-  assert.equal(boardClusters(board)[0].name, 'Weekly plan'); assert.equal(boardClusters(board)[0].count, 1);
+  assert.equal(required(boardClusters(board)[0]).name, 'Weekly plan'); assert.equal(required(boardClusters(board)[0]).count, 1);
   assert.equal(boardSubtitle(board), 'A calmer week');
   board.cards.push(card('title', 'title', '## Make time to think', 0));
   assert.equal(boardSubtitle(board), 'Make time to think');

@@ -1,0 +1,4 @@
+mutation	suite	exit	failing_cases	evidence
+wrong-world-coordinate	draw	1	1	/tmp/aegis-host-tests-mutation-wrong-world-coordinate.tap
+missing-drag-descendants	wireframe	1	4	/tmp/aegis-host-tests-mutation-missing-drag-descendants.tap
+wrong-upload-url	media	1	1	/tmp/aegis-host-tests-mutation-wrong-upload-url.tap

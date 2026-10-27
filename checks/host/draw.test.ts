@@ -1,9 +1,13 @@
+import { decodeStoredBoard } from '@aegis/protocol/storage';
+import type { Board } from '@aegis/domain/schema';
+import { required } from './required.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyBatch, emptyBoard, describe } from '@aegis/domain/commands';
-import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from '../../app/src/features/draw/geometry.js';
-import { linkGeometry } from '../../app/src/canvas/engine.js';
-const run = (b, commands) => applyBatch(b, { commands });
+import { applyBatch } from './batch.ts';
+import { emptyBoard, describe } from '@aegis/domain/commands';
+import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from './legacy/draw.ts';
+import { linkGeometry } from './legacy/draw.ts';
+const run = (b: Board, commands: unknown[]) => applyBatch(b, { commands });
 function linked() {
   return run(emptyBoard('drawing'), [
     ...['aaaaaa', 'bbbbbb', 'cccccc'].map((newId, i) => ({ op: 'create', newId, x: i * 300, y: 0 })),
@@ -18,21 +22,21 @@ test('drawing card props survive commands, description and JSON persistence', ()
     { op: 'create', type: 'stamp', props: { emoji: '🌱' } },
   ];
   const result = run(emptyBoard('drawing'), commands); assert.equal(result.ok, true);
-  const saved = JSON.parse(JSON.stringify(result.board));
-  for (const [i, c] of saved.cards.entries()) assert.deepEqual(describe(saved).cards[i].props, commands[i].props);
+  const saved = decodeStoredBoard(JSON.parse(JSON.stringify(result.board)));
+  for (const [i, _c] of saved.cards.entries()) assert.deepEqual(required(describe(saved).cards[i]).props, required(commands[i]).props);
 });
 test('link_update keeps stable ids, styles, label and pins visible to the host', () => {
   const b = linked(), style = { bend: -60, dash: true, arrow: 'both', colour: '#aabbcc', label: '<A & B>', pa: { u: 1, v: .25 }, pb: { u: 0, v: .75 } };
-  assert.equal(b.links[0].id, 'linkaa');
+  assert.equal(required(b.links[0]).id, 'linkaa');
   const result = run(b, [{ op: 'link_update', id: 'linkaa', set: style }]); assert.equal(result.ok, true);
-  assert.deepEqual(describe(result.board).links[0], { id: 'linkaa', a: 'aaaaaa', b: 'bbbbbb', ...style });
-  assert.equal(b.links[0].bend, undefined);
+  assert.deepEqual(required(describe(result.board).links[0]), { id: 'linkaa', a: 'aaaaaa', b: 'bbbbbb', ...style });
+  assert.equal(required(b.links[0]).bend, undefined);
   const auto = run(result.board, [{ op: 'link_update', id: 'linkaa', set: { pa: null, pb: null, bend: null } }]);
-  assert.equal('pa' in auto.board.links[0], false); assert.equal('bend' in auto.board.links[0], false);
+  assert.equal('pa' in required(auto.board.links[0]), false); assert.equal('bend' in required(auto.board.links[0]), false);
 });
 test('reconnect and removal are atomic, missing cards and invalid styles are refused', () => {
   const b = linked();
-  const moved = run(b, [{ op: 'link_update', id: 'linkaa', set: { b: 'cccccc' } }]); assert.equal(moved.board.links[0].b, 'cccccc');
+  const moved = run(b, [{ op: 'link_update', id: 'linkaa', set: { b: 'cccccc' } }]); assert.equal(required(moved.board.links[0]).b, 'cccccc');
   for (const set of [{ a: 'missing' }, { a: 'bbbbbb' }, { bend: NaN }, { dash: 'yes' }, { arrow: 'unknown' }, { colour: 'url(evil)' }, { pa: { u: .5, v: .5 } }]) {
     const result = run(b, [{ op: 'link_update', id: 'linkaa', set: { label: 'changed', ...set } }]); assert.equal(result.ok, false, JSON.stringify(set)); assert.equal(result.board, b);
   }
@@ -50,7 +54,7 @@ test('rounded corners and Bezier handles survive real geometry changes', () => {
   const curve = [{ x: 0, y: 0, ox: 10, oy: 100 }, { x: 100, y: 0, ix: 90, iy: 100 }];
   const split = splitSegment(curve, 0, .4);
   for (const t of [0, .1, .4, .75, 1]) {
-    const expected = pointOnSegment(...curve, t), actual = t <= .4 ? pointOnSegment(split[0], split[1], t / .4) : pointOnSegment(split[1], split[2], (t - .4) / .6);
+    const expected = pointOnSegment(required(curve[0]), required(curve[1]), t), actual = t <= .4 ? pointOnSegment(required(split[0]), required(split[1]), t / .4) : pointOnSegment(required(split[1]), required(split[2]), (t - .4) / .6);
     assert.ok(Math.hypot(expected.x - actual.x, expected.y - actual.y) < 1e-8);
   }
 });
@@ -68,6 +72,7 @@ test('shapes, flat paths and squiggles have finite usable bounds and geometry', 
 });
 test('connector geometry tracks bend, pins, card moves and rotation', () => {
   const [a, b] = linked().cards;
+  assert.ok(a && b);
   const g = linkGeometry({ bend: 0, pa: { u: 1, v: .5 }, pb: { u: 0, v: .5 } }, a, b);
   assert.deepEqual(g.handle, g.mid); assert.equal(g.p0.x, a.x + a.w);
   const curved = linkGeometry({ bend: 60 }, a, b); assert.ok(curved.handle.y > curved.mid.y);
@@ -76,12 +81,12 @@ test('connector geometry tracks bend, pins, card moves and rotation', () => {
 });
 
 test('shape-to-path conversion preserves card identity, stacking and styled connectors atomically', async () => {
-  const { shapePathCommands } = await import('../../app/src/features/draw/model.js');
+  const { shapePathCommands } = await import('./legacy/draw.ts');
   const b = run(linked(), [{ op: 'create', type: 'shape', newId: 'shapeaa', props: { shape: 'star' } }, { op: 'connect', a: 'aaaaaa', b: 'shapeaa', newId: 'linkcc' }, { op: 'link_update', id: 'linkcc', set: { label: 'Star', bend: -40, dash: true, arrow: 'end', colour: '#ff00ff', pb: { u: 0, v: .5 } } }]).board;
-  const shape = b.cards.at(-1), converted = { ...shape, props: { ...shape.props, points: shapePoints('star'), closed: true, ow: 100, oh: 100 } };
+  const shape = required(b.cards.at(-1)), converted = { ...shape, props: { ...shape.props, points: shapePoints('star'), closed: true, ow: 100, oh: 100 } };
   const result = run(b, shapePathCommands(b, converted));
-  assert.equal(result.ok, true); assert.equal(result.board.cards.at(-1).type, 'path'); assert.equal(result.board.cards.at(-1).id, shape.id);
-  assert.equal(result.board.cards.at(-1).props.shape, undefined);
+  assert.equal(result.ok, true); assert.equal(required(result.board.cards.at(-1)).type, 'path'); assert.equal(required(result.board.cards.at(-1)).id, shape.id);
+  assert.equal(required(required(result.board.cards.at(-1)).props).shape, undefined);
   assert.deepEqual(result.board.links, b.links);
 });
 
