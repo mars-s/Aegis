@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import type { ObjectData } from "./model.js";
 import { useDraftFlush, useObjectEditing } from "./context.js";
@@ -11,6 +11,7 @@ type Edit = {
   readonly c: number;
   readonly text: string;
   readonly base: Cell;
+  readonly selectAll: boolean;
 } | null;
 export function Table({ data }: { readonly data: ObjectData["table"] }) {
   const { set } = useObjectEditing(),
@@ -42,10 +43,10 @@ export function Table({ data }: { readonly data: ObjectData["table"] }) {
     cue();
     return () => observer.disconnect();
   }, []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (editing) {
       input.current?.focus({ preventScroll: true });
-      input.current?.select();
+      if (editing.selectAll) input.current?.select();
     }
   }, [editing?.r, editing?.c]);
   function begin(r: number, c: number, text?: string) {
@@ -63,6 +64,7 @@ export function Table({ data }: { readonly data: ObjectData["table"] }) {
       c,
       base: value,
       text: text ?? (Array.isArray(value) ? "" : String(value ?? "")),
+      selectAll: text === undefined,
     });
   }
   function commit(): boolean {
@@ -170,6 +172,7 @@ export function Table({ data }: { readonly data: ObjectData["table"] }) {
         <div className="table-scroll" ref={scroll} onScroll={cue}>
           <table
             ref={grid}
+            data-scene-interactive
             className="data-grid"
             role="grid"
             aria-label="Data table"
