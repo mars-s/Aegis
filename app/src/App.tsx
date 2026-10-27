@@ -10,6 +10,7 @@ import { Canvas } from './canvas/Canvas.js';
 import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
 import { Chrome, ToolbarPreferences, PanelPreferences } from './chrome/index.js';
+import { CanvasLibrary } from './chrome/CanvasDoor.js';
 import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
 import { createMenu } from './lib/ui/menu.js';
@@ -109,7 +110,8 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'vector', label: 'Vector pen', shortcut: 'shift+p', run: draw('path') },
       { id: 'draw-stamp', label: 'Emoji stamps', shortcut: 'e', run: draw('stamp') },
       { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
-      { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
+      { id: 'import-image', label: 'Import', shortcut: 'i', run: () => importChoice.current?.() },
+      { id: 'media', label: 'Media', run: () => importChoice.current?.() },
       ...(['swatch', 'link', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'link' ? 'Link' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
     ], panels: [...base.panels,
       { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
@@ -133,7 +135,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       if (camera) hostValue(await client.saveCamera(current, { x: camera.x, y: camera.y, z: camera.zoom }, signal));
       const board = hostValue(await client.board(id, signal));
       if (signal.aborted || !workspace.replaceBoard(board)) return false;
-      localStorage.setItem('aegis:board', id); return true;
+      localStorage.setItem('aegis:board', id);
+      const scene = engine.current;
+      if (scene) {
+        if (board.cards.length) scene.navigate({ kind: 'fit', ids: [], motion: 'instant' });
+        else { const viewport = scene.viewport(); scene.navigate({ kind: 'restore', camera: { x: viewport.width / 2, y: viewport.height / 2, zoom: 1 }, motion: 'instant' }); }
+      }
+      return true;
     } catch (cause) { if (!signal.aborted) setNotice(cause instanceof Error ? cause.message : 'Could not open this board.'); return false; }
   }, [client, workspace, runtime, lifetime]);
   const library = useMemo(() => createLibraryService({ workspace, client, replication: runtime.replication, open: openBoard, notify: setNotice, storage: localStorage }), [workspace, client, runtime.replication, openBoard]);
@@ -233,7 +241,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     document.body.classList.toggle('docs-full', editorKind === 'doc' && ui.editor?.view === 'full');
     return () => document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
   }, [editorKind, ui.editor?.view]);
-  return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
+  return <CanvasLibrary.Provider value={library.service}><CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} />
@@ -248,7 +256,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     {ui.editor ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
     <div id="toast" hidden={!notice} className={notice ? 'toast react-toast' : undefined} role="status">{notice}{notice ? <button type="button" onClick={() => setNotice(null)}>Dismiss</button> : null}</div>
-  </DocumentProvider></CreativeProvider>;
+  </DocumentProvider></CreativeProvider></CanvasLibrary.Provider>;
 }
 
 export default function App() {

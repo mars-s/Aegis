@@ -136,6 +136,7 @@ export function MenuButton({
   className = "",
   children,
   menuClass = "",
+  dataProjectCover,
   disabled = false,
   tabIndex,
 }: {
@@ -144,6 +145,7 @@ export function MenuButton({
   readonly items: readonly MenuItem[] | (() => readonly MenuItem[]);
   readonly className?: string;
   readonly menuClass?: string;
+  readonly dataProjectCover?: string;
   readonly disabled?: boolean;
   readonly tabIndex?: number;
   readonly children: ReactNode;
@@ -187,6 +189,7 @@ export function MenuButton({
       aria-label={triggerLabel ?? label}
       disabled={disabled}
       tabIndex={tabIndex}
+      data-project-cover={dataProjectCover}
     >
       {children}
     </button>
@@ -210,6 +213,7 @@ export function PopupButton({
 }) {
   const button = useRef<HTMLButtonElement>(null),
     content = useRef<HTMLDivElement>(null);
+  const controller = useRef<ReturnType<typeof createPopup> | null>(null);
   useEffect(() => {
     if (!button.current || !content.current) return;
     const popup = createPopup({
@@ -221,7 +225,8 @@ export function PopupButton({
         if (opened) button.current?.focus({ preventScroll: true });
       },
     });
-    return () => popup.destroy();
+    controller.current = popup;
+    return () => { popup.destroy(); controller.current = null; };
   }, [label]);
   return (
     <>
@@ -233,6 +238,10 @@ export function PopupButton({
         id={menuId}
         className={`selection-popup-menu ${className}`}
         aria-label={`${label} controls`}
+        onClick={event => {
+          const target = event.target;
+          if (target instanceof Element && target.closest('button[data-tool]:not([data-tool="templates"])')) controller.current?.close(true, true);
+        }}
         hidden
       >
         {children}

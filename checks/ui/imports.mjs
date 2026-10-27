@@ -75,7 +75,7 @@ try {
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 20000 });
   await page.evaluate(() => {
     window.__importMotions = [];
-    new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node instanceof HTMLElement && node.dataset.id) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true });
+    new MutationObserver(records => { for (const record of records) for (const node of record.type === 'attributes' ? [record.target] : record.addedNodes) if (node instanceof HTMLElement && node.matches('#world > .card[data-id]')) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true, subtree: true, attributes: true, attributeFilter: ['data-id'] });
   });
   assert.equal((await cards()).length, 0);
   assert.equal(await page.locator('#empty .empty-actions button').count(), 3);

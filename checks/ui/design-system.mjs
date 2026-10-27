@@ -124,8 +124,8 @@ try {
     await shot('doc-ribbon');
     await page.getByLabel('Format document', { exact: true }).click(); await shot('doc-format', page.getByRole('dialog', { name: 'Format document controls', exact: true }));
     for (const label of ['Text colour', 'Highlight']) {
-      await doc.locator(`summary[aria-label="${label}"]`).click();
-      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: label + ' choices', exact: true })); await dismiss();
+      await (process.env.AEGIS_UI_IMPL === 'react' ? page.getByRole('dialog', { name: 'Format document controls', exact: true }).getByLabel(label, { exact: true }) : doc.locator(`summary[aria-label="${label}"]`)).click();
+      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Colour editor' : label + ' choices', exact: true })); await dismiss();
     }
     await doc.getByRole('button', { name: 'Link', exact: true }).click();
     await shot('doc-link', page.getByRole('dialog', { name: 'Edit document link', exact: true })); await dismiss();

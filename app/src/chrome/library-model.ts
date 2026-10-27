@@ -28,6 +28,7 @@ export interface LibraryService {
   readonly refresh: (signal: AbortSignal) => Promise<void>;
   readonly open: (id: BoardId) => Promise<boolean>;
   readonly load: (id: BoardId, signal: AbortSignal) => Promise<Board>;
+  readonly createChild: (parent: BoardId, at: { readonly x: number; readonly y: number }) => Promise<void>;
   readonly create: (
     kind: "board" | "folder" | "project",
     parent: string | null,

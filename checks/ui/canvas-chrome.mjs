@@ -28,6 +28,8 @@ try {
     const page = await browser.newPage({ viewport: { width: 1586, height: 992 }, colorScheme: 'dark', reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', error => { errors.push(error.stack || error.message); console.error(engineName, error.stack || error.message); });
     const shot = name => page.screenshot({ path: out(`canvas-chrome-${engineName}-${name}.png`) });
+    const documentPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open .docs-panel' : '.docs-panel.is-open';
+    const objectPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open:has(.object.expanded)' : '.object-editor.is-open';
     const card = id => page.locator(`#world > .card[data-id="${id}"]`);
     const select = async id => { await page.evaluate(id => { document.activeElement?.blur(); aegis.canvas.select([id]); }, id); await page.locator('#selectionBar').waitFor({ state: 'visible' }); };
     const connect = async id => { await select(id); await page.locator('#selectionBar .selection-more > summary').click(); await page.getByRole('button', { name: 'Connect', exact: true }).click(); await page.locator('#stage.connecting').waitFor(); };
@@ -116,11 +118,11 @@ try {
       await page.locator('#closeSide').click();
       console.log(`PASS ${engineName}: Windows exposes named tree items, selected state, one roving row, arrow/Home/End navigation and Enter activation`);
       for (const z of [1, .55, .2]) {
-        await page.evaluate(z => new Promise(resolve => { document.getElementById('stage').addEventListener('canvaspaint', () => resolve(), { once: true }); aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 160, y: 220, z }); }), z);
+        await page.evaluate(z => new Promise(resolve => { if (aegis.canvas.engine) { const release = aegis.canvas.engine.registerFrameParticipant({ write: () => { release(); resolve(); } }); } else document.getElementById('stage').addEventListener('canvaspaint', () => resolve(), { once: true }); aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 160, y: 220, z }); }), z);
         await moveTo(card('chromedocument'));
         const action = page.locator('.window-actions [data-window-action="chromedocument"]'); await action.waitFor();
         const box = await action.boundingBox(); assert.ok(box.width >= 32 && box.height >= 32, `${z}: ${JSON.stringify(box)}`);
-        if (z === .55) { await shot('unscaled-window-action'); await action.click(); await page.locator('.docs-panel.is-open').waitFor(); await page.keyboard.press('Escape'); }
+        if (z === .55) { await shot('unscaled-window-action'); await action.click(); await page.locator(documentPanel).waitFor(); await page.keyboard.press('Escape'); }
       }
       console.log(`PASS ${engineName}: Open actions remain at least 32px in screen space at 100%, 55% and 20%, and open the document`);
       await page.evaluate(() => aegis.canvas.setView({ x: 0, y: 0, z: 1 }));
@@ -165,7 +167,7 @@ try {
       await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'object', kind: 'html', newId: 'chromewidget', text: 'Widget actions', x: 400, y: 540, w: 440, h: 300, data: { html: '<p>Interactive widget</p>', css: '', js: '', height: 180 } }]); aegis.canvas.select([]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
       await card('chromewidget').locator('iframe').hover();
       const widgetOpen = page.locator('.window-actions').getByRole('button', { name: 'Open Widget actions', exact: true });
-      await widgetOpen.click(); await page.locator('.object-editor.is-open').waitFor(); await page.keyboard.press('Escape');
+      await widgetOpen.click(); await page.locator(objectPanel).waitFor(); await page.keyboard.press('Escape');
       const focusReturn = await page.evaluate(() => ({ id: document.activeElement.dataset.windowAction, active: document.activeElement.outerHTML.slice(0, 240), strip: document.querySelector('.window-actions').outerHTML.slice(0, 500), visibility: getComputedStyle(document.querySelector('.window-actions')).visibility, source: document.querySelector('.card.editor-source')?.dataset.id }));
       assert.equal(focusReturn.id, 'chromewidget', `Escape restores the unscaled widget action: ${JSON.stringify(focusReturn)}`);
       await page.evaluate(() => { document.activeElement?.blur(); aegis.apply([{ op: 'delete', ids: ['chromewidget'] }]); });

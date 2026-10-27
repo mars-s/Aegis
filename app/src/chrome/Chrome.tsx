@@ -38,6 +38,7 @@ import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
 import { toolOrder, useToolbar } from "./Preferences.js";
 import { Templates } from "./TemplateMenu.js";
+import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
 import "./chrome.css";
 
 function setZoom(
@@ -99,6 +100,22 @@ export function Chrome({
   useLayoutEffect(() => {
     document.body.dataset.toolSize = toolbar.size;
   }, [toolbar.size]);
+  useLayoutEffect(() => {
+    let dirty = true, source: HTMLElement | null = null;
+    const changed = (): void => { dirty = true; engine.invalidate(); };
+    const detach = engine.registerFrameParticipant({ write: () => {
+      if (!dirty) return;
+      dirty = false;
+      const opened = context.workspace.ui.getSnapshot().editor;
+      const host = opened ? engine.leases.getSnapshot().find(lease => lease.cardId === opened.id)?.host.closest<HTMLElement>('.card') ?? null : null;
+      if (source !== host) { source?.classList.remove('editor-source'); source = host; }
+      source?.classList.add('editor-source');
+      document.getElementById('stage')?.classList.toggle('editor-source-selected', !!opened && context.workspace.selection.getSnapshot().length === 1 && context.workspace.selection.getSnapshot()[0] === opened.id);
+    } });
+    const offUi = context.workspace.ui.subscribe(changed), offLeases = engine.leases.subscribe(changed), offSelection = context.workspace.selection.subscribe(changed);
+    changed();
+    return () => { detach(); offUi(); offLeases(); offSelection(); source?.classList.remove('editor-source'); document.getElementById('stage')?.classList.remove('editor-source-selected'); };
+  }, [context, engine]);
   useEffect(() => {
     const refresh = () => {
       const next = readLayout();
@@ -443,6 +460,7 @@ export function Chrome({
         shortcut: "R",
         run: () => add("readme"),
       },
+      ...(library ? [{ id: "canvas", label: "Canvas", run: () => armCanvasPlacement(context, library, notify) }] : []),
       ...composition.tools,
       ...composition.menus,
     ],
@@ -456,7 +474,8 @@ export function Chrome({
       "title",
       "todo",
       "readme",
-      ...(library ? ["templates"] : []),
+      ...["link", "media"].filter(id => composition.tools.some(tool => tool.id === id)),
+      ...(library ? ["templates", "canvas"] : []),
       ...composition.tools.map((action) => action.id),
     ],
     toolbar.order,
@@ -820,17 +839,17 @@ export function Chrome({
     <div className="aegis-chrome">
       <MobileHub
         sheets={{
-          boards: () =>
+          boards: (close) =>
             library ? (
               <Library
-                service={library}
+                service={{ ...library, open: async id => { const opened = await library.open(id); if (opened) close(); return opened; } }}
                 current={metadata.id}
                 notify={notify}
               />
             ) : (
               <p>Library is unavailable.</p>
             ),
-          layers: () => <Layers context={context} notify={notify} />,
+          layers: (close) => <Layers context={context} notify={notify} onPick={close} />,
           add: () => (
             <div className="tools-grid">
               {actions.map((action) => (
@@ -869,7 +888,7 @@ export function Chrome({
             <Icon name="window" />
           </button>
         </div>
-        <nav id="boardCrumbs" aria-label="Board path" />
+        <nav id="boardCrumbs" aria-label="Board path">{library ? <BoardCrumbs library={library} current={metadata.id} /> : null}</nav>
         <button
           id="boardName"
           aria-expanded={ui.leftPanel}
@@ -1031,17 +1050,17 @@ export function Chrome({
           ))}
       </aside>
       <nav ref={dock} id="tools" aria-label="Canvas tools">
-        {dockIds.slice(0, 6).map(toolButton)}
+        {dockIds.slice(0, 7).map(toolButton)}
         <PopupButton
           label="More tools"
           triggerId="toolsFold"
           menuId="toolsPopover"
           className="tools-popover"
         >
-          <div className="tools-grid">{dockIds.slice(6).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
-          {dockIds.slice(6).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
+          <div className="tools-grid">{dockIds.slice(7).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          {dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
             <h3>Media</h3>
-            <div className="tools-grid">{dockIds.slice(6).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
           </section> : null}
           {customiseToolbar ? (
             <button aria-label="Customise toolbar" onClick={customiseToolbar}>

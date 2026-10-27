@@ -83,7 +83,8 @@ function positionSelection(
   box: SelectionBounds | null,
 ): void {
   const editor = context.workspace.ui.getSnapshot().editor;
-  if (!box || engine.busy() || editor?.view === "full") {
+  const ids = context.workspace.selection.getSnapshot();
+  if (!box || engine.busy() || editor?.view === "full" || editor && ids.length === 1 && ids[0] === editor.id) {
     bar.hidden = true;
     outline.hidden = true;
     return;

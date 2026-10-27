@@ -20,9 +20,11 @@ export function Layers({
   context,
   notify,
   onFilter,
+  onPick,
 }: {
   readonly context: FeatureContext;
   readonly notify: Notify;
+  readonly onPick?: () => void;
   readonly onFilter?: (
     filtered: boolean,
     matches: number,
@@ -128,6 +130,7 @@ export function Layers({
       ids: [card.id],
       motion: keyboard ? "instant" : "glide",
     });
+    onPick?.();
   }
   function key(
     event: KeyboardEvent<HTMLDivElement>,

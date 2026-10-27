@@ -77,6 +77,13 @@ export function createLibraryService(args: {
     source, refresh,
     open: async id => pending.getSnapshot()?.ids.includes(id) ? false : args.open(id),
     load: async (id, signal) => hostValue(await args.client.board(id, AbortSignal.any([lifetime.signal, signal]))),
+    createChild: async (parent, at) => {
+      await args.replication.settled();
+      hostValue(await args.client.library.createChild('Untitled canvas', parent, at, lifetime.signal));
+      args.replication.resynchronise();
+      await args.replication.settled();
+      await refresh(lifetime.signal);
+    },
     create: async (kind, parent) => {
       const created = kind === 'board'
         ? hostValue(await args.client.library.createBoard('Untitled', parent, lifetime.signal)).id
