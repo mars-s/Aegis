@@ -1,4 +1,4 @@
-.just-board :is(.aegis-chrome, #agentIsland, .agent-ask-pill, .agent-run-strip, #mobileHub) {
+.just-board :is(.aegis-chrome, #agentIsland, .ask-pill, .run-strip, .edge-arrow, #mobileHub) {
   display: none !important;
 }
 .show-panels {

@@ -44,7 +44,11 @@ export function NavigationViews({ context, engine }: {
         const { workspace } = current.current;
         const scene = current.current.engine();
         const ids = new Set(workspace.selection.getSnapshot());
-        if (!scene || !ids.size) return;
+        if (!scene) return;
+        if (!ids.size) {
+          window.dispatchEvent(new CustomEvent("aegis:notice", { detail: "Select cards to focus on first" }));
+          return;
+        }
         for (const link of workspace.scene.snapshot().links) {
           if (ids.has(link.a)) ids.add(link.b);
           if (ids.has(link.b)) ids.add(link.a);
