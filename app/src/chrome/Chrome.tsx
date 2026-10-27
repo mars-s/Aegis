@@ -194,21 +194,17 @@ export function Chrome({
   useEffect(() => () => coreTools.dispose(), [coreTools]);
   useEffect(() => {
     const stage = document.getElementById('stage'); if (!stage) return;
-    let pending: (() => void) | null = null;
+    let active = true;
     const double = (event: MouseEvent): void => {
       if (event.defaultPrevented || engine.toolName() || localStorage.getItem('aegis:double-click-note') === 'off' || !(event.target instanceof Element) || event.target.closest('input,textarea,button,summary,a,[contenteditable],.canvas-orientation,.window-actions,[data-scene-interactive]')) return;
       const bounds = stage.getBoundingClientRect(), point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
       if (engine.hitTest(point)) return;
       event.preventDefault();
       const board = context.workspace.metadata.getSnapshot().id, at = engine.screenToWorld(point);
-      pending?.();
-      pending = engine.registerFrameParticipant({ read() {
-        pending?.(); pending = null;
-        engine.afterInput(() => { if (context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
-      } });
+      engine.afterInput(() => { if (active && context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
     };
     stage.addEventListener('dblclick', double);
-    return () => { pending?.(); stage.removeEventListener('dblclick', double); };
+    return () => { active = false; stage.removeEventListener('dblclick', double); };
   }, [coreTools, context, engine]);
   const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(

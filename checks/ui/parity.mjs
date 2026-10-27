@@ -1,3 +1,4 @@
+import { verifyDoubleNoteInput } from './double-note-input.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
@@ -112,3 +113,5 @@ try {
   assert.deepEqual(errors,[]); log('PASS, no page errors. Temporary data:',data);
 } catch(e) {console.error(e); console.error('page errors:',errors); await page.screenshot({path:out('parity-fail.png')}); process.exitCode=1;}
 finally {await browser.close();host.kill();vite.kill();}
+
+if (!process.exitCode && process.env.AEGIS_UI_IMPL === 'react') await verifyDoubleNoteInput();
