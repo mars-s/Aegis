@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
+const contextSelector = process.env.AEGIS_UI_IMPL === 'react' ? '.document-context' : '.editor-context';
 const output = join(repo, '.scratch/spatial-interaction'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
@@ -141,16 +142,16 @@ try {
       await open('decision'); await choose('sheetdata');
       await page.getByLabel('Reference first row', { exact: true }).fill('2'); await page.getByLabel('Reference first row', { exact: true }).press('Tab');
       await page.mouse.move(500, 650); await page.mouse.wheel(0, 80);
-      await page.locator('.editor-context').waitFor({ state: 'hidden' });
+      await page.locator(contextSelector).waitFor({ state: 'hidden' });
       const restore = page.getByRole('button', { name: 'Show references', exact: true }); await restore.waitFor();
       const rect = await restore.boundingBox(), editor = await page.locator('.side-editor').boundingBox(); assert.ok(rect.x + rect.width <= editor.x - 24);
       await restore.focus(); await shot(`${engineName}-restore-control`); await page.keyboard.press('Enter');
-      await page.locator('.editor-context').waitFor({ state: 'visible' });
+      await page.locator(contextSelector).waitFor({ state: 'visible' });
       assert.equal(await page.locator('.editor-context-reference').getAttribute('data-card-id'), 'sheetdata');
       assert.equal(await page.getByLabel('Reference first row', { exact: true }).inputValue(), '2');
       assert.equal(await page.locator('.editor-reference-table td').first().textContent(), 'Feb');
       await page.mouse.move(500, 650); await page.mouse.down({ button: 'middle' }); await page.mouse.move(540, 680); await page.mouse.up({ button: 'middle' });
-      await restore.waitFor(); await restore.click(); await page.locator('.editor-context').waitFor({ state: 'visible' });
+      await restore.waitFor(); await restore.click(); await page.locator(contextSelector).waitFor({ state: 'visible' });
       await shot(`${engineName}-restored-region`);
     });
     await check('relevant-defaults', async () => {

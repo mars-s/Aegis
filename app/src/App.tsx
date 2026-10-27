@@ -14,9 +14,8 @@ import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
 import { createMenu } from './lib/ui/menu.js';
 import { installNativeDownloads, printHtml, saveFile } from './lib/native-files.js';
-import { DocumentProvider, DocumentContext, resolveDocumentDrop, installDocumentClipboard, disposeDocumentSessions } from './editors/document/index.js';
+import { DocumentProvider, DocumentContext, ReferenceChart, resolveDocumentDrop, installDocumentClipboard, disposeDocumentSessions } from './editors/document/index.js';
 import type { DocumentServices } from './editors/document/index.js';
-import { Plot } from './charts/index.js';
 import { AgentShell } from './features/agents/react.js';
 import type { AgentShellControls, AgentService, AgentFrameSchedule } from './features/agents/react.js';
 import type { SettingsService } from './features/settings/service.js';
@@ -221,7 +220,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     },
     printHtml, ...(runtime.connection.native ? { saveFile: async (blob: Blob, name: string) => { await saveFile(blob, name); } } : {}),
     openUrl: url => { void openUrl(url); },
-    ReferenceChart: ({ card, cards }) => <Plot data={card.data} title={card.text} cards={cards} />,
+    ReferenceChart,
     editorActions: <EditorActions context={context} full={ui.editor?.view === 'full'} />,
   }), [context, client, runtime.connection.native, ui.editor?.view]);
   const activeCard = presentedEditor ? workspace.record(presentedEditor.id).getSnapshot() : null;
