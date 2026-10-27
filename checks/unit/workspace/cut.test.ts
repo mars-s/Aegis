@@ -1,9 +1,9 @@
 import { afterEach, expect, test, vi } from 'vitest';
 import { LinkIdSchema } from '@aegis/domain';
-import type { FeatureContext } from '../../composition.js';
-import { createWorkspace } from '../../workspace/store.js';
-import { cutSelection, readClip } from './clipboard.js';
-import { boardWith, noteId, otherId } from '../../../../checks/unit/workspace/helpers.js';
+import type { FeatureContext } from '../../../app/src/composition.js';
+import { createWorkspace } from '../../../app/src/workspace/store.js';
+import { cutSelection, readClip } from '../../../app/src/features/editing/clipboard.js';
+import { boardWith, noteId, otherId } from './helpers.js';
 
 afterEach(() => vi.unstubAllGlobals());
 function setup(blocked = false) {
