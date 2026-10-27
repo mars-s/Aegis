@@ -36,7 +36,7 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
   const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
-  const uiMenu = title => page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
+  const uiMenu = title => page.locator('.aegis-action-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
   const board = () => page.evaluate(() => aegis.canvas.board.id);

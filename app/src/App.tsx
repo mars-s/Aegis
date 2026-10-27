@@ -9,7 +9,7 @@ import type { Workspace } from './workspace/index.js';
 import { Canvas } from './canvas/Canvas.js';
 import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
-import { Chrome } from './chrome/index.js';
+import { Chrome, ToolbarPreferences, PanelPreferences } from './chrome/index.js';
 import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
 import { createMenu } from './lib/ui/menu.js';
@@ -40,6 +40,7 @@ import { beginPointEdit } from './features/draw/point-editor.js';
 import { placementTool } from './features/wireframe/tool.js';
 import { mediaPlacementTool } from './features/media/placement-tool.js';
 import { Unsorted } from './platform/Unsorted.js';
+import { CaptureButton, CaptureViews } from './features/editing/registration.js';
 import { CreativeImports } from './platform/CreativeImports.js';
 import { createAvailableArea } from './platform/available-area.js';
 import { createEditorController } from './platform/editor-controller.js';
@@ -220,9 +221,10 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   }, [editorKind, ui.editor?.view]);
   return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
+    <CaptureViews context={context} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} />
-    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={agentControls?.follow} rightContent={agentControls?.activity} /> : null}
-    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
+    {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
+    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
     {Editor && ui.editor && chromeEngine ? <aside data-scene-interactive className={`react-editor side-editor is-open${editorKind === 'deck' ? ' deck-panel' : ''}${ui.editor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">

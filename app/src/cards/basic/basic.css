@@ -194,6 +194,15 @@
   font: inherit;
   outline: none;
 }
+.react-stage .card:is(.template-group, .coll) {
+  border: 1px dashed var(--line);
+  box-shadow: none;
+}
+.template-group-title {
+  padding: 12px 14px;
+  font: 600 13px/1.4 var(--font);
+  outline: none;
+}
 .basic-note :is(.body, .heading, .badge, .card-tag)::selection,
 .basic-todo .todo-text::selection {
   background: var(--data-soft, var(--color-fill-hover));

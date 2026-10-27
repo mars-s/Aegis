@@ -1,8 +1,83 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { createMenu } from "../lib/ui/menu.js";
 import type { MenuItem } from "../lib/ui/menu.js";
-import { bindDisclosure, createPopup } from "../lib/ui/dropdown.js";
+import { createDropdown, createPopup } from "../lib/ui/dropdown.js";
+
+export function TextField({
+  label,
+  value,
+  onChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <label className="selection-row">
+      <span>{label}</span>
+      <input
+        aria-label={label}
+        value={draft}
+        onChange={(event) => setDraft(event.currentTarget.value)}
+        onBlur={() => {
+          if (draft !== value) onChange(draft);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
+      />
+    </label>
+  );
+}
+
+export function ValuePicker({
+  label,
+  value,
+  options,
+  onChange,
+  size = false,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly options: readonly (readonly [string, string])[];
+  readonly onChange: (value: string) => void;
+  readonly size?: boolean;
+}) {
+  const host = useRef<HTMLSpanElement>(null);
+  const picker = useRef<ReturnType<typeof createDropdown> | null>(null);
+  const current = useRef(onChange);
+  useEffect(() => {
+    current.current = onChange;
+  }, [onChange]);
+  useEffect(() => {
+    const control = createDropdown({
+      label,
+      options: [],
+      value: "",
+      onChange: (next) => current.current(next),
+    });
+    if (size) control.dataset.size = "";
+    picker.current = control;
+    host.current?.append(control);
+    return () => {
+      control.dropdown.destroy();
+      control.remove();
+      picker.current = null;
+    };
+  }, [label, size]);
+  useEffect(() => {
+    picker.current?.setOptions(options);
+    if (picker.current) picker.current.value = value;
+  }, [options, value]);
+  return <span ref={host} className="chrome-value-picker" />;
+}
 
 export function Icon({
   name,
@@ -16,7 +91,10 @@ export function Icon({
     | "window"
     | "lock"
     | "hidden"
-    | "rotate";
+    | "rotate"
+    | "align"
+    | "colour"
+    | "ai";
 }) {
   const path = {
     more: "M3 8h.01M8 8h.01M13 8h.01",
@@ -28,6 +106,9 @@ export function Icon({
     lock: "M4 7h8v6H4zM5 7V5a3 3 0 0 1 6 0v2",
     hidden: "m2 2 12 12M6 4c4-1 7 2 8 4l-2 3M9 12c-4 1-6-2-7-4l2-3",
     rotate: "M12.5 6a5 5 0 1 0 .5 4M9 6h4V2",
+    align: "M3 4h10M3 8h6M3 12h10",
+    colour: "M8 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12M8 2v12",
+    ai: "m8 2 1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5Z",
   }[name];
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -56,25 +137,32 @@ export function MenuButton({
   readonly children: ReactNode;
 }) {
   const button = useRef<HTMLButtonElement>(null),
-    current = useRef(items);
+    current = useRef(items),
+    menuNode = useRef<HTMLDivElement | null>(null),
+    menuLabel = useRef(label);
+  useEffect(() => {
+    menuLabel.current = label;
+    menuNode.current?.setAttribute("aria-label", label);
+  }, [label]);
   useEffect(() => {
     current.current = items;
   }, [items]);
   useEffect(() => {
     if (!button.current) return;
     const menuElement = document.createElement("div");
+    menuNode.current = menuElement;
     menuElement.className = menuClass;
     const menu = createMenu({
       trigger: button.current,
       menu: menuElement,
-      label,
+      label: menuLabel.current,
       items: () =>
         typeof current.current === "function"
           ? current.current()
           : current.current,
     });
-    return () => menu.destroy();
-  }, [label, menuClass]);
+    return () => { menu.destroy(); menuNode.current = null; };
+  }, [menuClass]);
   return (
     <button
       ref={button}
@@ -232,23 +320,51 @@ export function Disclosure({
   label,
   children,
   caption,
+  nested = false,
 }: {
   readonly label: string;
   readonly children: ReactNode;
   readonly caption: ReactNode;
+  readonly nested?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
+  const [menu] = useState(() => {
+    const element = document.createElement("div");
+    element.className = `aegis-chrome selection-menu ${nested ? "selection-submenu-panel" : "selection-overflow"}`;
+    return element;
+  });
+  useEffect(() => { menu.setAttribute("aria-label", `${label} controls`); }, [label, menu]);
   useEffect(() => {
-    if (!details.current) return;
-    const popup = bindDisclosure(details.current, {
-      label: `${label} controls`,
-    });
-    return () => popup.destroy();
-  }, [label]);
+    const node = details.current,
+      trigger = node?.querySelector("summary");
+    if (!node || !trigger) return;
+    const options = {
+      trigger,
+      menu,
+      portal: true,
+      role: "dialog",
+      placement: nested ? "right" : "bottom",
+      onToggle: (open: boolean) => {
+        node.open = open;
+      },
+    };
+    const popup = createPopup(options);
+    const toggle = () => {
+      if (!node.open) popup.close();
+    };
+    node.addEventListener("toggle", toggle);
+    return () => {
+      node.removeEventListener("toggle", toggle);
+      popup.destroy();
+    };
+  }, [menu, nested]);
   return (
-    <details ref={details} className="selection-more">
+    <details
+      ref={details}
+      className={nested ? "selection-submenu" : "selection-more"}
+    >
       <summary aria-label={label}>{caption}</summary>
-      <div className="selection-overflow">{children}</div>
+      {createPortal(children, menu)}
     </details>
   );
 }
