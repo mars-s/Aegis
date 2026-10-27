@@ -65,7 +65,12 @@ try {
     }
     throw new Error('Board did not settle after five reads.');
   };
-  await page.locator('#mediaFile').setInputFiles([repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx']);
+  const imports = [repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx'];
+  if (process.env.AEGIS_UI_IMPL === 'react') {
+    const picker = page.waitForEvent('filechooser');
+    await page.locator('[data-tool="import-image"]').dispatchEvent('click');
+    await (await picker).setFiles(imports);
+  } else await page.locator('#mediaFile').setInputFiles(imports);
   await waitForAsync(page, async () => {
     const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
     return saved.cards.filter(c => c.props?.import).length === 2;
@@ -111,7 +116,7 @@ try {
   await page.locator('.docs-prose').click();
   await page.locator('.docs-prose').press('ControlOrMeta+End');
   await page.keyboard.type(' Added by hand.');
-  await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved');
+  await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved');
   const edited = await call('card_read', { boardId, cardId: doc.cardId });
   assert.match(edited.content, /Added by hand/);
   await edit('document_write', { cardId: doc.cardId, body: '## Updated notes\nRevision from the external session.' });

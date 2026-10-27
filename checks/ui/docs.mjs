@@ -31,7 +31,7 @@ const choose = async (label, value, scope = page.locator('.docs-panel')) => {
   const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) { if (['Page colour', 'Paper size'].includes(label)) await more(); else await format(); }
   await chooseDropdown(root.getByRole('combobox', { name: label, exact: true }), value);
 };
-const saved = async () => { await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
+const saved = async () => { await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
 try {
