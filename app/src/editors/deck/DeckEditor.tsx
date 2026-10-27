@@ -48,6 +48,7 @@ export function DeckEditor({ cardId, workspace, engine, services }: CardBodyProp
   useEffect(() => { if (stage.current) stage.current.scrollTop = draft.overview ? draft.scroll : 0; }, [draft.overview]);
   const focusThumb = (index: number) => queueMicrotask(() => film.current?.querySelector<HTMLElement>(`[data-i="${index}"]`)?.focus({ preventScroll: true }));
   const keys = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' || (event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'f') return;
     event.stopPropagation();
     if (event.nativeEvent.isComposing || draft.composing) return;
     if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); session.move(draft.current, event.key === 'ArrowUp' ? -1 : 1); focusThumb(session.getSnapshot().current); return; }
