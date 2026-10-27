@@ -38,7 +38,7 @@ try {
     const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Semantic zoom demo' }); aegis.canvas.setBoard(board); return board.id; });
     await page.waitForFunction(id => window.aegis?.canvas?.board?.id === id, boardId);
     await page.evaluate(batch => aegis.apply(batch), demoBatch);
-    await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
+    await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9);
     await page.waitForTimeout(700);
     await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await page.waitForTimeout(250);
     await page.screenshot({ path: join(output, `after-fit-${engineName}.png`) });

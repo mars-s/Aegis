@@ -62,7 +62,7 @@ try {
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
     await page.evaluate(async fixtures => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Spatial interaction' })); aegis.apply(fixtures); }, fixtures);
-    await page.waitForFunction(() => aegis.canvas.board.cards.length === 6);
+    await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 6);
     const check = async (name, run) => {
       try { await run(); results.push({ engine: engineName, name, pass: true }); console.log(`PASS ${engineName}: ${name}`); }
       catch (error) { errors.push(`${engineName}: ${name}: ${error.message}`); await shot(`${engineName}-${name}-failure`); }
