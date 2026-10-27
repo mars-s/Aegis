@@ -81,7 +81,7 @@ try {
   await frame('pannote', true);
   await pan(page.locator('.rotation-handle'), 'rotation handle');
   await frame('pannote', true);
-  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.getByLabel('More selection controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await pan(page.locator('.card[data-id="pannote"]'), 'Space overrides Connect gesture');
   await page.keyboard.press('Escape');

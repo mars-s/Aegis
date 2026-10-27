@@ -1,6 +1,6 @@
 // Interaction regressions against the shipped bundle, with fictional local data only.
 import { chromium, webkit } from './playwright.mjs';
-import { assertRealLinkEdges } from './static-geometry.mjs';
+import { assertRealLinkEdges, readRenderedLinks } from './static-geometry.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -71,12 +71,12 @@ try {
     await check('window-selection', async () => {
       await page.evaluate(() => { aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select(['decision']); }); await settle();
       const before = await page.evaluate(() => ({ ...aegis.canvas.view }));
-      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] }); await settle();
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision', 'comparison']);
       assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), before, 'modifier selection leaves the camera still');
-      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] }); await settle();
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision']);
-      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] });
+      await page.locator('.card[data-id="comparison"] .win-strip').click({ modifiers: ['Shift'] }); await settle();
       await page.evaluate(() => aegis.canvas.setView({ x: 40, y: 0, z: 1 })); await settle();
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision', 'comparison'], 'selection survives detail');
       await page.evaluate(() => aegis.canvas.setView({ x: 70, y: 80, z: .6 })); await settle();
@@ -118,14 +118,14 @@ try {
         aegis.canvas.setView({ x: 70, y: 80, z: .6 }); aegis.canvas.select([]);
       }); await settle();
       await assertRealLinkEdges(page);
-      const curve = await page.locator('[data-link-line="evidence"]').getAttribute('d');
+      const curve = (await readRenderedLinks(page)).find(link => link.id === 'evidence').d;
       assert.match(curve, /Q/, 'links retain the world-space bend instead of routing around summaries');
       const obstacle = await page.locator('.card[data-id="obstacle"]').boundingBox();
       assert.ok(Math.abs(obstacle.x - (800 * .6 + 70)) < 1 && Math.abs(obstacle.y - (433 * .6 + 80)) < 1, 'unrelated windows keep their position');
       await shot(`${engineName}-window-connectors`);
       await open('decision'); await close(); await settle();
       await assertRealLinkEdges(page);
-      assert.equal(await page.locator('[data-link-line="evidence"]').getAttribute('d'), curve, 'the real curve returns after the editor closes');
+      assert.equal((await readRenderedLinks(page)).find(link => link.id === 'evidence').d, curve, 'the real curve returns after the editor closes');
       await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'delete', ids: ['obstacle'] }, { op: 'link_update', id: 'evidence', set: { bend: 0 } }], resolve)));
     });
     await check('reference-legend', async () => {

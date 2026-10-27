@@ -3,6 +3,7 @@ import type { CardBodyProps } from '../../composition.js';
 import { useCard } from '../../workspace/index.js';
 import { butter, centerline, colour, DrawingProps, InkProps, outlineAttributes, pathD, shapePoints, squigPath, StampProps } from '../../features/draw/art.js';
 import '../../features/draw/draw.css';
+import { beginPointEdit } from '../../features/draw/point-editor.js';
 
 function ShapeText({ cardId, workspace, engine }: CardBodyProps) {
   const card = useCard(workspace, cardId), body = useRef<HTMLDivElement>(null);
@@ -39,9 +40,9 @@ export function DrawingBody(props: CardBodyProps) {
     const dot = !first || ink.points.length < 2 || ink.points.every(p => Math.hypot(p[0] - first[0], p[1] - first[1]) < .5);
     return <svg className="draw-art" viewBox={ink.ow && ink.oh ? `0 0 ${ink.ow} ${ink.oh}` : undefined} preserveAspectRatio="none" aria-label="Ink stroke">{dot ? <circle cx={first?.[0] ?? 0} cy={first?.[1] ?? 0} r={ink.size / 2} fill={col} opacity={ink.pen === 'hi' ? .38 : 1} /> : ink.pen === 'pen' ? <path d={butter(ink.points, true, ink.size)} fill={col} /> : <path d={centerline(ink.points)} fill="none" stroke={col} strokeWidth={ink.size} strokeLinecap="round" strokeLinejoin="round" opacity={ink.pen === 'hi' ? .38 : 1} />}</svg>;
   }
-  const drawing = DrawingProps.parse(card.props ?? {}), path = card.type === 'path' || drawing.points.length > 0;
-  const line = !path && drawing.shape === 'line';
-  const d = path ? pathD(drawing.points, drawing.closed, drawing.radius) : line ? drawing.squig === 'straight' ? 'M0 50 L100 50' : squigPath({ ...drawing, id: card.id }) : drawing.shape === 'heart' ? 'M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z' : pathD(shapePoints(drawing.shape), true, drawing.radius);
+  const drawing = DrawingProps.parse(card.props ?? {}), line = card.type === 'shape' && drawing.shape === 'line';
+  const path = !line && (card.type === 'path' || drawing.points.length > 0);
+  const d = path ? pathD(drawing.points, card.type === 'shape' || drawing.closed, drawing.radius) : line ? drawing.squig === 'straight' ? 'M0 50 L100 50' : squigPath({ ...drawing, id: card.id }) : drawing.shape === 'heart' ? 'M50 92 C20 72 3 55 3 33 C3 15 17 4 31 4 C40 4 47 9 50 16 C53 9 60 4 69 4 C83 4 97 15 97 33 C97 55 80 72 50 92 Z' : pathD(shapePoints(drawing.shape), true, drawing.radius);
   const outline = outlineAttributes(drawing, card.type === 'shape' ? 2 : 2.5);
-  return <><svg className="draw-art" viewBox={path ? drawing.ow && drawing.oh ? `0 0 ${drawing.ow} ${drawing.oh}` : undefined : '0 0 100 100'} preserveAspectRatio="none" style={line && drawing.lineHeight ? { height: drawing.lineHeight, position: 'absolute', top: '50%', transform: 'translateY(-50%)' } : undefined}><path ref={pathElement} d={d} {...outline} fill={line || (path && !drawing.closed) ? 'none' : colour(drawing.fill, card.type === 'shape' ? '#aed3ff' : 'none')} strokeWidth={line ? drawing.lw ?? drawing.sw ?? 4 : outline.strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" /></svg>{!line && (card.type === 'shape' || card.text) && <ShapeText {...props} />}</>;
+  return <><svg className="draw-art" viewBox={path ? drawing.ow && drawing.oh ? `0 0 ${drawing.ow} ${drawing.oh}` : undefined : '0 0 100 100'} preserveAspectRatio="none" onDoubleClick={event => { event.preventDefault(); event.stopPropagation(); beginPointEdit(props.workspace, props.engine, props.cardId); }} style={line && drawing.lineHeight ? { height: drawing.lineHeight, position: 'absolute', top: '50%', transform: 'translateY(-50%)' } : undefined}><path ref={pathElement} d={d} {...outline} fill={line || (card.type === 'path' && !drawing.closed) ? 'none' : colour(drawing.fill, card.type === 'shape' ? '#aed3ff' : 'none')} strokeWidth={line ? drawing.lw ?? drawing.sw ?? 4 : outline.strokeWidth} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" /></svg>{!line && (card.type === 'shape' || card.text) && <ShapeText {...props} />}</>;
 }

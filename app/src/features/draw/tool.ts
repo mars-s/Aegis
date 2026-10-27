@@ -1,13 +1,12 @@
 import { CardIdSchema, CommandSchema } from '@aegis/domain/schema';
 import type { CardId, Command } from '@aegis/domain/schema';
 import type { CanvasEngine, PreviewColour, SceneTool, ToolPointer, ToolPrimitive } from '@aegis/scene';
-import type { FeatureWorkspace } from '../composition.js';
-import { butter, centerline, colour, pathD, shapePoints } from '../features/draw/art.js';
-import type { InkPoint, VectorPoint } from '../features/draw/art.js';
-import type { DrawSettings } from '../features/draw/Inspector.js';
-import { pieceCommands, screenCommand, wireCard } from '../features/wireframe/commands.js';
-import { toolExit } from './tool-lifetime.js';
-import type { WirePlacement } from '../features/wireframe/WireframePanel.js';
+import type { FeatureWorkspace } from '../../composition.js';
+import { butter, centerline, colour, pathD, shapePoints } from './art.js';
+import type { InkPoint, VectorPoint } from './art.js';
+import type { DrawSettings } from './Inspector.js';
+import { fitPoints } from './vector-geometry.js';
+import { toolExit } from '../../platform/tool-lifetime.js';
 
 const id = (): CardId => CardIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
 const previewColour = (value: string): PreviewColour => { const hex = colour(value); return hex.startsWith('#') ? { kind: 'hex', value: hex } : { kind: 'theme', token: 'text' }; };
@@ -16,6 +15,7 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
   const name = kind === 'ink' ? 'draw-ink' : kind === 'path' ? 'vector' : `draw-${kind}`;
   const exit = toolExit(engine, name, finished);
   let start: ToolPointer | null = null, samples: InkPoint[] = [], points: VectorPoint[] = [], erased = new Set<CardId>();
+  let lastTap: ToolPointer | null = null;
   function clear(): void { start = null; samples = []; points = []; erased = new Set(); engine.preview(null); }
   function commit(commands: readonly Command[], selection: readonly CardId[]): void { engine.commitTool({ commands, selection }); }
   function paint(point: ToolPointer): void {
@@ -34,20 +34,29 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
     }
     engine.preview({ cursor: 'crosshair', primitives });
   }
-  function finishPath(): void {
+  function finishPath(closed = false): void {
     if (points.length > 1) {
-      const x = Math.min(...points.map(point => Math.min(point.x, point.ix ?? point.x, point.ox ?? point.x))), y = Math.min(...points.map(point => Math.min(point.y, point.iy ?? point.y, point.oy ?? point.y)));
-      const w = Math.max(40, ...points.map(point => Math.max(point.x, point.ix ?? point.x, point.ox ?? point.x) - x)), h = Math.max(24, ...points.map(point => Math.max(point.y, point.iy ?? point.y, point.oy ?? point.y) - y));
-      const prefs = settings(), newId = id();
-      commit([{ op: 'create', newId, type: 'path', x, y, w, h, props: { points: points.map(point => ({ x: point.x - x, y: point.y - y, ...(point.ox === undefined ? {} : { ox: point.ox - x, oy: (point.oy ?? point.y) - y, ix: (point.ix ?? point.x) - x, iy: (point.iy ?? point.y) - y }) })), ow: w, oh: h, stroke: prefs.stroke, sw: prefs.sw, closed: false } }], [newId]);
+      const box = fitPoints(points), prefs = settings(), newId = id();
+      commit([CommandSchema.parse({ op: 'create', newId, type: 'path', x: box.x, y: box.y, w: box.w, h: box.h, props: { points: box.points, ow: box.w, oh: box.h, stroke: prefs.stroke, sw: prefs.sw, sdash: prefs.sdash, dl: prefs.dl, dg: prefs.dg, closed: closed && points.length > 2, fill: closed ? prefs.fill : 'none' } })], [newId]);
     }
-    clear(); exit();
+    clear(); lastTap = null; exit();
   }
   return {
     id: name,
     accepts: point => point.button === 0,
-    down: point => { start = point; if (kind === 'path') points.push({ ...point.world }); paint(point); },
-    move: values => { for (const point of values) { if (kind === 'path' && start && point.buttons) { const last = points.at(-1); if (last) points[points.length - 1] = { ...last, ox: point.world.x, oy: point.world.y, ix: last.x * 2 - point.world.x, iy: last.y * 2 - point.world.y }; } paint(point); } },
+    down: point => {
+      if (kind === 'path') {
+        const first = points[0], last = points.at(-1);
+        if (first && points.length > 2 && Math.hypot(point.world.x - first.x, point.world.y - first.y) * engine.camera().zoom < 10) { finishPath(true); return; }
+        if (lastTap && last && points.length > 1 && point.time - lastTap.time < 400 && Math.hypot(point.screen.x - lastTap.screen.x, point.screen.y - lastTap.screen.y) < 6) { finishPath(); return; }
+        lastTap = point;
+        let at = point.world;
+        if (last && point.shift) { const angle = Math.round(Math.atan2(at.y - last.y, at.x - last.x) / (Math.PI / 4)) * Math.PI / 4, length = Math.hypot(at.x - last.x, at.y - last.y); at = { x: last.x + Math.cos(angle) * length, y: last.y + Math.sin(angle) * length }; }
+        points.push({ ...at });
+      }
+      start = point; paint(point);
+    },
+    move: values => { for (const point of values) { if (kind === 'path' && start && point.buttons) { const last = points.at(-1); if (last) points[points.length - 1] = { ...last, ox: point.world.x, oy: point.world.y, ix: point.alt ? last.x : last.x * 2 - point.world.x, iy: point.alt ? last.y : last.y * 2 - point.world.y }; } paint(point); } },
     up: point => {
       if (!start) return;
       if (kind === 'path') { start = null; return; }
@@ -63,26 +72,12 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
         const dragged = Math.hypot(point.screen.x - start.screen.x, point.screen.y - start.screen.y) > 4;
         const w = dragged ? Math.max(40, Math.abs(point.world.x - start.world.x)) : 180, h = dragged ? Math.max(24, Math.abs(point.world.y - start.world.y)) : prefs.shape === 'line' ? 24 : 120;
         const x = dragged ? Math.min(start.world.x, point.world.x) : point.world.x - w / 2, y = dragged ? Math.min(start.world.y, point.world.y) : point.world.y - h / 2;
-        commit([CommandSchema.parse({ op: 'create', newId, type: 'shape', x, y, w, h, props: { shape: prefs.shape, points: shapePoints(prefs.shape, w, h), ow: w, oh: h, fill: prefs.fill, stroke: prefs.stroke, sw: prefs.sw, sdash: prefs.sdash, dl: prefs.dl, dg: prefs.dg } })], [newId]);
+        commit([CommandSchema.parse({ op: 'create', newId, type: 'shape', x, y, w, h, props: { shape: prefs.shape, ...(prefs.shape === 'line' || prefs.shape === 'heart' ? {} : { points: shapePoints(prefs.shape, w, h), ow: w, oh: h, closed: true }), fill: prefs.fill, stroke: prefs.stroke, sw: prefs.sw, sdash: prefs.sdash, dl: prefs.dl, dg: prefs.dg } })], [newId]);
       }
       clear();
     },
-    acceptsKey: key => key.key === 'Escape' || kind === 'path' && key.key === 'Enter',
-    key: key => { if (kind === 'path' && (key.key === 'Enter' || points.length > 1)) finishPath(); else { clear(); exit(); } },
+    acceptsKey: key => key.key === 'Escape' || kind === 'path' && ['Enter', 'Backspace', 'Delete'].includes(key.key),
+    key: key => { if (kind === 'path' && ['Backspace', 'Delete'].includes(key.key)) { points.pop(); engine.preview(null); return; } if (kind === 'path' && (key.key === 'Enter' || points.length > 1)) finishPath(); else { clear(); exit(); } },
     cancel: clear,
   };
-}
-export function placementTool(engine: CanvasEngine, workspace: FeatureWorkspace, request: WirePlacement): SceneTool {
-  const exit = toolExit(engine, `wire-${request.kind}`);
-  let start: ToolPointer | null = null;
-  const commandsAt = (point: ToolPointer): readonly Command[] => request.kind === 'screen' ? [screenCommand(request.device, point.world)] : request.kind === 'piece' ? pieceCommands(request.name, point.world, workspace.scene.snapshot().cards) : [wireCard({ type: request.kind, ...(request.kind === 'icon' ? { text: request.name, w: 48, h: 48 } : request.kind === 'text' ? { text: 'Text', w: 200, h: 40 } : {}) }, point.world.x, point.world.y)];
-  return { id: `wire-${request.kind}`, accepts: point => point.button === 0, down: point => { start = point; }, move: points => {
-    const point = points.at(-1); if (!point) return; engine.preview({ cursor: 'crosshair', primitives: [{ kind: 'rect', opacity: .6, space: 'world', bounds: { x: start ? Math.min(start.world.x, point.world.x) : point.world.x, y: start ? Math.min(start.world.y, point.world.y) : point.world.y, width: start ? Math.max(40, Math.abs(point.world.x - start.world.x)) : 160, height: start ? Math.max(24, Math.abs(point.world.y - start.world.y)) : 100 }, radius: 4, fill: null, stroke: stroke() }] });
-  }, up: point => {
-    const initial = start; if (!initial) return;
-    const dragged = Math.hypot(point.screen.x - initial.screen.x, point.screen.y - initial.screen.y) > 4;
-    const commands = commandsAt(dragged ? initial : point).map(command => command.op === 'create' && dragged && (request.kind === 'box' || request.kind === 'section') ? CommandSchema.parse({ ...command, x: Math.min(initial.world.x, point.world.x), y: Math.min(initial.world.y, point.world.y), w: Math.max(40, Math.abs(point.world.x - initial.world.x)), h: Math.max(24, Math.abs(point.world.y - initial.world.y)) }) : command);
-    engine.commitTool({ commands, selection: commands.flatMap(command => command.op === 'create' && command.newId ? [command.newId] : []) }); engine.preview(null); start = null;
-    exit();
-  }, acceptsKey: key => key.key === 'Escape', key: () => { engine.preview(null); exit(); }, cancel: () => { start = null; engine.preview(null); } };
 }
