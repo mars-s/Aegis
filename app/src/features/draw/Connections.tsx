@@ -21,7 +21,10 @@ const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Readonly<Recor
 const rect = (card: Card) => ({ x: card.x, y: card.y, width: card.w, height: card.h });
 function pin(card: Card, point: { readonly x: number; readonly y: number }) {
   const x = point.x - card.x - card.w / 2, y = point.y - card.y - card.h / 2, angle = -(card.rot ?? 0) * Math.PI / 180;
-  return { u: Math.max(0, Math.min(1, .5 + (x * Math.cos(angle) - y * Math.sin(angle)) / card.w)), v: Math.max(0, Math.min(1, .5 + (x * Math.sin(angle) + y * Math.cos(angle)) / card.h)) };
+  const u = Math.max(0, Math.min(1, .5 + (x * Math.cos(angle) - y * Math.sin(angle)) / card.w));
+  const v = Math.max(0, Math.min(1, .5 + (x * Math.sin(angle) + y * Math.cos(angle)) / card.h));
+  const distances = [u, 1 - u, v, 1 - v], side = distances.indexOf(Math.min(...distances));
+  return side === 0 ? { u: 0, v } : side === 1 ? { u: 1, v } : side === 2 ? { u, v: 0 } : { u, v: 1 };
 }
 
 export function startCreativeConnection(workspace: FeatureWorkspace, id: CardId): void {
