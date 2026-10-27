@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { selectForDrag, expandDrag } from "../features/wireframe/commands.js";
 import { createCanvas } from "@aegis/scene";
 import type { CanvasEngine, CardDropRequest, CardDropTarget, Rect, Source } from "@aegis/scene";
 import type { Workspace } from "../workspace/index.js";
@@ -8,14 +7,16 @@ import { CardPortals } from "./CardPortals.js";
 import "./scene.css";
 import { createSceneTheme } from "../platform/scene-theme.js";
 import { bindOrientationMenu } from "./orientation-menu.js";
+import { wireframePolicies } from "./wireframe-policies.js";
 
-export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop }: {
+export function Canvas({ workspace, composition, attached, cameraChanged, availableArea, resolveCardDrop, toolChanged }: {
   readonly workspace: Workspace;
   readonly composition: Composition;
   readonly attached: (engine: CanvasEngine | null) => void;
   readonly cameraChanged: () => void;
   readonly availableArea?: Source<Rect>;
   readonly resolveCardDrop?: (request: CardDropRequest) => CardDropTarget | null;
+  readonly toolChanged?: (name: string | null) => void;
 }) {
   const retainedCamera = useRef<{ readonly boardId: string; readonly camera: ReturnType<CanvasEngine["camera"]> } | null>(null);
   const theme = useMemo(createSceneTheme, []);
@@ -27,16 +28,14 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   const bodyKinds = useMemo(() => new Set(composition.cards.map(card => card.kind)), [composition]);
   const availableBodies = useRef(bodyKinds);
   const dropResolver = useRef(resolveCardDrop); dropResolver.current = resolveCardDrop;
+  const toolObserver = useRef(toolChanged); toolObserver.current = toolChanged;
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
     const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, onNavigation: cameraChanged, ...(availableArea ? { availableArea } : {}),
       resolveCardDrop: request => dropResolver.current?.(request) ?? null,
-      selectForDrag: (ids, hit, modifiers) => selectForDrag(ids, hit, workspace.scene.snapshot(), { shiftKey: modifiers.shift, metaKey: modifiers.bypass }),
-      expandDrag: (ids, modifiers) => {
-        const board = workspace.scene.snapshot();
-        return expandDrag(board.cards.filter(card => ids.includes(card.id)), board, { shiftKey: modifiers.shift, metaKey: modifiers.bypass }).map(card => card.id);
-      },
+      onToolChange: name => toolObserver.current?.(name),
+      ...wireframePolicies(() => workspace.scene.snapshot()),
       onToolCommit: (boardId, commit) => {
         if (workspace.metadata.getSnapshot().id !== boardId) return;
         const result = workspace.submit(commit.commands);
