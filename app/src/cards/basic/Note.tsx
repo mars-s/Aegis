@@ -1,5 +1,6 @@
 import { useCard } from '../../workspace/index.js';
 import type { CardBodyProps } from '../../composition.js';
+import { textOutlineStyle } from '../../features/wireframe/text-style.js';
 import { Editable } from './Editable.js';
 import { stringProp, textStyle } from './presentation.js';
 import './basic.css';
@@ -8,7 +9,7 @@ export function NoteBody(props: CardBodyProps) {
   if (!card) return null;
   function update(field: string, text: string) { workspace.submit([{ op: 'update', id: cardId, set: { [field]: text, props: { contentFit: true } } }]); }
   const tag = card.type !== 'image' ? stringProp(card, 'tag') : '';
-  return <div className={`basic-note${card.props?.fixedHeight ? ' fixed-height' : ''}`} style={textStyle(card)}>
+  return <div className={`basic-note${card.props?.fixedHeight ? ' fixed-height' : ''}`} style={{ ...textStyle(card), ...(card.type === 'title' ? textOutlineStyle(card) : {}) }}>
     {tag ? <Editable {...props} className="card-tag" label="Tag" value={tag} multiline={false} onChange={text => { workspace.submit([{ op: 'update', id: cardId, set: { props: { tag: text || null } } }]); }} /> : null}
     {card.badge ? <Editable {...props} className="badge" label="Badge" value={card.badge} multiline={false} onChange={text => update('badge', text)} /> : null}
     {card.heading ? <Editable {...props} className="heading card-heading" label="Heading" value={card.heading} multiline={false} onChange={text => update('heading', text)} /> : null}

@@ -44,7 +44,7 @@ export interface BoardClient {
     readonly opened: () => void;
     readonly event: (event: HostEvent, bytes: number) => void;
   }) => Promise<HostResult<void>>;
-  readonly upload: (file: File, signal?: AbortSignal) => Promise<HostResult<AssetUpload>>;
+  readonly upload: (file: File, signal?: AbortSignal, progress?: (percent: number) => void) => Promise<HostResult<AssetUpload>>;
   readonly assetUrl: (url: string) => string;
   readonly dispose: () => void;
 }

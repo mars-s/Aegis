@@ -168,7 +168,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     } finally { target.dispose(); }
   }, [client, lifetime, workspace, runtime.replication]);
   const creativeServices = useMemo<CreativeServices>(() => ({
-    assetUrl: url => client.assetUrl(url ?? ''), upload: async (file, progress) => { progress?.(0); const result = hostValue(await client.upload(file, lifetime.signal)); progress?.(100); return result; },
+    assetUrl: url => client.assetUrl(url ?? ''), upload: async (file, progress) => hostValue(await client.upload(file, lifetime.signal, progress)),
     linkPreview: async (url, signal) => hostValue(await client.linkPreview(url, signal)), openUrl, notify: setNotice, importCSV: importCsv,
     commitToBoard: async (boardId, commands) => {
       const result = hostValue(await client.commit({ boardId, id: BatchIdSchema.parse(crypto.randomUUID()), commands }, lifetime.signal));

@@ -5,6 +5,7 @@ import type { Workspace } from "../workspace/index.js";
 import type { CardBodyKind, Composition } from "../composition.js";
 import { CardPortals } from "./CardPortals.js";
 import "./scene.css";
+import { createSceneTheme } from "../platform/scene-theme.js";
 import { bindOrientationMenu } from "./orientation-menu.js";
 
 export function Canvas({ workspace, composition, attached, cameraChanged, availableArea }: {
@@ -14,6 +15,8 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   readonly cameraChanged: () => void;
   readonly availableArea?: Source<Rect>;
 }) {
+  const retainedCamera = useRef<{ readonly boardId: string; readonly camera: ReturnType<CanvasEngine["camera"]> } | null>(null);
+  const theme = useMemo(createSceneTheme, []);
   const stage = useRef<HTMLDivElement>(null);
   const world = useRef<HTMLDivElement>(null);
   const backdrop = useRef<HTMLCanvasElement>(null);
@@ -24,7 +27,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
-    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, ...(availableArea ? { availableArea } : {}),
+    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, ...(availableArea ? { availableArea } : {}),
       onToolCommit: (boardId, commit) => {
         if (workspace.metadata.getSnapshot().id !== boardId) return;
         const result = workspace.submit(commit.commands);
@@ -36,6 +39,8 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
         return availableBodies.current.has(kind);
       },
     });
+    const previous = retainedCamera.current;
+    if (previous?.boardId === workspace.scene.snapshot().id) instance.navigate({ kind: "restore", camera: previous.camera, motion: "instant" });
     setEngine(instance);
     attached(instance);
     const element = stage.current;
@@ -48,8 +53,8 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
     element.addEventListener("wheel", cameraChanged, { passive: true });
     element.addEventListener("keyup", navigationChanged);
     element.addEventListener("dblclick", navigationChanged);
-    return () => { disposeMenu(); element.removeEventListener("pointerup", cameraChanged); element.removeEventListener("wheel", cameraChanged); element.removeEventListener("keyup", navigationChanged); element.removeEventListener("dblclick", navigationChanged); attached(null); instance.dispose(); };
-  }, [workspace, attached, cameraChanged, availableArea]);
+    return () => { retainedCamera.current = { boardId: workspace.scene.snapshot().id, camera: instance.camera() }; disposeMenu(); element.removeEventListener("pointerup", cameraChanged); element.removeEventListener("wheel", cameraChanged); element.removeEventListener("keyup", navigationChanged); element.removeEventListener("dblclick", navigationChanged); attached(null); instance.dispose(); };
+  }, [workspace, attached, cameraChanged, availableArea, theme]);
   return <div id="stage" className="react-stage" ref={stage} tabIndex={0} aria-label="Board canvas">
     <canvas ref={backdrop} className="scene-backdrop" aria-hidden="true" />
     <div id="world" ref={world} />

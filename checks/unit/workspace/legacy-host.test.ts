@@ -53,7 +53,9 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
     try {
       expect(await client.boards()).toEqual({ kind: 'ok', value: [] });
       const csv = 'day,hours\nMon,3\nFri,9\n';
-      const uploaded = await client.upload(new File([csv], 'fictional-hours.csv', { type: 'text/csv' }));
+      const progress: number[] = [];
+      const uploaded = await client.upload(new File([csv], 'fictional-hours.csv', { type: 'text/csv' }), undefined, percent => { progress.push(percent); });
+      expect(progress).toEqual([0, 100]);
       expect(uploaded).toMatchObject({ kind: 'ok', value: { type: 'text/csv', size: new TextEncoder().encode(csv).length } });
       if (uploaded.kind !== 'ok') throw new Error('The synthetic CSV did not upload');
       expect(uploaded.value.url).toMatch(/^asset:[a-f0-9]{32}\.csv$/);

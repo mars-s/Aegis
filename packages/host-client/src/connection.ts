@@ -24,12 +24,31 @@ export function createHostClient(options: HostOptions): HostClient {
   const base = options.baseUrl.replace(/\/$/, '');
   const fetchHost = options.fetch ?? globalThis.fetch;
 
+  function uploadFile(file: File, signal: AbortSignal, progress: (percent: number) => void): Promise<Response> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const cancel = (): void => { xhr.abort(); };
+      const cleanup = (): void => { signal.removeEventListener('abort', cancel); };
+      xhr.open('POST', base + '/assets');
+      xhr.setRequestHeader('authorization', `Bearer ${options.token}`);
+      xhr.setRequestHeader('content-type', file.type || 'application/octet-stream');
+      xhr.upload.onprogress = event => { if (event.lengthComputable) progress(Math.max(0, Math.min(100, event.loaded / event.total * 100))); };
+      xhr.onerror = () => { cleanup(); reject(new Error('The local host could not receive this file.')); };
+      xhr.onabort = () => { cleanup(); reject(new Error('Upload cancelled.')); };
+      xhr.onload = () => { cleanup(); resolve(new Response(xhr.responseText, { status: xhr.status, statusText: xhr.statusText })); };
+      signal.addEventListener('abort', cancel, { once: true });
+      if (signal.aborted) { cleanup(); reject(new Error('Upload cancelled.')); return; }
+      xhr.send(file);
+    });
+  }
+
   function request<T>(args: {
     readonly method: 'GET' | 'POST';
     readonly path: string;
     readonly decode: (value: unknown) => T;
     readonly body?: { readonly kind: 'json'; readonly value: unknown } | { readonly kind: 'file'; readonly file: File };
     readonly signal?: AbortSignal | undefined;
+    readonly progress?: ((percent: number) => void) | undefined;
   }): Promise<HostResult<T>> {
     if (lifetime.signal.aborted || args.signal?.aborted) return Promise.resolve({ kind: 'error', error: { kind: 'cancelled' } });
     const operation = Effect.scoped(Effect.gen(function* () {
@@ -40,7 +59,7 @@ export function createHostClient(options: HostOptions): HostClient {
       const signal = AbortSignal.any([lifetime.signal, controller.signal, ...(args.signal ? [args.signal] : [])]);
       if (signal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
       const response = yield* Effect.tryPromise({
-        try: () => fetchHost(base + args.path, {
+        try: () => args.body?.kind === 'file' && args.progress && typeof XMLHttpRequest !== 'undefined' && !options.fetch ? uploadFile(args.body.file, signal, args.progress) : fetchHost(base + args.path, {
           method: args.method, signal,
           headers: { authorization: `Bearer ${options.token}`, 'content-type': args.body?.kind === 'file' ? args.body.file.type : 'application/json' },
           ...(args.body === undefined ? {} : { body: args.body.kind === 'file' ? args.body.file : JSON.stringify(args.body.value) }),
@@ -143,7 +162,7 @@ export function createHostClient(options: HostOptions): HostClient {
         onFailure: error => ({ kind: 'error', error } as const),
       }));
     },
-    upload: (file, signal) => request({ method: 'POST', path: '/assets', body: { kind: 'file', file }, decode: decodeAssetUpload, signal }),
+    upload: async (file, signal, progress) => { progress?.(0); const result = await request({ method: 'POST', path: '/assets', body: { kind: 'file', file }, decode: decodeAssetUpload, signal, progress }); if (result.kind === 'ok') progress?.(100); return result; },
     assetUrl: url => url.startsWith('asset:') ? `${base}/assets/${encodeURIComponent(url.slice(6))}` : url,
     dispose: () => { lifetime.abort(); },
   };
