@@ -43,12 +43,14 @@ export function ValuePicker({
   options,
   onChange,
   size = false,
+  disabled = false,
 }: {
   readonly label: string;
   readonly value: string;
   readonly options: readonly (readonly [string, string])[];
   readonly onChange: (value: string) => void;
   readonly size?: boolean;
+  readonly disabled?: boolean;
 }) {
   const host = useRef<HTMLSpanElement>(null);
   const picker = useRef<ReturnType<typeof createDropdown> | null>(null);
@@ -63,6 +65,9 @@ export function ValuePicker({
       value: "",
       onChange: (next) => current.current(next),
     });
+    control.addEventListener("click", () =>
+      control.focus({ preventScroll: true }),
+    );
     if (size) control.dataset.size = "";
     picker.current = control;
     host.current?.append(control);
@@ -74,8 +79,12 @@ export function ValuePicker({
   }, [label, size]);
   useEffect(() => {
     picker.current?.setOptions(options);
-    if (picker.current) picker.current.value = value;
-  }, [options, value]);
+    if (picker.current) {
+      picker.current.value = value;
+      picker.current.disabled = disabled;
+      if (disabled) picker.current.dropdown.close(false, true);
+    }
+  }, [options, value, disabled]);
   return <span ref={host} className="chrome-value-picker" />;
 }
 
@@ -161,7 +170,10 @@ export function MenuButton({
           ? current.current()
           : current.current,
     });
-    return () => { menu.destroy(); menuNode.current = null; };
+    return () => {
+      menu.destroy();
+      menuNode.current = null;
+    };
   }, [menuClass]);
   return (
     <button
@@ -201,6 +213,9 @@ export function PopupButton({
       menu: content.current,
       role: "dialog",
       duration: 160,
+      onToggle: (opened) => {
+        if (opened) button.current?.focus({ preventScroll: true });
+      },
     });
     return () => popup.destroy();
   }, [label]);
@@ -321,19 +336,24 @@ export function Disclosure({
   children,
   caption,
   nested = false,
+  dismissed = false,
 }: {
   readonly label: string;
   readonly children: ReactNode;
   readonly caption: ReactNode;
   readonly nested?: boolean;
+  readonly dismissed?: boolean;
 }) {
   const details = useRef<HTMLDetailsElement>(null);
+  const activePopup = useRef<ReturnType<typeof createPopup> | null>(null);
   const [menu] = useState(() => {
     const element = document.createElement("div");
     element.className = `aegis-chrome selection-menu ${nested ? "selection-submenu-panel" : "selection-overflow"}`;
     return element;
   });
-  useEffect(() => { menu.setAttribute("aria-label", `${label} controls`); }, [label, menu]);
+  useEffect(() => {
+    menu.setAttribute("aria-label", `${label} controls`);
+  }, [label, menu]);
   useEffect(() => {
     const node = details.current,
       trigger = node?.querySelector("summary");
@@ -346,9 +366,16 @@ export function Disclosure({
       placement: nested ? "right" : "bottom",
       onToggle: (open: boolean) => {
         node.open = open;
+        if (open)
+          menu
+            .querySelector<HTMLElement>(
+              "button:not(:disabled),input:not(:disabled),summary",
+            )
+            ?.focus({ preventScroll: true });
       },
     };
     const popup = createPopup(options);
+    activePopup.current = popup;
     const toggle = () => {
       if (!node.open) popup.close();
     };
@@ -356,8 +383,12 @@ export function Disclosure({
     return () => {
       node.removeEventListener("toggle", toggle);
       popup.destroy();
+      activePopup.current = null;
     };
   }, [menu, nested]);
+  useEffect(() => {
+    if (dismissed) activePopup.current?.close(false, true);
+  }, [dismissed]);
   return (
     <details
       ref={details}
