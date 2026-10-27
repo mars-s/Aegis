@@ -22,6 +22,7 @@ import { drawingTool } from '../../features/draw/tool.js';
 import { beginPointEdit } from '../../features/draw/point-editor.js';
 import { readPreferences } from '../../features/draw/preferences.js';
 import type { DrawSettings } from '../../features/draw/Inspector.js';
+import { CreativeConnections } from '../../features/draw/Connections.js';
 import { createImporter, ImportProgressView } from '../../features/imports/react.js';
 import type { ImportProgress } from '../../features/imports/react.js';
 import { creativeCards } from './index.js';
@@ -46,6 +47,7 @@ function Proof({ workspace, ready }: { readonly workspace: Workspace; readonly r
     {panel === 'devices' && <aside style={{ position: 'absolute', top: 20, right: 20, width: 280, zIndex: 20, background: 'var(--card)' }}><button onClick={() => setPanel(null)}>Close devices</button><DevicesPanel /></aside>}
     {panel === 'wireframe' && <WireframePanel context={context} onClose={() => setPanel(null)} onPlace={request => { const scene = engine.current; if (scene) scene.tool(placementTool(scene, workspace, request)); }} />}
     {drawTarget && <DrawingInspector context={context} target={drawTarget} onSettings={next => { settings.current = next; }} onArm={(request, next) => { settings.current = next; const scene = engine.current; if (!scene) return; if (request.kind === 'edit-points') { beginPointEdit(workspace, scene, request.id); return; } setDrawTarget({ kind: 'tool', tool: request.kind }); scene.tool(drawingTool(scene, workspace, request.kind, () => settings.current, () => setDrawTarget(null))); }} onFinish={() => { engine.current?.tool(null); setDrawTarget(null); }} />}
+    <CreativeConnections context={context} />
     <ImportProgressView value={progress} />
   </main>;
 }
@@ -63,3 +65,4 @@ export { drawingTool } from '../../features/draw/tool.js';
 export { placementTool } from '../../features/wireframe/tool.js';
 export { mediaPlacementTool } from '../../features/media/placement-tool.js';
 export { readPreferences } from '../../features/draw/preferences.js';
+export { startCreativeConnection } from '../../features/draw/Connections.js';
