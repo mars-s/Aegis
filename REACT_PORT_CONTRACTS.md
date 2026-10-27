@@ -2,6 +2,16 @@
 
 Integration contract v1, frozen for wave 3. Foundation verification and remaining broad-suite blockers are recorded in REACT_PORT_STATUS.md and the external foundation-v2-report.md. Source declarations are authoritative. The design sketches under ~/.codex/orchestrate/aegis-react/design/final are planning material where they differ from these implemented exports.
 
+## Round 1 integration amendment
+
+The integration branch now composes data cards and editors through createComposition({ assetUrl }). Shared Enter, aegis:open-card, Open, close and width actions use FeatureContext so a sheet can refuse a switch. Other feature slices remain unmerged.
+
+HostClient additionally exposes upload(file, signal?), returning HostResult<AssetUpload>. The protocol boundary validates the stored asset URL, MIME type and byte size. CSV/TSV drops use importDataset with this capability. The production host transport remains semantic. The test facade additionally provides canvas.setBoard as the validated load alias and apply(commands, createdIdsCallback?).
+
+The app ends its host lifetime on beforeunload, with pagehide as a fallback, and reconnects on a persisted pageshow. Cancellation stays a cancelled HostResult, including during response decoding. Requests cannot start after disposal. This prevents stale WebKit board reads during navigation.
+
+Canvas chart text and points scale with the camera. DeckChart viewScale describes the containing slide fit and excludes the canvas camera. Deck owners must also supply the containing slide height for presentation labels. Do not pass the scene zoom as a text or point correction.
+
 ## Shared models and package exports
 
 Import runtime values and types from public @aegis package exports. Never import another package's src or dist directory, or cross its boundary with a relative path. Node imports built ESM. Run npm ci in your own worktree, then npm run build:shared before host or browser checks.

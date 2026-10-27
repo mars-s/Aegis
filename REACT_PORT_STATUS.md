@@ -1,10 +1,33 @@
-# React port foundation status
+# React port integration status
+
+Round 1 integration is complete on codex/react-port. The verified implementation is ed8399d5dc09612c612f0617f40a2f56cb0353cc. Legacy remains the default; React is opt-in while the remaining feature slices are unmerged.
+
+Merged static zoom e88fe1c as 5c461f0, then the data slice 3a8daa1 as 7c7cd2d. Static zoom keeps real card geometry and content. Data cards and editors are registered with runtime assetUrl. Shared Enter, Open, close and width actions respect editor flush refusal. The facade restores setBoard and the optional created-IDs callback. HostClient.upload validates its response and supports cancellation; CSV/TSV drops use the actual data importer. Root checks now discover the data regressions and type/lint all data workers and editors.
+
+npm run check passes: 180 unit tests, 236 host tests, strict types, lint, dependency integrity and the unchanged 51-finding legacy gate. Svelte reports zero errors and seven existing warnings. The full legacy UI invocation passes 43/44. An unchanged overview-model retry passes all eight browser/viewport/theme combinations, providing cumulative 44/44 passing coverage. The full-run failure at overview-model.mjs:182 is retained, with a scene-owner timing fix recorded in the integration log. Evidence-fidelity also passed a focused eight-combination run; the earlier WebKit tick overlap did not reproduce on the merged static branch. Real-card values, full document content and actual diagram topology replace the obsolete semantic assertions.
+
+The production React app passes 12 composed-data checks per browser, including sheet conflict and IME refusal, save flushing, real CSV upload bytes and dataset source loading. Navigation passes 12 navigations and two returns per browser with saved content and no page errors. WebKit failed every navigation before the repair, and pagehide alone was too late. Host disposal now starts at beforeunload, with pagehide fallback and fresh lifetime on persisted pageshow. Both new cancellation regressions pass.
+
+The standard React suites still stop on unmerged UI:
+
+| Suite | Passing assertion invocations | First stop | Owner |
+| --- | ---: | --- | --- |
+| office | 7 | office.mjs:59, deck ribbon | Decks |
+| chart-defaults | 32 | chart-defaults.mjs:57, deck chart, after six plot scales and smoothing save | Decks |
+| data-import | 1 | data-import.mjs:29, model selector | Chrome/agents |
+| evidence-fidelity | 1 | evidence-fidelity.mjs:48 called at 130, deck editor | Decks |
+
+Counts include each build assertion. No behaviour assertion or wait was skipped. Later document-reference and object-topology sections also need their owners. The per-assertion table, full 44-suite table, merge conflicts, commands, retained failures, exact follow-up changes and final delivery head are in /Users/avi/.codex/orchestrate/aegis-react/integration-log.md and evidence/integration-r1/. No running slice branch was merged, no PR was requested, and no native or frame-rate claim is added by this round.
+
+The foundation report below records the earlier checkpoint and its stop decision.
+
+## Foundation report at 1cffeda
 
 Status: blocked at the unchanged React canvas/pan acceptance gate in step 4. Verified foundation and frozen worker contracts are committed. Branch: codex/react-port. No PR. Legacy Svelte remains the default.
 
 The original baseline and tooling commits are retained. The amended legacy-limit gate is implemented and pushed. Only the integration owner reduces scripts/safe-types-legacy.json. Deleting chart.ts reduced the manifest from 54 findings to 51. All new and ported source is clean.
 
-## Verified domain and runtime unit
+### Verified domain and runtime unit
 
 The shared domain and protocol are strict TypeScript with built public ESM exports. Production/test callers and native resources use them. The old board JS, shared chart model, sandbox/theme builders and document/link-preview implementations were removed after caller migration. Zod is the schema source, including agent JSON Schema export with unrepresentable values rejected.
 
@@ -19,13 +42,13 @@ Verification evidence is in /Users/avi/.codex/orchestrate/aegis-react/evidence/s
 
 Native compilation used an isolated frontend output and external Tauri config so it could not race app/dist writes from the browser suites. This is host/runtime and native bundle proof, not a new 120 Hz measurement or deployment.
 
-## Compatibility decisions
+### Compatibility decisions
 
 The actual flat Board/Card, op commands and existing file/wire layout are retained. Workspace and scene own their projections and indexes. The closed catalogue replaces mutable built-in registration; every original kind, size and guide remains.
 
 Known presentation props now have explicit schema types. Malformed reserved values such as a string fixedHeight are rejected atomically, where legacy code accepted arbitrary JSON. This stricter invalid-input behaviour is documented and tested. The differential tests cover generated and real supported fixtures; they are not a claim of unrestricted equivalence on malformed metadata.
 
-## React foundation verification
+### React foundation verification
 
 Scene and workspace worker branches are merged. React entry, note/title portal bodies, real-store test facade, implementation selector and explicit feature composition are implemented. The contracts in REACT_PORT_CONTRACTS.md are frozen and mirrored at /Users/avi/.codex/orchestrate/aegis-react/contracts.md.
 
