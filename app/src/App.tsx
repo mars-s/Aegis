@@ -54,7 +54,8 @@ async function copy(text: string): Promise<void> {
 }
 function EditorActions({ context, full }: { readonly context: FeatureContext; readonly full: boolean }) {
   const opened = context.workspace.ui.getSnapshot().editor;
-  return <><button type="button" data-close aria-label="Back to board" onClick={() => context.closeEditor()}><Icon name="left" /><span>Back to board</span></button><button type="button" aria-label={full ? 'Side panel' : 'Full width'} aria-pressed={full} aria-keyshortcuts="Control+Shift+F Meta+Shift+F" onClick={() => { if (opened) context.openEditor(opened.id, !full); }}><Icon name="window" /><span>{full ? 'Side panel' : 'Full width'}</span><kbd>F</kbd></button></>;
+  const documentEditor = opened && context.workspace.record(opened.id).getSnapshot()?.type === 'doc';
+  return <><button type="button" data-close aria-label={documentEditor ? 'Close document' : 'Back to board'} onClick={() => context.closeEditor()}><Icon name="left" /><span>Back to board</span></button><button type="button" aria-label={full ? 'Side panel' : 'Full width'} aria-pressed={full} aria-keyshortcuts="Control+Shift+F Meta+Shift+F" onClick={() => { if (opened) context.openEditor(opened.id, !full); }}><Icon name="window" /><span>{full ? 'Side panel' : 'Full width'}</span><kbd>F</kbd></button></>;
 }
 
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
@@ -195,6 +196,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const activeCard = ui.editor ? workspace.record(ui.editor.id).getSnapshot() : null;
   const editorKind = activeCard?.type === 'object' ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
+  useEffect(() => {
+    document.body.classList.toggle('editor-open', !!ui.editor);
+    document.body.classList.toggle('editor-wide', ui.editor?.view === 'full');
+    document.body.classList.toggle('docs-open', editorKind === 'doc');
+    document.body.classList.toggle('docs-full', editorKind === 'doc' && ui.editor?.view === 'full');
+    return () => document.body.classList.remove('editor-open', 'editor-wide', 'docs-open', 'docs-full');
+  }, [editorKind, ui.editor?.view]);
   return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} />

@@ -19,7 +19,7 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .react-tools { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; border: 1px solid #2c3035; border-radius: 12px; background: #111316; z-index: 10; }
 .react-save-state { position: absolute; right: 24px; bottom: 26px; display: flex; gap: 10px; align-items: center; color: #a6abb4; font-size: 12px; z-index: 10; }
 .react-connection { margin: 0; position: absolute; top: 45%; width: 100%; text-align: center; color: #b9bdc5; }
-.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: var(--card); z-index: 30; border-left: 1px solid var(--line-strong); overflow: auto; }
+.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: var(--card); z-index: 80; border-left: 1px solid var(--line-strong); overflow: auto; }
 .react-editor.full { left: 0; }
 #toast:not(:empty) { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: #24272b; border: 1px solid #4c525b; border-radius: 8px; z-index: 30; }
 #toast button { margin-left: 12px; }
