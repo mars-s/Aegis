@@ -103,6 +103,7 @@ export class LeasePool {
   }
 
   has(id: CardId): boolean { return this.byCard.has(id); }
+  ids(): IterableIterator<CardId> { return this.byCard.keys(); }
   element(id: CardId): HTMLElement | null { return this.byCard.get(id)?.element ?? null; }
   isPinned(id: CardId): boolean { return (this.byCard.get(id)?.pins.size ?? 0) > 0; }
   retire(id: CardId): void { const shell = this.byCard.get(id); if (shell) { shell.pins.clear(); this.release(shell); } }

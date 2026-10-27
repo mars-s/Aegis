@@ -645,7 +645,8 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
       ) : null}
       {link !== null ? (
         <form
-          className="docs-link-form"
+          className="docs-link-form aegis-surface"
+          role="dialog"
           aria-label="Edit document link"
           onSubmit={(event) => {
             event.preventDefault();
