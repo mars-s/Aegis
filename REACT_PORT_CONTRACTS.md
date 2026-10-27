@@ -1,16 +1,28 @@
 # React port foundation contracts
 
-Integration contract v1, frozen for wave 3. Foundation verification and remaining broad-suite blockers are recorded in REACT_PORT_STATUS.md and the external foundation-v2-report.md. Source declarations are authoritative. The design sketches under ~/.codex/orchestrate/aegis-react/design/final are planning material where they differ from these implemented exports.
+Integration contract v2, cumulative round 2 implementation. Legacy remains the default until the parity ledger is green. Foundation verification and remaining broad-suite blockers are recorded in REACT_PORT_STATUS.md and the external foundation-v2-report.md. Source declarations are authoritative. The design sketches under ~/.codex/orchestrate/aegis-react/design/final are planning material where they differ from these implemented exports.
 
-## Round 1 integration amendment
+## Round 2 integration amendment
 
-The integration branch now composes data cards and editors through createComposition({ assetUrl }). Shared Enter, aegis:open-card, Open, close and width actions use FeatureContext so a sheet can refuse a switch. Other feature slices remain unmerged.
+All wave 3 slices are merged. App composes Chrome, basic/generated/data/document/deck/creative bodies, their editors, AgentShell, Library and creative imports. Registrations are explicit and reject duplicate keys. Feature completeness is recorded by the parity ledger rather than inferred from registration.
 
-HostClient additionally exposes upload(file, signal?), returning HostResult<AssetUpload>. The protocol boundary validates the stored asset URL, MIME type and byte size. CSV/TSV drops use importDataset with this capability. The production host transport remains semantic. The test facade additionally provides canvas.setBoard as the validated load alias and apply(commands, createdIdsCallback?).
+HostClient extends the narrower BoardClient used by replication. It adds semantic agents, accounts, authentication public state, MCP, rewrite, Library, link preview and sandbox operations. Protocol subpaths /agents and /services own their schemas. Components receive Promise/callback services and never generic production get/post or Effect. Upload preserves its second AbortSignal argument and adds an optional third progress callback. Every response is decoded. Writes are not retried automatically.
 
-The app ends its host lifetime on beforeunload, with pagehide as a fallback, and reconnects on a persisted pageshow. Cancellation stays a cancelled HostResult, including during response decoding. Requests cannot start after disposal. This prevents stale WebKit board reads during navigation.
+SceneChange carries origin local, agent or sync. Local submit, Undo, Redo and derived measurements are local. Accepted agent board events are agent; acknowledgements and reconciliation are sync. Accepted board events also reach workspace.events. A card's stored agent field never establishes batch provenance. Agent animation and change-cue consumption remain separate parity obligations.
 
-Canvas chart text and points scale with the camera. DeckChart viewScale describes the containing slide fit and excludes the canvas camera. Deck owners must also supply the containing slide height for presentation labels. Do not pass the scene zoom as a text or point correction.
+Only scene engine.ts schedules scene frames. FrameParticipant supplies optional read, write and candidate-scale fitBounds callbacks. Reads precede scene writes; participant writes follow them. Fixed-size agent windows contribute bounds at the candidate camera scale. CanvasAttachment.availableArea is a discrete Source<Rect>; engine.viewport() and availableArea() are cached on-demand reads. App measures panels, editors and the composer during scene reads. Camera frames never enter React state.
+
+Continuous tools use ToolPointer, ToolKey, SceneTool, ToolPreview and ToolCommit from the public scene package. DOM adapters arbitrate capture and pan; tool callbacks run in the input phase. Coalesced samples preserve ordering, pressure and timestamps. Previews are finite typed path/rectangle/circle lists with world/screen coordinates, opacity and theme/hex colours. Scene paints them using cached theme values. commitTool queues one semantic batch for onToolCommit after the frame, discarding stale board epochs. Feature callbacks cannot synchronously submit commands, publish React state or access a canvas context inside a scene frame. Escape claimed by a tool is delivered to that tool. Space and middle-button pan retain priority.
+
+Scene exposes startTransform, startConnection, hitTestLink, linkRoute, linkGeometry and public routeLink/geometry exports. They use the actual scene geometry. Document-drop callbacks, pure wireframe drag hooks, transient agent cues and the explicit sandbox snapshot handshake are accepted work requests but are not implemented public capabilities in v2.
+
+The shared editor dispatcher owns Enter, aegis:open-card, Open, close and side/full-width actions. FeatureContext.openEditor accepts an optional keyboard flag. The controller flushes the active registration and honours false, pins the opened body, retains its camera/selection bookmark and returns focus after navigation completes. Session-specific conflict and IME behaviour remains the editor owner's obligation.
+
+The app ends its host lifetime on beforeunload, with pagehide fallback and a fresh lifetime on persisted pageshow. Disposed requests cannot start, cancellation remains cancellation through decoding, and late SSE results cannot mutate the old board epoch. This addresses the WebKit stale-fetch reload error without suppressing errors.
+
+Canvas chart text and points scale with the camera. DeckChart viewScale describes only the containing slide fit. Deck owners supply the containing presentation height. Camera inverse-scaling, summaries and cluster repacking remain forbidden.
+
+The real test facade supplies setBoard/load, created-ID callbacks, selection, stats, availableArea, mountedEl, coordinate conversions, navigation/completion and history. It exists only in development or explicit AEGIS_TEST_FACADE=1 builds. Production browser checks serve compiled assets and verify the implementation/facade build marker. Explicit test module entries share the same compiled document session instances and real exporters. Retained legacy helper modules remain test subjects and are not evidence of migrated React implementations.
 
 ## Shared models and package exports
 
@@ -38,7 +50,7 @@ if (loaded.kind === 'ok') {
 }
 ```
 
-createHostClient and connectWorkspace come from @aegis/host-client. They expose plain Promise/callback APIs; Effect remains inside that package. HostResult discriminates on kind, either ok with value or error with a HostFailure. The foundation HostClient implements boards, board, createBoard, commit, saveCamera, events, assetUrl and dispose. Additional semantic host operations must be coordinated with the replication owner instead of adding an untyped get/post API to production components.
+createHostClient and connectWorkspace come from @aegis/host-client. They expose plain Promise/callback APIs; Effect remains inside that package. HostResult discriminates on kind, either ok with value or error with a HostFailure. BoardClient implements boards, board, createBoard, commit, saveCamera, events, upload, assetUrl and dispose. HostClient adds the semantic services described above. Untyped production get/post APIs remain forbidden.
 
 workspace.submit(commands) is synchronous. An applied LocalResult contains batchId, created and ids. A rejected result contains field errors with index, path and reason. One authored submit call is one Undo transaction. Derived measure/initialise_html commands do not create another Undo entry; they fold into the preceding authored result. Ignore unchanged text before submitting editor input. Use branded constructors for IDs. submit allocates IDs before queuing so optimistic and confirmed records agree.
 
@@ -74,7 +86,7 @@ The integration owner edits app/src/composition.tsx. Workers export their implem
 
 CardRegistration binds a CardBodyKind to a React Body component. Non-object keys are Card.type. Object keys are object:kind, for example object:plot. Bodies receive CardBodyProps with cardId, workspace and engine. Its FeatureWorkspace is Omit<Workspace, "replication" | "dispose">; feature components cannot access the private connection or tear down the workspace. Read content through useCard and write through submit. The note/title foundation body is app/src/cards/basic/Note.tsx.
 
-ActionRegistration has id, label, optional shortcut and run(context). Tools are composed through tools. Menu items use menus. shortcut is registration metadata; the chrome owner wires keyboard dispatch once through the shared tool handler. FeatureContext exposes FeatureWorkspace, engine(), openEditor(id,full?) and closeEditor(). Editor methods return boolean. Opening a different card flushes the current editor first; false retains the current session. The foundation supports discrete actions; continuous drawing/resize extensions must stay in the scene owner's scheduler and receive integration review.
+ActionRegistration has id, label, optional shortcut and run(context). Tools are composed through tools. Menu items use menus. shortcut is registration metadata; the chrome owner wires keyboard dispatch once through the shared tool handler. FeatureContext exposes FeatureWorkspace, engine(), openEditor(id,full?) and closeEditor(). Editor methods return boolean. Opening a different card flushes the current editor first; false retains the current session. Continuous drawing and resize extensions use the scene contracts described above.
 
 PanelRegistration has id, side and Body({context}). Panels follow workspace UI intents. EditorRegistration has kind, Body and flush(context,id), which returns false to refuse close if pending edits cannot be retained. App supplies the side/full editor shell. Keep document/sheet/deck content sessions separate from individual view leases.
 

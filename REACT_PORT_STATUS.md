@@ -1,3 +1,9 @@
+# Round 2 resume status
+
+Resumed at 51018bd. All wave 3 branch heads are merged. The reviewed production test-entry unit is pushed as aef14ba. A clean npm ci and the full check pass with 236 unit tests, 242 host tests and 47 remaining legacy findings. Production React/legacy parity is in progress; React remains opt-in. Contract v2 and every slice-request ruling are recorded in REACT_PORT_CONTRACTS.md and REACT_PORT_R2_RULINGS.md. The external integration log retains exact evidence paths and historical failures.
+
+The prior status below is historical, not the current merge state.
+
 # React port integration status
 
 Round 1 integration is complete on codex/react-port. The verified implementation is ed8399d5dc09612c612f0617f40a2f56cb0353cc. Legacy remains the default; React is opt-in while the remaining feature slices are unmerged.
