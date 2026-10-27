@@ -1,4 +1,5 @@
 import config from './fps.config.mjs';
+import { frameStats } from './frame-stats.mjs';
 
 const result = document.querySelector('#result');
 const dot = document.querySelector('#dot');
@@ -29,14 +30,8 @@ async function measure() {
     }
     requestAnimationFrame(frame);
   });
-  const sorted = samples.toSorted((a, b) => a - b);
-  const percentile = fraction => sorted[Math.ceil(sorted.length * fraction) - 1];
   const report = {
-    fps: 1000 * samples.length / samples.reduce((sum, ms) => sum + ms, 0),
-    p50: percentile(0.5),
-    p95: percentile(0.95),
-    max: sorted.at(-1),
-    frames: samples.length,
+    ...frameStats(samples),
     hidden,
     hostConnected: true,
     tauri: typeof window.__TAURI_INTERNALS__?.invoke === 'function',
