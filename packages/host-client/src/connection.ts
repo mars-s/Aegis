@@ -7,6 +7,7 @@ import { AccountsSchema, LibraryResultSchema, LibrarySnapshotSchema, LinkPreview
 import type { HostClient } from './contracts.js';
 import type { HostFailure, HostResult } from './result.js';
 import { readEventStream } from './sse.js';
+import { readNativeEvents } from './native-events.js';
 
 export interface HostOptions {
   readonly baseUrl: string;
@@ -141,7 +142,16 @@ export function createHostClient(options: HostOptions): HostClient {
         if (eventSignal.aborted) return yield* Effect.fail<HostFailure>({ kind: 'cancelled' });
         return yield* Effect.tryPromise({
           try: async () => {
-            const response = await fetchHost(`${base}/events?token=${encodeURIComponent(options.token)}`, {
+            const url = `${base}/events?token=${encodeURIComponent(options.token)}`;
+            const message = (data: string): void => {
+              const value: unknown = JSON.parse(data);
+              args.event(decodeHostEvent(value), new TextEncoder().encode(data).byteLength);
+            };
+            if (!options.fetch && typeof EventSource !== 'undefined') {
+              await readNativeEvents({ url, signal: eventSignal, opened: args.opened, message });
+              return;
+            }
+            const response = await fetchHost(url, {
               signal: eventSignal, headers: { accept: 'text/event-stream' },
             });
             if (!response.ok) throw new Error(`Event connection failed with HTTP ${response.status}`);
@@ -149,10 +159,7 @@ export function createHostClient(options: HostOptions): HostClient {
             args.opened();
             await readEventStream({
               body: response.body, signal: eventSignal,
-              message: data => {
-                const value: unknown = JSON.parse(data);
-                args.event(decodeHostEvent(value), new TextEncoder().encode(data).byteLength);
-              },
+              message,
             });
           },
           catch: error => eventSignal.aborted ? { kind: 'cancelled' } as const : { kind: 'protocol', message: error instanceof Error ? error.message : 'Event connection failed' } as const,
