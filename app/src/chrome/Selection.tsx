@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { menuShortcut } from "../lib/shortcuts.js";
+import { createPopup } from "../lib/ui/dropdown.js";
 import { OrbMark } from "../lib/ui/orb-mark.js";
 import type { Card, CardId } from "@aegis/domain";
 import { CardSchema } from "@aegis/domain";
@@ -28,6 +30,9 @@ import { useCreativeServices } from "../features/media/services.js";
 import {
   collectSelection,
   collectionLayout,
+  writingFonts,
+  fontName,
+  fontFamily,
 } from "../features/editing/registration.js";
 
 export interface ChromeGestures {
@@ -157,7 +162,8 @@ export function Selection({
   const [fonts, setFonts] = useState(false),
     [fontSearch, setFontSearch] = useState("");
   const fontTrigger = useRef<HTMLButtonElement>(null),
-    fontDialog = useRef<HTMLDialogElement>(null);
+    fontDialog = useRef<HTMLDivElement>(null);
+  const fontPopup = useRef<ReturnType<typeof createPopup> | null>(null);
   useEffect(() => {
     const element = bar.current,
       edges = outline.current;
@@ -212,10 +218,18 @@ export function Selection({
     };
   }, [context, engine]);
   useEffect(() => {
-    if (fonts) {
-      fontDialog.current?.showModal();
-      fontDialog.current?.querySelector("input")?.focus();
-    }
+    if (!fonts || !fontDialog.current || !fontTrigger.current) return;
+    const popup = createPopup({
+      trigger: fontTrigger.current,
+      menu: fontDialog.current,
+      role: "dialog",
+      duration: 160,
+      onToggle: (open: boolean) => { if (!open) setFonts(false); },
+    });
+    fontPopup.current = popup;
+    popup.open();
+    fontDialog.current.querySelector("input")?.focus();
+    return () => { popup.destroy(); fontPopup.current = null; };
   }, [fonts]);
   function format(
     ...[key, value]:
@@ -252,11 +266,7 @@ export function Selection({
     );
   }
   function fontClose(): void {
-    fontDialog.current?.close();
-    setFonts(false);
-    bar.current
-      ?.querySelector<HTMLElement>(".selection-more > summary")
-      ?.focus();
+    fontPopup.current?.close(true);
   }
   const textCards = cards.filter((card) =>
     ["note", "title", "todo", "text", "shape", "coll"].includes(card.type),
@@ -518,7 +528,6 @@ export function Selection({
               <Disclosure
                 label="More selection controls"
                 caption={<Icon name="more" />}
-                dismissed={fonts}
               >
                 <section>
                   <h3>Actions</h3>
@@ -943,16 +952,12 @@ export function Selection({
           </>
         ) : null}
       </div>
-      {fonts ? (
-        <dialog
+      {fonts ? createPortal(
+        <div
           ref={fontDialog}
+          role="dialog"
           className="aegis-dialog editing-font-picker"
           aria-label="Font picker"
-          onCancel={(event) => {
-            event.preventDefault();
-            event.stopPropagation();
-            fontClose();
-          }}
           onKeyDown={(event) => event.stopPropagation()}
         >
           <input
@@ -968,31 +973,27 @@ export function Selection({
               }
             }}
           />
-          {[
-            ["system-ui", "System"],
-            ["serif", "Serif"],
-            ["monospace", "Monospace"],
-            ["", "Default font"],
-          ]
-            .filter(([, label]) =>
-              label
-                ?.toLocaleLowerCase()
-                .includes(fontSearch.toLocaleLowerCase()),
-            )
-            .map(([value, label]) => (
+          <div role="menu" aria-label="Fonts">
+          {writingFonts(cards.flatMap(card => typeof card.props?.font === "string" ? [card.props.font] : []))
+            .filter(font => fontName(font).toLocaleLowerCase().includes(fontSearch.trim().toLocaleLowerCase()))
+            .map(value => (
               <button
                 key={value}
                 data-font={value}
+                role="menuitem"
+                tabIndex={-1}
+                style={{ fontFamily: fontFamily(value) }}
                 onClick={() => {
                   if (value !== undefined) format("font", value || null);
                   fontClose();
                 }}
               >
-                {label}
+                {fontName(value)}
               </button>
             ))}
+          </div>
           <button onClick={fontClose}>Close</button>
-        </dialog>
+        </div>, document.body
       ) : null}
     </>
   );
