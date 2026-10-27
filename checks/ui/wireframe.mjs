@@ -123,7 +123,7 @@ try {
   for (const c of children) { const next = after.cards.find(k => k.id === c.id); assert.deepEqual([next.x - c.x, next.y - c.y], [dx, dy], c.type + ' moved with screen'); assert.equal(next.parent, frame.id); }
   log('frame carries all', children.length, 'owned child cards');
   // A specimen has its own editable sample and family field.
-  await panel.locator('[data-wf="font"]').click(); await clickAt(550, 0);
+  await panel.locator('[data-wf="font"]').click(); await clickAt(550, 0); await page.locator('.card[data-type="font"] .wf-specimen').waitFor();
   const font = (await snapshot()).cards.find(c => c.type === 'font'); assert.ok(font);
   await prop('Font family', 'Courier New');
   await page.locator(`[data-id="${font.id}"] .wf-specimen`).dblclick(); await page.keyboard.press('Meta+a'); await page.keyboard.type('A custom font sample.'); await page.keyboard.press('Escape');
