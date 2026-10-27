@@ -41,6 +41,7 @@ export interface TestFacade {
   readonly benchmark: (count: number) => ReturnType<typeof benchmark>;
   readonly editing: { readonly history: { readonly status: { readonly undo: boolean; readonly redo: boolean } } };
   readonly host: {
+    readonly assetUrl: (url: string) => string;
     readonly get: (path: string) => Promise<unknown>;
     readonly post: (path: string, body?: unknown) => Promise<unknown>;
   };
@@ -54,6 +55,7 @@ export function installTestFacade(args: {
   readonly connection: Connection;
   readonly replication: WorkspaceConnection;
   readonly persistCamera: () => void;
+  readonly assetUrl: (url: string) => string;
   readonly flushEditor?: () => boolean;
 }): () => void {
   const { workspace, engine } = args;
@@ -114,7 +116,7 @@ export function installTestFacade(args: {
     flush: async () => { if (args.flushEditor?.() === false) throw new Error('The editor has unresolved changes.'); await args.replication.settled(); },
     editing: { history: { get status() { return workspace.history.getSnapshot(); } } },
     benchmark: async count => { await args.replication.settled(); args.replication.dispose(); return benchmark(engine, workspace, count); },
-    host: { get: path => call(path), post: (path, body) => call(path, body ?? {}) },
+    host: { assetUrl: args.assetUrl, get: path => call(path), post: (path, body) => call(path, body ?? {}) },
   };
   window.aegis = facade;
   window.aegisCtx = facade;

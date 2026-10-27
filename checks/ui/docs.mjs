@@ -300,7 +300,7 @@ try {
   // Simulate the native adapter's successful result without opening a real print sheet.
   const nativePage = await browser.newPage();
   await nativePage.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
-  await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
+  await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function saveFile() { throw new Error("Unexpected save in the print probe"); } export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
   await nativePage.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   const nativePrint = await nativePage.evaluate(async () => {
     const { printPDF } = await import('/src/features/docs/export.js');

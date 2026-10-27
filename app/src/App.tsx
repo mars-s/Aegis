@@ -23,6 +23,7 @@ import type { SettingsService } from './features/settings/service.js';
 import { importDataset } from './cards/data/index.js';
 import { locateConnection } from './platform/connection.js';
 import type { Connection } from './platform/connection.js';
+import { documentTestRewriter } from './platform/document-test.js';
 import { installTestFacade } from './platform/test-facade.js';
 import { installEditorActions } from './platform/editor-actions.js';
 import { CreativeProvider } from './cards/creative/index.js';
@@ -123,7 +124,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     if (!instance) return;
     const offArea = area.attach(instance);
     const offFit = instance.registerFrameParticipant({ fitBounds: zoom => controls.current?.scene.fitBounds(zoom).map(rect => ({ x: rect.x, y: rect.y, width: rect.w, height: rect.h })) ?? [] });
-    const offFacade = import.meta.env.DEV || __AEGIS_TEST_FACADE__ ? installTestFacade({ workspace, engine: instance, connection: runtime.connection, replication: runtime.replication, persistCamera, flushEditor: controller.flush }) : null;
+    const offFacade = import.meta.env.DEV || __AEGIS_TEST_FACADE__ ? installTestFacade({ workspace, engine: instance, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, flushEditor: controller.flush }) : null;
     engineCleanup.current = () => { offArea(); offFit(); offFacade?.(); };
   }, [area, workspace, runtime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
@@ -181,6 +182,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const drawTarget: DrawTarget | null = creativeMode && creativeMode !== 'wireframe' ? creativeMode : selectedCard && ['ink', 'shape', 'path', 'stamp'].includes(selectedCard.type) ? { kind: 'card', id: selectedCard.id } : null;
   const documentServices = useMemo<DocumentServices>(() => ({ context, assetUrl: client.assetUrl,
     rewrite: async (request, signal) => {
+      const test = __AEGIS_TEST_FACADE__ ? documentTestRewriter() : null; if (test) return test(request);
       const model = controls.current?.runtime.getSnapshot().model;
       return hostValue(await client.rewrite({ text: request.text, how: request.how, title: request.title, around: request.around, ...(model ? { model } : {}) }, signal));
     },
