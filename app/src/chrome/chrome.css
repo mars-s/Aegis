@@ -115,13 +115,18 @@
 .aegis-chrome .bar-right,
 .aegis-chrome #tools {
   opacity: 0;
-  transition: opacity 160ms var(--ease-out);
+  pointer-events: none;
+  transition: opacity 180ms var(--ease-out);
 }
-.aegis-chrome .chrome-visible,
+.aegis-chrome .bar > :is(.bar-left, .bar-right) { pointer-events: none; }
+.aegis-chrome .bar > :is(.bar-left, .bar-right).chrome-visible,
+.aegis-chrome .bar > :is(.bar-left, .bar-right):focus-within { pointer-events: auto; }
+.aegis-chrome :is(.bar-left, .bar-right, #tools).chrome-visible,
 .aegis-chrome :is(.bar-left, .bar-right, #tools):focus-within {
   opacity: 1;
+  pointer-events: auto;
 }
-.aegis-chrome .chrome-instant {
+.aegis-chrome :is(.bar-left, .bar-right, #tools).chrome-instant {
   transition-duration: 0ms;
 }
 .aegis-chrome .reveal-arrow {
@@ -242,6 +247,20 @@
 }
 .aegis-chrome [data-panel="tools"] > .pbody {
   max-height: 30vh;
+}
+.aegis-chrome .capture-reveal > .pbox.folded {
+  flex: none;
+  min-height: 0;
+}
+.aegis-chrome .capture-reveal [data-panel="library"].folded > .library-footer {
+  display: none;
+}
+.aegis-chrome .capture-reveal [data-panel="tools"] > .pbody {
+  max-height: none;
+}
+.aegis-chrome .capture-reveal [data-panel="unsorted"] > .pbody {
+  min-height: 260px;
+  flex-shrink: 0;
 }
 .aegis-chrome .tools-panels {
   padding-bottom: 8px;

@@ -7,6 +7,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
+import { z } from 'zod/v4';
 import type { CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type {
@@ -93,6 +94,7 @@ export function Chrome({
   const [layout, setLayout] = useState(readLayout),
     [notice, setNotice] = useState<Notice | null>(null),
     [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
+  const [captureReveal, setCaptureReveal] = useState<{ readonly id: string; readonly side: 'left' | 'right' } | null>(null);
   const toolbar = useToolbar();
   useLayoutEffect(() => {
     document.body.dataset.toolSize = toolbar.size;
@@ -240,6 +242,7 @@ export function Chrome({
       for (const group of groups) {
         const held =
           touch.matches ||
+          context.workspace.selection.getSnapshot().length > 0 ||
           near.has(group) ||
           group.contains(document.activeElement) ||
           !!group.querySelector('[aria-expanded="true"], details[open]') ||
@@ -358,15 +361,46 @@ export function Chrome({
         attributeFilter: ["aria-expanded", "open"],
       });
     const offSaving = context.workspace.saving.subscribe(sync);
+    const offSelection = context.workspace.selection.subscribe(sync);
     touch.addEventListener("change", sync, { signal: lifetime.signal });
     sync();
     return () => {
       lifetime.abort();
       observer.disconnect();
       offSaving();
+      offSelection();
       timers.forEach((timer) => clearTimeout(timer));
     };
   }, [context]);
+  useEffect(() => {
+    const reveal = (event: Event): void => {
+      if (!(event.target instanceof Element)) return;
+      const panel = event.target.closest<HTMLElement>('[data-panel]');
+      if (!panel?.dataset.panel) return;
+      const side = panel.closest('#sideRight') ? 'right' : 'left';
+      if (event instanceof CustomEvent) {
+        const detail: unknown = event.detail;
+        if (z.object({ capture: z.literal(true) }).safeParse(detail).success) setCaptureReveal({ id: panel.dataset.panel, side });
+      }
+      const layout = current.current.layout, folded = { ...layout.folded };
+      for (let ancestor: HTMLElement | null = panel; ancestor; ancestor = ancestor.parentElement?.closest<HTMLElement>('[data-panel]') ?? null) {
+        const id = ancestor.dataset.panel; if (id) folded[id] = false;
+      }
+      change({ ...layout, folded, off: { ...layout.off, [panel.dataset.panel]: false }, open: { ...layout.open, [side]: true } });
+    };
+    document.addEventListener('panelreveal', reveal);
+    const end = (): void => setCaptureReveal(null);
+    document.addEventListener('panelrevealend', end);
+    return () => { document.removeEventListener('panelreveal', reveal); document.removeEventListener('panelrevealend', end); };
+  }, [change]);
+  useEffect(() => {
+    if (!captureReveal) return;
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('.capture-confirmation [data-put]')) setCaptureReveal(null);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [captureReveal]);
   function add(type: "note" | "title" | "todo" | "readme"): void {
     const point = engine.screenToWorld({
       x: innerWidth / 2,
@@ -527,7 +561,7 @@ export function Chrome({
       ) {
         engine.navigate({ kind: "fit", ids: [], motion: "instant" });
         current.current.cameraChanged?.();
-      } else if (mod && name === "k" && ask) ask(ids);
+      } else if (mod && !event.shiftKey && name === "k" && ask) ask(ids);
       else {
         const action = actionRef.current.find(
           (item) => item.shortcut && shortcutMatches(item.shortcut, event),
@@ -574,7 +608,7 @@ export function Chrome({
         id
           ? [
               {
-                title: "Edit",
+                title: "Open",
                 run: () => {
                   context.openEditor(id);
                 },
@@ -666,6 +700,12 @@ export function Chrome({
     };
   }, [context, engine, notify, exportBoard]);
   const board = useBoard(context.workspace);
+  let panelLayout = layout;
+  if (captureReveal) {
+    const folded = { ...layout.folded, [captureReveal.id]: false };
+    for (const id of layout.columns[captureReveal.side]) folded[id] = id !== 'tools' && id !== captureReveal.id;
+    panelLayout = { ...layout, folded, heights: { ...layout.heights, tools: Math.max(300, innerHeight - 280), [captureReveal.id]: Math.max(220, Math.min(340, innerHeight - 420)) } };
+  }
   const panels = (side: "left" | "right") =>
     layout.columns[side].map((id) => {
       if (id === "layers")
@@ -674,7 +714,7 @@ export function Chrome({
             key={id}
             id={id}
             label="Windows"
-            layout={layout}
+            layout={panelLayout}
             change={change}
             count={
               filter.filtered
@@ -692,7 +732,7 @@ export function Chrome({
             key={id}
             id={id}
             label="Library"
-            layout={layout}
+            layout={panelLayout}
             change={change}
           >
             {library ? (
@@ -708,7 +748,7 @@ export function Chrome({
         );
       if (id === "tools")
         return (
-          <Panel key={id} id={id} label="Tools" layout={layout} change={change}>
+          <Panel key={id} id={id} label="Tools" layout={panelLayout} change={change}>
             <div className="tools-panels">
               {composition.panels
                 .filter(
@@ -722,7 +762,7 @@ export function Chrome({
                     key={panel.id}
                     id={panel.id}
                     label={panel.label ?? panel.id}
-                    layout={layout}
+                    layout={panelLayout}
                     change={change}
                   >
                     <panel.Body context={context} />
@@ -929,7 +969,7 @@ export function Chrome({
       </button>
       <aside
         id="side"
-        className={`side${ui.leftPanel ? " open" : ""}`}
+        className={`side${ui.leftPanel ? " open" : ""}${captureReveal?.side === 'left' ? ' capture-reveal' : ''}`}
         aria-label="Library and Windows"
         hidden={!ui.leftPanel}
         style={{ width: layout.width }}
@@ -960,7 +1000,7 @@ export function Chrome({
       </aside>
       <aside
         id="sideRight"
-        className={`side side-right${ui.rightPanel ? " open" : ""}`}
+        className={`side side-right${ui.rightPanel ? " open" : ""}${captureReveal?.side === 'right' ? ' capture-reveal' : ''}`}
         aria-label="Agent activity and panels"
         hidden={!ui.rightPanel}
         style={{ width: layout.rightWidth }}
@@ -999,7 +1039,11 @@ export function Chrome({
           menuId="toolsPopover"
           className="tools-popover"
         >
-          <div className="tools-grid">{dockIds.slice(6).map(toolButton)}</div>
+          <div className="tools-grid">{dockIds.slice(6).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          {dockIds.slice(6).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
+            <h3>Media</h3>
+            <div className="tools-grid">{dockIds.slice(6).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          </section> : null}
           {customiseToolbar ? (
             <button aria-label="Customise toolbar" onClick={customiseToolbar}>
               Customise toolbar
@@ -1020,6 +1064,7 @@ export function Chrome({
         </button>
       </nav>
       <Selection
+        canOpen={card => composition.editors.some(editor => editor.kind === (card.type === "object" ? `object:${card.kind}` : card.type))}
         context={context}
         engine={engine}
         notify={notify}

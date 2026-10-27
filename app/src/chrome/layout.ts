@@ -23,6 +23,7 @@ const SavedLayoutSchema = LayoutSchema.extend({
 export function normaliseLayout(layout: PanelLayout): PanelLayout {
   return {
     ...layout,
+    folded: { layers: false, library: false, unsorted: false, ...layout.folded },
     columns: {
       left: [
         ...(layout.columns.right.includes("layers")

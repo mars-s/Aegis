@@ -1,10 +1,13 @@
 import { z } from 'zod/v4';
-import { BoardIdSchema, CardSchema, LinkSchema } from '@aegis/domain';
-import type { Board, CardId } from '@aegis/domain';
+import { BoardIdSchema, CardSchema, LegacyCardSchema, LinkSchema } from '@aegis/domain';
+import type { Board, Card, CardId } from '@aegis/domain';
 import type { FeatureWorkspace } from '../workspace/index.js';
 import { cloneCommands } from '../features/editing/operations.js';
 
-export const TrayItemSchema = z.intersection(CardSchema, z.object({ bundle: z.object({ cards: z.array(CardSchema), links: z.array(LinkSchema) }).optional() }));
+const TrayBundleSchema = z.object({ bundle: z.object({ cards: z.array(CardSchema), links: z.array(LinkSchema) }).optional() });
+export const TrayItemSchema: z.ZodType<Card & z.output<typeof TrayBundleSchema>> = z.intersection(LegacyCardSchema, TrayBundleSchema).transform(item => ({
+  ...item, x: item.x ?? 0, y: item.y ?? 0, w: item.w ?? 268, h: item.h ?? 140, color: item.color ?? 'plain',
+})).pipe(z.intersection(CardSchema, TrayBundleSchema));
 export function capturedItems(board: Board) { return z.array(TrayItemSchema).parse(board.tray ?? []); }
 
 export function releaseCaptured(workspace: FeatureWorkspace, id: CardId, at: { readonly x: number; readonly y: number }): boolean {
