@@ -66,3 +66,5 @@
 .data-card, .data-editor { --text:var(--color-text); --muted:var(--color-muted); --faint:var(--color-faint); --ink-2:var(--color-label-secondary); --line:var(--color-border); --line-strong:var(--color-border-strong); --card:var(--color-surface); --inset:var(--color-fill); --hover:var(--color-fill-hover); --data:var(--color-ring); --data-soft:color-mix(in srgb, var(--color-ring) 16%, transparent); --focus:var(--color-ring); }
 /* Sticky cells must be opaque so scrolled source rows never show through. */
 .data-viewer-grid thead th, .data-viewer-grid tbody th { background:var(--color-surface); }
+
+.data-column-picker { margin: 0; padding: 0; border: 0; min-width: 0; }
