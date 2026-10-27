@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import type { BoardId } from '@aegis/domain/schema';
+import { AgentIdSchema } from '@aegis/domain/schema';
+import type { AgentLineStyle } from '@aegis/scene';
 import type { FeatureContext } from '../../composition.js';
 import { Agents } from './Agents.js';
 import { AgentActivity } from './Windows.js';
@@ -18,6 +20,7 @@ import type { SettingsService } from '../settings/service.js';
 import { createPreferenceStore } from '../settings/preferences-store.js';
 import { Onboarding, Shortcuts } from '../onboarding/Onboarding.js';
 import { shortcutReferences } from '../onboarding/shortcuts.js';
+import { agentName, shortTitle } from './results.js';
 
 export interface AgentShellControls {
   readonly runtime: AgentRuntime;
@@ -62,9 +65,18 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
     if (!scene) return;
     return context.workspace.events.subscribe(() => {
       const event = context.workspace.events.getSnapshot();
-      if (event?.type !== 'board' || event.author.kind === 'user' || event.author.undoRequest) return;
-      const agent = runtime.getSnapshot().agents.find(agent => agent.id === event.author.conversationId);
+      if (event?.type !== 'board' || event.boardId !== context.workspace.metadata.getSnapshot().id || event.author.kind === 'user') return;
+      if (event.author.undoRequest) { scene.clearResult(); return; }
+      const parsed = AgentIdSchema.safeParse(typeof event.author.conversationId === 'number' ? String(event.author.conversationId) : event.author.conversationId);
+      const id = parsed.success ? parsed.data : null;
+      const agent = runtime.getSnapshot().agents.find(agent => agent.id === id);
       if (agent) scene.near(agent.id, event.touched);
+      if (event.touched.length) {
+        const name = event.author.kind === 'mcp' ? event.author.name || 'Agent' : agent ? agentName(agent, runtime.getSnapshot().agents) : 'Agent';
+        const index = [...(id ?? name)].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 3;
+        const styles: readonly AgentLineStyle[] = ['solid', 'dashed', 'dotted'];
+        scene.result(id, event.touched, `${name}: ${agent ? shortTitle(agent) : 'changed the board'}`, styles[index] ?? 'solid');
+      }
     });
   }, [context.workspace, runtime, scene]);
   useEffect(() => {
