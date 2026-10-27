@@ -2,7 +2,7 @@
 declare module '*lib/ui/menu.js' {
   interface MenuItem {
     readonly title: string;
-    readonly run: (event: MouseEvent) => unknown;
+    readonly run?: (event: MouseEvent) => void;
   }
   export function createMenu(options: {
     readonly trigger: HTMLElement;
