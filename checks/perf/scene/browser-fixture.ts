@@ -1,10 +1,11 @@
 import { createElement, useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { createRoot } from 'react-dom/client';
-import { BoardSchema, CardSchema, RevisionSchema } from '@aegis/domain/schema';
+import { BoardSchema, CardSchema, CardIdSchema, CommandSchema, RevisionSchema } from '@aegis/domain/schema';
+import { applyBatch } from '@aegis/domain/commands';
 import type { Board, Card, CardId, Command } from '@aegis/domain/schema';
 import { createCanvas } from '../../../packages/scene/src/engine.js';
-import type { CanvasEngine, CanvasWorkspace, SceneChange, SlotLease } from '../../../packages/scene/src/types.js';
+import type { CanvasEngine, CanvasWorkspace, SceneChange, SceneOrigin, SlotLease } from '../../../packages/scene/src/types.js';
 import { replay } from './replay.js';
 import type { ReplayResult } from './replay.js';
 import { bindOrientationMenu } from '../../../app/src/canvas/orientation-menu.js';
@@ -14,7 +15,8 @@ interface Harness {
   readonly board: () => Board;
   readonly calls: readonly (readonly Command[])[];
   readonly submit: CanvasWorkspace['submit'];
-  readonly select: (ids: readonly CardId[]) => void;
+  readonly select: (ids: readonly string[]) => void;
+  readonly batch: (commands: unknown, origin: SceneOrigin) => void;
   readonly replace: (count: number) => void;
   readonly load: (board: unknown) => void;
   readonly update: (card: unknown) => void;
@@ -100,8 +102,15 @@ function Portals() {
 const root = createRoot(element('portals')); root.render(createElement(Portals));
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
-  engine, board: () => current, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
+  engine, board: () => current, calls, submit: workspace.submit, select: ids => workspace.act({ kind: 'select', ids: ids.map(id => CardIdSchema.parse(id)) }), mounted, cleanups, notifications: () => notifications, navigationNotifications: () => navigationNotifications, opened: () => opened,
   update: card => update([CardSchema.parse(card)]),
+  batch: (value, origin) => {
+    const previous = current, result = applyBatch(current, { commands: CommandSchema.array().parse(value) });
+    if (!result.ok) throw new Error(JSON.stringify(result.errors));
+    current = result.board;
+    const touched = new Set(result.touched), present = new Set(current.cards.map(card => card.id));
+    for (const listener of listeners) listener({ kind: 'change', origin, boardId: current.id, baseRevision: previous.rev, revision: current.rev, upserted: current.cards.filter(card => touched.has(card.id)), removed: previous.cards.filter(card => !present.has(card.id)).map(card => card.id), links: current.links, order: current.cards.map(card => card.id) });
+  },
   replace: count => {
     const old = current; current = fixture(count);
     for (const listener of listeners) listener({ kind: 'replace', origin: 'sync', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });

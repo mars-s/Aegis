@@ -5,6 +5,7 @@ import type { ZoomTier } from './representations.js';
 
 export type { Source } from '@aegis/domain/schema';
 export type SceneOrigin = 'local' | 'agent' | 'sync';
+export type AgentLineStyle = 'solid' | 'dashed' | 'dotted';
 export interface SceneChange extends ChangeSet {
   readonly kind: 'change' | 'replace';
   readonly origin: SceneOrigin;
@@ -122,6 +123,9 @@ export interface CanvasEngine {
   readonly startTransform: (intent: { readonly kind: 'resize' | 'rotate'; readonly ids: readonly CardId[]; readonly pointer: { readonly id: number; readonly point: Point }; readonly shift: boolean }) => void;
   readonly startConnection: (id: CardId) => void;
   readonly pin: (id: CardId, reason: PinReason, pinned: boolean) => void;
+  readonly glow: (ids: readonly CardId[]) => void;
+  readonly ring: (ids: readonly CardId[], colour: string, ms?: number, label?: string, origin?: Point, lineStyle?: AgentLineStyle) => void;
+  readonly clearAgentLine: () => void;
   readonly requestMeasurement: (key: string, generation: number) => void;
   readonly registerFrameParticipant: (participant: FrameParticipant) => () => void;
   readonly viewport: () => Rect;
