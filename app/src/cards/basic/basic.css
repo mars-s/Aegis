@@ -1,0 +1,25 @@
+.basic-note, .basic-todo { display: flex; flex-direction: column; flex: 1; min-height: 0; font-family: var(--font); }
+.basic-note .body, .basic-todo .body { font: inherit; letter-spacing: inherit; line-height: inherit !important; }
+.basic-note .heading { font: 650 15px/1.3 var(--font); }
+.basic-note .badge, .basic-note .card-tag { padding: 4px 14px; font-size: 12px; }
+.basic-note.fixed-height .body { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.basic-todo .items { padding: 0 16px; }
+.basic-todo.fixed-height .items { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.basic-todo .todo-item { display: flex; gap: 8px; align-items: start; padding: 5px 0; }
+.basic-todo .todo-item input { width: 18px; height: 18px; flex: none; accent-color: var(--text); }
+.basic-todo .todo-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; outline: none; }
+.basic-todo .done .todo-text { text-decoration: line-through; color: var(--muted); }
+.basic-todo .remove-item { min-height: 24px; padding: 0 4px; border: 0; background: none; opacity: 0; }
+.basic-todo .todo-item:focus-within .remove-item, .basic-todo .todo-item:hover .remove-item { opacity: 1; }
+.basic-todo .add-item, .url-input { width: 100%; padding: 6px 16px; background: transparent; border: 0; color: var(--text); font: inherit; }
+.basic-image, .basic-video { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.basic-image .image-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.basic-image img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; user-select: none; }
+.basic-image .image-caption { flex: none; padding: 6px 10px; font: 400 12px/1.4 var(--font); background: var(--strip); }
+.basic-video .media-head, .basic-web .web-head { padding: 8px 10px; color: var(--muted); background: var(--strip); font-size: 12px; }
+.basic-video video { flex: 1; width: 100%; min-height: 0; background: #000; }
+.basic-link a { display: block; padding: 0 16px 16px; overflow-wrap: anywhere; color: var(--muted); }
+.basic-web .web-body { padding: 12px; color: var(--muted); }
+.basic-collection .collection-head { padding: 12px 14px; font: 650 15px/1.2 var(--font); outline: none; }
+.basic-note :is(.body,.heading,.badge,.card-tag)::selection, .basic-todo .todo-text::selection { background: var(--data-soft); }
+@media (pointer: coarse) { .basic-todo .remove-item { opacity: 1; min-height: 44px; min-width: 44px; } }

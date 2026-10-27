@@ -1,0 +1,294 @@
+/* Reply: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.reply {
+
+  .reply { display: flex; flex-direction: column; gap: 14px; max-inline-size: 64ch; color: var(--color-text); }
+  h2 { margin: 0; font-size: var(--text-headline); font-weight: 650; line-height: 1.18; letter-spacing: -0.022em; text-wrap: balance; }
+  .text { margin: 0; color: var(--color-label-secondary); font-size: var(--text-reading); line-height: 1.55; text-wrap: pretty; }
+  .figures { display: flex; flex-wrap: wrap; gap: 16px 40px; margin: 6px 0 0; }
+  .figures div { display: flex; flex-direction: column; gap: 3px; }
+  dt { order: 2; color: var(--color-muted); font-size: var(--text-label); }
+  dd { display: contents; }
+  .value { order: 1; font-size: var(--text-headline); font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; }
+  .note { order: 3; color: var(--color-faint); font-size: var(--text-caption); }
+  .points { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 0; padding: 0; list-style: none; color: var(--color-label-secondary); font-size: var(--text-reading); line-height: 1.45; }
+  .points li { position: relative; padding-inline-start: 18px; }
+  .points li::before { position: absolute; inset-block-start: 0.62em; inset-inline-start: 2px; inline-size: 5px; block-size: 5px; border-radius: var(--radius-capsule); background: var(--color-faint); content: ""; }
+
+}
+
+/* Plan: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.plan {
+
+  .plan { list-style: none; margin: 0; padding: 0; color: var(--color-text); font-size: var(--text-body); }
+  .step { display: grid; grid-template-columns: 72px 22px 1fr; gap: 0 10px; position: relative; }
+  .when { color: var(--color-muted); font-size: var(--text-label); font-variant-numeric: tabular-nums; padding-block-start: 2px; text-align: end; }
+  .rail { position: relative; display: flex; justify-content: center; }
+  .rail::before { content: ""; position: absolute; inset-block: 0; inset-inline-start: 50%; inline-size: 1px; background: var(--color-border-strong); }
+  .step:first-child .rail::before { inset-block-start: 10px; }
+  .step:last-child .rail::before { inset-block-end: calc(100% - 10px); }
+  .dot { position: relative; z-index: 1; display: grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: 50%; background: var(--color-surface); border: 1px solid var(--color-border-strong); font-size: 10px; color: var(--color-muted); }
+  .milestone .dot { color: var(--chart-4); border-color: var(--chart-4); }
+  .dot input { margin: 0; accent-color: var(--chart-3); }
+  .item { padding-block-end: 14px; min-inline-size: 0; }
+  .title { font-weight: 600; line-height: 1.35; }
+  .done .title { color: var(--color-faint); text-decoration: line-through; }
+  .detail { margin: 3px 0 0; color: var(--color-label-secondary); line-height: 1.45; }
+  .meta { margin: 3px 0 0; color: var(--color-faint); font-size: var(--text-caption); }
+  .total { display: flex; justify-content: space-between; margin: 4px 0 0; padding-block-start: 10px; border-block-start: 1px solid var(--color-border); color: var(--color-muted); }
+  .total strong { color: var(--color-text); font-variant-numeric: tabular-nums; }
+
+}
+
+/* List: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.list {
+
+  .list { list-style: none; margin: 0; padding: 0; color: var(--color-text); font-size: var(--text-body); display: flex; flex-direction: column; }
+  li { display: flex; gap: 10px; align-items: flex-start; padding: 8px 2px; border-block-end: 1px solid var(--color-border); }
+  li:last-child { border-block-end: 0; }
+  input { margin: 2px 0 0; accent-color: var(--chart-3); }
+  .mark { color: var(--color-faint); inline-size: 14px; text-align: center; font-weight: 600; }
+  .item { flex: 1; min-inline-size: 0; }
+  .title { font-weight: 550; line-height: 1.35; }
+  .done .title { color: var(--color-faint); text-decoration: line-through; }
+  .detail { margin: 3px 0 0; color: var(--color-label-secondary); line-height: 1.45; }
+  .questions .detail { color: var(--color-muted); }
+  .due { color: var(--color-muted); font-size: var(--text-label); white-space: nowrap; }
+  .high { margin-inline-start: 8px; padding: 0 6px; border-radius: var(--radius-capsule); background: color-mix(in srgb, var(--chart-8) 18%, transparent); color: var(--chart-8); font-size: var(--text-caption); font-weight: 600; }
+
+}
+
+/* Code: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.code {
+
+  .code { position: relative; color: var(--color-text); }
+  .lang { position: absolute; inset-block-start: 0; inset-inline-end: 0; color: var(--color-faint); font-size: var(--text-caption); }
+  pre { margin: 0; font: 12px/1.6 var(--font-mono); overflow: auto; }
+  .line { display: block; padding-inline-end: 8px; }
+  .line.marked { background: color-mix(in srgb, var(--chart-1) 12%, transparent); }
+  .no { display: inline-block; inline-size: 3ch; margin-inline-end: 12px; color: var(--color-faint); text-align: end; user-select: none; }
+  .note { display: block; margin: 2px 0 6px 5ch; padding: 4px 8px; border-inline-start: 1px solid var(--line-strong); color: var(--color-label-secondary); font-family: var(--font); white-space: normal; }
+
+}
+
+/* Stats: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.stats {
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 20px; margin: 0; }
+  .stat { min-width: 0; }
+  dt { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  dd { display: grid; gap: 8px; margin: 0; }
+  .value { font-size: 30px; font-weight: 500; letter-spacing: -.025em; line-height: 1.2; overflow-wrap: anywhere; }
+
+}
+
+/* Progress: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.progress {
+
+  .goals { display: grid; gap: 24px; margin: 0; padding: 0; list-style: none; }
+  .heading { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; margin-bottom: 10px; }
+  strong { font-weight: 500; font-size: 14px; }
+  .amount { text-align: right; white-space: nowrap; }
+
+}
+
+/* Callout: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.callout {
+
+  .callout { max-width: 65ch; overflow-wrap: anywhere; }
+  strong { display: block; font-size: 13px; font-weight: 500; margin-bottom: 10px; }
+  p, blockquote { margin: 0; white-space: pre-wrap; font-size: 16px; line-height: 1.55; }
+  blockquote { font-size: 20px; letter-spacing: -.015em; }
+  p.attribution { font-size: 12px; color: var(--muted); margin-top: 16px; }
+
+}
+
+/* Compare: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.compare {
+
+  .comparison { overflow-x: auto; }
+  th, td { min-width: 120px; overflow-wrap: anywhere; }
+  th strong { font-size: 14px; font-weight: 500; color: var(--text); }
+  th p { font-size: 12px; margin-top: 4px; }
+  .verdict { display: grid; gap: 6px; margin-top: 20px; color: var(--ink-2); font-size: 13px; }
+  .verdict strong { color: var(--text); font-weight: 500; }
+
+}
+
+/* Timeline: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.timeline {
+
+  .timeline { list-style: none; padding: 0; margin: 0; }
+  li { display: grid; grid-template-columns: 86px 32px minmax(0, 1fr); gap: 8px; }
+  .date { font-size: 12px; color: var(--muted); padding-top: 3px; }
+  .station { display: flex; justify-content: center; position: relative; }
+  .station::before { content: ''; position: absolute; width: 1px; background: var(--line-strong); top: 10px; bottom: -10px; }
+  li:last-child .station::before { display: none; }
+  i { display: block; position: relative; width: 8px; height: 8px; margin-top: 7px; border: 1px solid var(--data); border-radius: 50%; background: var(--card); }
+  .tick { position: relative; display: grid; place-items: start center; min-width: 32px; padding-top: 2px; cursor: pointer; }
+  .event { padding-bottom: 24px; overflow-wrap: anywhere; }
+  strong { font-size: 14px; font-weight: 500; }
+  .event p { margin-top: 4px; color: var(--muted); font-size: 13px; }
+  .done strong { color: var(--muted); text-decoration: line-through; }
+  .horizontal { display: flex; overflow-x: auto; }
+  .horizontal li { flex: 1 0 160px; display: flex; flex-direction: column; gap: 10px; }
+  .horizontal .station { justify-content: start; min-height: 22px; }
+  .horizontal .station::before { height: 1px; width: 100%; top: 10px; bottom: auto; left: 5px; }
+  .horizontal .event { padding-right: 20px; }
+  @container (max-width: 360px) { li { grid-template-columns: 78px 24px minmax(0, 1fr); gap: 4px; } }
+  @media (pointer: coarse) { .tick { min-width: 44px; min-height: 44px; } }
+
+}
+
+/* Kanban: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.kanban {
+
+  .kanban { display: flex; gap: 20px; overflow-x: auto; align-items: start; }
+  .lane { flex: 1 0 180px; min-width: 0; }
+  h4 { display: flex; justify-content: space-between; margin: 0 0 12px; font-size: 13px; font-weight: 500; }
+  h4 span { color: var(--muted); font-weight: 400; }
+  .ticket { position: relative; padding: 12px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+  .ticket .handle { background: none; border: 0; padding: 0 40px 0 0; min-height: 32px; text-align: left; font-size: 14px; color: var(--text); cursor: grab; width: 100%; }
+  .handle:active { cursor: grabbing; }
+  .ticket p { color: var(--muted); font-size: 12px; margin: 4px 0 8px; }
+  .dragging { opacity: .5; }
+
+}
+
+/* Stages: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.stages {
+
+  .stages { display: flex; gap: 0; padding: 0; margin: 0; list-style: none; overflow-x: auto; }
+  li { position: relative; flex: 1 0 160px; padding-right: 20px; min-width: 0; overflow-wrap: anywhere; }
+  .rail { position: relative; margin-bottom: 12px; }
+  .rail::before { content: ''; position: absolute; top: 13px; left: 26px; width: calc(100% - 6px); height: 1px; background: var(--line-strong); }
+  li:last-child .rail::before { display: none; }
+  .dot { position: relative; display: grid; place-items: center; width: 26px; height: 26px; font-size: 12px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--card); color: var(--muted); }
+  .active .dot, .done .dot { color: var(--data); border-color: var(--data); }
+  .blocked .dot { border-style: dashed; color: var(--text); }
+  strong { display: block; font-size: 14px; font-weight: 500; }
+  .status { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
+  li p { margin-top: 12px; color: var(--ink-2); font-size: 13px; }
+
+}
+
+/* Form: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.form {
+
+  .fields { display: grid; gap: 20px; }
+  .field { position: relative; }
+  .commit-hint { position: absolute; right: 0; bottom: -18px; display: block; color: var(--muted); font-size: 12px; opacity: 0; transition: opacity 200ms var(--ease-out); pointer-events: none; }
+  .field:focus-within .commit-hint.visible { opacity: 1; }
+  @media (min-width: 1100px) { .commit-hint { top: 0; bottom: auto; } }
+  @media (prefers-reduced-motion: reduce) { .commit-hint { transition: none; } }
+  body.motion-off .commit-hint { transition: none; }
+  .description { color: var(--ink-2); font-size: 13px; }
+  label > span, legend { display: block; font-size: 13px; margin-bottom: 8px; }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 32px; cursor: pointer; }
+  .check span, .choice span { margin: 0; }
+  .hint, .save-state { color: var(--muted); font-size: 12px; }
+  .hint { margin-top: 6px; }
+  fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+  .choice { display: flex; gap: 8px; align-items: center; min-height: 32px; cursor: pointer; }
+  @media (pointer: coarse) { .check, .choice { min-height: 44px; } }
+
+}
+
+/* Table: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.table {
+
+  .table-scroll { overflow-x: auto; }
+  .table-viewport { position: relative; }
+  .table-viewport::after { content: ''; position: absolute; inset: 0 0 0 auto; width: 28px; background: linear-gradient(to right, transparent, var(--card)); pointer-events: none; opacity: 0; }
+  .table-viewport.overflow::after { opacity: 1; }
+  .numeric .trend { margin-left: auto; }
+  .track { margin-top: 4px; }
+
+}
+
+/* Gallery: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.gallery {
+
+  .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 20px; }
+  figure { margin: 0; min-width: 0; }
+  img, .missing { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: var(--inset); border-radius: 4px; }
+  .missing { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+  figcaption { margin-top: 8px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .gallery .inspect-image { display: block; padding: 0; width: 100%; border: 0; border-radius: 4px; background: transparent; cursor: zoom-in; }
+  .gallery-inspection { position: absolute; inset: 0; z-index: 5; display: flex; flex-direction: column; gap: 16px; padding: 16px; background: #000; color: var(--text); }
+  .gallery-inspection.animated { animation: inspect-open 200ms var(--ease-out); }
+  .inspection-toolbar { display: flex; justify-content: end; gap: 8px; flex: none; }
+  .inspection-help { flex: 1; align-self: center; color: var(--muted); font-size: 12px; }
+  .inspection-toolbar .inspection-close { order: 1; }
+  .inspection-toolbar button[aria-pressed=true] { color: var(--text); border: 1px solid var(--line-strong); }
+  .inspection-art { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .inspection-viewport { flex: 1; min-height: 0; min-width: 0; overflow: hidden; }
+  .inspection-viewport img, .inspection-viewport .missing { width: 100%; height: 100%; aspect-ratio: auto; object-fit: contain; background: transparent; border-radius: 0; }
+  .inspection-viewport.magnified { overflow: auto; overscroll-behavior: contain; cursor: grab; touch-action: pan-x pan-y; scroll-behavior: auto; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  .inspection-viewport.magnified img { width: auto; height: auto; max-width: none; max-height: none; margin: auto; user-select: none; }
+  .inspection-viewport.dragging { cursor: grabbing; }
+  .inspection-art figcaption { flex: none; max-height: 25%; overflow: auto; text-align: center; margin: 0; }
+  .inspection-nav { display: flex; align-items: center; justify-content: center; gap: 20px; flex: none; color: var(--muted); font-size: 12px; }
+  .gallery-inspection button { min-height: 44px; min-width: 44px; background: transparent; border: 0; }
+  @keyframes inspect-open { from { opacity: 0; transform: scale(.97); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .gallery-inspection.animated { animation: none; } }
+  body.motion-off .gallery-inspection.animated { animation: none; }
+
+}
+
+/* Diagram: ported from the existing Aegis view. Zephium-derived styles remain MPL-2.0. */
+.object.diagram {
+
+  .fit { inline-size: 100%; overflow: hidden; }
+  .diagram { position: relative; color: var(--color-text); transform-origin: 0 0; }
+  .flows { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+  .flow path { fill: none; stroke: var(--color-border-strong); stroke-width: 1.25; transition: opacity var(--motion-fast) var(--ease-out); }
+  .flow path.head { fill: var(--color-border-strong); stroke: none; }
+  .flow.back path:not(.head) { stroke-dasharray: 3 3; }
+  .flow.lit path { stroke: var(--color-muted); stroke-width: 1.5; }
+  .flow.lit path.head { fill: var(--color-muted); }
+  .flow.away { opacity: 0.18; }
+  .node { position: absolute; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 10px 14px; border-radius: 6px;
+    background: color-mix(in srgb, var(--tone) 5%, var(--color-surface)); border: 1px solid color-mix(in srgb, var(--tone) 18%, transparent);
+    transition: opacity var(--motion-fast) var(--ease-out); overflow: hidden; }
+  .node strong { font-size: var(--text-body); font-weight: 650; line-height: 18px; }
+  .node span { color: var(--color-label-secondary); font-size: var(--text-label); line-height: 16px; }
+  .node.external, .node.client { border-style: dashed; }
+  .node.away, .edge-label.away { opacity: 0.35; }
+  .edge-label { position: absolute; transform: translate(-50%, -50%); padding: 1px 6px; border-radius: var(--radius-capsule); background: var(--color-surface); color: var(--color-muted); font-size: var(--text-caption); white-space: nowrap; }
+  .band { position: absolute; box-sizing: border-box; border-radius: 8px; background: var(--color-fill); }
+  .band span { position: absolute; inset-block-start: 5px; inset-inline-start: 12px; color: var(--color-muted); font-size: var(--text-caption); font-weight: 500; }
+
+}
+
+.object-inline {
+
+  /* A term the text leans on reads in a soft accent, never a highlight. */
+  strong {
+    color: var(--color-term);
+    font-weight: 600;
+  }
+
+  strong.plain {
+    color: inherit;
+  }
+
+  code {
+    padding: 1px 5px;
+    border-radius: var(--radius-inset);
+    background: var(--color-code-chip);
+    color: var(--color-code-chip-ink);
+    font-family: var(--font-mono);
+    font-size: 0.86em;
+    box-decoration-break: clone;
+  }
+
+}
+
+.object {
+
+  .trend { display: block; width: 100%; max-width: 120px; height: 34px; overflow: visible; }
+  polyline { fill: none; stroke: var(--data); stroke-width: 1.4; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  circle { fill: var(--data); }
+
+}
