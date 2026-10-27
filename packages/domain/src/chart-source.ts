@@ -12,14 +12,15 @@ const bindingKey = (source: ObjectData['plot']['source']): string => JSON.string
 export type ResolvedPlot = ObjectData['plot'] & { sourceStatus?: string };
 export function resolvePlot(data: ObjectData['plot'], cards: readonly ChartCard[] = []): ResolvedPlot {
   if (!data.source) return data;
+  const {headline:_headline,...bound} = data;
   const source = data.source;
   const sheet = cards.find(card => card.kind === 'sheet' && card.id === source.cardId);
   const {xColumn,yColumns} = source;
   if (sheet?.kind !== 'sheet' || !sheet.data.columns[xColumn] || yColumns.some(column => !sheet.data.columns[column])) {
     const snapshot = data.snapshot?.binding === bindingKey(source) ? data.snapshot : null;
-    return {...data,headline:undefined,series:snapshot?.series || [],sourceStatus:snapshot ? SNAPSHOT_STATUS : MISSING_STATUS};
+    return {...bound,series:snapshot?.series || [],sourceStatus:snapshot ? SNAPSHOT_STATUS : MISSING_STATUS};
   }
-  return {...data,headline:undefined,sourceStatus:'',series:yColumns.map((column,index)=>({
+  return {...bound,sourceStatus:'',series:yColumns.map((column,index)=>({
     name:sheet.data.columns[column]?.label || data.series[index]?.name || '',
     points:sheet.data.rows.map(row=>({x:row.cells[xColumn] ?? '',y:toNumber(row.cells[column])})),
   }))};

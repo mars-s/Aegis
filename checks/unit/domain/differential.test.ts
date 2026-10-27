@@ -210,7 +210,7 @@ test('object_set retains optional removal, array length and invalid path errors'
  ]) expect(deterministic(()=>applyBatch(board,{commands:[command]}))).toEqual(deterministic(()=>oldCommands.applyBatch(board,{commands:[command]})));
 });
 
-test('in-memory live chart snapshots with omitted headlines remain editable',()=>{
+test('legacy in-memory chart snapshots with explicit missing headlines remain editable',()=>{
  const first={commands:[
   {op:'create',type:'object',kind:'sheet',newId:'sourcesh',data:{columns:[{label:'Name',kind:'text'},{label:'Value',kind:'number'}],rows:[{cells:['A','1']},{cells:['B','3']}]}},
   {op:'create',type:'object',kind:'plot',newId:'sourcepl',data:{style:'line',x:{kind:'category'},y:{format:'number'},basis:'Fixture',source:{cardId:'sourcesh',xColumn:0,yColumns:[1]},series:[{name:'Value',points:[{x:'A',y:1},{x:'B',y:3}]}]}},
@@ -219,6 +219,9 @@ test('in-memory live chart snapshots with omitted headlines remain editable',()=
  const created=applyBatch(emptyBoard('live'),first);
  const board=BoardSchema.parse(created.board);
  const deck=board.cards.find(card=>card.id==='sourcedk');
+ const legacySpec=deck?.props?.slides?.[0]?.chart?.spec;
+ if(!legacySpec)throw new Error('Missing legacy chart snapshot fixture');
+ Object.defineProperty(legacySpec,'headline',{value:undefined,enumerable:true,writable:true,configurable:true});
  expect(Object.hasOwn(deck?.props?.slides?.[0]?.chart?.spec ?? {},'headline')).toBe(true);
  const slides=structuredClone(deck?.props?.slides ?? []);
  const slide=slides[0];if(slide)slide.title='After';

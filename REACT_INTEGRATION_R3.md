@@ -66,3 +66,9 @@ Settings now uses real controlled pickers for note colour, model choices and gri
 Generated UI passes the complete unchanged production suite, 652/652. Trust-undo passes 60/60 across both browsers, including all four mixed captures, Put on board, Undo and restored Windows preferences. Generated focus diagnostics identified retired shells retaining selected classes; retirement now clears identity decorations and the existing cleanup regression verifies one live selected card. The root browser suite additionally caught native caret placement after a resting click; the input adapter restores the actual point range rather than moving text or changing assertions.
 
 Canvas advances through colour picker keyboard save/focus and menu motion, then stops at the font picker arrow choice at :101. Editing advances through real group drag to the missing Focus mode at :60. Pan advances past typing and Cmd+K to the agent header cursor at :140/:50. These remain slice-owned follow-ups.
+
+## Derived chart and optional preview boundaries
+
+Accepted the data chart JSON proposal and creative optional link metadata proposal. Bound charts omit the independent headline key instead of emitting undefined. Optional preview strings default to empty strings; invalid types still fail decoding. Four new boundary cases cover live/missing/saved chart sources and partial previews. The pre-fix JSON probe fails at the actual JSON boundary and the same probe passes after the fix.
+
+All 55 domain tests pass. The pre-existing compatibility case still asserts that an old in-memory explicit undefined headline remains editable; its fixture now creates that legacy field explicitly, while the new cases prove new derived charts are valid JSON. Root and React strict types, targeted lint, safe types and whitespace pass. Production evidence-fidelity passes 2333/2333 and chart-defaults passes 105/105, both full declared engine matrices.
