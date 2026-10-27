@@ -756,6 +756,11 @@ export function createCanvas({ stage, world, grid, links, marquee, onBatch, onSe
       if (first) { focusIds = null; focusedId = null; for (const timer of flashes.values()) clearTimeout(timer); flashes.clear(); cancelAnimationFrame(anim); clearTimeout(viewT); clearTimeout(crispTimer); }
       else if (focusedId && !board.cards.some(c => c.id === focusedId)) focusCard(null);
       if (first) { for (const m of mounted.values()) removeEl(m.el); mounted.clear(); selected.clear(); view = next.view ?? { x: 0, y: 0, z: 1 }; if (!next.view || (next.view.x === 0 && next.view.y === 0)) view = { x: stage.clientWidth / 2 - 200, y: stage.clientHeight / 3, z: 1 }; }
+      // Publish local content and hit areas with the board, before another input can read stale SVG.
+      if (!first && !animate) {
+        if (!(view.z < FAR && visibleCount() > LIVE_LIMIT)) mountVisible();
+        drawLinks();
+      }
       schedule(true);
       stage.dispatchEvent(new CustomEvent('boardchange', { detail: { board, first } }));
       return first;
