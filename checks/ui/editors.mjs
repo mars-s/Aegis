@@ -148,7 +148,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => document.body.classList.add('motion-off'));
   await openEvent('sheet001');
   assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionProperty), 'opacity');
-  await grid.locator('[data-r="0"][data-c="0"]').click(); await grid.press('Shift+Tab');
+  await grid.locator('[data-r][data-c="0"]').first().click(); await grid.press('Shift+Tab');
   assert.equal(await page.getByLabel('Selected cell value', { exact: true }).evaluate(el => el === document.activeElement), true, 'Tab can leave the grid');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
