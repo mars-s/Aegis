@@ -1,0 +1,767 @@
+/* Zen chrome. Colours use the existing Aegis tokens. */
+.aegis-chrome {
+  --muted: var(--color-muted);
+  --card: var(--color-surface);
+  --surface: var(--color-float);
+  font: 13px var(--font);
+  color: var(--color-text);
+}
+.aegis-chrome button,
+.aegis-chrome summary {
+  min-height: 32px;
+  font: inherit;
+  border: 0;
+  background: transparent;
+  border-radius: 6px;
+  color: inherit;
+  cursor: pointer;
+}
+.aegis-chrome button:hover,
+.aegis-chrome summary:hover {
+  background: var(--color-fill-hover);
+}
+.aegis-chrome button:active,
+.aegis-chrome summary:active {
+  transform: scale(0.97);
+}
+.aegis-chrome :is(button, input, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-ring);
+  outline-offset: 2px;
+}
+.aegis-chrome button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+.aegis-chrome input {
+  min-height: 32px;
+  min-width: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  padding: 6px 8px;
+  caret-color: var(--color-text);
+}
+.aegis-chrome input::placeholder {
+  color: var(--color-muted);
+  opacity: 1;
+}
+.aegis-chrome ::selection {
+  background: var(--color-fill-hover);
+  color: var(--color-text);
+}
+.aegis-chrome svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.aegis-chrome .icon-btn {
+  padding: 8px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 32px;
+}
+.aegis-chrome .bar {
+  position: absolute;
+  inset: 8px 12px auto 84px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  z-index: 40;
+  pointer-events: none;
+}
+.aegis-chrome .bar > * {
+  pointer-events: auto;
+}
+.aegis-chrome .bar-left,
+.aegis-chrome .bar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aegis-chrome #boardName {
+  color: var(--color-muted);
+  max-width: min(40vw, 420px);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+.aegis-chrome #boardCrumbs {
+  display: flex;
+  gap: 4px;
+}
+.aegis-chrome .bar-right {
+  margin-left: auto;
+  color: var(--color-muted);
+}
+.aegis-chrome [data-save-state="blocked"] {
+  max-width: 240px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text);
+}
+.aegis-chrome .bar-left,
+.aegis-chrome .bar-right,
+.aegis-chrome #tools {
+  opacity: 0;
+  transition: opacity 160ms var(--ease-out);
+}
+.aegis-chrome .chrome-visible,
+.aegis-chrome :is(.bar-left, .bar-right, #tools):focus-within {
+  opacity: 1;
+}
+.aegis-chrome .chrome-instant {
+  transition-duration: 0ms;
+}
+.aegis-chrome .reveal-arrow {
+  position: absolute;
+  top: 50%;
+  margin-top: -22px;
+  width: 32px;
+  min-height: 44px;
+  z-index: 45;
+  opacity: 0;
+  pointer-events: none;
+  color: var(--color-muted);
+  transition: opacity 120ms var(--ease-out);
+}
+.aegis-chrome #revealLeft {
+  left: 0;
+}
+.aegis-chrome #revealRight {
+  right: 0;
+}
+.aegis-chrome .reveal-arrow.show,
+.aegis-chrome .reveal-arrow:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+  background: var(--color-surface);
+}
+.aegis-chrome .side {
+  position: absolute;
+  top: 48px;
+  bottom: 12px;
+  left: 8px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  border-radius: 10px;
+  background: var(--color-surface);
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+}
+.aegis-chrome .side-right {
+  left: auto;
+  right: 8px;
+}
+.aegis-chrome [hidden],
+.aegis-chrome .side[hidden] {
+  display: none !important;
+}
+.aegis-chrome .side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 4px 12px;
+  height: 40px;
+  flex-shrink: 0;
+  color: var(--color-muted);
+}
+.aegis-chrome .pbox {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex-shrink: 0;
+}
+.aegis-chrome .phead {
+  height: 36px;
+  padding: 2px 8px 2px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.aegis-chrome .phead > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aegis-chrome .pcount {
+  font-weight: 400;
+  color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+.aegis-chrome .fold {
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  width: 32px;
+  height: 32px;
+}
+.aegis-chrome .folded .pbody {
+  display: none;
+}
+.aegis-chrome .pbody {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+.aegis-chrome [data-panel="layers"] {
+  max-height: 45%;
+}
+.aegis-chrome [data-panel="layers"] > .pbody {
+  height: 240px;
+  max-height: 320px;
+}
+.aegis-chrome [data-panel="layers"].is-filtered > .pbody {
+  height: auto;
+  max-height: 320px;
+}
+.aegis-chrome [data-panel="library"] {
+  flex: 1;
+  min-height: 240px;
+}
+.aegis-chrome [data-panel="library"] > .pbody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.aegis-chrome [data-panel="tools"] > .pbody {
+  max-height: 30vh;
+}
+.aegis-chrome .tools-panels {
+  padding-bottom: 8px;
+}
+.aegis-chrome .resize-handle {
+  height: 6px;
+  flex-shrink: 0;
+  cursor: ns-resize;
+}
+.aegis-chrome .resize-handle:hover {
+  background: var(--color-fill-hover);
+}
+.aegis-chrome .layer-filter {
+  margin: 4px 8px;
+  width: calc(100% - 16px);
+}
+.aegis-chrome .layer-list,
+.aegis-chrome .tree {
+  padding: 2px 4px;
+}
+.aegis-chrome .layer-row,
+.aegis-chrome .tree-row {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding-right: 2px;
+  cursor: default;
+}
+.aegis-chrome .layer-row.on,
+.aegis-chrome .tree-row.on {
+  background: var(--color-fill);
+}
+.aegis-chrome .layer-row:hover,
+.aegis-chrome .tree-row:hover {
+  background: var(--color-fill-hover);
+}
+.aegis-chrome .layer-row.above {
+  border-top: 1px solid var(--color-text);
+}
+.aegis-chrome .layer-row.below {
+  border-bottom: 1px solid var(--color-text);
+}
+.aegis-chrome .layer-row .name,
+.aegis-chrome .tree-row .name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aegis-chrome .layer-row .row-state {
+  display: flex;
+  align-items: center;
+  color: var(--color-muted);
+  gap: 2px;
+}
+.aegis-chrome .row-state svg {
+  width: 12px;
+  height: 12px;
+}
+.aegis-chrome .row-more {
+  color: var(--color-muted);
+  opacity: 0;
+}
+.aegis-chrome :is(.layer-row, .tree-row):is(:hover, :focus-within) .row-more {
+  opacity: 1;
+}
+.aegis-chrome .layer-fold,
+.aegis-chrome .twisty {
+  padding: 0;
+  width: 16px;
+  min-height: 28px;
+  flex-shrink: 0;
+}
+.aegis-chrome .layer-empty,
+.aegis-chrome .chrome-empty {
+  color: var(--color-muted);
+  padding: 8px 12px;
+}
+.aegis-chrome .layer-empty p {
+  margin: 4px 0 8px;
+}
+.aegis-chrome .tree {
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.aegis-chrome .tree-row > .twisty {
+  width: 10px;
+}
+.aegis-chrome .tree-row > svg {
+  width: 14px;
+}
+.aegis-chrome .tree-row > .row-more {
+  width: 32px;
+}
+.aegis-chrome .tree-row .name {
+  margin-left: 0;
+}
+.aegis-chrome .library-footer {
+  padding: 8px;
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.aegis-chrome .library-footer button {
+  flex: 1;
+  padding: 6px;
+}
+.aegis-chrome .library-home-button {
+  text-align: left;
+  margin: 0 8px 4px;
+}
+.aegis-chrome #tools {
+  position: absolute;
+  top: 56px;
+  left: calc(var(--side-w, 0px) + 12px);
+  display: flex;
+  flex-direction: column;
+  width: 48px;
+  gap: 3px;
+  padding: 4px;
+  z-index: 34;
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+.aegis-chrome #tools button {
+  width: 40px;
+  padding: 6px 2px;
+  min-height: 36px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aegis-chrome .selection-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 38px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--color-float);
+  z-index: 42;
+  max-width: calc(100vw - 24px);
+  box-shadow: var(--shadow-float);
+}
+.aegis-chrome .selection-bar button,
+.aegis-chrome .selection-bar summary {
+  padding: 6px 8px;
+}
+.aegis-chrome .selection-more {
+  display: inline-block;
+}
+.aegis-chrome .selection-more > summary {
+  display: flex;
+  align-items: center;
+  list-style: none;
+  min-height: 32px;
+}
+.aegis-chrome summary::-webkit-details-marker {
+  display: none;
+}
+.aegis-chrome .selection-overflow,
+.aegis-chrome .selection-popup-menu {
+  padding: 8px;
+  min-width: 240px;
+}
+.aegis-chrome .selection-overflow > :is(section, details),
+.aegis-chrome .selection-overflow > section > button {
+  display: block;
+  width: 100%;
+}
+.aegis-chrome .selection-overflow h3 {
+  font-size: 12px;
+  margin: 8px 6px 4px;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+.aegis-chrome .selection-overflow button {
+  text-align: left;
+}
+.aegis-chrome .selection-colours {
+  display: grid;
+  grid-template-columns: repeat(4, 40px);
+  gap: 4px;
+}
+.aegis-chrome .selection-colours button {
+  padding: 6px;
+  display: grid;
+  place-items: center;
+}
+.aegis-chrome .selection-colours button::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--swatch, #555);
+}
+.aegis-chrome .selection-colours [aria-pressed="true"] {
+  outline: 1px solid var(--color-text);
+}
+.aegis-chrome .swatch-plain {
+  --swatch: #292c30;
+}
+.aegis-chrome .swatch-gray {
+  --swatch: #727780;
+}
+.aegis-chrome .swatch-blue {
+  --swatch: #377bc6;
+}
+.aegis-chrome .swatch-green {
+  --swatch: #4f895e;
+}
+.aegis-chrome .swatch-yellow {
+  --swatch: #b29b47;
+}
+.aegis-chrome .swatch-orange {
+  --swatch: #ad7941;
+}
+.aegis-chrome .swatch-red {
+  --swatch: #a8585b;
+}
+.aegis-chrome .swatch-purple {
+  --swatch: #8d68a9;
+}
+.aegis-chrome .selection-row {
+  height: 44px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.aegis-chrome .selection-row > span:first-child {
+  width: 112px;
+  flex: 0 0 112px;
+  white-space: nowrap;
+}
+.aegis-chrome .aegis-stepper {
+  width: 96px;
+  height: 32px;
+  display: flex;
+}
+.aegis-chrome .aegis-stepper input {
+  border-radius: 0;
+  width: 32px;
+  padding: 4px 0;
+  text-align: center;
+}
+.aegis-chrome .aegis-stepper button {
+  width: 32px;
+  flex-shrink: 0;
+  padding: 0;
+  text-align: center;
+}
+.aegis-chrome .editing-outline {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 41;
+}
+.aegis-chrome .rotation-handle {
+  position: absolute;
+  left: calc(50% - 16px);
+  top: -32px;
+  pointer-events: auto;
+  width: 32px;
+  height: 32px;
+  padding: 8px;
+  background: var(--color-float);
+  cursor: grab;
+}
+.aegis-chrome .selection-resize {
+  position: absolute;
+  right: -16px;
+  bottom: -16px;
+  pointer-events: auto;
+  width: 32px;
+  height: 32px;
+  cursor: nwse-resize;
+}
+.aegis-chrome .toast {
+  position: absolute;
+  bottom: 96px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 24px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: var(--color-float);
+  border-radius: 10px;
+  box-shadow: var(--shadow-float);
+  z-index: 100;
+}
+.aegis-chrome dialog {
+  color: var(--color-text);
+  background: var(--color-float);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 14px;
+  padding: 16px;
+  font: 13px var(--font);
+}
+.aegis-chrome dialog::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.aegis-chrome .command-palette {
+  width: min(480px, calc(100vw - 24px));
+  max-height: 70vh;
+}
+.aegis-chrome .command-palette input {
+  width: 100%;
+}
+.aegis-chrome .command-palette [role="menu"] {
+  overflow: auto;
+  max-height: 50vh;
+}
+.aegis-chrome .command-palette [role="menuitem"] {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.aegis-chrome kbd {
+  font: 12px var(--font);
+  color: var(--color-muted);
+}
+.aegis-chrome dl {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  padding: 8px 12px;
+}
+.aegis-chrome dd {
+  margin: 0;
+  color: var(--color-muted);
+}
+.aegis-chrome .library-home {
+  width: calc(100vw - 24px);
+  height: calc(100vh - 24px);
+  max-width: none;
+  max-height: none;
+}
+.aegis-chrome .library-home nav,
+.aegis-chrome .home-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aegis-chrome .home-heading {
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+.aegis-chrome .home-heading h1 {
+  font-size: 22px;
+  font-weight: 600;
+  margin-right: auto;
+}
+.aegis-chrome .home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 20px;
+  margin-top: 24px;
+}
+.aegis-chrome .home-tile {
+  min-width: 0;
+}
+.aegis-chrome .home-preview {
+  display: block;
+  width: 100%;
+  height: 150px;
+  background: var(--color-surface);
+}
+.aegis-chrome .home-preview svg,
+.aegis-chrome .home-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.aegis-chrome .home-preview rect {
+  fill: var(--color-fill-hover);
+  stroke: var(--color-muted);
+}
+.aegis-chrome .home-tile p {
+  color: var(--color-muted);
+}
+@media (max-width: 700px), (pointer: coarse) {
+  .aegis-chrome .bar {
+    left: 8px;
+    right: 8px;
+  }
+  .aegis-chrome .bar-right > :is([data-saved], button) {
+    display: none;
+  }
+  .aegis-chrome .side {
+    width: min(420px, calc(100vw - 16px)) !important;
+  }
+  .aegis-chrome #tools {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    flex-direction: row;
+    width: auto;
+    overflow-x: auto;
+    opacity: 1;
+  }
+  .aegis-chrome #tools button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .aegis-chrome .bar-left,
+  .aegis-chrome .bar-right {
+    opacity: 1;
+  }
+  .aegis-chrome :is(.row-more, .icon-btn, .fold, .adds button) {
+    min-height: 44px;
+    min-width: 44px;
+    opacity: 1;
+  }
+  .aegis-chrome .phead,
+  .aegis-chrome .side-head {
+    min-height: 48px;
+  }
+  .aegis-chrome .row-more {
+    flex-basis: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aegis-chrome * {
+    transition-duration: 0ms !important;
+    animation: none !important;
+  }
+}
+@media (prefers-contrast: more) {
+  .aegis-chrome .side {
+    border-color: var(--color-muted);
+  }
+}
+.aegis-chrome .tools-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(72px, 1fr));
+  gap: 4px;
+}
+.aegis-chrome .side.panel-drop {
+  display: flex !important;
+  border-color: var(--color-muted);
+}
+.aegis-chrome .panel-slot {
+  min-height: 28px;
+  margin: 4px 8px;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.aegis-chrome .panel-slot.on {
+  background: var(--color-fill-hover);
+  border-color: var(--color-muted);
+}
+.panel-lifted {
+  opacity: 0.9;
+  border-radius: 10px;
+  box-shadow: var(--shadow-float);
+}
+.aegis-chrome .bar-right:has([data-save-state="blocked"]),
+body.left-open .aegis-chrome .bar-left {
+  opacity: 1;
+}
+/* Preserve the compact Windows section and centred board name of the locked UI. */
+.aegis-chrome #boardName {
+  position: fixed;
+  left: 50%;
+  top: 8px;
+  translate: -50% 0;
+}
+.aegis-chrome .side > .pbox {
+  margin: 0 8px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+}
+.aegis-chrome .phead {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+.aegis-chrome [data-panel="layers"] > .pbody {
+  height: auto;
+}
+.aegis-chrome .selection-bar .inline-size .selection-row {
+  height: 32px;
+}
+.aegis-chrome .selection-bar .inline-size .selection-row > span:first-child {
+  display: none;
+}
+.aegis-chrome .selection-bar .inline-size .aegis-stepper button {
+  width: 24px;
+}
+.aegis-chrome .selection-bar .inline-size .aegis-stepper {
+  width: 80px;
+}
+.aegis-chrome .side-resize {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.aegis-chrome .side-right .side-resize {
+  right: auto;
+  left: 0;
+}
+.aegis-chrome .side-resize:hover {
+  background: var(--color-fill-hover);
+}
+.aegis-chrome .selection-bar { width: max-content; }
