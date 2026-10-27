@@ -919,3 +919,5 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
 body.left-open .aegis-chrome .editing-hints { visibility: hidden; }
 @media (max-height: 650px) { .aegis-chrome .editing-hints { display: none; } }
 @media (hover: none) { .aegis-chrome .editing-hints { opacity: .65; } }
+
+.aegis-chrome .tools-add-notes { min-height: 44px; }

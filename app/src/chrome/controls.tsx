@@ -204,6 +204,7 @@ export function PopupButton({
   className = "",
   triggerId,
   menuId,
+  closeOnResize = false,
 }: {
   readonly label: string;
   readonly children: ReactNode;
@@ -211,6 +212,7 @@ export function PopupButton({
   readonly className?: string;
   readonly triggerId?: string;
   readonly menuId?: string;
+  readonly closeOnResize?: boolean;
 }) {
   const button = useRef<HTMLButtonElement>(null),
     content = useRef<HTMLDivElement>(null);
@@ -227,8 +229,10 @@ export function PopupButton({
       },
     });
     controller.current = popup;
-    return () => { popup.destroy(); controller.current = null; };
-  }, [label]);
+    const resized = () => { if (closeOnResize) popup.close(false, true); };
+    window.addEventListener("resize", resized);
+    return () => { window.removeEventListener("resize", resized); popup.destroy(); controller.current = null; };
+  }, [label, closeOnResize]);
   return (
     <>
       <button ref={button} id={triggerId} type="button" aria-label={label}>
@@ -241,7 +245,7 @@ export function PopupButton({
         aria-label={`${label} controls`}
         onClick={event => {
           const target = event.target;
-          if (target instanceof Element && target.closest('button[data-tool]:not([data-tool="templates"])')) controller.current?.close(true, true);
+          if (target instanceof Element && target.closest('button[data-popup-close],button[data-tool]:not([data-tool="templates"])')) controller.current?.close(true, true);
         }}
         hidden
       >

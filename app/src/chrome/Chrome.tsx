@@ -1068,6 +1068,7 @@ export function Chrome({
           label="More tools"
           triggerId="toolsFold"
           menuId="toolsPopover"
+          closeOnResize
           className="tools-popover"
         >
           <div className="tools-grid">{dockIds.slice(7).filter(id => !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
@@ -1075,6 +1076,7 @@ export function Chrome({
             <h3>Media</h3>
             <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
           </section> : null}
+          <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}>Add as notes</button>
           {customiseToolbar ? (
             <button aria-label="Customise toolbar" onClick={customiseToolbar}>
               Customise toolbar
