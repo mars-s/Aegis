@@ -185,12 +185,13 @@ try {
       await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async id => aegis.canvas.setBoard(await aegis.host.get(`/boards/${id}`)), boardId);
       await page.evaluate(() => aegis.canvas.fit());
-      const summary = page.locator('.card[data-id="liveplot"]');
-      await summary.getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
-      assert.match(await summary.locator('.values tbody tr:last-child td').textContent(), /9/);
+      const plotCard = page.locator('.card[data-id="liveplot"]');
+      await plotCard.getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
+      assert.equal(await plotCard.locator('.values tbody tr:last-child td').textContent(), '9 h');
+      assert.match(await plotCard.locator('.cartesian svg').getAttribute('aria-label'), /9 h/);
       const doc = page.locator('.card[data-id="brief001"]');
       await doc.waitFor();
-      assert.match(await doc.locator('.doc-view').textContent(), /Compare the weekly focus hours with the evidence\./);
+      assert.equal(await doc.locator('.doc-view').textContent(), 'Compare the weekly focus hours with the evidence. Keep the whole comparison.');
       await open('brief001');
       await page.locator('.editor-reference-chart').getByText('Source missing, showing saved snapshot', { exact: true }).waitFor();
       await close(); await open('liveplot');
