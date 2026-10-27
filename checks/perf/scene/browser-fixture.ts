@@ -70,7 +70,11 @@ const workspace: CanvasWorkspace = {
     return { kind: 'applied' };
   },
 };
-const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: new URLSearchParams(location.search).get('motion') !== 'on', snapGrid: 24 });
+const insetArea = { x: 240, y: 68, width: 800, height: 600 };
+const areaListeners = new Set<() => void>();
+const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: new URLSearchParams(location.search).get('motion') !== 'on', snapGrid: 24,
+  ...(new URLSearchParams(location.search).has('insets') ? { availableArea: { getSnapshot: () => insetArea, subscribe: (listener: () => void) => { areaListeners.add(listener); return () => { areaListeners.delete(listener); }; } } } : {}),
+});
 bindOrientationMenu(stage, engine, () => current.cards, () => {});
 
 function Body({ lease }: { readonly lease: SlotLease }) {

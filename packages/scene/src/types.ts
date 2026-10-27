@@ -63,6 +63,11 @@ export interface FrameDiagnostics {
   readonly tier: ZoomTier;
   readonly camera: CameraState;
 }
+export interface FrameParticipant {
+  readonly read: () => void;
+  readonly write: () => void;
+  readonly fitBounds?: (zoom: number) => readonly Rect[];
+}
 export interface CanvasEngine {
   readonly leases: LeaseSource;
   readonly navigate: (intent: Navigation) => void;
@@ -72,6 +77,9 @@ export interface CanvasEngine {
   readonly hitTest: (point: Point) => CardId | null;
   readonly pin: (id: CardId, reason: PinReason, pinned: boolean) => void;
   readonly requestMeasurement: (key: string, generation: number) => void;
+  readonly registerFrameParticipant: (participant: FrameParticipant) => () => void;
+  readonly viewport: () => Rect;
+  readonly availableArea: () => Rect;
   readonly invalidate: () => void;
   readonly inspect: () => FrameDiagnostics;
   readonly recordMetrics: (enabled: boolean) => void;
@@ -88,4 +96,5 @@ export interface CanvasAttachment {
   readonly reducedMotion?: boolean;
   readonly snapGrid?: number;
   readonly canLease?: (card: Card) => boolean;
+  readonly availableArea?: Source<Rect>;
 }

@@ -15,10 +15,10 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false): Promise<Page> {
+async function page(motion = false, insets = false): Promise<Page> {
   if (!browser) throw new Error('Browser not started');
   const result = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await result.goto(url + (motion ? '?motion=on' : ''));
+  await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
   return result;
@@ -38,6 +38,36 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test('runs frame participants around scene writes and fits fixed-size windows inside the supplied area', async () => {
+    const p = await page(false, true);
+    await p.evaluate(() => {
+      const events: string[] = [], engine = window.sceneHarness.engine;
+      const world = document.getElementById('world');
+      if (!world) throw new Error('The world is missing');
+      Object.defineProperty(world.style, 'transform', { configurable: true, set: (value: string) => { events.push('world'); world.style.setProperty('transform', value); }, get: () => world.style.getPropertyValue('transform') });
+      engine.registerFrameParticipant({
+        read: () => { events.push('read'); }, write: () => { events.push('write'); world.dataset.participantOrder = events.join(','); },
+        fitBounds: zoom => [{ x: 2500, y: 1000, width: 340 / zoom, height: 300 / zoom }],
+      });
+      engine.navigate({ kind: 'fit', ids: [], motion: 'instant' });
+    });
+    await idle(p);
+    const result = await p.evaluate(() => {
+      const engine = window.sceneHarness.engine, camera = engine.camera();
+      return { area: engine.availableArea(), camera, order: document.getElementById('world')?.dataset.participantOrder,
+        bounds: [...window.sceneHarness.board().cards.map(card => ({ x: card.x * camera.zoom + camera.x, y: card.y * camera.zoom + camera.y, width: card.w * camera.zoom, height: card.h * camera.zoom })), { x: 2500 * camera.zoom + camera.x, y: 1000 * camera.zoom + camera.y, width: 340, height: 300 }] };
+    });
+    expect(result.area).toEqual({ x: 240, y: 68, width: 800, height: 600 });
+    expect(result.order).toMatch(/^(read,world,write)(,read,world,write)*$/);
+    for (const rect of result.bounds) {
+      expect(rect.x).toBeGreaterThanOrEqual(result.area.x - 0.01);
+      expect(rect.y).toBeGreaterThanOrEqual(result.area.y - 0.01);
+      expect(rect.x + rect.width).toBeLessThanOrEqual(result.area.x + result.area.width + 0.01);
+      expect(rect.y + rect.height).toBeLessThanOrEqual(result.area.y + result.area.height + 0.01);
+    }
+    await p.close();
+  });
+
   test('an early frame timestamp holds the glide at its start before moving monotonically', async () => {
     const p = await page(true);
     const result = await p.evaluate(() => {
@@ -193,6 +223,7 @@ describe('real scene attachment', () => {
       harness.holdCleanup(true); harness.replace(20);
     }); await idle(p);
     await p.waitForFunction(() => window.sceneHarness.cleanups.length >= 4);
+    expect(await p.locator('.card[data-id="note-1"]').count()).toBe(1);
     expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().every(lease => !lease.host.dataset.originalGeneration))).toBe(true);
     const releasing = await p.evaluate(() => window.sceneHarness.engine.inspect().releasingLeases);
     expect(releasing).toBeGreaterThan(0);

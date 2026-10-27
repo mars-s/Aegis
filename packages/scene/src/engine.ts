@@ -1,7 +1,7 @@
 import type { Card, CardId, Command, LinkId } from '@aegis/domain/schema';
 import { CanvasPainter } from './draw.js';
 import type { DrawLink } from './draw.js';
-import { clampZoom, fromBounds, hitRotated, intersects, project, rotatedBounds, toBounds, unproject } from './geometry.js';
+import { clampZoom, fitBounds, fromBounds, hitRotated, intersects, project, rotatedBounds, toBounds, union, unproject } from './geometry.js';
 import type { CameraState, Point, Rect } from './geometry.js';
 import { SceneGraph } from './graph.js';
 import type { SceneNode } from './graph.js';
@@ -11,9 +11,9 @@ import { linkBounds, routeLink } from './links.js';
 import { FrameMetrics } from './metrics.js';
 import { angleFrom, resizeRect, rotationDelta } from './gestures.js';
 import { SceneOverlays } from './overlays.js';
-import { fitSpatial, LIVE_LIMIT, representationMode } from './representations.js';
+import { LIVE_LIMIT, representationMode } from './representations.js';
 import type { ZoomTier } from './representations.js';
-import type { CanvasAttachment, CanvasEngine, FramePhase, Navigation, Representation } from './types.js';
+import type { CanvasAttachment, CanvasEngine, FrameParticipant, FramePhase, Navigation, Representation } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
 type Input =
@@ -55,6 +55,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const inputs: Input[] = [], positions = new Map<CardId, Rect>(), rotations = new Map<CardId, number>(), touches = new Map<number, Point>(), measurements = new Map<string, MeasurementRequest>(), retired = new Set<CardId>();
   let touchQuarantine = false;
   const abort = new AbortController();
+  const participants = new Set<FrameParticipant>();
+  const measuredHeights: { readonly shell: HTMLElement; readonly height: number }[] = [];
   const motionPreference = view.matchMedia('(prefers-reduced-motion: reduce)');
   const reducedMotion = (): boolean => (args.reducedMotion ?? motionPreference.matches) || stage.ownerDocument.body.classList.contains('motion-off');
   const canLease = args.canLease ?? ((card: Card): boolean => card.type === 'note' || card.type === 'title');
@@ -86,6 +88,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
 
   function boundsFor(node: SceneNode): Rect { return positions.get(node.card.id) ?? node.layout.bounds; }
   function rotationFor(node: SceneNode): number { return rotations.get(node.card.id) ?? node.rotation; }
+  function availableArea(): Rect { return args.availableArea?.getSnapshot() ?? viewport; }
 
   function cancelGesture(): void {
     if (gesture?.kind === 'move') for (const id of gesture.bases.keys()) pool.pin(id, 'capture', false);
@@ -107,8 +110,16 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       case 'restore': target = { x: intent.camera.x, y: intent.camera.y, zoom: clampZoom(intent.camera.zoom) }; break;
       case 'fit': {
         const ids = new Set(intent.ids);
-        const items = graph.all().filter(node => !ids.size || ids.has(node.card.id)).map(node => ({ id: node.card.id, bounds: fromBounds(rotatedBounds(boundsFor(node), rotationFor(node))) }));
-        target = fitSpatial(items, { x: 48, y: 48, width: Math.max(1, viewport.width - 96), height: Math.max(1, viewport.height - 96) });
+        const items = graph.all().filter(node => !ids.size || ids.has(node.card.id)).map(node => fromBounds(rotatedBounds(boundsFor(node), rotationFor(node))));
+        const available = availableArea(), area = { x: available.x + 48, y: available.y + 48, width: Math.max(1, available.width - 96), height: Math.max(1, available.height - 96) };
+        target = fitBounds(union(items), area);
+        if (!ids.size) for (let iteration = 0; iteration < 24; iteration++) {
+          const fixed = [...participants].flatMap(participant => participant.fitBounds?.(target.zoom) ?? []);
+          const next = fitBounds(union([...items, ...fixed]), area, target.zoom);
+          const settled = Math.abs(next.zoom - target.zoom) < 1e-10;
+          target = next;
+          if (settled) break;
+        }
         break;
       }
       default: { const exhaustive: never = intent; return exhaustive; }
@@ -334,6 +345,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       const style = shell ? view.getComputedStyle(shell) : null;
       const borders = (Number.parseFloat(style?.borderTopWidth ?? '0') || 0) + (Number.parseFloat(style?.borderBottomWidth ?? '0') || 0);
       const height = Math.max(24, Math.min(4000, Math.ceil(lease.host.scrollHeight + borders)));
+      if (shell) measuredHeights.push({ shell, height });
       if (Math.abs(height - current.h) > 1) commits.push({ request, id: current.id, height });
     }
     measurements.clear();
@@ -367,15 +379,19 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     }
     readMeasurements();
     overlays.read(viewport, stageOrigin, camera, representations, graph.nodes, selected);
+    for (const participant of participants) participant.read();
     phases.reads = performance.now() - mark; mark = performance.now();
     if (resetLeases) { pool.reset(workspace.scene.snapshot().id); resetLeases = false; }
     for (const id of retired) pool.retire(id);
     retired.clear();
     world.style.transform = `translate(${camera.x}px, ${camera.y}px) scale(${camera.zoom})`;
-    stage.dataset.zoomTier = tier; stage.classList.toggle('far', tier === 'far'); stage.classList.toggle('panning', gesture?.kind === 'pan' || gesture?.kind === 'pinch'); stage.classList.toggle('pan-ready', spaceHeld);
+    stage.classList.toggle('far', tier === 'far'); stage.classList.toggle('panning', gesture?.kind === 'pan' || gesture?.kind === 'pinch'); stage.classList.toggle('pan-ready', spaceHeld);
+    for (const { shell, height } of measuredHeights) if (shell.dataset.intrinsicHeight !== String(height)) shell.dataset.intrinsicHeight = String(height);
+    measuredHeights.length = 0;
     pool.reconcile(placements, timestamp);
     painter.paint(viewport, dpr, camera, representations, drawnLinks, id => pool.has(id), selected, marquee);
     overlays.write();
+    for (const participant of participants) participant.write();
     phases.writes = performance.now() - mark;
     const end = performance.now();
     metrics.push(start, previousFrame ? timestamp - previousFrame : 0, end - start, phases, inputAt === null ? null : end - inputAt, candidates.length, drawnLinks.length, pool.stats().active);
@@ -476,6 +492,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     invalidate();
   });
   const unsubscribeSelection = workspace.selection.subscribe(() => { selected = new Set(workspace.selection.getSnapshot()); invalidate(); });
+  const unsubscribeArea = args.availableArea?.subscribe(invalidate);
   invalidate();
 
   return {
@@ -492,6 +509,9 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       else discardedMeasurements++;
       invalidate();
     },
+    registerFrameParticipant: participant => { participants.add(participant); invalidate(); return () => { participants.delete(participant); }; },
+    viewport: () => viewport,
+    availableArea,
     invalidate,
     inspect: () => { const stats = pool.stats(); return { pendingFrames: pending ? 1 : 0, frameCount, visibleCards: representations.length, visibleLinks: drawnLinks.length, activeLeases: stats.active, pinnedLeases: stats.pinned, releasingLeases: stats.releasing, queuedMounts: stats.queued, discardedMeasurements, tier, camera: { ...camera } }; },
     recordMetrics: enabled => { metrics.record(enabled); previousFrame = 0; },
@@ -499,7 +519,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     dispose: () => {
       if (disposed) return;
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
-      abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); pool.dispose(); overlays.dispose();
+      abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); unsubscribeArea?.(); participants.clear(); pool.dispose(); overlays.dispose();
       releaseSpace(); stage.classList.remove('panning', 'far');
       metrics.record(false);
       graph.clear(); measurements.clear(); inputs.length = 0; positions.clear(); representations = []; placements = []; drawnLinks = []; candidates = [];

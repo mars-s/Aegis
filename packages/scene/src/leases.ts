@@ -144,6 +144,10 @@ export class LeasePool {
     const lease = shell.residency.lease;
     this.byCard.delete(lease.cardId); shell.residency = { kind: 'releasing', lease };
     shell.element.hidden = true; shell.element.inert = true; shell.visible = false;
+    delete shell.element.dataset.id; delete shell.element.dataset.type; delete shell.element.dataset.kind;
+    if (shell.typeClass) shell.element.classList.remove(shell.typeClass);
+    if (shell.kindClass) shell.element.classList.remove(shell.kindClass);
+    shell.typeClass = ''; shell.kindClass = ''; shell.appearance = '';
     this.postPublish();
   }
 
