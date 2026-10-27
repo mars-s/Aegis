@@ -73,7 +73,10 @@ export async function readConnectionPreview(page, at) {
       return { target: target.getAttribute('data-connect-target'), end: { x: end.x, y: end.y } };
     }
     const stroke = canvas.linkPaint.findLast(stroke => stroke.preview && stroke.commands.at(-1)?.method === 'quadraticCurveTo');
-    if (!stroke) throw Error('The connection tool did not paint a preview');
+    if (!stroke) {
+      const target = document.elementFromPoint(at.x, at.y);
+      throw Error('The connection tool did not paint a preview: ' + JSON.stringify({ cursor: document.getElementById('stage').style.cursor, target: target && { tag: target.tagName, text: target.textContent?.slice(0, 100), parent: target.parentElement?.className }, strokes: canvas.linkPaint.map(stroke => ({ preview: stroke.preview, commands: stroke.commands })) }));
+    }
     const last = stroke.commands.at(-1), transform = stroke.transform;
     return { target: aegis.canvas.engine.hitTest(at), end: { x: (last.args.at(-2) * transform.a + transform.e) / devicePixelRatio, y: (last.args.at(-1) * transform.d + transform.f) / devicePixelRatio } };
   }, at);
