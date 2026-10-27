@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { CanvasEngine } from '@aegis/scene';
 import type { UiState } from '../workspace/index.js';
 
@@ -13,7 +13,7 @@ type Presence = { readonly kind: 'closed' } | {
 export function useEditorPresence(editor: UiState['editor'], engine: CanvasEngine | null, instant: () => boolean) {
   const [presence, setPresence] = useState<Presence>({ kind: 'closed' });
   const element = useRef<HTMLElement>(null);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (editor) {
       const immediate = instant();
       setPresence(previous => previous.kind !== 'closed' && previous.kind !== 'closing' && previous.editor.id === editor.id
