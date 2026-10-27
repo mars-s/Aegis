@@ -44,3 +44,10 @@ button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(-
 .aegis-chrome .unsorted-list .tray-item { text-align: left; overflow-wrap: anywhere; padding: 8px; border: 1px solid var(--line); }
 .aegis-chrome .unsorted-list .tray-item.dragging { opacity: .5; }
 .aegis-chrome .creative-panel-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.react-editor { transform: translateX(100%); opacity: 0; transition-property: transform, opacity; transition-duration: .26s; transition-timing-function: cubic-bezier(.32,.72,0,1); }
+.react-editor.is-open { transform: translateX(0); opacity: 1; }
+.react-editor.is-closing { transition-duration: .2s; pointer-events: none; }
+.react-editor.instant, body.motion-off .react-editor { transition-duration: 0s; }
+.react-editor-content, .react-editor-content > .docs-panel { transition-duration: inherit; }
+@media (prefers-reduced-motion: reduce) { .react-editor { transition-duration: 0s; } }
