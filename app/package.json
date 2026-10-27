@@ -39,6 +39,9 @@
     "katex": "0.19.1",
     "pdfjs-dist": "6.4.299",
     "@aegis/domain": "*",
-    "@aegis/protocol": "*"
+    "@aegis/protocol": "*",
+    "@aegis/host-client": "*",
+    "@aegis/scene": "*",
+    "zod": "4.6.7"
   }
 }

@@ -50,6 +50,8 @@ export class LeasePool {
     if (this.expiry) { clearTimeout(this.expiry); this.expiry = null; }
     const visible = new Set(placements.map(placement => placement.node.card.id));
     const selected = new Set(placements.filter(placement => placement.selected).map(placement => placement.node.card.id));
+    const pinnedOutside = [...this.byCard].filter(([id, shell]) => !visible.has(id) && shell.pins.size > 0).length;
+    const capacity = Math.max(this.capacity, visible.size) + pinnedOutside;
     let expiresAt = Infinity;
     for (const [id, shell] of this.byCard) {
       if (visible.has(id)) continue;
@@ -64,11 +66,11 @@ export class LeasePool {
       let shell = this.byCard.get(placement.node.card.id);
       if (!shell) {
         // Bound recency entries can be evicted, but never reused before cleanup.
-        if (this.byCard.size >= this.capacity) {
+        if (this.byCard.size >= capacity) {
           const oldest = [...this.byCard.values()].filter(candidate => !candidate.pins.size && candidate.residency.kind === 'bound' && (!visible.has(candidate.residency.lease.cardId) || placement.selected && !selected.has(candidate.residency.lease.cardId))).sort((a, b) => a.lastSeen - b.lastSeen)[0];
           if (oldest) this.release(oldest);
         }
-        if (this.byCard.size >= this.capacity) { this.queued++; continue; }
+        if (this.byCard.size >= capacity) { this.queued++; continue; }
         if (admitted >= 2) { this.queued++; continue; }
         shell = this.bind(placement.node.card.id);
         admitted++;
@@ -77,7 +79,7 @@ export class LeasePool {
       this.place(shell, placement);
     }
     if (Number.isFinite(expiresAt)) this.expiry = setTimeout(() => { this.expiry = null; this.invalidate(); }, Math.max(1, expiresAt - now));
-    if (this.queued && this.byCard.size < this.capacity) setTimeout(this.invalidate, 0);
+    if (this.queued && this.byCard.size < capacity) setTimeout(this.invalidate, 0);
   }
 
   pin(id: CardId, reason: PinReason, pinned: boolean): void {

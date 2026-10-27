@@ -6,19 +6,19 @@ export function useSource<T>(source: Source<T>): T {
   return useSyncExternalStore(source.subscribe, source.getSnapshot, source.getSnapshot);
 }
 
-export function useCard(workspace: Workspace, id: CardId) {
+export function useCard(workspace: Pick<Workspace, 'card'>, id: CardId) {
   return useSource(workspace.card(id));
 }
 
-export function useWorkspaceMetadata(workspace: Workspace) {
+export function useWorkspaceMetadata(workspace: Pick<Workspace, 'metadata'>) {
   return useSource(workspace.metadata);
 }
 
-export function useSaveState(workspace: Workspace) {
+export function useSaveState(workspace: Pick<Workspace, 'saving'>) {
   return useSource(workspace.saving);
 }
 
-export function useSelection(workspace: Workspace) {
+export function useSelection(workspace: Pick<Workspace, 'selection'>) {
   return useSource(workspace.selection);
 }
 

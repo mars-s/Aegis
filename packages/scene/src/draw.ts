@@ -42,7 +42,7 @@ export class CanvasPainter {
     }
     for (const rep of representations) {
       const r = rep.bounds;
-      if (rep.kind === 'cluster' && rep.rotation === 0) {
+      if (rep.kind === 'far' && rep.rotation === 0) {
         ctx.fillStyle = '#252529'; ctx.fillRect(r.x, r.y, r.width, r.height);
         if (selected.has(rep.id)) { ctx.strokeStyle = '#c6c6ce'; ctx.strokeRect(r.x - 3, r.y - 3, r.width + 6, r.height + 6); }
         continue;
@@ -50,9 +50,9 @@ export class CanvasPainter {
       if (rep.kind !== 'detail' || !mounted(rep.id)) {
         ctx.save(); ctx.translate(r.x + r.width / 2, r.y + r.height / 2); ctx.rotate(rep.rotation * Math.PI / 180);
         ctx.fillStyle = '#151517'; ctx.strokeStyle = '#303035'; ctx.beginPath(); ctx.roundRect(-r.width / 2, -r.height / 2, r.width, r.height, Math.min(8, r.height / 4)); ctx.fill(); ctx.stroke();
-        if (rep.kind !== 'cluster' && r.width >= 50 && r.height >= 25) {
+        if (rep.kind !== 'far' && r.width >= 50 && r.height >= 25) {
           ctx.beginPath(); ctx.rect(-r.width / 2 + 8, -r.height / 2 + 4, Math.max(0, r.width - 16), Math.max(0, r.height - 8)); ctx.clip();
-          ctx.fillStyle = '#dadade'; ctx.textAlign = 'left'; ctx.font = `${rep.kind === 'summary' ? 14 : Math.max(10, Math.min(16, 14 * camera.zoom))}px Inter, sans-serif`;
+          ctx.fillStyle = '#dadade'; ctx.textAlign = 'left'; ctx.font = `${14 * camera.zoom}px Inter, sans-serif`;
           ctx.fillText(rep.text, -r.width / 2 + 16, -r.height / 2 + 28);
         }
         ctx.restore();

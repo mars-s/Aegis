@@ -1,15 +1,18 @@
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { createServer } from 'vite';
 import type { ViteDevServer } from 'vite';
-import { chromium, webkit } from '/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.js';
-import type { Browser, Page } from '/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.js';
+import { chromium, webkit } from 'playwright';
+import type { Browser, Page } from 'playwright';
 import type {} from '../../perf/scene/browser-fixture.js';
 
-const url = 'http://127.0.0.1:4140/checks/perf/scene/index.html';
+const scenePort = Number(process.env.AEGIS_PORT_OFFSET ?? 4100);
+const url = `http://127.0.0.1:${scenePort}/checks/perf/scene/index.html`;
+const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-scene-evidence-'));
+mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
 async function page(): Promise<Page> {
@@ -23,13 +26,13 @@ async function page(): Promise<Page> {
 async function idle(page: Page): Promise<void> { await page.waitForFunction(() => window.sceneHarness.engine.inspect().pendingFrames === 0); await page.waitForTimeout(35); }
 
 beforeAll(async () => {
-  process.env.AEGIS_DATA = data; process.env.AEGIS_VITE_CACHE = cache; process.env.AEGIS_PORT_OFFSET = '4140';
+  process.env.AEGIS_DATA = data; process.env.AEGIS_VITE_CACHE = cache; process.env.AEGIS_PORT_OFFSET = String(scenePort);
   const resolveApp = createRequire(join(process.cwd(), 'app/package.json'));
   server = await createServer({ root: process.cwd(), configFile: false, cacheDir: cache, resolve: { alias: [
     { find: 'react-dom/client', replacement: resolveApp.resolve('react-dom/client') },
     { find: 'react-dom', replacement: resolveApp.resolve('react-dom') },
     { find: 'react', replacement: resolveApp.resolve('react') },
-  ] }, server: { port: 4140, strictPort: true, host: '127.0.0.1', fs: { allow: [process.cwd(), '/tmp/aegis-wt/react/foundation-domain/packages/domain'] } }, optimizeDeps: { include: ['react', 'react-dom/client', 'react-dom', 'zod/v4'] } });
+  ] }, server: { port: scenePort, strictPort: true, host: '127.0.0.1', fs: { allow: [process.cwd()] } }, optimizeDeps: { include: ['react', 'react-dom/client', 'react-dom', 'zod/v4'] } });
   await server.listen(); browser = await chromium.launch({ headless: true });
 });
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
@@ -42,7 +45,7 @@ describe('real scene attachment', () => {
     const first = await p.evaluate(() => window.sceneHarness.engine.inspect().frameCount);
     await p.waitForTimeout(120);
     expect(await p.evaluate(() => window.sceneHarness.engine.inspect().frameCount)).toBe(first);
-    await p.screenshot({ path: '/Users/avi/.codex/orchestrate/aegis-react/evidence/worker-scene-browser.png' });
+    await p.screenshot({ path: join(output, 'scene-browser.png') });
     await p.close();
   });
 
@@ -117,6 +120,25 @@ describe('real scene attachment', () => {
     await p.close();
   });
 
+  test('keeps static geometry and content until the crowded far exception', async () => {
+    const p = await page();
+    for (const zoom of [0.45, 0.05]) {
+      await p.evaluate(zoom => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 11, y: 17, zoom }, motion: 'instant' }), zoom);
+      await idle(p);
+      const rep = await p.evaluate(() => window.sceneHarness.engine.representations().find(rep => rep.id === 'note-1'));
+      expect(rep?.kind).toBe('detail');
+      expect(rep?.bounds).toMatchObject({ x: 400 * zoom + 11, y: 80 * zoom + 17, width: 240 * zoom, height: 160 * zoom });
+      expect(await p.locator('[data-body="note-1"]').isVisible()).toBe(true);
+    }
+    await p.evaluate(() => { window.sceneHarness.replace(5000); window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 11, y: 17, zoom: 0.05 }, motion: 'instant' }); });
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.inspect().tier)).toBe('far');
+    expect(await p.evaluate(() => window.sceneHarness.engine.representations().every(rep => rep.kind === 'far'))).toBe(true);
+    const far = await p.evaluate(() => window.sceneHarness.engine.representations().find(rep => rep.id === 'note-1'));
+    expect(far?.bounds).toMatchObject({ x: 31, y: 21, width: 12, height: 8 });
+    await p.close();
+  });
+
   test('waits for exact cleanup acknowledgement before shell reuse', async () => {
     const p = await page();
     await p.evaluate(() => {
@@ -140,11 +162,17 @@ describe('real scene attachment', () => {
   test('reads queued geometry before the first scene write in a frame', async () => {
     const p = await page();
     await p.evaluate(() => {
+      const card = window.sceneHarness.board().cards.find(card => card.id === 'note-1');
+      if (!card) throw new Error('Missing measurement card');
+      window.sceneHarness.update({ ...card, props: { ...card.props, contentFit: true } });
+    });
+    await idle(p);
+    await p.evaluate(() => {
       const lease = window.sceneHarness.engine.leases.getSnapshot().find(lease => lease.cardId === 'note-1');
       const world = document.getElementById('world');
       if (!lease || !world) throw new Error('Missing measurement target');
       const events: string[] = [];
-      Object.defineProperty(lease.host, 'scrollHeight', { configurable: true, get: () => { events.push('read'); return 160; } });
+      Object.defineProperty(lease.host, 'scrollHeight', { configurable: true, get: () => { events.push('read'); return 158; } });
       Object.defineProperty(world.style, 'transform', { configurable: true, set: (value: string) => { events.push('write'); world.style.setProperty('transform', value); }, get: () => world.style.getPropertyValue('transform') });
       world.dataset.phaseEvents = '';
       window.sceneHarness.engine.requestMeasurement(lease.key, lease.generation);
@@ -170,14 +198,14 @@ describe('real scene attachment', () => {
     await p.evaluate(() => window.sceneHarness.replace(5000)); await idle(p);
     const results = [];
     for (let repetition = 0; repetition < 3; repetition++) {
-      for (const scenario of ['detail-pan', 'summary-pan', 'cluster-pan'] as const) {
+      for (const scenario of ['detail-pan', 'scaled-pan', 'far-pan'] as const) {
         const report = await p.evaluate(scenario => window.sceneHarness.replay(scenario, 120), scenario);
         expect(report.samples.length).toBeGreaterThan(90);
         expect(report.samples.every(sample => sample.cpu >= 0 && sample.phases.reads >= 0 && sample.phases.writes >= 0)).toBe(true);
         results.push({ repetition, ...report });
       }
     }
-    writeFileSync('/Users/avi/.codex/orchestrate/aegis-react/evidence/worker-scene-replay.json', `${JSON.stringify({ browser: browser?.version(), runtime: 'headless-chromium', viewport: { width: 1440, height: 900 }, pacing: 'unavailable', displayGoal: 'blocked', results }, null, 2)}\n`);
+    writeFileSync(join(output, 'scene-replay.json'), `${JSON.stringify({ browser: browser?.version(), runtime: 'headless-chromium', viewport: { width: 1440, height: 900 }, pacing: 'unavailable', displayGoal: 'blocked', results }, null, 2)}\n`);
     await p.close();
   }, 30000);
 });

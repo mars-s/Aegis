@@ -25,8 +25,14 @@ The actual flat Board/Card, op commands and existing file/wire layout are retain
 
 Known presentation props now have explicit schema types. Malformed reserved values such as a string fixedHeight are rejected atomically, where legacy code accepted arbitrary JSON. This stricter invalid-input behaviour is documented and tested. The differential tests cover generated and real supported fixtures; they are not a claim of unrestricted equivalence on malformed metadata.
 
-## Next integration unit
+## React foundation verification
 
-Scene 7fc4fc0 and workspace a032070 are verified on their worker branches. React entry, portal bodies, runner switch, focused browser proof, benchmark and composition contracts are drafted. Their integration, browser/performance results and final contracts remain pending at this checkpoint.
+Scene and workspace worker branches are merged. React entry, note/title portal bodies, real-store test facade, implementation selector and explicit feature composition are implemented. The contracts in REACT_PORT_CONTRACTS.md are frozen and mirrored at /Users/avi/.codex/orchestrate/aegis-react/contracts.md.
 
-The supplied main benchmark was p50 9.3 ms, p95 21.3 ms, maximum 13.8 s. The untouched foundation baseline was p50 8.7 ms, p95 33.5 ms, maximum 13,318.8 ms. No React app benchmark is claimed at this checkpoint.
+The full check passes 169 unit tests and 236 host tests, with zero Svelte errors and seven existing warnings. Both development and built production React pass the focused browser proof: optimistic IDs, note/title bodies, camera save, pan/zoom, drag, growing text, measurement-aware Undo/Redo, reload and idle. Screenshots were opened and visually checked. The production selector now runs before HTML entry analysis, so it builds the actual React entry.
+
+Standing order 18 supersedes adaptive zoom. Cards retain true geometry and content at every scale. Only more than 400 visible cards below zoom 0.4 use exact canvas rectangles. Summary packing/cluster algorithms were removed, and their tests now assert the user's static-geometry contract. final/synthesis.md, modules.md, migration.md and the historical types.ts sketch explicitly identify the implemented contracts and these deviations.
+
+The React 5,000-note wheel replay in headless Chromium 148.0.7778.96 at 1440x900, DPR 1, recorded 241 scene frames. Positive frame intervals: p50 8.3 ms, p95 9.0 ms, maximum 16.734 ms. Callback CPU: p50 0.7 ms, p95 1.7 ms, maximum 2.0 ms. The supplied main intervals were 9.3 / 21.3 / 13,800 ms; untouched foundation intervals were 8.7 / 33.5 / 13,318.8 ms. Raw samples and histograms are in evidence/react/artifacts/react-benchmark.json. This is a development build and headless timing, not native 120 Hz proof.
+
+The unchanged canvas/pan suites against both implementations remain the next acceptance gate. They also exercise later feature UIs that this foundation brief forbids porting. No assertion will be skipped to conceal a missing feature. The final verdict will be recorded after that gate.

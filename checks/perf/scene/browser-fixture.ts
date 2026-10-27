@@ -13,7 +13,7 @@ interface Harness {
   readonly board: () => Board;
   readonly calls: readonly (readonly Command[])[];
   readonly replace: (count: number) => void;
-  readonly update: (card: Card) => void;
+  readonly update: (card: unknown) => void;
   readonly mounted: ReadonlyMap<string, HTMLElement>;
   readonly cleanups: readonly string[];
   readonly notifications: () => number;
@@ -82,7 +82,7 @@ const root = createRoot(element('portals')); root.render(createElement(Portals))
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
   engine, board: () => current, calls, mounted, cleanups, notifications: () => notifications,
-  update: card => update([card]),
+  update: card => update([CardSchema.parse(card)]),
   replace: count => {
     const old = current; current = fixture(count);
     for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });

@@ -25,6 +25,7 @@ export interface SceneSource {
 
 export type UiIntent =
   | { readonly kind: 'select'; readonly ids: readonly CardId[] }
+  | { readonly kind: 'edit-close' }
   | { readonly kind: 'edit'; readonly id: CardId; readonly view: 'side' | 'full' }
   | { readonly kind: 'panel'; readonly side: 'left' | 'right'; readonly open: boolean };
 

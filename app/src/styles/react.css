@@ -1,0 +1,27 @@
+* { box-sizing: border-box; }
+html, body, #app, .react-app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { font: 13px var(--font); color: var(--color-text); background: #050607; }
+button { font: inherit; color: inherit; cursor: pointer; background: #1b1d20; border: 1px solid #34383e; border-radius: 6px; padding: 7px 12px; min-height: 32px; }
+button:hover { background: #282b30; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+.react-stage { position: absolute; inset: 0; overflow: clip; outline: none; touch-action: none; }
+.scene-backdrop, .scene-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.scene-overlay { z-index: 2; }
+#world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.react-stage .card { position: absolute; display: flex; flex-direction: column; background: #17191c; border: 1px solid #363a40; border-radius: 10px; overflow: hidden; color: #e8eaed; }
+.react-stage .card.selected { border-color: #b3bac4; }
+.react-stage .scene-body { display: flex; flex-direction: column; }
+.react-stage .card .body { padding: 16px; flex: 1; min-height: 0; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.react-stage .card.title { background: transparent; border: none; font-size: 30px; font-weight: 600; }
+.card-heading { padding: 12px 16px 0; font-weight: 600; }
+.react-board-label { position: absolute; top: 22px; left: 24px; color: #a6abb4; pointer-events: none; }
+.react-tools { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; border: 1px solid #2c3035; border-radius: 12px; background: #111316; z-index: 10; }
+.react-save-state { position: absolute; right: 24px; bottom: 26px; display: flex; gap: 10px; align-items: center; color: #a6abb4; font-size: 12px; z-index: 10; }
+.react-connection { margin: 0; position: absolute; top: 45%; width: 100%; text-align: center; color: #b9bdc5; }
+.react-editor { position: absolute; inset: 0 0 0 50%; padding: 24px; background: #141618; z-index: 20; border-left: 1px solid #34383e; overflow: auto; }
+.react-editor.full { left: 0; }
+#toast:not(:empty) { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: #24272b; border: 1px solid #4c525b; border-radius: 8px; z-index: 30; }
+#toast button { margin-left: 12px; }
+@media (max-width: 600px) { .react-tools { bottom: 18px; } .react-save-state { top: 20px; bottom: auto; } .react-editor { left: 0; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }

@@ -10,13 +10,15 @@
       "DOM",
       "DOM.Iterable"
     ],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx"
   },
   "include": [
     "scripts/**/*.ts",
     "vitest.config.ts",
     "checks/unit/domain/**/*.ts",
     "checks/support/**/*.ts",
-    "app/src/objects/chart/context.ts"
+    "app/src/objects/chart/context.ts",
+    "checks/unit/**/*.ts"
   ]
 }

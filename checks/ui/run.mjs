@@ -1,9 +1,10 @@
 // Runs every UI check one after another (each owns a fixed Vite port, so they never run together).
 // node checks/ui/run.mjs [name ...]
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { uiImplementation } from '../../scripts/ui-implementation.ts';
 const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'imports', 'wireframe', 'editing', 'svelte', 'genui', 'parity', 'agent-types', 'agents', 'agent-motion'];
 // fix1: chat context, separate shortcuts and the two notes entry points.
 all.push('polish');
@@ -51,11 +52,19 @@ all.push('spatial-memory');
 // Fresh agent Undo and complete capture-batch retrieval in the production bundle.
 all.push('trust-undo');
 all.push('crop-a11y');
-const names = process.argv.slice(2).length ? process.argv.slice(2) : all;
+const requested = process.argv.slice(2);
+const selector = requested.find(argument => argument.startsWith('--impl='));
+const implementation = uiImplementation(selector?.slice('--impl='.length) ?? process.env.AEGIS_UI_IMPL);
+const suites = requested.filter(argument => !argument.startsWith('--impl='));
+for (const name of suites) {
+  if (!/^[a-z][a-z0-9-]*$/.test(name) || !existsSync(new URL(`./${name}.mjs`, import.meta.url))) throw new Error(`Unknown UI suite ${JSON.stringify(name)}.`);
+}
+const names = suites.length ? suites : all;
+console.log(`UI implementation: ${implementation}`);
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
+  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_UI_IMPL: implementation, AEGIS_TEST_FACADE: '1', AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
   const ok = r.status === 0;
   console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }

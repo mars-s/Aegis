@@ -116,7 +116,14 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     const id = BatchIdSchema.parse(crypto.randomUUID());
     pending = [...pending, { id, boardId: confirmed.id, commands: prepared }];
     publish(result.board);
-    if (remember) {
+    const derived = prepared.every(command => command.op === 'measure' || command.op === 'initialise_html');
+    if (derived) {
+      const previous = undoEntries.at(-1);
+      if (previous) {
+        const normalised = applyBatch(previous.after, { commands: prepared });
+        if (normalised.ok) undoEntries[undoEntries.length - 1] = { ...previous, after: normalised.board };
+      }
+    } else if (remember) {
       undoEntries.push({ before, after: projected });
       if (undoEntries.length > 80) undoEntries.shift();
       redoEntries = [];
@@ -267,6 +274,9 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
           if (!equalValue(selection.getSnapshot(), ids)) selection.set(ids);
           return;
         }
+        case 'edit-close':
+          ui.set({ ...ui.getSnapshot(), editor: null });
+          return;
         case 'edit':
           if (byId.has(intent.id)) ui.set({ ...ui.getSnapshot(), editor: { id: intent.id, view: intent.view } });
           return;

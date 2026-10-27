@@ -153,4 +153,17 @@ describe('optimistic workspace', () => {
     workspace.dispose();
   });
 
+  it('folds derived height into the authored edit for one Undo and Redo', () => {
+    const initial = boardWith([{ op: 'create', newId: noteId, text: 'Before', props: { contentFit: true }, h: 160 }]);
+    const workspace = createWorkspace({ board: initial });
+    workspace.submit([{ op: 'update', id: noteId, set: { text: 'After' } }]);
+    workspace.submit([{ op: 'measure', id: noteId, h: 320, baseHeight: 160 }]);
+    expect(workspace.record(noteId).getSnapshot()).toMatchObject({ text: 'After', h: 320 });
+    workspace.undo();
+    expect(workspace.record(noteId).getSnapshot()).toMatchObject({ text: 'Before', h: 160 });
+    workspace.redo();
+    expect(workspace.record(noteId).getSnapshot()).toMatchObject({ text: 'After', h: 320 });
+    workspace.dispose();
+  });
+
 });

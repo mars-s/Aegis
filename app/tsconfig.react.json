@@ -1,0 +1,12 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "types": ["react", "react-dom", "vite/client"]
+  },
+  "include": ["src/main.tsx", "src/App.tsx", "src/composition.tsx", "src/workspace/**/*.ts", "src/canvas/**/*.tsx", "src/canvas/**/*.ts", "src/platform/**/*.ts", "src/cards/**/*.tsx"]
+}

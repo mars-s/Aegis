@@ -9,8 +9,8 @@ import { LeasePool } from './leases.js';
 import type { LeasePlacement } from './leases.js';
 import { routeLink } from './links.js';
 import { FrameMetrics } from './metrics.js';
-import { fitSpatial, RepresentationLayout, zoomTier } from './representations.js';
-import type { DisplayRect, LayoutItem, ZoomTier } from './representations.js';
+import { fitSpatial, LIVE_LIMIT, representationMode } from './representations.js';
+import type { ZoomTier } from './representations.js';
 import type { CanvasAttachment, CanvasEngine, FramePhase, Navigation, Representation } from './types.js';
 
 interface Modifiers { readonly shift: boolean; readonly bypass: boolean }
@@ -35,7 +35,6 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const view = ownerWindow;
   const board = workspace.scene.snapshot(), graph = new SceneGraph(board);
   const painter = new CanvasPainter(backdrop, overlay), metrics = new FrameMetrics();
-  const layout = new RepresentationLayout<CardId>();
   let camera: CameraState = { x: board.view.x, y: board.view.y, zoom: clampZoom(board.view.z) };
   const initialRect = stage.getBoundingClientRect();
   let viewport: Rect = { x: 0, y: 0, width: Math.max(1, initialRect.width), height: Math.max(1, initialRect.height) }, stageOrigin: Point = { x: initialRect.x, y: initialRect.y };
@@ -43,14 +42,14 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   let tier: ZoomTier = 'detail', glide: Glide | null = null, gesture: Gesture | null = null, spaceHeld = false;
   let previousFrame = 0, inputAt: number | null = null, discardedMeasurements = 0;
   let representations: Representation[] = [], candidates: SceneNode[] = [], drawnLinks: DrawLink[] = [];
-  let displayed: ReadonlyMap<CardId, DisplayRect> = new Map(), placements: LeasePlacement[] = [];
+  let placements: LeasePlacement[] = [];
   let selected = new Set(workspace.selection.getSnapshot()), marquee: Rect | null = null;
   let focusId: CardId | null = null;
   const inputs: Input[] = [], positions = new Map<CardId, Rect>(), measurements = new Map<string, MeasurementRequest>(), retired = new Set<CardId>();
   const abort = new AbortController();
   const reduced = args.reducedMotion ?? view.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const canLease = args.canLease ?? ((card: Card): boolean => card.type === 'note' || card.type === 'title');
-  const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? 256), invalidate);
+  const pool = new LeasePool(world, board.id, Math.max(1, args.warmLeases ?? LIVE_LIMIT), invalidate);
 
   function invalidate(): void {
     if (!disposed && !pending) pending = view.requestAnimationFrame(frame);
@@ -187,9 +186,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   }
 
   function cull(): void {
-    tier = zoomTier(camera.zoom, tier);
-    // Labels can extend 360 screen pixels beyond their world anchor.
-    const margin = tier === 'detail' && camera.zoom >= 12 / 11 ? 32 : 384;
+    const margin = 32;
     const query = { x: (-camera.x - margin) / camera.zoom, y: (-camera.y - margin) / camera.zoom, width: (viewport.width + margin * 2) / camera.zoom, height: (viewport.height + margin * 2) / camera.zoom };
     candidates = graph.query(toBounds(query));
     if (positions.size) {
@@ -197,22 +194,14 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       for (const [id, bounds] of positions) { const node = graph.nodes.get(id); if (node && !node.hidden && intersects(bounds, query)) candidates.push(node); }
       candidates.sort((a, b) => a.rank - b.rank);
     }
-    const items: LayoutItem<CardId>[] = candidates.map(node => positions.has(node.card.id) ? { ...node.layout, bounds: boundsFor(node) } : node.layout);
-    displayed = layout.layout(items, camera, tier, viewport);
+    const visible = candidates.filter(node => intersects(fromBounds(rotatedBounds(project(boundsFor(node), camera), node.rotation)), viewport));
+    tier = representationMode(camera.zoom, visible.length);
     representations = []; placements = [];
-    for (const node of candidates) {
-      let r = displayed.get(node.card.id);
-      if (r && r.kind !== 'detail' && pool.isPinned(node.card.id)) {
-        r = { ...project(boundsFor(node), camera), kind: 'detail' };
-        const next = new Map(displayed); next.set(node.card.id, r); displayed = next;
-      }
-      if (!r || !intersects(fromBounds(rotatedBounds(r, r.kind === 'summary' ? 0 : node.rotation)), viewport)) continue;
-      const rotation = r.kind === 'summary' ? 0 : node.rotation;
-      representations.push({ id: node.card.id, kind: r.kind, bounds: r, rotation, text: node.text });
-      if (r.kind === 'detail' && canLease(node.card)) {
-        const bounds = boundsFor(node);
-        placements.push({ node, ...bounds, rotation, selected: selected.has(node.card.id) });
-      }
+    for (const node of visible) {
+      const kind = pool.isPinned(node.card.id) ? 'detail' : tier;
+      const bounds = boundsFor(node);
+      representations.push({ id: node.card.id, kind, bounds: project(bounds, camera), rotation: node.rotation, text: node.text });
+      if (kind === 'detail' && canLease(node.card)) placements.push({ node, ...bounds, rotation: node.rotation, selected: selected.has(node.card.id) });
     }
     // Selected bodies have first admission when a dense view exceeds warm capacity.
     placements.sort((a, b) => Number(b.selected) - Number(a.selected) || a.node.rank - b.node.rank);
@@ -222,9 +211,8 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const { link, route } of links.values()) {
       const a = graph.nodes.get(link.a), b = graph.nodes.get(link.b);
       if (!a || !b || a.hidden || b.hidden) continue;
-      const ra = displayed.get(link.a), rb = displayed.get(link.b);
-      if (positions.size || ra?.kind === 'summary' || rb?.kind === 'summary') {
-        drawnLinks.push({ link, route: routeLink(link, ra ?? project(boundsFor(a), camera), rb ?? project(boundsFor(b), camera), ra?.kind === 'summary' ? 0 : a.rotation, rb?.kind === 'summary' ? 0 : b.rotation, camera.zoom) });
+      if (positions.size) {
+        drawnLinks.push({ link, route: routeLink(link, project(boundsFor(a), camera), project(boundsFor(b), camera), a.rotation, b.rotation, camera.zoom) });
       } else {
         const p = (point: Point): Point => ({ x: point.x * camera.zoom + camera.x, y: point.y * camera.zoom + camera.y });
         drawnLinks.push({ link, route: { p0: p(route.p0), p2: p(route.p2), control: p(route.control), label: p(route.label) } });
@@ -237,8 +225,11 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
     for (const request of measurements.values()) {
       const lease = pool.find(request.key, request.generation), current = lease ? graph.nodes.get(lease.cardId)?.card : null;
       if (!lease || request.epoch !== epoch || current !== request.card) { discardedMeasurements++; continue; }
-      if (current.props?.fixedHeight) continue;
-      const height = Math.max(24, Math.min(4000, Math.ceil(lease.host.scrollHeight)));
+      if (current.props?.fixedHeight || current.type !== 'object' && !current.props?.contentFit) continue;
+      const shell = lease.host.parentElement;
+      const style = shell ? view.getComputedStyle(shell) : null;
+      const borders = (Number.parseFloat(style?.borderTopWidth ?? '0') || 0) + (Number.parseFloat(style?.borderBottomWidth ?? '0') || 0);
+      const height = Math.max(24, Math.min(4000, Math.ceil(lease.host.scrollHeight + borders)));
       if (Math.abs(height - current.h) > 1) commits.push({ request, id: current.id, height });
     }
     measurements.clear();
@@ -337,7 +328,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
   const unsubscribeScene = workspace.scene.subscribe(change => {
     if (disposed) return;
     if (change.kind === 'replace' || change.boardId !== workspace.scene.snapshot().id) {
-      const next = workspace.scene.snapshot(); epoch++; graph.replace(next); layout.clear(); measurements.clear(); positions.clear(); inputs.length = 0;
+      const next = workspace.scene.snapshot(); epoch++; graph.replace(next); measurements.clear(); positions.clear(); inputs.length = 0;
       camera = { x: next.view.x, y: next.view.y, zoom: clampZoom(next.view.z) }; gesture = null; glide = null; resetLeases = true;
     } else { graph.apply(change); for (const id of change.removed) retired.add(id); }
     invalidate();
@@ -368,7 +359,7 @@ export function createCanvas(args: CanvasAttachment): CanvasEngine {
       disposed = true; epoch++; if (pending) view.cancelAnimationFrame(pending); pending = 0;
       abort.abort(); observer.disconnect(); unsubscribeScene(); unsubscribeSelection(); pool.dispose();
       metrics.record(false);
-      graph.clear(); layout.clear(); measurements.clear(); inputs.length = 0; positions.clear(); representations = []; placements = []; drawnLinks = []; candidates = [];
+      graph.clear(); measurements.clear(); inputs.length = 0; positions.clear(); representations = []; placements = []; drawnLinks = []; candidates = [];
     },
   };
 }

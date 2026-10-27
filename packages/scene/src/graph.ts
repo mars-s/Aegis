@@ -21,7 +21,6 @@ interface CardEntry extends Bounds { readonly node: SceneNode }
 export interface SceneLink extends Bounds { readonly link: Link; readonly route: LinkRoute }
 
 const rect = (card: Card): Rect => ({ x: card.x, y: card.y, width: card.w, height: card.h });
-const summarised = (card: Card): boolean => !['title', 'frame', 'coll', 'template-group', 'draw-ink', 'draw-shape'].includes(card.type);
 const label = (card: Card): string => (card.heading || card.text || (card.type === 'object' ? card.kind : card.type)).replace(/\s+/g, ' ').slice(0, 160);
 
 /** Canonical deltas update these indexes. Camera frames only query them. */
@@ -83,7 +82,7 @@ export class SceneGraph {
 
   private put(card: Card, rank: number): void {
     const rotation = card.rot ?? 0, bounds = rotatedBounds(rect(card), rotation);
-    const node: SceneNode = { card, rank, bounds, rotation, hidden: false, locked: false, text: label(card), layout: { id: card.id, bounds: rect(card), summarised: summarised(card), kind: card.type === 'object' ? card.kind : card.type } };
+    const node: SceneNode = { card, rank, bounds, rotation, hidden: false, locked: false, text: label(card), layout: { id: card.id, bounds: rect(card) } };
     this.nodes.set(card.id, node); this.entries.set(card.id, { ...bounds, node });
     if (card.parent) { const children = this.children.get(card.parent); if (children) children.add(card.id); else this.children.set(card.parent, new Set([card.id])); }
   }
