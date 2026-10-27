@@ -17,9 +17,9 @@ const output = process.env.AEGIS_CHECK_OUT ?? mkdtempSync(join(tmpdir(), 'aegis-
 mkdirSync(output, { recursive: true });
 const data = mkdtempSync(join(tmpdir(), 'aegis-scene-data-')), cache = mkdtempSync(join(tmpdir(), 'aegis-scene-vite-'));
 let server: ViteDevServer | null = null, browser: Browser | null = null;
-async function page(motion = false, insets = false): Promise<Page> {
-  if (!browser) throw new Error('Browser not started');
-  const result = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+async function page(motion = false, insets = false, attachmentBrowser = browser): Promise<Page> {
+  if (!attachmentBrowser) throw new Error('Browser not started');
+  const result = await attachmentBrowser.newPage({ viewport: { width: 1440, height: 900 } });
   await result.goto(url + `?motion=${motion ? 'on' : 'off'}${insets ? '&insets=1' : ''}`);
   await result.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
   await idle(result);
@@ -40,6 +40,92 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('connector controls follow the painted obstacle route at rest and during a drag in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, board = harness.board();
+        harness.load({ ...board, cards: board.cards.slice(0, 3).map((card, index) => ({ ...card, x: index === 0 ? 80 : index === 1 ? 450 : 900, y: index === 1 ? 80 : 100, w: 240, h: index === 1 ? 220 : 160 })), links: [{ id: 'routed-connector', a: 'note-0', b: 'note-2', bend: 0 }] });
+      });
+      await idle(p);
+      const verify = async () => {
+        const result = await p.evaluate(() => {
+          const engine = window.sceneHarness.engine, id = window.sceneHarness.board().links[0]?.id;
+          const route = id ? engine.linkRoute(id) : null;
+          if (!route) throw new Error('Missing connector route');
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          path.setAttribute('d', route.d);
+          const camera = engine.camera(), context = document.querySelector<HTMLCanvasElement>('#overlay')?.getContext('2d');
+          const samples = [.25, .5, .75].map(fraction => {
+            const world = path.getPointAtLength(path.getTotalLength() * fraction);
+            const screen = { x: world.x * camera.zoom + camera.x, y: world.y * camera.zoom + camera.y };
+            const pixel = context?.getImageData(Math.floor(screen.x * devicePixelRatio), Math.floor(screen.y * devicePixelRatio), 1, 1).data;
+            return { hit: engine.hitTestLink(screen), alpha: pixel?.[3] ?? 0 };
+          });
+          return { d: route.d, id, samples };
+        });
+        expect(result.d).toMatch(/ L/);
+        for (const sample of result.samples) { expect(sample.hit).toBe(result.id); expect(sample.alpha).toBeGreaterThan(0); }
+        return result.d;
+      };
+      const before = await verify();
+      const source = await p.locator('[data-id="note-0"]').boundingBox();
+      if (!source) throw new Error('Missing source card');
+      const x = source.x + 8, y = source.y + 100;
+      await p.mouse.move(x, y); await p.mouse.down();
+      await p.mouse.move(x + 80, y + 80); await idle(p);
+      const dragged = await verify();
+      expect(dragged).not.toBe(before);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards[0]?.x)).toBe(80);
+      await p.mouse.up(); await idle(p);
+      expect(await verify()).toBe(dragged);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards[0]?.x)).toBeGreaterThan(80);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test('Connect consumes target card text and button presses instead of activating their content', async () => {
+    for (const target of ['[data-body="note-2"]', '[data-id="note-2"] .win-open']) {
+      const p = await page();
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, source = harness.board().cards[0];
+        if (!source) throw new Error('Missing connection source');
+        harness.engine.startConnection(source.id);
+      });
+      const before = await p.locator('[data-body="note-2"]').textContent();
+      await p.locator(target).click(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.flat().filter(command => command.op === 'connect'))).toEqual([{ op: 'connect', a: 'note-0', b: 'note-2' }]);
+      expect(await p.locator('[data-body="note-2"]').textContent()).toBe(before);
+      expect(await p.locator('[data-body="note-2"]').evaluate(element => element === document.activeElement)).toBe(false);
+      expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(0);
+      await p.close();
+    }
+  });
+
+  test('Escape and pan cancel Connect without rearming it on the next pointer move', async () => {
+    const p = await page();
+    for (const cancel of ['escape', 'space', 'middle'] as const) {
+      await p.locator('[data-body="note-2"]').focus();
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, source = harness.board().cards[0];
+        if (!source) throw new Error('Missing connection source');
+        harness.engine.startConnection(source.id);
+      });
+      await p.mouse.move(1100, 700); await idle(p);
+      expect(await p.locator('#stage').evaluate(element => element.style.cursor)).toBe('crosshair');
+      if (cancel === 'escape') await p.keyboard.press('Escape');
+      else if (cancel === 'space') await p.keyboard.press('Space');
+      else { await p.mouse.down({ button: 'middle' }); await p.mouse.up({ button: 'middle' }); }
+      await idle(p);
+      await p.mouse.move(1120, 720); await idle(p);
+      expect(await p.locator('#stage').evaluate(element => element.style.cursor)).toBe('');
+      await p.locator('[data-id="note-2"]').click({ position: { x: 10, y: 100 } }); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.flat().filter(command => command.op === 'connect'))).toEqual([]);
+    }
+    await p.close();
+  });
+
   test('discards a deferred tool batch when its board epoch changes', async () => {
     const p = await page();
     await p.evaluate(() => {
@@ -188,6 +274,26 @@ describe('real scene attachment', () => {
     }
     expect(previous).toEqual(result.to);
     expect(result.pending).toBe(0);
+    await p.close();
+  });
+
+  test('notifies semantic navigation once outside the frame and drops notices from old boards', async () => {
+    const p = await page(true);
+    const during = await p.evaluate(() => new Promise<number>(resolve => {
+      const harness = window.sceneHarness;
+      const release = harness.engine.registerFrameParticipant({ write: () => { release(); resolve(harness.navigationNotifications()); } });
+      harness.engine.navigate({ kind: 'restore', camera: { x: 120, y: 80, zoom: .8 }, motion: 'glide', duration: 120 });
+    }));
+    expect(during).toBe(0);
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.navigationNotifications())).toBe(1);
+    await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' }));
+    await p.waitForFunction(() => window.sceneHarness.navigationNotifications() === 2);
+    await p.evaluate(() => {
+      const harness = window.sceneHarness;
+      harness.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' }); harness.replace(10);
+    }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.navigationNotifications())).toBe(2);
     await p.close();
   });
 

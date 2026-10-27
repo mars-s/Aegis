@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { CardBodyProps } from "../../composition.js";
 import { documentUpdate } from "@aegis/domain/content";
 import {
@@ -14,7 +14,13 @@ export function DocumentBody({ cardId, workspace }: CardBodyProps) {
     source = workspace.card(cardId);
   const card = useSyncExternalStore(source.subscribe, source.getSnapshot);
   const host = useRef<HTMLDivElement>(null),
-    scroll = useRef(0);
+    scroll = useRef(0),
+    preview = useRef<HTMLDivElement | null>(null);
+  const attachPreview = useCallback((element: HTMLDivElement | null) => {
+    if (preview.current) scroll.current = preview.current.scrollTop;
+    preview.current = element;
+    if (element) element.scrollTop = scroll.current;
+  }, []);
   const html = useMemo(
     () =>
       card && hasDocumentContent(documentContent(card))
@@ -71,9 +77,7 @@ export function DocumentBody({ cardId, workspace }: CardBodyProps) {
         onScroll={(event) => {
           scroll.current = event.currentTarget.scrollTop;
         }}
-        ref={(element) => {
-          if (element) element.scrollTop = scroll.current;
-        }}
+        ref={attachPreview}
       >
         <article
           className="doc-page"

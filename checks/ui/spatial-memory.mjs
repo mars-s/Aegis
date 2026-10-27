@@ -63,6 +63,7 @@ try {
       await page.addInitScript(theme => { if (window !== window.top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
+      await observeLinkPaint(page);
       const fresh = async () => {
         await close(); await saved();
         const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Spatial memory' }); if (aegis.flush) await aegis.flush(); localStorage.setItem('aegis:board', board.id); aegis.canvas.setBoard(board); return board.id; });
@@ -83,7 +84,6 @@ try {
         const view = await page.evaluate(() => ({ ...aegis.canvas.view }));
         assert.ok(await page.evaluate(at => { const c = aegis.canvas.board.cards.find(c => c.id === 'memorystats'), v = aegis.canvas.view; return at.x >= c.x * v.z + v.x && at.x <= (c.x + c.w) * v.z + v.x && at.y >= c.y * v.z + v.y && at.y <= (c.y + c.h) * v.z + v.y; }, at), 'the visible target lies inside its real projected rectangle');
         await page.getByLabel('More selection controls', { exact: true }).click(); await page.getByRole('button', { name: 'Connect', exact: true }).click();
-        await observeLinkPaint(page);
         await page.mouse.move(at.x, at.y); await settle();
         const preview = await readConnectionPreview(page, at);
         assert.equal(preview.target, 'memorystats');

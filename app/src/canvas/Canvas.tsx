@@ -27,7 +27,7 @@ export function Canvas({ workspace, composition, attached, cameraChanged, availa
   useEffect(() => { availableBodies.current = bodyKinds; engine?.invalidate(); }, [bodyKinds, engine]);
   useEffect(() => {
     if (!stage.current || !world.current || !backdrop.current || !overlay.current) return;
-    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, ...(availableArea ? { availableArea } : {}),
+    const instance = createCanvas({ stage: stage.current, world: world.current, backdrop: backdrop.current, overlay: overlay.current, workspace, theme, onNavigation: cameraChanged, ...(availableArea ? { availableArea } : {}),
       onToolCommit: (boardId, commit) => {
         if (workspace.metadata.getSnapshot().id !== boardId) return;
         const result = workspace.submit(commit.commands);

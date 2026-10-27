@@ -287,10 +287,10 @@ body.motion-off .genui button {
 }
 
 /* PM 1: focused generated windows use the document side editor and one title bar. */
-.side-editor.object-editor.is-open {
+.side-editor.is-open:not(.instant):has(.object.expanded) {
   transition-duration: 240ms;
 }
-.object-editor .side-editor-body {
+.side-editor:has(.object.expanded) .react-editor-content {
   overflow: hidden;
 }
 .object.expanded {
@@ -316,7 +316,7 @@ body.motion-off .genui button {
 .object.expanded.diagram .fit {
   min-width: 640px;
 }
-:is(.object-editor.is-wide, .side-editor.full) .object.expanded.diagram .fit {
+.side-editor.full .object.expanded.diagram .fit {
   min-width: 0;
 }
 @media (max-width: 760px) {
@@ -325,12 +325,12 @@ body.motion-off .genui button {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .side-editor.object-editor.is-open {
-    transition-duration: 160ms;
+  .side-editor.is-open:not(.instant):has(.object.expanded) {
+    transition-duration: 0s;
   }
 }
-body.motion-off .object-editor.is-open {
-  transition-duration: 160ms;
+body.motion-off .side-editor.is-open:not(.instant):has(.object.expanded) {
+  transition-duration: 0s;
 }
 
 /* PM5: quiet text revision in Open, with one field shown on activation. */
@@ -379,7 +379,7 @@ body.motion-off .object-editor.is-open {
   border: 1px solid var(--text, var(--color-text));
   resize: none;
 }
-.object-editor .side-editor-body {
+.side-editor:has(.object.expanded) .react-editor-content {
   position: relative;
 }
 .object.expanded.gallery > .content {

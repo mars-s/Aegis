@@ -109,7 +109,8 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
   }
 
   useEffect(() => {
-    if (!body.current) return;
+    const scrollTarget = scroll.current;
+    if (!body.current || !scrollTarget) return;
     const release = session.attach(body.current),
       controller = new AbortController();
     lifetime.current = controller;
@@ -128,6 +129,9 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
         options: {
           placement: "top",
           offset: 8,
+          flip: { boundary: scrollTarget },
+          shift: { boundary: scrollTarget, crossAxis: true, padding: 8 },
+          scrollTarget,
           onShow: () => {
             queueMicrotask(() => {
               if (!controller.signal.aborted) setBubbleOpen(true);
@@ -459,8 +463,8 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
         )
           engine.pin(cardId, "focus", false);
       }}
-      onCompositionStart={() => engine.pin(cardId, "ime", true)}
-      onCompositionEnd={() => engine.pin(cardId, "ime", false)}
+      onCompositionStart={() => session.setComposing(true)}
+      onCompositionEnd={() => session.setComposing(false)}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || event.defaultPrevented) return;
         if (
@@ -729,6 +733,7 @@ export function copyCardsIntoDocument(
   if (!content.length) return false;
   const session = findDocumentSession(workspace, destination);
   if (session) {
+    if (!session.flush()) return false;
     const position =
       point && session.attached()
         ? session.editor.view.posAtCoords({ left: point.x, top: point.y })?.pos
