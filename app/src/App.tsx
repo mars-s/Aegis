@@ -73,6 +73,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [chromeEngine, setChromeEngine] = useState<CanvasEngine | null>(null);
   const [agentControls, setAgentControls] = useState<AgentShellControls | null>(null);
+  const [facadeEngine, setFacadeEngine] = useState<CanvasEngine | null>(null);
   const controls = useRef(agentControls); controls.current = agentControls;
   const engine = useRef<CanvasEngine | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,9 +143,12 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     engineCleanup.current = () => { offArea(); offFit(); };
   }, [area, workspace, runtime, persistCamera, controller]);
   useEffect(() => {
-    if (!chromeEngine || !agentControls || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
+    if ((import.meta.env.DEV || __AEGIS_TEST_FACADE__) && chromeEngine && agentControls) setFacadeEngine(chromeEngine);
+  }, [chromeEngine, agentControls]);
+  useEffect(() => {
+    if (!chromeEngine || facadeEngine !== chromeEngine || !(import.meta.env.DEV || __AEGIS_TEST_FACADE__)) return;
     return installTestFacade({ workspace, engine: chromeEngine, connection: runtime.connection, replication: runtime.replication, persistCamera, assetUrl: client.assetUrl, upload: async file => hostValue(await client.upload(file, lifetime.signal)), flushEditor: controller.flush });
-  }, [chromeEngine, agentControls, workspace, runtime, client, lifetime, persistCamera, controller]);
+  }, [chromeEngine, facadeEngine, workspace, runtime, client, lifetime, persistCamera, controller]);
   useEffect(() => { library.start(); return library.dispose; }, [library]);
   useLayoutEffect(() => {
     const stopController = controller.install(), stopActions = installEditorActions(context);
@@ -211,7 +215,6 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     ReferenceChart: ({ card, cards }) => <Plot data={card.data} title={card.text} cards={cards} />,
     editorActions: <EditorActions context={context} full={ui.editor?.view === 'full'} />,
   }), [context, client, runtime.connection.native, ui.editor?.view]);
-  const shortcuts = useMemo(() => [{ id: 'note', label: 'Note', text: 'N' }, { id: 'doc', label: 'Document', text: 'D' }, { id: 'deck', label: 'Slides', text: 'B' }, { id: 'ask', label: 'Ask', text: 'Command K or /' }, { id: 'fit', label: 'Fit board', text: '0' }, { id: 'side', label: 'Library and Windows', text: '\\' }], []);
   const activeCard = presentedEditor ? workspace.record(presentedEditor.id).getSnapshot() : null;
   const editorKind = activeCard?.type === 'object' ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
@@ -227,7 +230,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     <CaptureViews context={context} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
-    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
+    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
     {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
     {Editor && presentedEditor && chromeEngine ? <aside ref={editorElement} inert={editorPresence.kind === 'closing'} data-scene-interactive className={`react-editor side-editor${editorPresence.kind === 'open' ? ' is-open' : editorPresence.kind === 'closing' ? ' is-closing' : ''}${editorPresence.kind !== 'closed' && editorPresence.instant ? ' instant' : ''}${editorKind === 'deck' ? ' deck-panel' : ''}${presentedEditor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">
