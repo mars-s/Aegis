@@ -6,10 +6,10 @@ import { createRequire } from 'node:module';
 import { createServer } from 'vite';
 import type { ViteDevServer } from 'vite';
 import { chromium, webkit } from 'playwright';
-import type { Browser, Page } from 'playwright';
+import type { Browser, CDPSession, Page } from 'playwright';
 import type {} from '../../perf/scene/browser-fixture.js';
 
-declare global { interface Window { resumeSceneFrames: () => void } }
+declare global { interface Window { resumeSceneFrames: () => void; touchMenuEvents: { readonly id: string | null; readonly x: number; readonly y: number }[]; touchReleases: number } }
 
 const scenePort = Number(process.env.AEGIS_PORT_OFFSET ?? 4100);
 const url = `http://127.0.0.1:${scenePort}/checks/perf/scene/index.html`;
@@ -26,6 +26,20 @@ async function page(motion: boolean | 'system' = false, insets = false, attachme
   return result;
 }
 async function idle(page: Page): Promise<void> { await page.waitForFunction(() => window.sceneHarness.engine.inspect().pendingFrames === 0); await page.waitForTimeout(35); }
+async function observeTouch(p: Page): Promise<CDPSession> {
+  await p.evaluate(() => {
+    window.touchMenuEvents = []; window.touchReleases = 0;
+    document.addEventListener('contextmenu', event => {
+      event.preventDefault();
+      if (!event.isTrusted) window.touchMenuEvents.push({ id: event.target instanceof Element ? event.target.closest('.card')?.getAttribute('data-id') ?? null : null, x: event.clientX, y: event.clientY });
+    });
+    document.addEventListener('pointerup', () => { window.touchReleases++; }, true);
+  });
+  return p.context().newCDPSession(p);
+}
+async function touch(client: CDPSession, type: 'touchStart' | 'touchMove' | 'touchEnd', points: readonly { readonly id: number; readonly x: number; readonly y: number }[]): Promise<void> {
+  await client.send('Input.dispatchTouchEvent', { type, touchPoints: [...points] });
+}
 
 beforeAll(async () => {
   process.env.AEGIS_DATA = data; process.env.AEGIS_VITE_CACHE = cache; process.env.AEGIS_PORT_OFFSET = String(scenePort);
@@ -40,6 +54,48 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['stage', 'card'] as const)('a touch hold opens the actual %s context path and consumes its release', async target => {
+    const p = await page(), client = await observeTouch(p);
+    const box = target === 'card' ? await p.locator('[data-id="note-2"]').boundingBox() : null;
+    const point = { id: 1, x: box ? box.x + 30 : 1000, y: box ? box.y + 30 : 700 };
+    const camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+    await touch(client, 'touchStart', [point]); await p.waitForTimeout(570);
+    expect(await p.evaluate(() => window.touchMenuEvents)).toEqual([{ id: target === 'card' ? 'note-2' : null, x: point.x, y: point.y }]);
+    await touch(client, 'touchEnd', []); await idle(p);
+    expect(await p.evaluate(() => window.touchReleases)).toBe(0);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    await p.close();
+  });
+
+  test.each(['movement', 'second-touch', 'early-release', 'focused-text', 'active-tool', 'board-replacement', 'dispose'] as const)('touch hold yields to %s', async reason => {
+    const p = await page(), client = await observeTouch(p);
+    const box = reason === 'focused-text' ? await p.locator('[data-body="note-2"]').boundingBox() : null;
+    if (reason === 'focused-text') await p.locator('[data-body="note-2"]').focus();
+    if (reason === 'active-tool') await p.evaluate(() => {
+      const harness = window.sceneHarness, card = harness.board().cards[0];
+      if (!card) throw new Error('Missing connection source');
+      harness.engine.startConnection(card.id);
+    });
+    const point = { id: 1, x: box ? box.x + 10 : 1000, y: box ? box.y + 10 : 700 };
+    await touch(client, 'touchStart', [point]);
+    if (reason === 'movement') {
+      await touch(client, 'touchMove', [{ ...point, x: point.x + 20 }]);
+      await touch(client, 'touchMove', [point]);
+    } else if (reason === 'second-touch') await touch(client, 'touchStart', [point, { id: 2, x: 1200, y: 700 }]);
+    else if (reason === 'early-release') await touch(client, 'touchEnd', []);
+    else if (reason === 'board-replacement') await p.evaluate(() => window.sceneHarness.replace(10));
+    else if (reason === 'dispose') await p.evaluate(() => window.sceneHarness.engine.dispose());
+    await p.waitForTimeout(570);
+    if (reason !== 'early-release') await touch(client, 'touchEnd', []);
+    expect(await p.evaluate(() => window.touchMenuEvents)).toEqual([]);
+    if (reason === 'focused-text') {
+      expect(await p.locator('[data-body="note-2"]').evaluate(el => el === document.activeElement)).toBe(true);
+      await p.locator('[data-body="note-2"]').fill('Native editing retained');
+    }
+    await p.close();
+  });
+
   test.each(['chromium', 'webkit'] as const)('retains an editor source lifetime while hiding its offscreen shell in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {

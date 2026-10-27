@@ -1,6 +1,6 @@
 import { applyBatch } from '@aegis/domain/commands';
 import { BatchIdSchema, CardIdSchema, LinkIdSchema, RevisionSchema } from '@aegis/domain/schema';
-import type { BatchId, Board, Card, CardContent, CardId, Command } from '@aegis/domain/schema';
+import type { AgentId, BatchId, Board, Card, CardContent, CardId, Command, RequestId } from '@aegis/domain/schema';
 import { failureMessage } from '@aegis/host-client/result';
 import type { HostFailure, PendingBatch, ReplicationState } from '@aegis/host-client';
 import type { HostEvent } from '@aegis/protocol/http';
@@ -55,6 +55,14 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
   const replicationState = createSource<ReplicationState>({ epoch, closed: disposed, boardId: confirmed.id, confirmedRevision: confirmed.rev, pending, blocked: false });
   let undoEntries: { readonly before: Board; readonly after: Board }[] = [];
   let redoEntries: { readonly before: Board; readonly after: Board }[] = [];
+  const expectedAgentUndos = new Set<{ readonly agentId: AgentId; readonly requestId: RequestId }>();
+
+  function rememberHistory(before: Board): void {
+    undoEntries.push({ before, after: projected });
+    if (undoEntries.length > 80) undoEntries.shift();
+    redoEntries = [];
+    history.set({ undo: true, redo: false });
+  }
 
   function publishReplication(): void {
     const nextSaving: SaveState = blocked ? { ...blocked, pending: pending.length } : pending.length ? { kind: 'saving', pending: pending.length } : { kind: 'saved', revision: confirmed.rev };
@@ -124,10 +132,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
         if (normalised.ok) undoEntries[undoEntries.length - 1] = { ...previous, after: normalised.board };
       }
     } else if (remember) {
-      undoEntries.push({ before, after: projected });
-      if (undoEntries.length > 80) undoEntries.shift();
-      redoEntries = [];
-      history.set({ undo: true, redo: false });
+      rememberHistory(before);
     }
     publishReplication();
     const existing = new Set(before.cards.map(card => card.id));
@@ -148,6 +153,10 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     if (event.type !== 'board') { eventSource.set(event); return 'applied'; }
     if (event.boardId !== confirmed.id || event.rev <= confirmed.rev) return 'ignored';
     if (!event.patch || event.baseRev !== confirmed.rev) return 'gap';
+    const expectedUndos = event.author.kind === 'agent' && event.author.conversationId !== undefined && event.author.undoRequest
+      ? [...expectedAgentUndos].filter(request => request.agentId === String(event.author.conversationId) && request.requestId === event.author.undoRequest)
+      : [];
+    const before = projected;
     const removed = new Set(event.patch.removed);
     const changed = new Map(event.patch.cards.map(card => [card.id, card]));
     const cards = confirmed.cards.filter(card => !removed.has(card.id)).map(card => {
@@ -174,6 +183,10 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
     if (fields.tray === null) delete confirmed.tray;
     else if (fields.tray !== undefined) confirmed.tray = fields.tray;
     rebase(event.author.kind === 'agent' && !event.author.undoRequest ? 'agent' : 'sync');
+    if (expectedUndos.length) {
+      for (const request of expectedUndos) expectedAgentUndos.delete(request);
+      rememberHistory(before);
+    }
     eventSource.set(event);
     return 'applied';
   }
@@ -242,6 +255,11 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
       return source;
     },
     submit: commands => transaction(() => submit(commands, true)),
+    expectAgentUndo: (agentId, requestId) => {
+      const request = { agentId, requestId };
+      if (!disposed) expectedAgentUndos.add(request);
+      return () => { expectedAgentUndos.delete(request); };
+    },
     undo: () => transaction(() => {
       const entry = undoEntries.at(-1);
       if (!entry) return { kind: 'rejected', errors: [{ index: -1, path: 'history', reason: 'Nothing left to undo' }] };
@@ -296,6 +314,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
       confirmed = board;
       blocked = null;
       undoEntries = []; redoEntries = [];
+      expectedAgentUndos.clear();
       agents.clear();
       for (const source of agentSources.values()) source.set(null);
       agentSources.clear();
@@ -314,6 +333,7 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
       if (disposed) return;
       disposed = true;
       epoch++;
+      expectedAgentUndos.clear();
       publishReplication();
       sceneListeners.clear();
       for (const source of contentSources.values()) source.clear();

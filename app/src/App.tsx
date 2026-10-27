@@ -45,6 +45,7 @@ import { placementTool } from './features/wireframe/tool.js';
 import { mediaPlacementTool } from './features/media/placement-tool.js';
 import { Unsorted } from './platform/Unsorted.js';
 import { CaptureButton, CaptureViews } from './features/editing/registration.js';
+import { NavigationViews } from './features/editing/NavigationViews.js';
 import { CreativeImports } from './platform/CreativeImports.js';
 import { armDeckPlacement } from './platform/deck-placement.js';
 import { createAvailableArea } from './platform/available-area.js';
@@ -251,6 +252,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   return <CanvasLibrary.Provider value={library.service}><CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
+    <NavigationViews context={context} engine={chromeEngine} />
     {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request }) ?? resolveCollectionDrop(context, request)} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} wireframeSheet={close => <WireframePanel context={context} onPlace={request => { chromeEngine.tool(placementTool(chromeEngine, workspace, request)); close(); }} onClose={close} />} /> : null}
