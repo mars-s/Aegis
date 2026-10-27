@@ -7,16 +7,19 @@ import { createCanvas } from '../../../packages/scene/src/engine.js';
 import type { CanvasEngine, CanvasWorkspace, SceneChange, SlotLease } from '../../../packages/scene/src/types.js';
 import { replay } from './replay.js';
 import type { ReplayResult } from './replay.js';
+import { bindOrientationMenu } from '../../../app/src/canvas/orientation-menu.js';
 
 interface Harness {
   readonly engine: CanvasEngine;
   readonly board: () => Board;
   readonly calls: readonly (readonly Command[])[];
   readonly replace: (count: number) => void;
+  readonly load: (board: unknown) => void;
   readonly update: (card: unknown) => void;
   readonly mounted: ReadonlyMap<string, HTMLElement>;
   readonly cleanups: readonly string[];
   readonly notifications: () => number;
+  readonly opened: () => number;
   readonly removePortals: () => void;
   readonly holdCleanup: (hold: boolean) => void;
   readonly acknowledgeReleased: (stale: boolean) => void;
@@ -26,6 +29,7 @@ declare global { interface Window { sceneHarness: Harness } }
 
 const element = (id: string): HTMLElement => { const el = document.getElementById(id); if (!el) throw new Error(`Missing ${id}`); return el; };
 const stage = element('stage'), world = element('world'), backdrop = element('backdrop'), overlay = element('overlay');
+stage.classList.add('react-stage');
 if (!(backdrop instanceof HTMLCanvasElement) || !(overlay instanceof HTMLCanvasElement)) throw new Error('Missing scene canvases');
 
 function fixture(count: number): Board {
@@ -37,6 +41,7 @@ let current = fixture(10), selection: readonly CardId[] = [];
 const listeners = new Set<(change: SceneChange) => void>(), selectionListeners = new Set<() => void>();
 const calls: (readonly Command[])[] = [], mounted = new Map<string, HTMLElement>(), cleanups: string[] = [];
 let notifications = 0;
+let opened = 0;
 let holdCleanup = false;
 const released: SlotLease[] = [];
 function update(cards: readonly Card[], removed: readonly CardId[] = []): void {
@@ -55,12 +60,18 @@ const workspace: CanvasWorkspace = {
       const card = 'id' in command ? current.cards.find(candidate => candidate.id === command.id) : undefined;
       if (command.op === 'move' && card) cards.push(CardSchema.parse({ ...card, x: command.x, y: command.y }));
       if (command.op === 'measure' && card) cards.push(CardSchema.parse({ ...card, h: command.h }));
+      if (command.op === 'update' && card) {
+        const prior = cards.find(candidate => candidate.id === card.id) ?? card;
+        const props = command.set.props;
+        cards.push(CardSchema.parse({ ...prior, ...command.set, props: props && typeof props === 'object' && !Array.isArray(props) ? { ...prior.props, ...props } : prior.props }));
+      }
     }
     if (cards.length) update(cards);
     return { kind: 'applied' };
   },
 };
 const engine = createCanvas({ stage, world, backdrop, overlay, workspace, warmLeases: 32, reducedMotion: true, snapGrid: 24 });
+bindOrientationMenu(stage, engine, () => current.cards, () => {});
 
 function Body({ lease }: { readonly lease: SlotLease }) {
   const card = current.cards.find(card => card.id === lease.cardId);
@@ -72,7 +83,7 @@ function Body({ lease }: { readonly lease: SlotLease }) {
       else queueMicrotask(() => engine.leases.acknowledgeUnmount(lease.key, lease.generation));
     };
   }, [lease]);
-  return createElement('div', null, createElement('div', { contentEditable: true, suppressContentEditableWarning: true, 'data-body': lease.cardId }, card?.text ?? ''), lease.cardId === 'note-1' ? createElement('iframe', { title: 'Lifetime fixture', srcDoc: '<script>window.frameIdentity=Math.random()</script><p>Persistent frame</p>' }) : null);
+  return createElement('div', null, createElement('div', { contentEditable: true, suppressContentEditableWarning: true, 'data-body': lease.cardId }, card?.text ?? ''), lease.cardId === 'note-1' ? createElement('iframe', { title: 'Lifetime fixture', srcDoc: '<script>window.frameIdentity=Math.random()</script><p>Persistent frame</p><input value="one" aria-label="Sandbox text">' }) : null, lease.cardId === 'note-2' ? createElement('button', { className: 'win-open', onClick: () => { opened++; } }, 'Open fixture') : null);
 }
 function Portals() {
   const leases = useSyncExternalStore(engine.leases.subscribe, engine.leases.getSnapshot);
@@ -81,10 +92,14 @@ function Portals() {
 const root = createRoot(element('portals')); root.render(createElement(Portals));
 engine.leases.subscribe(() => { notifications++; });
 window.sceneHarness = {
-  engine, board: () => current, calls, mounted, cleanups, notifications: () => notifications,
+  engine, board: () => current, calls, mounted, cleanups, notifications: () => notifications, opened: () => opened,
   update: card => update([CardSchema.parse(card)]),
   replace: count => {
     const old = current; current = fixture(count);
+    for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
+  },
+  load: value => {
+    const old = current; current = BoardSchema.parse(value);
     for (const listener of listeners) listener({ kind: 'replace', boardId: current.id, baseRevision: old.rev, revision: current.rev, upserted: current.cards, removed: [], links: current.links, order: current.cards.map(card => card.id) });
   },
   removePortals: () => root.unmount(),

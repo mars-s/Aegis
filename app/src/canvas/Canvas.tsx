@@ -4,6 +4,8 @@ import type { CanvasEngine } from "@aegis/scene";
 import type { Workspace } from "../workspace/index.js";
 import type { CardBodyKind, Composition } from "../composition.js";
 import { CardPortals } from "./CardPortals.js";
+import "./scene.css";
+import { bindOrientationMenu } from "./orientation-menu.js";
 
 export function Canvas({ workspace, composition, attached, cameraChanged }: {
   readonly workspace: Workspace;
@@ -30,9 +32,16 @@ export function Canvas({ workspace, composition, attached, cameraChanged }: {
     setEngine(instance);
     attached(instance);
     const element = stage.current;
+    const disposeMenu = bindOrientationMenu(element, instance, () => workspace.scene.snapshot().cards, cameraChanged);
+    const navigationChanged = (event: KeyboardEvent | MouseEvent) => {
+      if (event instanceof KeyboardEvent && event.key !== "0" && !["Enter", " "].includes(event.key)) return;
+      if (event instanceof KeyboardEvent && event.key === "0" || event.target instanceof Element && event.target.closest(".canvas-orientation [data-card-id]")) cameraChanged();
+    };
     element.addEventListener("pointerup", cameraChanged);
     element.addEventListener("wheel", cameraChanged, { passive: true });
-    return () => { element.removeEventListener("pointerup", cameraChanged); element.removeEventListener("wheel", cameraChanged); attached(null); instance.dispose(); };
+    element.addEventListener("keyup", navigationChanged);
+    element.addEventListener("dblclick", navigationChanged);
+    return () => { disposeMenu(); element.removeEventListener("pointerup", cameraChanged); element.removeEventListener("wheel", cameraChanged); element.removeEventListener("keyup", navigationChanged); element.removeEventListener("dblclick", navigationChanged); attached(null); instance.dispose(); };
   }, [workspace, attached, cameraChanged]);
   return <div id="stage" className="react-stage" ref={stage} tabIndex={0} aria-label="Board canvas">
     <canvas ref={backdrop} className="scene-backdrop" aria-hidden="true" />

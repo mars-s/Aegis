@@ -183,6 +183,190 @@ describe('real scene attachment', () => {
     await p.close();
   });
 
+  test('Space and middle pan win over controls and iframe content, with immediate cursor feedback', async () => {
+    const p = await page();
+    for (const selector of ['[data-body="note-1"]', '[data-id="note-2"] .win-open', '[data-id="note-1"] .resize', 'iframe']) {
+      await p.locator('#outside').focus();
+      const box = await p.locator(selector).boundingBox();
+      if (!box) throw new Error(`Missing pan target ${selector}`);
+      const x = box.x + box.width / 2, y = box.y + Math.min(box.height / 2, 40);
+      await p.mouse.move(x, y);
+      const before = await p.evaluate(() => ({ board: window.sceneHarness.board(), camera: window.sceneHarness.engine.camera() }));
+      await p.keyboard.down('Space');
+      expect(await p.evaluate(([x, y]) => { const target = document.elementFromPoint(x ?? 0, y ?? 0); return target ? getComputedStyle(target).cursor : null; }, [x, y])).toBe('grab');
+      await p.mouse.down();
+      expect(await p.locator('#stage').evaluate(el => getComputedStyle(el).cursor)).toBe('grabbing');
+      await p.mouse.move(x + 20, y + 10, { steps: 4 }); await p.mouse.up(); await p.keyboard.up('Space'); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.board())).toEqual(before.board);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...before.camera, x: before.camera.x + 20, y: before.camera.y + 10 });
+    }
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    await p.locator('[data-body="note-1"]').click(); await p.keyboard.press('End'); await p.keyboard.press('Space'); await p.keyboard.type('typed');
+    expect(await p.locator('[data-body="note-1"]').textContent()).toBe('Note 1 typed');
+    expect(await p.locator('#stage').evaluate(el => el.classList.contains('pan-ready'))).toBe(false);
+    const frameInput = p.frameLocator('iframe').getByRole('textbox', { name: 'Sandbox text' });
+    await frameInput.click(); await frameInput.press('End');
+    const iframeCamera = await p.evaluate(() => window.sceneHarness.engine.camera());
+    await p.keyboard.press('Space'); await p.keyboard.type('two');
+    expect(await frameInput.inputValue()).toBe('one two');
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(iframeCamera);
+    expect(await p.locator('#stage').evaluate(el => el.classList.contains('pan-ready'))).toBe(false);
+    await p.locator('#outside').focus();
+    const control = await p.locator('[data-id="note-2"] .win-open').boundingBox();
+    if (!control) throw new Error('Missing control pan target');
+    await p.mouse.move(control.x + 8, control.y + 8); await p.mouse.down({ button: 'middle' });
+    await p.mouse.move(control.x + 38, control.y + 28, { steps: 3 }); await p.mouse.up({ button: 'middle' }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...iframeCamera, x: iframeCamera.x + 30, y: iframeCamera.y + 20 });
+    await p.locator('#outside').focus(); await p.keyboard.down('Space');
+    await p.evaluate(() => dispatchEvent(new Event('blur')));
+    expect(await p.locator('#stage').evaluate(el => el.classList.contains('pan-ready'))).toBe(false);
+    await p.keyboard.up('Space'); await p.close();
+  });
+
+  test('marquee includes intersecting windows and group drags retain descendant spacing', async () => {
+    const p = await page();
+    await p.mouse.move(400, 80); await p.mouse.down(); await p.mouse.move(430, 120, { steps: 4 }); await p.mouse.up(); await idle(p);
+    expect(await p.locator('.scene-card.selected').getAttribute('data-id')).toBe('note-1');
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    await p.evaluate(() => {
+      const board = window.sceneHarness.board();
+      window.sceneHarness.load({ ...board, cards: board.cards.map(card => card.id === 'note-2' ? { ...card, type: 'template-group' } : card.id === 'note-3' ? { ...card, parent: 'note-2' } : card) });
+    }); await idle(p);
+    await p.keyboard.down('Meta'); await p.mouse.move(750, 104); await p.mouse.down(); await p.mouse.move(787, 133, { steps: 4 }); await p.mouse.up(); await p.keyboard.up('Meta'); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.calls)).toEqual([[{ op: 'move', id: 'note-2', x: 757, y: 109 }, { op: 'move', id: 'note-3', x: 1077, y: 109 }]]);
+    await p.close();
+  });
+
+  test('Shift deselection releases its pointer capture lease pin', async () => {
+    const p = await page();
+    await p.keyboard.down('Shift'); await p.mouse.click(430, 104); await idle(p);
+    expect(await p.locator('.scene-card.selected').count()).toBe(1);
+    await p.mouse.click(430, 104); await p.keyboard.up('Shift'); await idle(p);
+    expect(await p.locator('.scene-card.selected').count()).toBe(0);
+    expect(await p.evaluate(() => window.sceneHarness.engine.inspect().pinnedLeases)).toBe(0);
+    await p.close();
+  });
+
+  test('resize previews geometry, commits one fixed-height batch, and Escape cancels it', async () => {
+    const p = await page(), grip = p.locator('[data-id="note-2"] .resize');
+    const box = await grip.boundingBox(); if (!box) throw new Error('Missing resize grip');
+    const start = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    await p.mouse.move(start.x, start.y); await p.mouse.down(); await p.mouse.move(start.x + 37, start.y + 29, { steps: 5 }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    expect(await p.locator('[data-id="note-2"]').evaluate(el => ({ width: el.style.width, height: el.style.height }))).toEqual({ width: '277px', height: '189px' });
+    await p.mouse.up(); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.calls)).toEqual([[{ op: 'update', id: 'note-2', set: { w: 277, h: 189, props: { fixedHeight: true } } }]]);
+    const saved = await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'));
+    expect(saved).toMatchObject({ w: 277, h: 189, props: { fixedHeight: true } });
+    const again = await grip.boundingBox(); if (!again) throw new Error('Missing resized grip');
+    await p.mouse.move(again.x + 8, again.y + 8); await p.mouse.down(); await p.mouse.move(again.x + 80, again.y + 80); await p.keyboard.press('Escape'); await p.mouse.up(); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toEqual(saved);
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(1);
+    await p.close();
+  });
+
+  test('pinch keeps the world anchor and waits for both fingers before another pan', async () => {
+    const p = await page(), client = await p.context().newCDPSession(p);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 900, y: 500, id: 1 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 900, y: 500, id: 1 }, { x: 1100, y: 500, id: 2 }] }); await idle(p);
+    const anchor = await p.evaluate(() => window.sceneHarness.engine.screenToWorld({ x: 980, y: 480 }));
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 850, y: 500, id: 1 }, { x: 1150, y: 500, id: 2 }] }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera().zoom)).toBeCloseTo(1.5);
+    const after = await p.evaluate(() => window.sceneHarness.engine.screenToWorld({ x: 980, y: 480 }));
+    expect(after.x).toBeCloseTo(anchor.x); expect(after.y).toBeCloseTo(anchor.y);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ x: 850, y: 500, id: 1 }] }); await idle(p);
+    const camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 950, y: 580, id: 1 }] }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 950, y: 580, id: 1 }, { x: 1150, y: 600, id: 4 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 950, y: 580, id: 1 }, { x: 1200, y: 680, id: 4 }] }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [{ x: 950, y: 580, id: 1 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 950, y: 580, id: 3 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 990, y: 610, id: 3 }] });
+    await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...camera, x: camera.x + 40, y: camera.y + 30 });
+    await p.close();
+  });
+
+  test('screen-sized Open action keeps focus through source updates and scales its anchor only', async () => {
+    const p = await page();
+    await p.locator('[data-id="note-2"] .win-open').hover();
+    const action = p.locator('.window-actions button'); await action.waitFor();
+    await action.focus();
+    await p.evaluate(() => { const card = window.sceneHarness.board().cards.find(card => card.id === 'note-2'); if (card) window.sceneHarness.update({ ...card, text: 'Updated source' }); }); await idle(p);
+    expect(await action.evaluate(el => el === document.activeElement)).toBe(true);
+    const before = await action.boundingBox();
+    await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 100, y: 100, zoom: .5 }, motion: 'instant' })); await idle(p);
+    const after = await action.boundingBox();
+    expect(after?.width).toBe(before?.width); expect(after?.height).toBe(before?.height);
+    expect(after?.x).not.toBe(before?.x);
+    await action.click(); expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(1);
+    await p.close();
+  });
+
+  test('far orientation stays opt-in, uses true rectangles, and gives keyboard ownership to the aid', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const board = window.sceneHarness.board();
+      window.sceneHarness.load({ ...board, cards: Array.from({ length: 40 }, (_, i) => ({ id: `orientation${i}`, type: 'note', heading: `Research window ${i + 1}`, text: 'Overview fixture', color: 'plain', x: 10000 + i % 8 * 1400, y: 10000 + Math.floor(i / 8) * 1200, w: 500 + i * 5, h: 300 + i * 3 })), links: [], view: { x: -400, y: -400, z: .05 } });
+    });
+    await p.locator('#outside').focus(); await p.mouse.move(1000, 700); await idle(p);
+    const orientation = p.locator('.canvas-orientation'); expect(await orientation.isVisible()).toBe(false);
+    await p.mouse.move(24, 450); await orientation.waitFor({ state: 'visible' });
+    const labels = orientation.locator('span');
+    expect(await labels.count()).toBeGreaterThan(0); expect(await labels.count()).toBeLessThanOrEqual(30);
+    expect(await labels.evaluateAll(nodes => nodes.every(el => Number(el.dataset.cardId?.slice(11)) >= 10 && getComputedStyle(el).pointerEvents === 'auto' && parseFloat(getComputedStyle(el).fontSize) >= 11))).toBe(true);
+    const label = labels.first(); await label.hover();
+    const aid = orientation.locator('.orientation-aid'); await aid.waitFor({ state: 'visible' });
+    expect(await aid.evaluate(el => {
+      const rep = window.sceneHarness.engine.representations().find(rep => rep.id === el.dataset.cardId), rect = el.querySelector('rect');
+      return !!rep && !!rect && Number(rect.getAttribute('x')) === rep.bounds.x && Number(rect.getAttribute('width')) === rep.bounds.width && getComputedStyle(rect).stroke === 'rgb(63, 141, 253)' && getComputedStyle(el).pointerEvents === 'none';
+    })).toBe(true);
+    const labelId = await label.getAttribute('data-card-id');
+    await label.click(); await p.keyboard.press('Tab'); await idle(p);
+    expect(await aid.getAttribute('data-card-id')).not.toBe(labelId);
+    expect(await orientation.evaluate(el => el.querySelector('.orientation-aid')?.getAttribute('data-card-id') === document.activeElement?.getAttribute('data-card-id'))).toBe(true);
+    await p.keyboard.press('Shift+Tab'); await idle(p); expect(await aid.getAttribute('data-card-id')).toBe(labelId);
+    await p.locator('#outside').focus(); await p.mouse.move(1000, 700); await orientation.waitFor({ state: 'hidden' });
+    await p.keyboard.press('Tab'); await p.locator('#stage').focus(); await orientation.waitFor({ state: 'visible' }); expect(await orientation.isVisible()).toBe(true);
+    await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 0, y: 0, zoom: .2 }, motion: 'instant' })); await idle(p);
+    expect(await orientation.isVisible()).toBe(false);
+    await p.close();
+  });
+
+  test('colliding far names offer every omitted name through the shared menu at all widths', async () => {
+    const p = await page();
+    for (const width of [1440, 1586, 390]) {
+      await p.setViewportSize({ width, height: 900 });
+      await p.evaluate(() => {
+        const board = window.sceneHarness.board();
+        window.sceneHarness.load({ ...board, cards: Array.from({ length: 9 }, (_, i) => ({ id: `supporting${i}`, type: 'note', heading: `Supporting window ${i + 1}`, text: 'Collision fixture', color: 'plain', x: 100000 + i * 40, y: 100000 + i * 40, w: 600, h: 400 })), links: [], view: { x: -4900, y: -4900, z: .05 } });
+      });
+      await p.locator('#outside').focus(); await p.mouse.move(width - 100, 600); await idle(p);
+      const orientation = p.locator('.canvas-orientation'), chip = orientation.locator('.orientation-more');
+      expect(await orientation.isVisible()).toBe(false);
+      await p.mouse.move(width - 24, 450); await orientation.waitFor({ state: 'visible' });
+      const labelled = await orientation.locator('span').allTextContents();
+      expect(labelled.length).toBeGreaterThan(0); expect(labelled.length).toBeLessThan(9);
+      expect(await chip.textContent()).toBe(`+${9 - labelled.length} more`);
+      const box = await chip.boundingBox(); expect(box?.width).toBeGreaterThanOrEqual(44); expect(box?.height).toBeGreaterThanOrEqual(44);
+      expect(box && box.x >= 20 && box.x + box.width <= width - 20).toBe(true);
+      await chip.focus(); await p.keyboard.press('Enter');
+      const menu = p.getByRole('menu', { name: 'More window names', exact: true }); await menu.waitFor();
+      expect((await menu.getByRole('menuitem').allTextContents()).sort()).toEqual(Array.from({ length: 9 }, (_, i) => `Supporting window ${i + 1}`).filter(name => !labelled.includes(name)).sort());
+      expect(await menu.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(36, 39, 43)');
+      await p.keyboard.press('Escape'); await menu.waitFor({ state: 'hidden' }); expect(await chip.evaluate(el => el === document.activeElement)).toBe(true);
+      await p.keyboard.press('Enter'); await menu.waitFor(); await p.keyboard.press('ArrowDown');
+      expect(await menu.getByRole('menuitem').nth(1).evaluate(el => el === document.activeElement)).toBe(true);
+      await p.keyboard.press('Enter'); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera().zoom)).toBeGreaterThan(.2);
+      expect(await orientation.isVisible()).toBe(false);
+    }
+    await p.close();
+  });
+
   test('supports the same attachment in WebKit', async () => {
     const wk = await webkit.launch({ headless: true });
     try {
@@ -190,6 +374,14 @@ describe('real scene attachment', () => {
       await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
       await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'fit', ids: [], motion: 'instant' })); await idle(p);
       expect(await p.evaluate(() => window.sceneHarness.engine.inspect().visibleCards)).toBe(10);
+      await p.keyboard.down('Space');
+      expect(await p.locator('#stage').evaluate(el => getComputedStyle(el).cursor)).toBe('grab');
+      const before = await p.evaluate(() => window.sceneHarness.engine.camera());
+      await p.mouse.move(600, 500); await p.mouse.down(); await p.mouse.move(640, 530, { steps: 4 });
+      expect(await p.locator('#stage').evaluate(el => getComputedStyle(el).cursor)).toBe('grabbing');
+      await p.mouse.up(); await p.keyboard.up('Space'); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...before, x: before.x + 40, y: before.y + 30 });
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
     } finally { await wk.close(); }
   });
 

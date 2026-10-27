@@ -9,6 +9,10 @@ interface Shell {
   residency: { readonly kind: 'free' } | { readonly kind: 'bound' | 'releasing'; readonly lease: SlotLease };
   lastSeen: number;
   geometry: string;
+  appearance: string;
+  typeClass: string;
+  kindClass: string;
+  visible: boolean;
   readonly pins: Set<PinReason>;
 }
 export interface LeasePlacement { readonly node: SceneNode; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly rotation: number; readonly selected: boolean }
@@ -39,7 +43,7 @@ export class LeasePool {
     acknowledgeUnmount: (key: string, generation: number): void => {
       const shell = this.shells.find(candidate => candidate.residency.kind === 'releasing' && candidate.residency.lease.key === key && candidate.residency.lease.generation === generation);
       if (!shell) return;
-      shell.residency = { kind: 'free' }; shell.generation++; shell.geometry = '';
+      shell.residency = { kind: 'free' }; shell.generation++; shell.geometry = ''; shell.appearance = '';
       if (this.disposed) { shell.element.remove(); this.finishDisposal(); }
       else this.invalidate();
     },
@@ -56,7 +60,7 @@ export class LeasePool {
     for (const [id, shell] of this.byCard) {
       if (visible.has(id)) continue;
       if (shell.pins.size) continue;
-      shell.element.hidden = true; shell.element.inert = true;
+      if (shell.visible) { shell.element.hidden = true; shell.element.inert = true; shell.visible = false; }
       if (now - shell.lastSeen >= 2000) this.release(shell);
       else expiresAt = Math.min(expiresAt, shell.lastSeen + 2000);
     }
@@ -125,8 +129,9 @@ export class LeasePool {
       const element = this.world.ownerDocument.createElement('div'), host = this.world.ownerDocument.createElement('div');
       element.className = 'card scene-card'; host.className = 'content scene-body';
       element.style.position = 'absolute'; element.style.transformOrigin = 'center';
-      host.style.height = '100%'; element.append(host); this.world.append(element);
-      shell = { element, host, generation: 0, residency: { kind: 'free' }, lastSeen: 0, geometry: '', pins: new Set() };
+      const resize = this.world.ownerDocument.createElement('div'); resize.className = 'resize'; resize.setAttribute('aria-hidden', 'true');
+      host.style.height = '100%'; element.append(host, resize); this.world.append(element);
+      shell = { element, host, generation: 0, residency: { kind: 'free' }, lastSeen: 0, geometry: '', appearance: '', typeClass: '', kindClass: '', visible: false, pins: new Set() };
       this.shells.push(shell);
     }
     const lease: SlotLease = { key: `${this.boardId}:${id}:${this.serial++}`, cardId: id, generation: shell.generation, host: shell.host };
@@ -138,7 +143,7 @@ export class LeasePool {
     if (shell.residency.kind !== 'bound') return;
     const lease = shell.residency.lease;
     this.byCard.delete(lease.cardId); shell.residency = { kind: 'releasing', lease };
-    shell.element.hidden = true; shell.element.inert = true;
+    shell.element.hidden = true; shell.element.inert = true; shell.visible = false;
     this.postPublish();
   }
 
@@ -150,10 +155,25 @@ export class LeasePool {
       shell.element.style.width = `${width}px`; shell.element.style.height = `${height}px`; shell.element.style.zIndex = `${node.rank}`;
       shell.geometry = geometry;
     }
-    shell.element.dataset.id = node.card.id; shell.element.dataset.type = node.card.type;
-    shell.element.classList.toggle('selected', selected); shell.element.classList.toggle('locked', node.locked);
-    shell.element.classList.toggle('note', node.card.type === 'note'); shell.element.classList.toggle('title', node.card.type === 'title');
-    shell.element.hidden = false; shell.element.inert = false;
+    const appearance = `${node.card.id}:${node.card.type}:${node.card.kind ?? ''}:${node.card.color}:${node.card.parent ?? ''}:${selected}:${node.locked}:${node.card.props?.fixedHeight === true}`;
+    if (shell.appearance !== appearance) {
+      shell.element.dataset.id = node.card.id; shell.element.dataset.type = node.card.type; shell.element.dataset.color = node.card.color;
+      shell.element.dataset.parent = node.card.parent ?? ''; shell.element.dataset.fixedHeight = String(node.card.props?.fixedHeight === true);
+      shell.element.classList.toggle('selected', selected); shell.element.classList.toggle('locked', node.locked);
+      if (shell.typeClass !== node.card.type) {
+        if (shell.typeClass) shell.element.classList.remove(shell.typeClass);
+        shell.typeClass = node.card.type; shell.element.classList.add(shell.typeClass);
+      }
+      shell.element.classList.toggle('fixed-height', node.card.props?.fixedHeight === true);
+      const kindClass = node.card.type === 'object' ? `kind-${node.card.kind}` : '';
+      if (kindClass !== shell.kindClass) {
+        if (shell.kindClass) shell.element.classList.remove(shell.kindClass);
+        shell.kindClass = kindClass; if (kindClass) shell.element.classList.add(kindClass);
+      }
+      if (node.card.type === 'object') shell.element.dataset.kind = node.card.kind; else delete shell.element.dataset.kind;
+      shell.appearance = appearance;
+    }
+    if (!shell.visible) { shell.element.hidden = false; shell.element.inert = false; shell.visible = true; }
   }
 
   private postPublish(): void {

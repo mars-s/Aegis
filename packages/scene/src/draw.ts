@@ -30,14 +30,17 @@ export class CanvasPainter {
     ctx.lineWidth = 1; ctx.font = '12px Inter, sans-serif';
     for (const { link, route } of links) {
       const { p0, p2, control } = route;
-      ctx.strokeStyle = link.colour || '#56565e'; ctx.fillStyle = ctx.strokeStyle;
+      ctx.strokeStyle = link.colour || 'rgb(255 255 255 / .16)'; ctx.fillStyle = ctx.strokeStyle; ctx.lineWidth = 1.5;
       ctx.setLineDash(link.dash ? [5, 5] : []);
-      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.quadraticCurveTo(control.x, control.y, p2.x, p2.y); ctx.stroke(); ctx.setLineDash([]);
-      if (link.arrow !== 'none') this.arrow(p2, control);
-      if (link.arrow === 'both') this.arrow(p0, control);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y);
+      if (route.points.length) for (const point of route.points.slice(1)) ctx.lineTo(point.x, point.y);
+      else ctx.quadraticCurveTo(control.x, control.y, p2.x, p2.y);
+      ctx.stroke(); ctx.setLineDash([]);
+      if (link.arrow === 'end' || link.arrow === 'both') this.arrow(p2, route.points.at(-2) ?? control);
+      if (link.arrow === 'both') this.arrow(p0, route.points[1] ?? control);
       if (link.label && camera.zoom >= 0.12) {
-        ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.strokeText(link.label, route.label.x, route.label.y - 10);
-        ctx.fillStyle = '#b5b5bd'; ctx.fillText(link.label, route.label.x, route.label.y - 10); ctx.lineWidth = 1;
+        ctx.textAlign = 'center'; ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.strokeText(link.label, route.label.x, route.label.y - 12 * Math.min(1, camera.zoom));
+        ctx.fillStyle = '#b5b5bd'; ctx.fillText(link.label, route.label.x, route.label.y - 12 * Math.min(1, camera.zoom)); ctx.lineWidth = 1;
       }
     }
     for (const rep of representations) {
@@ -49,7 +52,10 @@ export class CanvasPainter {
       }
       if (rep.kind !== 'detail' || !mounted(rep.id)) {
         ctx.save(); ctx.translate(r.x + r.width / 2, r.y + r.height / 2); ctx.rotate(rep.rotation * Math.PI / 180);
-        ctx.fillStyle = '#151517'; ctx.strokeStyle = '#303035'; ctx.beginPath(); ctx.roundRect(-r.width / 2, -r.height / 2, r.width, r.height, Math.min(8, r.height / 4)); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#151517'; ctx.strokeStyle = '#303035'; ctx.beginPath();
+        if (rep.kind === 'far') ctx.rect(-r.width / 2, -r.height / 2, r.width, r.height);
+        else ctx.roundRect(-r.width / 2, -r.height / 2, r.width, r.height, Math.min(8, r.height / 4));
+        ctx.fill(); ctx.stroke();
         if (rep.kind !== 'far' && r.width >= 50 && r.height >= 25) {
           ctx.beginPath(); ctx.rect(-r.width / 2 + 8, -r.height / 2 + 4, Math.max(0, r.width - 16), Math.max(0, r.height - 8)); ctx.clip();
           ctx.fillStyle = '#dadade'; ctx.textAlign = 'left'; ctx.font = `${14 * camera.zoom}px Inter, sans-serif`;
@@ -77,25 +83,25 @@ export class CanvasPainter {
   private drawGrid(camera: CameraState): void {
     const ctx = this.grid, dpr = this.dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, this.width, this.height);
-    let spacing = 32 * camera.zoom;
+    let spacing = 58.4 * camera.zoom;
     while (spacing < 26) spacing *= 2;
     const pixels = Math.max(1, Math.round(spacing * dpr)), step = pixels / dpr;
     const key = `${pixels}:${dpr}`;
     if (this.patternKey !== key) {
       const tile = this.backdrop.ownerDocument.createElement('canvas'); tile.width = pixels; tile.height = pixels;
       const tileCtx = tile.getContext('2d');
-      if (tileCtx) { tileCtx.fillStyle = '#29292e'; tileCtx.beginPath(); tileCtx.arc(pixels / 2, pixels / 2, 0.65 * dpr, 0, Math.PI * 2); tileCtx.fill(); this.pattern = ctx.createPattern(tile, 'repeat'); }
+      if (tileCtx) { tileCtx.fillStyle = 'rgb(128 137 157 / .6)'; tileCtx.fillRect(pixels / 2 - .75 * dpr, pixels / 2 - .75 * dpr, 1.5 * dpr, 1.5 * dpr); this.pattern = ctx.createPattern(tile, 'repeat'); }
       this.patternKey = key;
     }
     if (!this.pattern) return;
-    ctx.save(); ctx.scale(1 / dpr, 1 / dpr); ctx.translate((camera.x % step) * dpr, (camera.y % step) * dpr);
+    ctx.save(); ctx.globalAlpha = Math.max(.45, Math.min(1, (camera.zoom - .1) / .4));
+    ctx.scale(1 / dpr, 1 / dpr); ctx.translate(((camera.x + 16.5 * camera.zoom - step / 2) % step) * dpr, ((camera.y + 25.5 * camera.zoom - step / 2) % step) * dpr);
     ctx.fillStyle = this.pattern; ctx.fillRect(-pixels, -pixels, this.width * dpr + pixels * 2, this.height * dpr + pixels * 2); ctx.restore();
   }
 
   private arrow(point: Point, from: Point): void {
-    const angle = Math.atan2(point.y - from.y, point.x - from.x), size = 7, ctx = this.ink;
-    ctx.beginPath(); ctx.moveTo(point.x, point.y);
-    ctx.lineTo(point.x - Math.cos(angle - 0.45) * size, point.y - Math.sin(angle - 0.45) * size);
-    ctx.lineTo(point.x - Math.cos(angle + 0.45) * size, point.y - Math.sin(angle + 0.45) * size); ctx.closePath(); ctx.fill();
+    const length = Math.hypot(point.x - from.x, point.y - from.y) || 1, x = (point.x - from.x) / length, y = (point.y - from.y) / length, ctx = this.ink;
+    ctx.beginPath(); ctx.moveTo(point.x - x * 11 - y * 5, point.y - y * 11 + x * 5); ctx.lineTo(point.x, point.y);
+    ctx.lineTo(point.x - x * 11 + y * 5, point.y - y * 11 - x * 5); ctx.stroke();
   }
 }
