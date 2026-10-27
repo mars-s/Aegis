@@ -24,3 +24,4 @@
 #settings .row { display: flex; flex-wrap: wrap; gap: 8px; }
 #settings input { max-width: 100%; min-height: 32px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text); background: var(--inset); padding: 6px 8px; font: 13px var(--font); }
 #settings ::selection { color: var(--text); background: var(--data-soft); }
+#settings button { font-size: 12px; }

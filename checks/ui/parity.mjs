@@ -18,7 +18,7 @@ const browser = await chromium.launch();
 const context = await browser.newContext({ viewport:{width:390,height:844}, hasTouch:true, isMobile:true, deviceScaleFactor:1 });
 let page = await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
 const url = `http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${token}`;
-const waitSaved = async () => {await page.waitForFunction(()=>document.getElementById('saveState').textContent==='saved'); return page.evaluate(()=>aegis.host.get(`/boards/${aegis.canvas.board.id}`));};
+const waitSaved = async () => {await page.waitForFunction(()=>document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase()==='saved'); return page.evaluate(()=>aegis.host.get(`/boards/${aegis.canvas.board.id}`));};
 const log = (...a)=>console.log(...a);
 try {
   await page.goto(url); await page.waitForFunction(()=>window.aegis?.canvas?.board);
@@ -80,8 +80,8 @@ try {
   let mode='slow';
   await page.route(`http://127.0.0.1:${port}/boards/*/batch`,async route=>{if(mode==='fail'){await route.abort();return;} if(mode==='slow') await new Promise(r=>setTimeout(r,400)); await route.continue();});
   await page.evaluate(()=>aegis.apply([{op:'create',newId:'savest',type:'note',text:'Save feedback',x:NaN,y:Infinity,w:-1,h:NaN,rot:Infinity}]));
-  await page.waitForFunction(()=>document.getElementById('saveState').textContent==='saving'); let b=await waitSaved(); const repaired=b.cards.find(c=>c.id==='savest'); assert.ok(['x','y','w','h','rot'].every(k=>Number.isFinite(repaired[k]))); assert.ok(repaired.w>0&&repaired.h>0);
-  mode='fail'; await page.evaluate(()=>aegis.apply([{op:'update',id:'savest',set:{text:'Kept after failure'}}])); await page.waitForFunction(()=>document.getElementById('saveState').textContent==='not saved');
+  await page.waitForFunction(()=>document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase()==='saving'); let b=await waitSaved(); const repaired=b.cards.find(c=>c.id==='savest'); assert.ok(['x','y','w','h','rot'].every(k=>Number.isFinite(repaired[k]))); assert.ok(repaired.w>0&&repaired.h>0);
+  mode='fail'; await page.evaluate(()=>aegis.apply([{op:'update',id:'savest',set:{text:'Kept after failure'}}])); await page.waitForFunction(()=>(document.querySelector('[data-save-state=blocked]') || document.getElementById('saveState')?.textContent==='not saved'));
   await page.evaluate(()=>aegis.apply([{op:'update',id:'savest',set:{heading:'Queued behind failure'}}])); assert.equal(await page.evaluate(()=>aegis.canvas.board.cards.find(c=>c.id==='savest').text),'Kept after failure');
   mode='ok'; await page.getByRole('button',{name:'Retry',exact:true}).tap(); b=await waitSaved(); assert.equal(b.cards.find(c=>c.id==='savest').text,'Kept after failure'); assert.equal(b.cards.find(c=>c.id==='savest').heading,'Queued behind failure');
   log('saving/saved/not saved + retry, ordered retained edits, repaired finite geometry saved');

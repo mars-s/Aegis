@@ -151,10 +151,11 @@ export function ObjectView({
         if (lease.cardId === cardId)
           engine.requestMeasurement(lease.key, lease.generation);
     };
-    const observer = new ResizeObserver(request);
+    const observer = new ResizeObserver((entries) => {
+      if (entries.some((entry) => entry.borderBoxSize[0]?.blockSize || entry.contentRect.height)) request();
+    });
     observer.observe(region.current);
     for (const child of region.current.children) observer.observe(child);
-    request();
     return () => observer.disconnect();
   }, [card, cardId, engine, exporting, expanded]);
   if (card?.type !== "object") return null;

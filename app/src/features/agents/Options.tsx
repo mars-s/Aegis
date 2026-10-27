@@ -14,7 +14,7 @@ export function Options({ runtime, show, addNotes, showAll, changed }: {
   const [page, setPage] = useState<Page>('options');
   const [opened, setOpened] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
-  const close = (focus = true): void => { menu.current?.hidePopover(); if (focus) trigger.current?.focus({ preventScroll: true }); };
+  const close = (focus = true): void => { setOpened(false); menu.current?.hidePopover(); if (focus) trigger.current?.focus({ preventScroll: true }); };
   useMenuPosition(trigger, menu, opened);
   useLayoutEffect(() => {
     if (!opened) return;
@@ -27,10 +27,10 @@ export function Options({ runtime, show, addNotes, showAll, changed }: {
   const label = page === 'model' ? 'Agent model' : page === 'status' ? 'Status model' : page === 'count' ? 'Agent count' : 'Agent options';
   return <>
     <button ref={trigger} id="orbMenuButton" type="button" className="island-icon" aria-label="Agent options" aria-haspopup="menu" aria-expanded={opened} aria-controls="orbMenu"
-      onClick={() => { if (opened) close(); else { setPage('options'); menu.current?.showPopover(); } }}>
+      onClick={() => { if (opened) close(); else { setPage('options'); setOpened(true); menu.current?.showPopover(); } }}>
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 4h10M3 8h10M3 12h10" /><circle cx="6" cy="4" r="1.5" /><circle cx="10" cy="8" r="1.5" /><circle cx="6" cy="12" r="1.5" /></svg>
     </button>
-    <div ref={menu} id="orbMenu" popover="auto" className="orb-menu aegis-dropdown-menu" role="menu" aria-label={label}
+    <div ref={menu} id="orbMenu" popover="auto" className="orb-menu aegis-dropdown-menu aegis-surface" role="menu" aria-label={label}
       onToggle={event => setOpened(event.newState === 'open')}
       onKeyDown={event => {
         event.stopPropagation();
