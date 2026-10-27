@@ -8,7 +8,7 @@ export function createIslandMorph(island) {
     const el = document.createElement('i'); el.className = `island-tile island-${name}`; surface.append(el); return el;
   });
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-  const gentle = () => reduced.matches || document.body.classList.contains('motion-off');
+  const gentle = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('motion-off');
   let animations = [], flight = null, ghost = null;
   const spring = t => (1 - (1 + 10 * t) * Math.exp(-10 * t)) / (1 - 11 * Math.exp(-10));
   const radius = () => ['idle', 'hover', 'running', 'done'].includes(island.dataset.state) ? 22 : 24;
@@ -50,8 +50,8 @@ export function createIslandMorph(island) {
     }
     if (!changed && !crossfade) return;
     const frames = [], counter = [], slices = tiles.map(() => []);
-    for (let i = 0; i <= 40; i++) {
-      const offset = i / 40, t = spring(offset);
+    for (let i = 0; i <= 160; i++) {
+      const offset = i / 160, t = spring(offset);
       const w = before.width + (after.width - before.width) * t, h = before.height + (after.height - before.height) * t;
       const sx = w / after.width, sy = h / after.height, r = fromR + (toR - fromR) * t;
       frames.push({ offset, transform: `scale(${sx}, ${sy})` });

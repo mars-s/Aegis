@@ -5,7 +5,7 @@ import { createEditorController } from '../../platform/editor-controller.js';
 import type { Composition } from '../../composition.js';
 
 afterEach(() => vi.unstubAllGlobals());
-function setup() {
+function setup(settled: () => Promise<void> = async () => {}) {
   vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('document', { body: { classList: { contains: () => true } } });
   const first = CardIdSchema.parse('snapshotfirst'), other = CardIdSchema.parse('snapshotother');
@@ -22,7 +22,7 @@ function setup() {
     }) },
     { kind: 'note', Body: () => null, flush: () => true },
   ] };
-  const controller = createEditorController({ workspace, composition, engine: () => null, cameraChanged: () => {}, settled: async () => {} });
+  const controller = createEditorController({ workspace, composition, engine: () => null, cameraChanged: () => {}, settled });
   return { workspace, controller, requests, first, other };
 }
 
@@ -65,5 +65,25 @@ test('a source board replacement invalidates the pending continuation', async ()
   requests[0]?.finish(true);
   await vi.waitFor(() => expect(controller.flush()).toBe(true));
   expect(workspace.ui.getSnapshot().editor).toBeNull();
+  workspace.dispose();
+});
+
+
+test('a blocked save refuses departure promptly and cannot navigate after Retry save', async () => {
+  const waiters: { readonly finish: () => void }[] = [];
+  const { workspace, controller, requests, first } = setup(() => new Promise<void>(resolve => { waiters.push({ finish: resolve }); }));
+  workspace.act({ kind: 'edit', id: first, view: 'side' });
+  const departure = controller.close();
+  await vi.waitFor(() => expect(requests).toHaveLength(1)); requests[0]?.finish(true);
+  await vi.waitFor(() => expect(waiters).toHaveLength(1));
+  const result = workspace.submit([{ op: 'update', id: first, set: { text: 'Awaiting save' } }]);
+  if (result.kind !== 'applied') throw new Error('Expected a pending save');
+  const state = workspace.replication.state.getSnapshot();
+  workspace.replication.failed(state.epoch, result.batchId, { kind: 'offline', message: 'Save fixture offline' });
+  expect(await departure).toBe(false);
+  expect(workspace.ui.getSnapshot().editor?.id).toBe(first);
+  workspace.retry(); waiters[0]?.finish(); await Promise.resolve();
+  expect(workspace.ui.getSnapshot().editor?.id).toBe(first);
+  expect(controller.flush()).toBe(true);
   workspace.dispose();
 });

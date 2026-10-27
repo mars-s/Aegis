@@ -33,7 +33,7 @@ export function Html({
     latest = useRef(data),
     channel = useRef(""),
     capturing = useRef(false),
-    reported = useRef<string | undefined>(undefined);
+    viewState = useRef<string | undefined>(undefined);
   const { set } = useObjectEditing();
   const boardId = workspace.metadata.getSnapshot().id;
   const opened = useSource(workspace.ui).editor;
@@ -70,7 +70,8 @@ export function Html({
     );
   }
   function syncState(force = false) {
-    if (!force && active() && (capturing.current || reported.current !== undefined && latest.current.state === reported.current)) return;
+    if (!frame.current?.contentWindow) return;
+    if (!force && active() && (capturing.current || viewState.current !== undefined && latest.current.state === viewState.current)) return;
     frame.current?.contentWindow?.postMessage(
       {
         type: "aegis:html-restore",
@@ -79,12 +80,13 @@ export function Html({
       },
       "*",
     );
+    viewState.current = latest.current.state;
   }
   useEffect(() => {
     const lifetime = new AbortController(),
       ownChannel = crypto.randomUUID();
     channel.current = ownChannel;
-    reported.current = undefined;
+    viewState.current = undefined;
     const { theme, motionOff, scheme } = preferences(),
       state = latest.current.state;
     const request = {
@@ -124,6 +126,12 @@ export function Html({
   useEffect(() => {
     const lifetime = new AbortController(), token = Symbol("sandbox-snapshot");
     let baseline: string | undefined, pending: Promise<boolean> | null = null;
+    const restoreCurrent = () => {
+      const card = workspace.record(cardId).getSnapshot();
+      if (workspace.metadata.getSnapshot().id !== boardId || !active() || card?.type !== "object" || card.kind !== "html" || card.data.html !== html || card.data.css !== css || card.data.js !== js) return;
+      latest.current = card.data;
+      syncState(true);
+    };
     const snapshot = createSandboxSnapshot({
       source: () => frame.current?.isConnected ? frame.current.contentWindow : null,
       channel: () => channel.current,
@@ -131,7 +139,7 @@ export function Html({
         const card = workspace.record(cardId).getSnapshot();
         if (workspace.metadata.getSnapshot().id !== boardId || !active() || card?.type !== "object" || card.kind !== "html" || card.data.html !== html || card.data.css !== css || card.data.js !== js) return false;
         if (card.data.state !== baseline && card.data.state !== state) return false;
-        reported.current = state;
+        viewState.current = state;
         return card.data.state === state || set(["state"], state);
       },
     });
@@ -141,10 +149,16 @@ export function Html({
       const card = workspace.record(cardId).getSnapshot();
       if (card?.type !== "object" || card.kind !== "html") return Promise.resolve(false);
       baseline = card.data.state;
+      if (baseline !== viewState.current) {
+        restoreCurrent();
+        setFailure("Could not capture custom UI (conflict). Newer saved state was restored. Try the action again.");
+        return Promise.resolve(false);
+      }
       capturing.current = true;
       pinObjectDraft(engine, cardId, token, true);
       setFailure("");
       pending = snapshot.request(AbortSignal.any([signal, lifetime.signal])).then(result => {
+        if (result.kind === "refused" && result.reason === "conflict") restoreCurrent();
         if (result.kind === "refused" && !lifetime.signal.aborted && result.reason !== "aborted") setFailure(`Could not capture custom UI (${result.reason}). Try the action again.`);
         return result.kind === "accepted";
       }).finally(() => { pending = null; capturing.current = false; pinObjectDraft(engine, cardId, token, false); });
@@ -163,7 +177,7 @@ export function Html({
         "aegis:html-initial-state",
       );
       if (initial !== null && latest.current.state === undefined) {
-        reported.current = initial;
+        viewState.current = initial;
         workspace.submit([
           {
             op: "initialise_html",
@@ -175,7 +189,7 @@ export function Html({
       }
       const state = reportedState(event, node.contentWindow, channel.current);
       if (!capturing.current && state !== null && state !== latest.current.state) {
-        reported.current = state;
+        viewState.current = state;
         set(["state"], state);
       }
       if (

@@ -54,6 +54,41 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('global snap composes with wireframe grid, bypass and Option-copy in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&wireframe=1');
+      await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => { localStorage.setItem('aegis:snap', 'on'); });
+      const drag = async (dx: number, dy: number, bypass = false): Promise<void> => {
+        const box = await p.locator('[data-id="note-2"]').boundingBox();
+        if (!box) throw new Error('Missing snap source');
+        if (bypass) await p.keyboard.down('Meta');
+        await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+        await p.mouse.move(box.x + 12 + dx, box.y + 110 + dy, { steps: 4 }); await p.mouse.up();
+        if (bypass) await p.keyboard.up('Meta');
+        await idle(p);
+      };
+      await drag(67, 39);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 792, y: 120 });
+      await drag(31, 17, true);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 823, y: 137 });
+      await p.evaluate(() => { localStorage.setItem('aegis:snap', 'off'); localStorage.setItem('aegis:wireframe-grid', 'on'); });
+      await drag(39, 49);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 858, y: 182 });
+      await p.evaluate(() => { localStorage.setItem('aegis:snap', 'on'); });
+      await drag(39, 49);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 912, y: 240 });
+      await p.keyboard.down('Alt'); await drag(60, 40); await p.keyboard.up('Alt');
+      const cards = await p.evaluate(() => window.sceneHarness.board().cards);
+      expect(cards.find(card => card.id === 'note-2')).toMatchObject({ x: 912, y: 240 });
+      expect(cards.find(card => card.id !== 'note-2' && card.text === 'Note 2')).toMatchObject({ x: 972, y: 280 });
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(5);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('Cmd-click selects a group member before the next frame in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {

@@ -11,17 +11,22 @@
   --ink-2: rgb(255 255 255 / .74); --muted: #abb2bf;
   --line: rgb(255 255 255 / .09); --line-strong: rgb(255 255 255 / .16); --edge-top: rgb(255 255 255 / .14);
 }
-.aegis-agents { position: fixed; inset: 0; pointer-events: none; z-index: 12; }
+.aegis-agents { position: absolute; inset: 0; pointer-events: none; }
 .aegis-agents :is(.agent-island, .agents-panel, .agent-error) { pointer-events: auto; }
 .aegis-agents [hidden], .aegis-agents #askPill[hidden], .aegis-agents .agent-window-body[hidden] { display: none !important; }
+.aegis-agents .agent-island { left: var(--dock-x, 50%); }
 .aegis-agents .composer-row { display: flex; align-items: center; }
+.aegis-agents :is(#composer.agent-composer, #askPill) { max-width: var(--composer-max-width, calc(100vw - 24px)); }
+.aegis-agents .island-hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .aegis-agents .spacer { flex: 1; }
 .aegis-agents .send { border-radius: 50%; background: var(--text); color: var(--pill); }
 .aegis-agents .send svg { width: 14px; height: 14px; stroke-width: 1.6; }
 .aegis-agents textarea { border: 0; background: transparent; color: var(--text); font: 14px/1.6 var(--font); resize: none; outline: none; caret-color: var(--data); }
 .aegis-agents textarea::placeholder { color: var(--muted); opacity: 1; }
-.aegis-agents .agent-window { z-index: 1; }
-.aegis-agents .agent-windows { z-index: 1; }
+.aegis-agents .agent-window { z-index: 12; }
+.aegis-agents .agent-identity { z-index: 13; }
+.aegis-agents .agent-windows { z-index: auto; }
+.aegis-agents :is(.agent-edge, .agent-edges) { z-index: 46; }
 .aegis-agents .agent-window:not([data-scene-ready]) { visibility: hidden; }
 .aegis-agents :is(.text-btn, .agent-edge) { background: transparent; border: 0; }
 .aegis-agents .agent-window-body { max-height: 440px; }
