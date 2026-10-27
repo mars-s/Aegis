@@ -1,6 +1,6 @@
-const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+const quote = (value: string) => `'${String(value).replaceAll("'", "'\\''")}'`;
 
-export function mcpConfiguration({ data, bridge, node, pluginDir, port }) {
+export function mcpConfiguration({ data, bridge, node, pluginDir, port }: { data: string; bridge: string; node: string; pluginDir: string; port: number }) {
   const config = { command: node, args: [bridge], env: { AEGIS_DATA: data } };
   return {
     endpoint: `http://127.0.0.1:${port}/mcp`,

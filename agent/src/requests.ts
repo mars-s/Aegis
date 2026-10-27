@@ -1,0 +1,13 @@
+import { z } from 'zod/v4';
+import { ModelChoiceSchema } from './providers.js';
+const parent = z.string().nullable().optional();
+export const BoardCreationSchema = z.object({ name: z.unknown().optional(), parent, boardParent: parent, at: z.object({ x: z.number(), y: z.number() }).optional() });
+export const ItemSchema = z.object({ id: z.string() });
+export const NameSchema = z.object({ name: z.unknown().optional() });
+const coordinate = z.unknown().transform(value => Number(value) || 0).refine(Number.isFinite);
+export const CameraSchema = z.object({ view: z.object({ x: coordinate, y: coordinate, z: z.unknown().transform(value => Math.min(8, Math.max(0.05, Number(value) || 1))).refine(Number.isFinite) }) });
+export const InstallSchema = z.object({ from: z.string().optional() });
+export const AgentCreationSchema = z.object({ boardId: z.string(), brief: z.unknown().optional(), selectedIds: z.array(z.string()).optional(), model: ModelChoiceSchema.optional(), statusModel: ModelChoiceSchema.optional(), count: z.unknown().optional() });
+export const MessageSchema = z.object({ content: z.unknown().optional(), selectedIds: z.array(z.string()).optional() });
+export const ProviderSchema = z.object({ provider: z.enum(['openai', 'anthropic']) });
+export const AnswerSchema = ProviderSchema.extend({ answer: z.string().trim().min(1) });

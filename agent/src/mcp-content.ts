@@ -1,10 +1,17 @@
+import type { Board, Card, JsonValue, BoardId, CardId, Revision } from '@aegis/domain/schema';
 import { plainText } from '@aegis/domain/content';
 
-export const boardURI = id => `aegis://boards/${id}`;
-export const cardURI = (boardId, cardId) => `${boardURI(boardId)}/cards/${cardId}`;
-export const assetURI = (boardId, name) => `${boardURI(boardId)}/assets/${name}`;
 
-export function cardText(card) {
+interface AssetReference { name: string; uri: string; label: string }
+interface BoardCardSummary { id: CardId; type: Card['type']; kind?: string; text: string; x: number; y: number; w: number; h: number; parent?: CardId; preview: string; uri: string; source?: JsonValue }
+export interface BoardSummary { id: BoardId; name: string; rev: Revision; total: number; cards: BoardCardSummary[]; links: Board['links']; offset: number; nextOffset: number | null }
+export interface CardRead { boardId: BoardId; rev: Revision; id: CardId; type: Card['type']; title: string; content: string; format: 'text' | 'json'; offset: number; total: number; nextOffset: number | null; assets: AssetReference[]; source: JsonValue | null; uri: string }
+
+export const boardURI = (id: string) => `aegis://boards/${id}`;
+export const cardURI = (boardId: string, cardId: string) => `${boardURI(boardId)}/cards/${cardId}`;
+export const assetURI = (boardId: string, name: string) => `${boardURI(boardId)}/assets/${name}`;
+
+export function cardText(card: Card) {
   const props = card.props ?? {};
   return [card.text, card.heading, card.badge,
     props.doc ? plainText(props.doc) : props.body,
@@ -15,22 +22,22 @@ export function cardText(card) {
   ].filter(Boolean).join('\n\n');
 }
 
-export function cardAssets(card, boardId) {
-  const found = new Map();
-  function visit(value, label) {
+export function cardAssets(card: Card, boardId: string): AssetReference[] {
+  const found = new Map<string, { name: string; uri: string; label: string }>();
+  function visit(value: JsonValue | undefined, label: string) {
     if (typeof value === 'string' && /^asset:[a-f0-9]{32}\.[a-z0-9]{3,4}$/.test(value)) {
       const name = value.slice(6);
       if (!found.has(name)) found.set(name, { name, uri: assetURI(boardId, name), label });
     } else if (Array.isArray(value)) value.forEach((item, i) => visit(item, `${label} ${i + 1}`));
     else if (value && typeof value === 'object') {
-      for (const [key, item] of Object.entries(value)) visit(item, value.alt || value.name || `${label} ${key}`);
+      for (const [key, item] of Object.entries(value)) visit(item, typeof value.alt === 'string' && value.alt || typeof value.name === 'string' && value.name || `${label} ${key}`);
     }
   }
   visit(card, card.text || card.type);
   return [...found.values()];
 }
 
-export function boardSummary(board, { offset = 0, limit = 100 } = {}) {
+export function boardSummary(board: Board, { offset = 0, limit = 100 }: { offset?: number; limit?: number } = {}): BoardSummary {
   return {
     id: board.id, name: board.name, rev: board.rev, total: board.cards.length,
     cards: board.cards.slice(offset, offset + limit).map(card => ({
@@ -45,7 +52,7 @@ export function boardSummary(board, { offset = 0, limit = 100 } = {}) {
   };
 }
 
-export function readCard(board, cardId, { offset = 0, limit = 20000, format = 'text' } = {}) {
+export function readCard(board: Board, cardId: string, { offset = 0, limit = 20000, format = 'text' }: { offset?: number; limit?: number; format?: 'text' | 'json' } = {}): CardRead {
   const card = board.cards.find(c => c.id === cardId);
   if (!card) throw new Error(`No card ${cardId}. Read the board for current ids.`);
   const content = format === 'json' ? JSON.stringify(card, null, 2) : cardText(card);
@@ -58,7 +65,7 @@ export function readCard(board, cardId, { offset = 0, limit = 20000, format = 't
   };
 }
 
-export function searchBoard(board, query, { offset = 0, limit = 30 } = {}) {
+export function searchBoard(board: Board, query: string, { offset = 0, limit = 30 }: { offset?: number; limit?: number } = {}) {
   const needle = query.toLocaleLowerCase();
   const matches = [];
   for (const card of board.cards) {
