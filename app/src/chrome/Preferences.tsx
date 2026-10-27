@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { z } from "zod/v4";
 import type { Composition } from "../composition.js";
 import { readLayout, resetLayout, saveLayout } from "./layout.js";
@@ -182,30 +182,32 @@ export function PanelPreferences({
     })),
     { id: "keys", label: "Shortcuts" },
   ];
+  const nested = panels.filter(panel =>
+    !layout.columns.left.includes(panel.id) && !layout.columns.right.includes(panel.id) &&
+    (panel.id === "keys" || composition.panels.some(item => item.id === panel.id && item.side === "left")),
+  );
+  const childIds = new Set(nested.map(panel => panel.id));
+  const choice = (panel: { readonly id: string; readonly label: string }) => (
+    <label key={panel.id}>
+      <input
+        type="checkbox"
+        aria-label={`Show ${panel.label}`}
+        data-panel-visibility={panel.id}
+        checked={!layout.off[panel.id]}
+        onChange={event => saveLayout({ ...layout, off: { ...layout.off, [panel.id]: !event.currentTarget.checked } })}
+      />
+      {panel.label}
+    </label>
+  );
   return (
     <section className="sheet-sec chrome-preferences">
       <h3>Side bar panels</h3>
       <div className="panel-layout-options">
-        {panels.map((panel) => (
-          <label key={panel.id}>
-            {panel.label}
-            <button
-              type="button"
-              className="setting-switch"
-              role="switch"
-              aria-label={`Show ${panel.label}`}
-              data-panel-visibility={panel.id}
-              aria-checked={!layout.off[panel.id]}
-              onClick={() =>
-                saveLayout({
-                  ...layout,
-                  off: { ...layout.off, [panel.id]: !layout.off[panel.id] },
-                })
-              }
-            >
-              <span />
-            </button>
-          </label>
+        {panels.filter(panel => !childIds.has(panel.id)).map(panel => (
+          <Fragment key={panel.id}>
+            {choice(panel)}
+            {panel.id === "tools" ? <div className="panel-tools-choices" role="group" aria-label="Tools panels">{nested.map(choice)}</div> : null}
+          </Fragment>
         ))}
       </div>
       <button type="button" data-reset-panels onClick={resetLayout}>

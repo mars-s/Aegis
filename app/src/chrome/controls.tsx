@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { createMenu } from "../lib/ui/menu.js";
 import type { MenuItem } from "../lib/ui/menu.js";
 import { createDropdown, createPopup } from "../lib/ui/dropdown.js";
+import type { DropdownOption } from '../lib/ui/dropdown.js';
 
 export function TextField({
   label,
@@ -49,7 +50,7 @@ export function ValuePicker({
   readonly id?: string;
   readonly label: string;
   readonly value: string;
-  readonly options: readonly (readonly [string, string])[];
+  readonly options: readonly DropdownOption[];
   readonly onChange: (value: string) => void;
   readonly size?: boolean;
   readonly disabled?: boolean;

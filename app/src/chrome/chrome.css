@@ -678,15 +678,19 @@
     width: min(420px, calc(100vw - 16px)) !important;
   }
   .aegis-chrome #tools {
-    top: auto;
-    left: 12px;
-    right: 12px;
-    bottom: 12px;
-    flex-direction: row;
-    width: auto;
-    overflow-x: auto;
+    display: flex !important;
+    top: 50%;
+    left: 8px;
+    right: auto;
+    bottom: auto;
+    flex-direction: column;
+    width: 54px;
+    max-height: calc(100dvh - 180px);
+    overflow-y: auto;
+    transform: translateY(-50%);
     opacity: 1;
   }
+  .aegis-chrome #tools > button { flex-shrink: 0; }
   .aegis-chrome .bar-left,
   .aegis-chrome .bar-right {
     opacity: 1;
@@ -905,3 +909,5 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
 @media (hover: none), (pointer: coarse) { .react-stage .card :is(.win-strip, .deck-title-strip) { height: 48px; min-height: 48px; } }
 
 #toast.toast-leaving[hidden] { display: flex !important; pointer-events: none; }
+
+.chrome-preferences .panel-tools-choices { padding-inline-start: 24px; }
