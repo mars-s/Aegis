@@ -4,6 +4,7 @@ import { decodeStoredBoard } from "@aegis/protocol/storage";
 import type { Board, CardId } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import { benchmark } from "../canvas/benchmark.js";
+import { decodeHostError } from '@aegis/protocol/http';
 import type { AssetUpload } from '@aegis/protocol/http';
 import type { CreatedIds, WorkspaceConnection } from "@aegis/host-client";
 import type { Workspace } from "../workspace/index.js";
@@ -75,8 +76,8 @@ export function installTestFacade(args: {
       headers: { authorization: `Bearer ${args.connection.token}`, "content-type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    if (!response.ok) throw new Error(`Test host request failed: ${response.status}`);
     const value: unknown = await response.json();
+    if (!response.ok) throw new Error(decodeHostError(value));
     return value;
   };
   const load = (value: unknown): void => {
