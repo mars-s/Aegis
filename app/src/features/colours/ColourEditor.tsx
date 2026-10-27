@@ -1,5 +1,6 @@
 // Ported from Mochiboard (MIT, copyright 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { useEffect, useId, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Board } from '@aegis/domain';
 import { boardColours, colorName, hex2hsv, hsv2rgb, normHex, rgb2hex } from './model.js';
 import '../colors/style.css';
@@ -65,5 +66,5 @@ export function ColourEditor({ value, board, onChange, onClose, onSave, name = t
 }
 export function ColourPicker({ label, value, board, onChange }: { readonly label: string; readonly value: string; readonly board: () => Board; readonly onChange: (hex: string) => void }) {
   const [open, setOpen] = useState(false);
-  return <><button type="button" className="aegis-button aegis-colour-picker" value={value} aria-label={label} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setOpen(true); }}><span className="aegis-colour-sample" aria-hidden="true" style={{ background: value }} /><span>{value.toUpperCase()}</span></button>{open && <ColourEditor value={{ hex: value, label: colorName(value), autoName: true }} name={false} board={board} onChange={next => onChange(next.hex)} onClose={() => setOpen(false)} />}</>;
+  return <><button type="button" className="aegis-button aegis-colour-picker" value={value} aria-label={label} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setOpen(true); }}><span className="aegis-colour-sample" aria-hidden="true" style={{ background: value }} /><span>{value.toUpperCase()}</span></button>{open && createPortal(<ColourEditor value={{ hex: value, label: colorName(value), autoName: true }} name={false} board={board} onChange={next => onChange(next.hex)} onClose={() => setOpen(false)} />, document.body)}</>;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
-import type { BoardId, CardId } from '@aegis/domain';
+import type { BoardId, CardId, LinkId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
 import type { HostClient, WorkspaceConnection } from '@aegis/host-client';
 import type { CanvasEngine } from '@aegis/scene';
@@ -28,6 +28,7 @@ import { installTestFacade } from './platform/test-facade.js';
 import { installEditorActions } from './platform/editor-actions.js';
 import { CreativeProvider } from './cards/creative/index.js';
 import type { CreativeServices } from './cards/creative/index.js';
+import { CreativeConnections, startCreativeConnection } from './features/draw/Connections.js';
 import { DrawingInspector } from './features/draw/Inspector.js';
 import type { DrawSettings, DrawTarget } from './features/draw/Inspector.js';
 import { readPreferences } from './features/draw/preferences.js';
@@ -73,6 +74,7 @@ function EditorActions({ context, full }: { readonly context: FeatureContext; re
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace, client } = runtime;
   const [creativeMode, setCreativeMode] = useState<DrawTarget | 'wireframe' | null>(null);
+  const connectionSelectionChanged = useCallback((id: LinkId | null) => { if (id) setCreativeMode(null); }, []);
   const drawSettings = useRef<DrawSettings>({ ...readPreferences(), shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' });
   const importChoice = useRef<(() => void) | null>(null);
   const importAttached = useCallback((choose: (() => void) | null) => { importChoice.current = choose; }, []);
@@ -187,7 +189,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     const stage = document.getElementById('stage'); if (!stage) return;
     const rect = stage.getBoundingClientRect();
     chromeEngine.startTransform({ kind: intent.kind, ids: intent.ids, pointer: { id: intent.event.pointerId, point: { x: intent.event.clientX - rect.left, y: intent.event.clientY - rect.top } }, shift: intent.event.shiftKey });
-  }, connect: chromeEngine.startConnection } : undefined, [chromeEngine]);
+  }, connect: id => startCreativeConnection(workspace, id) } : undefined, [chromeEngine, workspace]);
   const importCsv = useCallback(async (file: File, boardId: BoardId, at?: { readonly x: number; readonly y: number }): Promise<void> => {
     const target = createWorkspace({ board: hostValue(await client.board(boardId, lifetime.signal)) });
     try {
@@ -236,6 +238,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
+    {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} /> : null}
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
