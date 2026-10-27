@@ -2,10 +2,14 @@
 .react-stage.pan-ready *,
 .react-stage.pan-ready *::before,
 .react-stage.pan-ready *::after { cursor: grab !important; }
+body:has(.react-stage.pan-ready) :is(.agent-window, .editing-outline),
+body:has(.react-stage.pan-ready) :is(.agent-window, .editing-outline) * { cursor: grab !important; }
 .react-stage.panning,
 .react-stage.panning *,
 .react-stage.panning *::before,
 .react-stage.panning *::after { cursor: grabbing !important; }
+body:has(.react-stage.panning) :is(.agent-window, .editing-outline),
+body:has(.react-stage.panning) :is(.agent-window, .editing-outline) * { cursor: grabbing !important; }
 .react-stage.pan-ready iframe,
 .react-stage.panning iframe { pointer-events: none !important; }
 .react-stage .scene-card[hidden] { display: none; }
