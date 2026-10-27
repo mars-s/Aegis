@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
+import { waitForAsync } from './poll.mjs';
 const repo = new URL('../..', import.meta.url).pathname;
 const token = `pan-${process.pid}`, stamp = Date.now();
 const ready = (child, pattern) => new Promise((resolve, reject) => {
@@ -126,7 +127,7 @@ try {
   console.log('PASS pan: Space types in note, island and focused sandbox input without panning');
   await page.locator('#stage').focus();
   const [{ id: agentId }] = await page.evaluate(() => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKE ' + JSON.stringify([{ op: 'create', type: 'note', text: 'Agent result', x: 3200, y: 250 }]) }));
-  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.running === false, agentId);
+  await waitForAsync(page, async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.running === false, agentId);
   const agent = page.locator(`.agent-window[data-agent-id="${agentId}"]`);
   await agent.waitFor(); await page.waitForTimeout(700);
   // Recover the agent through its real edge button when it is outside the view.

@@ -391,6 +391,35 @@ describe('real scene attachment', () => {
     await p.close();
   });
 
+  test('Space and middle pan reach agent windows outside the stage subtree', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const overlay = document.createElement('section'); overlay.className = 'agent-window';
+      overlay.style.cssText = 'position:fixed;left:600px;top:650px;width:250px;height:44px;z-index:200;background:#151517';
+      overlay.innerHTML = '<header>Agent window</header>'; document.body.append(overlay);
+      const controls = document.createElement('div'); controls.className = 'editing-outline';
+      controls.style.cssText = 'position:fixed;left:900px;top:650px;z-index:200';
+      controls.innerHTML = '<button class="selection-resize" style="width:44px;height:44px;cursor:nwse-resize">Resize</button>'; document.body.append(controls);
+    });
+    for (const selector of ['.agent-window header', '.editing-outline .selection-resize']) for (const button of ['left', 'middle'] as const) {
+      const before = await p.evaluate(() => window.sceneHarness.engine.camera());
+      const target = p.locator(selector), box = await target.boundingBox();
+      if (!box) throw new Error('Missing external canvas affordance');
+      const x = box.x + box.width / 2, y = box.y + box.height / 2;
+      await p.locator('#outside').focus(); await p.mouse.move(x, y);
+      if (button === 'left') await p.keyboard.down('Space');
+      if (button === 'left') expect(await target.evaluate(el => getComputedStyle(el).cursor)).toBe('grab');
+      await p.mouse.down({ button });
+      expect(await target.evaluate(el => getComputedStyle(el).cursor)).toBe('grabbing');
+      await p.mouse.move(x + 40, y + 30, { steps: 4 }); await p.mouse.up({ button });
+      if (button === 'left') await p.keyboard.up('Space');
+      await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...before, x: before.x + 40, y: before.y + 30 });
+    }
+    expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+    await p.close();
+  });
+
   test('Shift deselection releases its pointer capture lease pin', async () => {
     const p = await page();
     await p.keyboard.down('Shift'); await p.mouse.click(430, 104); await idle(p);
