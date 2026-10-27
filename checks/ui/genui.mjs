@@ -114,12 +114,12 @@ try {
     // An editor that just closed glides the camera home; let that finish so it cannot carry the view away from this frame.
     await page.waitForFunction(() => !document.querySelector('.side-editor') && new Promise(done => { const a = JSON.stringify(aegis.canvas.view); setTimeout(() => done(a === JSON.stringify(aegis.canvas.view)), 300); }), null, { polling: 100 });
     await page.evaluate(id => aegis.canvas.frameIds([id], 1, false, true), sampleId);
-    await page.locator(`.card[data-id="${sampleId}"] .object`).waitFor({ state: 'visible' });
+    await page.locator(`.card[data-id="${sampleId}"] :is(.object, .plot-card, .sheet-card)`).waitFor({ state: 'visible' });
     // Editor close glides the camera back; wait until the view stops moving before pointing at the card.
     await page.waitForFunction(() => new Promise(done => { const a = JSON.stringify(aegis.canvas.view); requestAnimationFrame(() => requestAnimationFrame(() => done(a === JSON.stringify(aegis.canvas.view)))); }));
     // Select the real title after a revised widget has mounted.
-    await page.waitForFunction(id => { const c = document.querySelector(`#world > .card[data-id="${id}"]`); return c && c.querySelector('.win-strip h3') && c.getBoundingClientRect().width > 0; }, sampleId);
-    const title = page.locator(`.card[data-id="${sampleId}"] .win-strip h3`);
+    await page.waitForFunction(id => { const c = document.querySelector(`#world > .card[data-id="${id}"]`); return c && c.querySelector('.win-strip :is(h3, .win-name)') && c.getBoundingClientRect().width > 0; }, sampleId);
+    const title = page.locator(`.card[data-id="${sampleId}"] .win-strip :is(h3, .win-name)`);
     for (let attempt = 0; attempt < 3; attempt++) { try { await title.click({ timeout: 5000 }); break; } catch (error) { if (attempt === 2) throw error; } }
     await page.waitForTimeout(500);
     return page.locator(`.card[data-id="${sampleId}"]`);
@@ -138,13 +138,13 @@ try {
       checkedOpen.add(kind); return;
     }
     await card.hover();
-    const open = page.locator('.window-actions').getByRole('button', { name: `Open Sample ${kind}`, exact: true });
+    const open = page.locator('.window-actions').getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' && ['plot', 'sheet'].includes(kind) ? 'Open' : `Open Sample ${kind}`, exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
     await editor.waitFor({ state: 'visible', timeout: 3000 });
     assert.equal(await editor.locator('.side-editor-name').textContent(), `Sample ${kind}`);
     assert.equal(await editor.evaluate(el => el.contains(document.activeElement)), true, `${kind} Open focuses its expanded view`);
-    const content = editor.locator(kind === 'sheet' ? '.sheet-scroll' : `.object.${kind} .content`);
+    const content = editor.locator(kind === 'sheet' ? '.sheet-scroll' : kind === 'plot' && process.env.AEGIS_UI_IMPL === 'react' ? '.plot-scroll' : `.object.${kind} .content`);
     assert.ok(await content.isVisible(), `${kind} expanded content is visible`);
     assert.equal(await content.evaluate(el => el === document.activeElement), true, `${kind} focuses its scrollable content`);
     assert.equal(await editor.locator('.win-open').count(), 0, 'the expanded view has no nested Open button');
