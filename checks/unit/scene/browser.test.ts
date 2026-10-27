@@ -40,6 +40,58 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
+  test.each(['chromium', 'webkit'] as const)('retains an editor source lifetime while hiding its offscreen shell in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      const before = await p.evaluate(() => {
+        const harness = window.sceneHarness, id = harness.board().cards[1]?.id;
+        if (!id) throw new Error('Missing editor source');
+        harness.select([id]);
+        harness.engine.pin(id, 'editor', true);
+        harness.engine.pin(id, 'ime', true);
+        return harness.engine.leases.getSnapshot().find(lease => lease.cardId === id)?.key;
+      });
+      await p.locator('[data-id="note-1"] iframe').contentFrame().getByRole('textbox', { name: 'Sandbox text' }).fill('Retained editor state');
+      await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: -10000, y: -10000, zoom: .2 }, motion: 'instant' }));
+      await idle(p);
+      expect(await p.locator('[data-id="note-1"]').evaluate(el => el instanceof HTMLElement && el.hidden)).toBe(false);
+      await p.evaluate(() => {
+        const harness = window.sceneHarness, card = harness.board().cards[1];
+        if (!card) throw new Error('Missing editor source');
+        harness.engine.pin(card.id, 'ime', false);
+      });
+      await idle(p);
+      expect(await p.locator('[data-id="note-1"]').evaluate(el => el instanceof HTMLElement && el.hidden && el.inert)).toBe(true);
+      expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().find(lease => lease.cardId === 'note-1')?.key)).toBe(before);
+      await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 0, y: 0, zoom: 1 }, motion: 'instant' }));
+      await idle(p);
+      expect(await p.locator('[data-id="note-1"]').evaluate(el => el instanceof HTMLElement && !el.hidden && !el.inert)).toBe(true);
+      expect(await p.locator('[data-id="note-1"] iframe').contentFrame().getByRole('textbox', { name: 'Sandbox text' }).inputValue()).toBe('Retained editor state');
+      expect(await p.evaluate(() => window.sceneHarness.engine.leases.getSnapshot().find(lease => lease.cardId === 'note-1')?.key)).toBe(before);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('a drop resolver receives movement and submits one semantic batch in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?motion=off&drop=1');
+      await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4);
+      await idle(p);
+      const box = await p.locator('[data-id="note-2"]').boundingBox();
+      if (!box) throw new Error('Missing dragged card');
+      await p.mouse.move(box.x + 12, box.y + 110); await p.mouse.down();
+      await p.mouse.move(box.x + 108, box.y + 158); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.mouse.up(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls)).toEqual([[{ op: 'move', id: 'note-2', x: 816, y: 120 }, { op: 'update', id: 'note-2', set: { text: 'Dropped into collection' } }]]);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'note-2'))).toMatchObject({ x: 816, y: 120, text: 'Dropped into collection' });
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
   test.each(['chromium', 'webkit'] as const)('connector controls follow the painted obstacle route at rest and during a drag in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
