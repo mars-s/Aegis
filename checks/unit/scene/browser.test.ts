@@ -145,6 +145,9 @@ describe('real scene attachment', () => {
       });
       expect(await p.locator('.agent-line .origin').getAttribute('cx')).toBe('25');
       expect(await p.locator('.agent-line .origin').getAttribute('cy')).toBe('40');
+      expect(await p.locator('.agent-line path, .agent-line .station').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke))).toEqual(['rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)']);
+      expect(await p.locator('.agent-line .origin').evaluate(node => getComputedStyle(node).fill)).toBe('rgb(63, 141, 253)');
+      expect(await p.locator('.card.glow').evaluate(node => getComputedStyle(node, '::after').borderTopColor)).toBe('rgb(63, 141, 253)');
       expect(await p.locator('.card.glow').count()).toBe(1);
       await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 100, y: 80 }], 'local'));
       await idle(p);
@@ -191,6 +194,56 @@ describe('real scene attachment', () => {
       await batch([{ op: 'move', id: 'agententer', x: 120, y: 600 }]);
       await p.evaluate(() => document.body.classList.add('motion-off'));
       expect(await p.evaluate(() => document.getAnimations().filter(animation => animation.id === 'aegis-agent-card').length)).toBe(0);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('wireframe policies snap with live guides and submit parenting atomically in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'snapone', type: 'box', text: 'First', color: 'plain', x: 80, y: 80, w: 160, h: 100 }, { id: 'snaptwo', type: 'box', text: 'Second', color: 'plain', x: 380, y: 80, w: 160, h: 100 }], links: [] });
+      }); await idle(p);
+      const box = await p.locator('[data-id="snapone"]').boundingBox(); if (!box) throw new Error('Missing snap source');
+      await p.mouse.move(box.x + 20, box.y + 70); await p.mouse.down(); await p.mouse.move(box.x + 157, box.y + 70, { steps: 4 }); await idle(p);
+      expect(await p.locator('.drag-guides line').count()).toBeGreaterThan(0);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.mouse.up(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'snapone')?.x)).toBe(220);
+      expect(await p.locator('.drag-guides line').count()).toBe(0);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'dropframe', type: 'frame', text: 'Frame', color: 'plain', x: 500, y: 80, w: 300, h: 300 }, { id: 'dropbox', type: 'box', text: 'Loose', color: 'plain', x: 80, y: 80, w: 160, h: 100 }], links: [] });
+      }); await idle(p);
+      const loose = await p.locator('[data-id="dropbox"]').boundingBox(); if (!loose) throw new Error('Missing drop source');
+      await p.mouse.move(loose.x + 20, loose.y + 70); await p.mouse.down(); await p.mouse.move(loose.x + 520, loose.y + 70, { steps: 4 }); await p.mouse.up(); await idle(p);
+      expect(await p.evaluate(() => window.sceneHarness.calls.at(-1))).toEqual([{ op: 'move', id: 'dropbox', x: 580, y: 80 }, { op: 'update', id: 'dropbox', set: { parent: 'dropframe' } }]);
+      expect(await p.evaluate(() => window.sceneHarness.board().cards.find(card => card.id === 'dropbox')?.parent)).toBe('dropframe');
+      const name = p.locator('[data-id="dropframe"] .wf-frame-name'), header = await name.boundingBox(); if (!header) throw new Error('Missing overflow name');
+      await p.mouse.move(header.x + 10, header.y + 6); await p.mouse.down(); await p.mouse.move(header.x + 83, header.y + 47, { steps: 4 }); await p.mouse.up(); await idle(p);
+      const cards = await p.evaluate(() => window.sceneHarness.board().cards.map(card => ({ id: card.id, x: card.x, y: card.y })));
+      expect(cards).toEqual([{ id: 'dropframe', x: 573, y: 121 }, { id: 'dropbox', x: 653, y: 121 }]);
+      await p.close();
+    } finally { await alternate?.close(); }
+  });
+
+  test.each(['chromium', 'webkit'] as const)('unselected section glass starts a marquee and an unmoved tap selects the section in %s', async engine => {
+    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
+    try {
+      const p = await page(false, false, alternate ?? browser);
+      await p.goto(url + '?wireframe=1'); await p.waitForFunction(() => window.sceneHarness?.engine.inspect().activeLeases >= 4); await idle(p);
+      await p.evaluate(() => {
+        const h = window.sceneHarness;
+        h.load({ ...h.board(), cards: [{ id: 'glassone', type: 'box', text: 'First', color: 'plain', x: 200, y: 200, w: 100, h: 80 }, { id: 'glasstwo', type: 'box', text: 'Second', color: 'plain', x: 400, y: 220, w: 100, h: 80 }, { id: 'glass', type: 'section', text: 'Glass', color: 'plain', x: 100, y: 100, w: 600, h: 300 }], links: [] });
+      }); await idle(p);
+      await p.mouse.move(160, 190); await p.mouse.down(); await p.mouse.move(550, 350, { steps: 4 }); await p.mouse.up(); await idle(p);
+      expect(await p.locator('.card.selected').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-id')).sort())).toEqual(['glassone', 'glasstwo']);
+      expect(await p.evaluate(() => window.sceneHarness.calls.length)).toBe(0);
+      await p.mouse.click(150, 180); await idle(p);
+      expect(await p.locator('.card.selected').getAttribute('data-id')).toBe('glass');
       await p.close();
     } finally { await alternate?.close(); }
   });

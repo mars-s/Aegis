@@ -6,3 +6,4 @@ export type { CardDropRequest, CardDropTarget, CanvasAttachment, CanvasEngine, C
 export { routeLink } from './links.js';
 export type { LinkRoute } from './links.js';
 export type { AgentLineStyle } from './types.js';
+export type { DragSnapshot, DragGuide, DragSnapRequest, DragSnapResult, DropPolicyRequest } from './types.js';
