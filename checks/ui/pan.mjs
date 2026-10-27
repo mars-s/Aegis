@@ -90,7 +90,10 @@ try {
   await pan(page.locator('.card[data-id="pannote"] .body'), 'middle mouse over note', 'middle');
   await frame('pangenui');
   await pan(page.locator('.card[data-id="pangenui"]').getByRole('button', { name: 'Tasks', exact: true }), 'generated value control');
-  await page.mouse.move(24, 480); await page.locator('[data-tool="draw-ink"]').click();
+  await page.mouse.move(24, 480);
+  const draw = page.locator('[data-tool="draw-ink"]');
+  if (!await draw.isVisible()) await page.getByRole('button', { name: 'More tools', exact: true }).click();
+  await draw.click();
   await pan(page.locator('#stage'), 'Space overrides drawing tool');
   await page.evaluate(() => aegis.canvas.setTool(null));
   await frame('pannote');
