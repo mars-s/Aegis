@@ -144,6 +144,7 @@ export function Chrome({
   const dock = useRef<HTMLElement>(null),
     leftBar = useRef<HTMLDivElement>(null),
     rightBar = useRef<HTMLDivElement>(null);
+  const previousRightOpen = useRef(ui.rightPanel);
   const arrows = useRef<{
     left: HTMLButtonElement | null;
     right: HTMLButtonElement | null;
@@ -205,6 +206,13 @@ export function Chrome({
     context.workspace.act({ kind: "panel", side, open });
     change({ ...layout, open: { ...layout.open, [side]: open } });
   }
+  useLayoutEffect(() => {
+    const closed = previousRightOpen.current && !ui.rightPanel;
+    previousRightOpen.current = ui.rightPanel;
+    if (!closed) return;
+    if (layout.open.right) change({ ...layout, open: { ...layout.open, right: false } });
+    arrows.current.right?.focus({ preventScroll: true });
+  }, [change, layout, ui.rightPanel]);
   useEffect(() => {
     mountDropdowns();
     const saved = readLayout();
@@ -543,7 +551,8 @@ export function Chrome({
         !mod &&
         !event.altKey &&
         event.target instanceof Element &&
-        event.target.closest("button,summary,[role=treeitem]")
+        event.target.closest("button,summary,[role=treeitem]") &&
+        !event.target.closest("#askPill")
       )
         return;
       let handled = true;
@@ -1016,8 +1025,16 @@ export function Chrome({
         className={`side side-right${ui.rightPanel ? " open" : ""}${captureReveal?.side === 'right' ? ' capture-reveal' : ''}`}
         aria-label="Agent activity and panels"
         hidden={!ui.rightPanel}
+        aria-hidden={!ui.rightPanel}
         style={{ width: layout.rightWidth }}
+        onKeyDown={event => {
+          if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); setOpen("right", false); arrows.current.right?.focus(); }
+        }}
+        onClick={event => {
+          if (event.target instanceof Element && event.target.closest("#closeAgents")) { setOpen("right", false); arrows.current.right?.focus(); }
+        }}
       >
+        {!rightContent ? (
         <div className="side-head">
           <span>Agent activity</span>
           <button
@@ -1031,6 +1048,7 @@ export function Chrome({
             <Icon name="close" />
           </button>
         </div>
+        ) : null}
         {rightContent}
         {panels("right")}
         <SideResize side="right" layout={layout} change={change} />
