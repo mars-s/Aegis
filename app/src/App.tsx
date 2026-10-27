@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { BoardIdSchema } from '@aegis/domain';
+import { BatchIdSchema, BoardIdSchema } from '@aegis/domain';
 import type { BoardId } from '@aegis/domain';
 import { connectWorkspace, createHostClient, failureMessage } from '@aegis/host-client';
 import type { HostClient, WorkspaceConnection } from '@aegis/host-client';
@@ -7,7 +7,7 @@ import type { CanvasEngine } from '@aegis/scene';
 import { createWorkspace } from './workspace/index.js';
 import type { Workspace } from './workspace/index.js';
 import { Canvas } from './canvas/Canvas.js';
-import { createComposition } from './composition.js';
+import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
 import { Chrome } from './chrome/index.js';
 import type { ChromeGestures } from './chrome/index.js';
@@ -25,7 +25,17 @@ import { locateConnection } from './platform/connection.js';
 import type { Connection } from './platform/connection.js';
 import { installTestFacade } from './platform/test-facade.js';
 import { installEditorActions } from './platform/editor-actions.js';
-import { installDataImport } from './platform/data-import.js';
+import { CreativeProvider } from './cards/creative/index.js';
+import type { CreativeServices } from './cards/creative/index.js';
+import { DrawingInspector } from './features/draw/Inspector.js';
+import type { DrawSettings, DrawTarget } from './features/draw/Inspector.js';
+import { readPreferences } from './features/draw/preferences.js';
+import { WireframePanel } from './features/wireframe/WireframePanel.js';
+import { BoardColours } from './features/colours/BoardColours.js';
+import { AppearanceColours } from './features/colours/AppearanceColours.js';
+import { DevicesPanel } from './features/media/DevicesPanel.js';
+import { drawingTool, placementTool } from './platform/creative-tools.js';
+import { CreativeImports } from './platform/CreativeImports.js';
 import { createAvailableArea } from './platform/available-area.js';
 import { createEditorController } from './platform/editor-controller.js';
 import { createLibraryService, hostValue } from './platform/library-service.js';
@@ -48,6 +58,10 @@ function EditorActions({ context, full }: { readonly context: FeatureContext; re
 
 function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const { workspace, client } = runtime;
+  const [creativeMode, setCreativeMode] = useState<DrawTarget | 'wireframe' | null>(null);
+  const drawSettings = useRef<DrawSettings>({ ...readPreferences(), shape: 'rect', fill: '#aed3ff', stroke: 'ink', sw: 2.5, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' });
+  const importChoice = useRef<(() => void) | null>(null);
+  const importAttached = useCallback((choose: (() => void) | null) => { importChoice.current = choose; }, []);
   const [notice, setNotice] = useState<string | null>(null);
   const [chromeEngine, setChromeEngine] = useState<CanvasEngine | null>(null);
   const [agentControls, setAgentControls] = useState<AgentShellControls | null>(null);
@@ -67,7 +81,22 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       if (camera) void client.saveCamera(workspace.metadata.getSnapshot().id, { x: camera.x, y: camera.y, z: camera.zoom }, lifetime.signal);
     }, 500);
   }, [client, workspace, lifetime]);
-  const composition = useMemo(() => createComposition({ assetUrl: client.assetUrl, menu: createMenu, registerSandbox: async (request, signal) => hostValue(await client.registerSandbox(request, signal)) }), [client]);
+  const composition = useMemo(() => {
+    const base = createComposition({ assetUrl: client.assetUrl, menu: createMenu, registerSandbox: async (request, signal) => hostValue(await client.registerSandbox(request, signal)) });
+    const draw = (kind: 'ink' | 'shape' | 'path' | 'stamp') => (context: FeatureContext): void => {
+      const scene = context.engine(); if (!scene) return;
+      setCreativeMode({ kind: 'tool', tool: kind }); scene.tool(drawingTool(scene, workspace, kind, () => drawSettings.current, () => setCreativeMode(null)));
+    };
+    return defineComposition({ ...base, tools: [...base.tools,
+      { id: 'draw-ink', label: 'Draw', shortcut: 'p', run: draw('ink') },
+      { id: 'draw-shape', label: 'Shapes', shortcut: 's', run: draw('shape') },
+      { id: 'vector', label: 'Vector pen', shortcut: 'shift+p', run: draw('path') },
+      { id: 'draw-stamp', label: 'Emoji stamps', shortcut: 'e', run: draw('stamp') },
+      { id: 'wireframe', label: 'Wireframe', shortcut: 'w', run: () => setCreativeMode('wireframe') },
+      { id: 'import-image', label: 'Import', shortcut: 'mod+i', run: () => importChoice.current?.() },
+      ...(['swatch', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const at = context.engine()?.screenToWorld({ x: innerWidth / 2, y: innerHeight / 2 }) ?? { x: 0, y: 0 }; context.workspace.submit([{ op: 'create', type, x: at.x, y: at.y }]); } })),
+    ], panels: [...base.panels, { id: 'colours', side: 'left', Body: BoardColours }] });
+  }, [client, workspace]);
   const controller = useMemo(() => createEditorController({ workspace, engine: () => engine.current, composition, cameraChanged: persistCamera }), [workspace, composition, persistCamera]);
   controllerRef.current = controller;
   const context = controller.context;
@@ -101,7 +130,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   useEffect(() => controller.install(), [controller]);
   useEffect(() => installEditorActions(context), [context]);
   useEffect(() => installDocumentClipboard(workspace), [workspace]);
-  useEffect(() => installDataImport({ context, client, error: setNotice }), [context, client]);
+  useEffect(() => { const notice = (event: Event): void => { if (event instanceof CustomEvent && typeof event.detail === 'string') setNotice(event.detail); }; window.addEventListener('aegis:notice', notice); return () => window.removeEventListener('aegis:notice', notice); }, []);
   useEffect(() => { installNativeDownloads(setNotice); }, []);
   useEffect(() => { area.invalidate(); }, [area, ui.editor, ui.leftPanel, ui.rightPanel, agentControls]);
   useEffect(() => {
@@ -127,17 +156,29 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     const rect = stage.getBoundingClientRect();
     chromeEngine.startTransform({ kind: intent.kind, ids: intent.ids, pointer: { id: intent.event.pointerId, point: { x: intent.event.clientX - rect.left, y: intent.event.clientY - rect.top } }, shift: intent.event.shiftKey });
   }, connect: chromeEngine.startConnection } : undefined, [chromeEngine]);
-  const importCsv = useCallback(async (file: File, boardId: BoardId): Promise<void> => {
+  const importCsv = useCallback(async (file: File, boardId: BoardId, at?: { readonly x: number; readonly y: number }): Promise<void> => {
     const target = createWorkspace({ board: hostValue(await client.board(boardId, lifetime.signal)) });
     try {
       const camera = engine.current?.camera() ?? { x: 0, y: 0, zoom: 1 };
-      const result = await importDataset({ workspace: target, file, signal: lifetime.signal, at: { x: (innerWidth / 2 - camera.x) / camera.zoom - 320, y: (innerHeight / 2 - camera.y) / camera.zoom - 210 }, services: { upload: async (upload, signal) => hostValue(await client.upload(upload, signal)) } });
+      const result = await importDataset({ workspace: target, file, signal: lifetime.signal, at: at ?? { x: (innerWidth / 2 - camera.x) / camera.zoom - 320, y: (innerHeight / 2 - camera.y) / camera.zoom - 210 }, services: { upload: async (upload, signal) => hostValue(await client.upload(upload, signal)) } });
       if (result.kind === 'error') throw new Error(result.message);
       if (result.kind === 'cancelled') return;
       for (const batch of target.replication.state.getSnapshot().pending) hostValue(await client.commit(batch, lifetime.signal));
       if (workspace.metadata.getSnapshot().id === boardId) { runtime.replication.resynchronise(); await runtime.replication.settled(); }
     } finally { target.dispose(); }
   }, [client, lifetime, workspace, runtime.replication]);
+  const creativeServices = useMemo<CreativeServices>(() => ({
+    assetUrl: url => client.assetUrl(url ?? ''), upload: async (file, progress) => { progress?.(0); const result = hostValue(await client.upload(file, lifetime.signal)); progress?.(100); return result; },
+    linkPreview: async (url, signal) => hostValue(await client.linkPreview(url, signal)), openUrl, notify: setNotice, importCSV: importCsv,
+    commitToBoard: async (boardId, commands) => {
+      const result = hostValue(await client.commit({ boardId, id: BatchIdSchema.parse(crypto.randomUUID()), commands }, lifetime.signal));
+      if (!result.ok) throw new Error(result.errors[0]?.reason ?? 'Could not save to the original board.');
+    },
+  }), [client, lifetime, importCsv]);
+  const selection = useSyncExternalStore(workspace.selection.subscribe, workspace.selection.getSnapshot);
+  const selectedId = selection.length === 1 ? selection[0] : undefined;
+  const selectedCard = selectedId ? workspace.record(selectedId).getSnapshot() : null;
+  const drawTarget: DrawTarget | null = creativeMode && creativeMode !== 'wireframe' ? creativeMode : selectedCard && ['ink', 'shape', 'path', 'stamp'].includes(selectedCard.type) ? { kind: 'card', id: selectedCard.id } : null;
   const documentServices = useMemo<DocumentServices>(() => ({ context, assetUrl: client.assetUrl,
     rewrite: async (request, signal) => {
       const model = controls.current?.runtime.getSnapshot().model;
@@ -152,10 +193,13 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const activeCard = ui.editor ? workspace.record(ui.editor.id).getSnapshot() : null;
   const editorKind = activeCard?.type === 'object' ? `object:${activeCard.kind}` : activeCard?.type;
   const Editor = composition.editors.find(item => item.kind === editorKind)?.Body;
-  return <DocumentProvider services={documentServices}>
+  return <CreativeProvider services={creativeServices} workspace={workspace}><DocumentProvider services={documentServices}>
+    <CreativeImports context={context} attached={importAttached} />
     <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={agentControls?.follow} rightContent={agentControls?.activity} /> : null}
-    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome /> : null}
+    {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} shortcuts={shortcuts} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
+    {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { setNotice('Point editing is not available yet.'); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
+    {creativeMode === 'wireframe' && chromeEngine ? <WireframePanel context={context} onPlace={request => chromeEngine.tool(placementTool(chromeEngine, workspace, request))} onClose={() => { chromeEngine.tool(null); setCreativeMode(null); }} /> : null}
     {Editor && ui.editor && chromeEngine ? <aside className={`react-editor side-editor is-open${editorKind === 'doc' ? ' docs-panel' : editorKind === 'deck' ? ' deck-panel' : ''}${ui.editor.view === 'full' ? ' full' : ''}`} aria-label="Card editor">
       {editorKind !== 'doc' ? <header className="react-editor-toolbar"><span>{activeCard?.text || 'Untitled'}</span><EditorActions context={context} full={ui.editor.view === 'full'} /></header> : null}
       <div className="react-editor-content"><Editor cardId={ui.editor.id} workspace={workspace} engine={chromeEngine} /></div>
@@ -163,7 +207,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     {ui.editor && editorKind === 'doc' ? <DocumentContext context={context} sourceId={ui.editor.id} /> : null}
     {pendingDeletion ? <div className="library-undo" role="status"><span>Deleted "{pendingDeletion.name}"</span><button type="button" data-library-undo onClick={() => { void library.undo().catch(cause => setNotice(cause instanceof Error ? cause.message : 'Could not undo deletion.')); }}>Undo</button></div> : null}
     {notice ? <div className="react-import-error" role="alert">{notice}<button type="button" onClick={() => setNotice(null)}>Dismiss</button></div> : null}
-  </DocumentProvider>;
+  </DocumentProvider></CreativeProvider>;
 }
 
 export default function App() {

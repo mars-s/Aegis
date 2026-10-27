@@ -2,6 +2,7 @@ import type { Card, CardId, ObjectCard } from "@aegis/domain";
 import type { CanvasEngine } from "@aegis/scene";
 import type { ComponentType } from "react";
 import type { Workspace } from "./workspace/index.js";
+import { creativeCards } from "./cards/creative/index.js";
 import { basicRegistrations } from "./cards/basic/index.js";
 import { objectRegistrations } from "./cards/objects/index.js";
 import type { ObjectServices } from "./cards/objects/index.js";
@@ -67,7 +68,7 @@ export function defineComposition(composition: Composition): Composition {
 export function createComposition(services: Pick<DataServices, "assetUrl"> & Pick<DeckServices, "menu"> & Pick<ObjectServices, "registerSandbox">): Composition {
   const objects = objectRegistrations(services);
   return defineComposition({
-    cards: [...basicRegistrations(services), ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
+    cards: [...basicRegistrations(services).filter(item => !creativeCards.some(creative => creative.kind === item.kind)), ...creativeCards, ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
     tools: [documentTool, ...deckTools], panels: [],
     menus: [...editingMenus, documentOpenAction],
     editors: [...dataEditors(services), ...objects.editors, documentEditor, ...deckEditors(services)],
