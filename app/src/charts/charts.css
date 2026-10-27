@@ -1,0 +1,699 @@
+/* Adapted from Zephium Chart styles at 0eaad6d, MPL-2.0. React scoping for Aegis. */
+.aegis-chart {
+
+  & {
+    --text-caption: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    min-inline-size: 0;
+    color: var(--color-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .chart.tile {
+    gap: 0;
+    block-size: 100%;
+  }
+
+  .headline {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+  }
+
+  .figure {
+    font-size: var(--text-title);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    line-height: 28px;
+  }
+
+  .what {
+    color: var(--color-muted);
+    font-size: var(--text-label);
+    line-height: 16px;
+  }
+
+  .overview .figure {
+    font-size: var(--text-overview-figure);
+    line-height: 1.1;
+  }
+
+  .overview .what {
+    font-size: var(--text-overview-label);
+    line-height: 1.25;
+  }
+
+  .plot-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-inline-size: 0;
+  }
+
+  .round-chart .plot-body,
+  .radar .plot-body {
+    align-items: center;
+  }
+
+  .plot-body.beside {
+    flex-direction: row;
+    gap: 28px;
+  }
+
+  .plot {
+    position: relative;
+    flex: none;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  .spark-box {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 16px;
+  }
+
+  .caption,
+  summary {
+    margin: 0;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+
+  .basis {
+    color: var(--color-faint);
+  }
+
+  details > .caption {
+    margin-block: 6px 2px;
+  }
+
+  .copy {
+    margin-block: 6px 2px;
+    padding: 1px 8px;
+    border: 0;
+    border-radius: var(--radius-capsule);
+    background: var(--color-fill);
+    color: var(--color-muted);
+    font: inherit;
+    font-size: var(--text-caption);
+    cursor: default;
+  }
+
+  .copy:hover {
+    background: var(--color-fill-hover);
+    color: var(--color-text);
+  }
+
+  .values {
+    max-block-size: 280px;
+    overflow: auto;
+  }
+
+  table {
+    inline-size: 100%;
+    border-collapse: collapse;
+  }
+
+  caption,
+  th,
+  td {
+    padding: 6px 8px;
+    text-align: start;
+    overflow-wrap: anywhere;
+  }
+
+  th,
+  td {
+    border-block-end: 1px solid var(--color-border);
+  }
+
+  td {
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  .cites {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .chip {
+    max-inline-size: 240px;
+    padding: 1px 8px;
+    border: 0;
+    border-radius: var(--radius-capsule);
+    background: var(--color-fill);
+    color: var(--color-muted);
+    font: inherit;
+    font-size: var(--text-caption);
+    cursor: default;
+    overflow-wrap: anywhere;
+  }
+
+  summary:focus-visible,
+  .copy:focus-visible,
+  .chip:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  .chip:hover:not(:disabled) {
+    background: var(--color-fill-hover);
+    color: var(--color-text);
+  }
+
+}
+.aegis-chart .cartesian {
+
+  & {
+    position: relative;
+    inline-size: 100%;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .grid line {
+    stroke: var(--chart-grid, var(--color-border));
+    stroke-width: 1;
+    shape-rendering: crispedges;
+  }
+
+  .zero {
+    stroke: var(--color-border-strong);
+    shape-rendering: crispedges;
+  }
+  .target { stroke: var(--ink-2); stroke-opacity: 0.45; stroke-width: 1; stroke-dasharray: 3 4; }
+
+  .cursor {
+    fill: var(--color-fill);
+  }
+
+  .cursor-line {
+    stroke: var(--color-border-strong);
+    shape-rendering: crispedges;
+  }
+
+  .focus {
+    fill: var(--card);
+    stroke-width: 1.5;
+  }
+
+  .tick {
+    fill: var(--color-muted);
+    font-size: var(--chart-label-size, 12px);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tick.on {
+    fill: var(--color-text);
+  }
+
+  .value {
+    fill: var(--color-label-secondary);
+    font-size: var(--chart-label-size, 12px);
+    font-weight: 550;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .area { fill-opacity: 0.12; }
+
+  .bar {
+    fill-opacity: 0.3;
+    transform-box: fill-box;
+    transition: opacity var(--motion-fast) var(--ease-out);
+  }
+
+  .bar.dim {
+    opacity: 0.55;
+  }
+
+  .line {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+  }
+
+  .tile .line {
+    stroke-width: 1.5;
+  }
+
+  .dot {
+    fill: var(--card);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* A chart arrives once: bars rise from their baseline, lines draw in, washes and words follow. */
+  .bar.enter {
+    animation: rise var(--motion-slow) var(--ease-emphasized) both;
+  }
+
+  .line.enter {
+    animation: fade var(--motion-page) var(--ease-out) both;
+  }
+
+  .area.enter,
+  .dot.enter,
+  .value.enter {
+    animation: fade var(--motion-slow) var(--ease-out) both;
+  }
+
+  .dot.enter,
+  .value.enter {
+    animation-delay: var(--motion-base);
+  }
+
+  .lying .bar.enter {
+    animation-name: reach;
+  }
+
+  
+
+  
+
+  
+
+}
+.aegis-chart .round {
+
+  & {
+    position: relative;
+    flex: none;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .slice {
+    stroke-linejoin: round;
+    transition: opacity var(--motion-fast) var(--ease-smooth);
+  }
+
+  .arc {
+    fill: none;
+    stroke-linecap: round;
+  }
+
+  .slice.dim {
+    opacity: 0.4;
+  }
+
+  .track {
+    fill: none;
+    stroke: var(--color-fill);
+  }
+
+  .total {
+    fill: var(--color-text);
+    font-size: var(--text-title);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+  }
+
+  .compact .total {
+    font-size: var(--text-body);
+    font-weight: 600;
+  }
+
+  .overview .total {
+    font-size: var(--text-overview-figure);
+  }
+
+  .caption-text {
+    fill: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+
+  .overview .caption-text {
+    font-size: var(--text-overview-label);
+  }
+
+  /* The ring turns a few degrees into place as it fades in; rings draw along their arc. */
+  .ring.enter {
+    transform-box: view-box;
+    transform-origin: center;
+    animation: settle var(--motion-page) var(--ease-emphasized) both;
+  }
+
+  .arc.draw {
+    animation: fade var(--motion-page) var(--ease-out) both;
+  }
+
+  
+
+  
+
+}
+.aegis-chart .radar {
+
+  & {
+    position: relative;
+    inline-size: 100%;
+    block-size: 100%;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .grid {
+    fill: none;
+    stroke: var(--chart-grid, var(--color-border));
+    stroke-width: 1;
+  }
+
+  .web {
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
+    stroke-linejoin: round;
+  }
+
+  .dot {
+    fill: var(--card);
+    stroke-width: 1.4;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .name {
+    fill: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+
+  .name.on {
+    fill: var(--color-text);
+  }
+
+  .hit {
+    fill: transparent;
+  }
+
+  .enter {
+    animation: arrive var(--motion-base) var(--ease-emphasized) both;
+  }
+
+  .tip {
+    position: absolute;
+    z-index: 1;
+    transform: translate(-50%, -115%);
+    pointer-events: none;
+  }
+
+  
+
+}
+.aegis-chart .heat {
+
+  & {
+    position: relative;
+    inline-size: 100%;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .cell.on {
+    stroke: var(--color-text);
+    stroke-width: 1.5;
+  }
+
+  .cell.enter {
+    animation: fade var(--motion-slow) var(--ease-out) both;
+  }
+
+  .tick {
+    fill: var(--color-muted);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  
+
+}
+.aegis-chart .spark {
+
+  & {
+    display: block;
+    inline-size: 100%;
+    block-size: 100%;
+    min-block-size: 16px;
+  }
+
+  svg {
+    display: block;
+    overflow: visible;
+  }
+
+  .line {
+    fill: none;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .line.enter {
+    animation: fade var(--motion-page) var(--ease-out) both;
+  }
+
+  .bar {
+    fill-opacity: 0.3;
+    transform-box: fill-box;
+    transform-origin: bottom;
+  }
+
+  .bar.enter {
+    animation: rise var(--motion-slow) var(--ease-emphasized) both;
+  }
+
+  
+
+  
+
+}
+.aegis-chart .chart-legend {
+
+  & {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--color-muted);
+    font-size: var(--text-caption);
+  }
+
+  /* A card's legend: at most two rows, filled down then across. */
+  .rows {
+    display: grid;
+    grid-auto-columns: minmax(0, max-content);
+    grid-auto-flow: column;
+    grid-template-rows: repeat(2, auto);
+    justify-content: start;
+  }
+
+  /* A round chart names its parts beside it, each with its share or value. */
+  .list {
+    display: grid;
+    flex: 1;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px 8px;
+    justify-content: stretch;
+    color: var(--color-text);
+    font-size: var(--text-label);
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-inline-size: 0;
+  }
+
+  .list li {
+    display: contents;
+  }
+
+  .swatch {
+    flex: none;
+    inline-size: 8px;
+    block-size: 8px;
+    border-radius: var(--radius-swatch);
+  }
+
+  .list .swatch {
+    inline-size: 10px;
+    block-size: 10px;
+  }
+
+  .name {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .share {
+    color: var(--color-muted);
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  .list .share {
+    color: var(--color-text);
+    font-weight: 550;
+  }
+
+}
+.aegis-chart .chart-tooltip {
+
+  & {
+    display: grid;
+    gap: 6px;
+    min-inline-size: 128px;
+    max-inline-size: 260px;
+    padding: 7px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-control-compact);
+    background: var(--color-float);
+    box-shadow: var(--shadow-float);
+    color: var(--color-text);
+    font-size: var(--text-caption);
+    line-height: 14px;
+  }
+
+  .label {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .indicator {
+    flex: none;
+    background: var(--indicator);
+  }
+
+  .indicator.dot {
+    inline-size: 10px;
+    block-size: 10px;
+    border-radius: var(--radius-swatch);
+  }
+
+  .indicator.line {
+    inline-size: 4px;
+    block-size: 14px;
+    border-radius: var(--radius-capsule);
+  }
+
+  .name {
+    flex: 1;
+    min-inline-size: 0;
+    color: var(--color-muted);
+  }
+
+  .value {
+    margin-inline-start: auto;
+    padding-inline-start: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .value.alone {
+    margin-inline-start: 0;
+    padding: 0;
+    font-family: inherit;
+    font-size: var(--text-body);
+    font-weight: 600;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-block-start: 2px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    max-inline-size: 160px;
+    padding: 1px 8px 1px 2px;
+    border: 0;
+    border-radius: var(--radius-capsule);
+    background: var(--color-fill);
+    color: var(--color-label-secondary);
+    font: inherit;
+    line-height: 14px;
+    cursor: default;
+  }
+
+  .chip:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  .host {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .chip:hover:not(:disabled) {
+    background: var(--color-fill-hover);
+    color: var(--color-text);
+  }
+
+}
+.aegis-chart {
+
+  .tip {
+    position: absolute;
+    z-index: 2;
+    animation: tip-in var(--motion-fast) var(--ease-out) both;
+  }
+
+  
+
+}
+.chart-source-status {
+
+  & { display: flex; flex-direction: column; gap: 4px; color: var(--color-muted); font: 400 12px/16px var(--font); }
+  p { margin: 0; }
+  label { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  select { min-width: 0; max-width: 100%; min-height: 28px; border: 1px solid var(--line); border-radius: 4px; background: var(--card); color: var(--text); font: inherit; }
+  select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+}
+
+.aegis-chart .grid { fill: none; }
+.aegis-chart .line { stroke-width: 1.5px; vector-effect: non-scaling-stroke; }
+.aegis-chart .smoothing { display:flex; gap:8px; align-items:center; min-height:32px; }
+.aegis-chart { --card:var(--color-surface); --ink-2:var(--color-label-secondary); }
+.aegis-chart { --data:var(--color-ring); }
