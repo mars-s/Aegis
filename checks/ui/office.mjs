@@ -30,7 +30,7 @@ try {
   await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
   await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).every(a => !a.running));
   await page.keyboard.press('Escape');
-  const saved = () => page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved', null, { timeout: 15000 });
+  const saved = () => page.waitForFunction(() => document.querySelector('.side-editor [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 });
   const open = async test => { const id = await page.evaluate(src => aegis.canvas.board.cards.find(new Function('c', 'return ' + src)).id, test); await page.evaluate(id => aegis.canvas.select([id]), id); await page.keyboard.press('Enter'); return id; };
 
   // Sheet: drag a range, read the status sums, then sort by the active column from the ribbon.
@@ -60,10 +60,10 @@ try {
   const before = (await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides.length, deckId));
   await page.getByRole('button', { name: 'Duplicate slide', exact: true }).click(); await saved();
   assert.equal(await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides.length, deckId), before + 1);
-  await page.locator('.deck-ribbon [data-layout]').click();
+  await page.locator('.deck-ribbon [data-layout], .deck-ribbon button[aria-label="Slide layout"]').click();
   await page.getByRole('menuitemradio', { name: 'Title and text', exact: true }).click(); await saved();
   assert.equal(await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides[1].layout, deckId), 'text');
-  await page.locator('.deck-ribbon [data-present]').click();
+  await page.getByRole('button', { name: 'Present', exact: true }).click();
   const show = page.getByRole('dialog', { name: 'Presenting slides' });
   await show.waitFor();
   const counter = () => show.locator('.deck-present-count').textContent();

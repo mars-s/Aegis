@@ -7,6 +7,7 @@ import { SLIDE_WIDTH, SLIDE_HEIGHT, slideImages, slideLayout } from './model.js'
 import type { DeckServices, IdentifiedSlide } from './model.js';
 import type { DeckSession } from './session.js';
 import { sharedDeckChart } from './chart.js';
+import { ValueChart } from './ValueChart.js';
 import './slides.css';
 
 const ridges = (() => {
@@ -68,6 +69,7 @@ export const SlideView = memo(function SlideView({ slide, workspace, services, d
   const [box, setBox] = useState({ width: 0, height: 0, scale: 0, left: 0, top: 0 });
   const layout = slideLayout(slide), wave = layout === 'title' && (slide.background === 'sci-fi-wave' || slide.background == null);
   const images = slideImages(slide);
+  const chart = slide.chart ?? {}, resolvedChart = !!(chart.sourceId || chart.spec);
   const overlap = slide.relationship === 'overlap', ideas = (slide.body ?? '').split('\n');
   useEffect(() => {
     const host = fit.current, body = frame.current, drawing = art.current;
@@ -92,6 +94,7 @@ export const SlideView = memo(function SlideView({ slide, workspace, services, d
     <div ref={frame} className={`deck-slide l-${layout}${layout === 'title' && !wave ? ' bg-plain' : ''}${layout === 'three' && overlap ? ' has-overlap' : ''}${slide.imageOnly === true ? ' image-only' : ''}`} style={style} data-slide={slide.id}>
       <div className="s-copy">{text('title', 'title')}{text('sub', 'subtitle')}{layout === 'text' || layout === 'image' ? text('body', 'body') : null}</div>
       {layout === 'chart' || layout === 'three' || layout === 'image' || wave ? <div className="s-art" ref={art} style={layout === 'image' ? { gridTemplateRows: `repeat(${Math.max(1, images.length)}, minmax(0, 1fr))` } : undefined}>
+        {layout === 'chart' && !resolvedChart ? <ValueChart chart={chart} width={box.width} height={box.height} presentationHeight={box.scale * SLIDE_HEIGHT} /> : null}
         {wave ? <svg viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true">{ridges.map((path, index) => <path key={index} className={`deck-ridge${index === 2 ? ' hi' : ''}`} d={path} />)}</svg> : null}
         {layout === 'three' ? overlap ? <svg viewBox="0 0 200 180" role="img" aria-label="Overlapping ideas" className="deck-three" fontFamily="Inter Variable, sans-serif" fontSize="10" fontWeight="400" textRendering="geometricPrecision">
           <circle cx="78" cy="72" r="52" /><circle cx="122" cy="72" r="52" /><circle className="hi" cx="100" cy="110" r="52" />
@@ -100,7 +103,7 @@ export const SlideView = memo(function SlideView({ slide, workspace, services, d
         {layout === 'image' ? images.map((image, index) => <div key={`${image.src}:${index}`} className="deck-picture-slot"><img className="s-picture" src={services.assetUrl(image.src)} alt={image.alt || slide.title || 'Slide image'} loading="lazy" decoding="async" draggable={false} /></div>) : null}
       </div> : null}
     </div>
-    {layout === 'chart' && visible && box.width > 0 && box.height > 0 ? <div className="deck-chart-host" style={chartStyle}><DeckChart workspace={workspace} deckId={deckId} slideId={slide.id} chart={sharedDeckChart(slide.chart ?? {})} title={slide.title ?? 'Chart'} miniature={miniature}
+    {layout === 'chart' && resolvedChart && visible && box.width > 0 && box.height > 0 ? <div className="deck-resolved-chart deck-chart-host" style={chartStyle}><DeckChart workspace={workspace} deckId={deckId} slideId={slide.id} chart={sharedDeckChart(chart)} title={slide.title ?? 'Chart'} miniature={miniature}
       presentationHeight={box.scale * SLIDE_HEIGHT} viewScale={1} onchoose={session ? id => session.patch(slide.id, { chart: { sourceId: id } }) : undefined} /></div> : null}
   </div>;
 });

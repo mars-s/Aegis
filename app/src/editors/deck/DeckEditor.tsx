@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import type { KeyboardEvent } from 'react';
 import type { CardBodyProps } from '../../composition.js';
 import { useCard, useSaveState, useSource } from '../../workspace/index.js';
@@ -32,7 +33,7 @@ export function DeckEditor({ cardId, workspace, engine, services }: CardBodyProp
     return () => { session.flush(); motion.current?.cancel(); window.removeEventListener('keydown', key, true); window.removeEventListener('pointerdown', down, true); window.removeEventListener('pagehide', save); document.removeEventListener('visibilitychange', visibility); };
   }, [session]);
   useEffect(() => { engine.pin(cardId, 'dirty', draft.dirty); engine.pin(cardId, 'ime', draft.composing); return () => { engine.pin(cardId, 'dirty', false); engine.pin(cardId, 'ime', false); }; }, [engine, cardId, draft.dirty, draft.composing]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const element = film.current?.querySelector<HTMLElement>(`[data-i="${draft.current}"]`), strip = film.current;
     if (element && strip) {
       const left = element.offsetLeft - strip.offsetLeft;
@@ -79,7 +80,7 @@ export function DeckEditor({ cardId, workspace, engine, services }: CardBodyProp
         <div className="deck-slide-meta"><span>Slide {index + 1}</span><div className="deck-slide-actions"><button type="button" disabled={index === 0} aria-label={`Move slide ${index + 1} up`} onClick={() => session.move(index, -1)}>Up</button><button type="button" disabled={index === draft.slides.length - 1} aria-label={`Move slide ${index + 1} down`} onClick={() => session.move(index, 1)}>Down</button><button type="button" aria-label={`Delete slide ${index + 1}`} onClick={() => session.remove(index)}>Delete</button></div></div>
         <SlideView slide={slide} workspace={workspace} services={services} deckId={cardId} number={index + 1} session={session} />
       </section>) : <p className="deck-empty">Add your first slide below.</p>}
-    </div><div className="deck-film" ref={film} role="tablist" aria-label="Slide strip">{draft.slides.map((slide, index) => <button key={slide.id} type="button" role="tab" className={`deck-film-item${index === draft.current ? ' on' : ''}`} data-i={index} aria-label={`Go to slide ${index + 1}`} aria-selected={index === draft.current} aria-controls={`deck-slide-${cardId}-${slide.id}`} tabIndex={index === draft.current ? 0 : -1} aria-keyshortcuts="ArrowLeft ArrowRight Home End Alt+ArrowUp Alt+ArrowDown Delete" onClick={() => jump(index)}>
+    </div><div className="deck-film" ref={film} role="tablist" aria-label="Slide strip">{draft.slides.map((slide, index) => <button key={slide.id} type="button" role="tab" className={`deck-film-item${index === draft.current ? ' on' : ''}`} data-i={index} aria-label={`Go to slide ${index + 1}`} aria-selected={index === draft.current} aria-controls={`deck-slide-${cardId}-${slide.id}`} tabIndex={index === draft.current ? 0 : -1} aria-keyshortcuts="ArrowLeft ArrowRight Home End Alt+ArrowUp Alt+ArrowDown Delete" onClick={() => flushSync(() => jump(index))}>
       <SlideView slide={slide} workspace={workspace} services={services} deckId={cardId} miniature /><span className="deck-film-caption"><span className="deck-film-number">{index + 1}</span><span className="deck-film-title">{slide.title || 'Untitled slide'}</span></span>
     </button>)}<button className="deck-film-add" type="button" onClick={() => { session.add(); queueMicrotask(() => stage.current?.querySelector<HTMLElement>(`[data-i="${session.getSnapshot().current}"] [data-k="title"]`)?.focus({ preventScroll: true })); }}>Add slide</button></div></div>
     {presenting && selectedSlide ? <Presentation slides={draft.slides} current={draft.current} workspace={workspace} services={services} deckId={cardId} exit={exitPresentation} /> : null}
