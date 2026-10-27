@@ -112,6 +112,37 @@ describe('real scene attachment', () => {
     await p.close();
   });
 
+  test('Fit includes late intrinsic measurements and yields to subsequent camera input', async () => {
+    const p = await page();
+    await p.evaluate(() => {
+      const harness = window.sceneHarness, card = harness.board().cards.find(card => card.id === 'note-2');
+      if (!card) throw new Error('Missing measured card');
+      harness.update({ ...card, props: { contentFit: true } });
+      harness.engine.navigate({ kind: 'fit', ids: [card.id], motion: 'instant' });
+      const lease = harness.engine.leases.getSnapshot().find(lease => lease.cardId === card.id);
+      if (!lease) throw new Error('Missing measured lease');
+      lease.host.style.minHeight = '1100px';
+      harness.engine.requestMeasurement(lease.key, lease.generation);
+    });
+    await p.waitForFunction(() => (window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.h ?? 0) >= 1100);
+    await idle(p);
+    const fitted = await p.locator('[data-id="note-2"]').boundingBox();
+    const stage = await p.locator('#stage').boundingBox();
+    expect(fitted && stage && fitted.y >= stage.y && fitted.y + fitted.height <= stage.y + stage.height).toBe(true);
+    await p.mouse.move(1100, 700); await p.mouse.wheel(80, 40); await idle(p);
+    const camera = await p.evaluate(() => window.sceneHarness.engine.camera());
+    await p.evaluate(() => {
+      const harness = window.sceneHarness, lease = harness.engine.leases.getSnapshot().find(lease => lease.cardId === 'note-2');
+      if (!lease) throw new Error('Missing measured lease');
+      lease.host.style.minHeight = '1200px';
+      harness.engine.requestMeasurement(lease.key, lease.generation);
+    });
+    await p.waitForFunction(() => (window.sceneHarness.board().cards.find(card => card.id === 'note-2')?.h ?? 0) >= 1200);
+    await idle(p);
+    expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual(camera);
+    await p.close();
+  });
+
   test('an early frame timestamp holds the glide at its start before moving monotonically', async () => {
     const p = await page(true);
     const result = await p.evaluate(() => {
