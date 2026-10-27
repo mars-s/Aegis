@@ -40,9 +40,9 @@ async function pathPoint(selector, fraction) {
     const [painted] = await readRenderedLinks(page);
     return page.evaluate(({ painted, fraction }) => {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', painted.d);
-      const point = path.getPointAtLength(path.getTotalLength() * fraction), at = aegis.canvas.worldToScreen(point.x, point.y);
+      const point = path.getPointAtLength(path.getTotalLength() * fraction), stage = document.getElementById('stage').getBoundingClientRect();
       if (aegis.canvas.engine.hitTestLink(point) !== painted.id) throw Error('The painted connector must be pickable at its stroke.');
-      return [at.x, at.y];
+      return [point.x + stage.left, point.y + stage.top];
     }, { painted, fraction });
   }
   return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }

@@ -24,7 +24,16 @@ const log = (...args) => console.log(...args);
 const panel = page.locator('.wf-design');
 const snapshot = () => page.evaluate(() => structuredClone(aegis.canvas.board));
 const point = (x, y) => page.evaluate(([x, y]) => aegis.canvas.worldToScreen(x, y), [x, y]);
-async function clickAt(x, y) { const p = await point(x, y); await page.mouse.click(p.x, p.y); }
+async function clickAt(x, y) {
+  const p = await point(x, y); await page.mouse.click(p.x, p.y);
+  if (process.env.AEGIS_UI_IMPL !== 'react') return;
+  await page.evaluate(() => {
+    window.__wireframeInputComplete = false;
+    const engine = aegis.canvas.engine;
+    const off = engine.registerFrameParticipant({ write: () => { off(); engine.afterInput(() => { window.__wireframeInputComplete = true; }); } });
+  });
+  await page.waitForFunction(() => window.__wireframeInputComplete);
+}
 async function select(id) { await page.evaluate(id => aegis.canvas.select([id]), id); await page.waitForTimeout(260); }
 async function prop(name, value) { const input = panel.getByLabel(name, { exact: true }); if (await input.evaluate(element => element instanceof HTMLButtonElement)) { await input.click(); const editor = page.getByRole('dialog', { name: 'Colour editor', exact: true }); await editor.getByLabel('Hex', { exact: true }).fill(String(value)); await editor.getByRole('button', { name: 'Done', exact: true }).click(); } else { await input.fill(String(value)); await input.press('Tab'); } await panel.locator('.wf-panel-head strong').click(); await page.waitForTimeout(260); }
 async function drag(x, y, dx, dy, guideScreenshot) {
