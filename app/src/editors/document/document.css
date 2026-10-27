@@ -886,11 +886,9 @@
   margin-left: auto;
 }
 .docs-more > summary[aria-label="Document options"] {
-  font-size: 0;
-}
-.docs-more > summary[aria-label="Document options"]::after {
-  content: "…";
-  font-size: 20px;
+  width: auto;
+  min-width: 44px;
+  font-size: 12px;
 }
 .document-editor .docs-message {
   flex: none;
@@ -986,8 +984,7 @@
 }
 .document-context .editor-reference-chart {
   width: 320px;
-  height: 180px;
-  overflow: hidden;
+  min-height: 180px;
 }
 .document-context .editor-reference-table {
   width: 280px;
