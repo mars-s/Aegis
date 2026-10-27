@@ -60,7 +60,7 @@ try {
   const before = (await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides.length, deckId));
   await page.getByRole('button', { name: 'Duplicate slide', exact: true }).click(); await saved();
   assert.equal(await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides.length, deckId), before + 1);
-  await page.getByRole('button', { name: 'Slide layout', exact: true }).click();
+  await page.locator('.deck-ribbon [data-layout], .deck-ribbon button[aria-label="Slide layout"]').click();
   await page.getByRole('menuitemradio', { name: 'Title and text', exact: true }).click(); await saved();
   assert.equal(await page.evaluate(id => aegis.canvas.board.cards.find(c => c.id === id).props.slides[1].layout, deckId), 'text');
   await page.getByRole('button', { name: 'Present', exact: true }).click();
