@@ -30,6 +30,7 @@ import { installEditorActions } from './platform/editor-actions.js';
 import { CreativeProvider } from './cards/creative/index.js';
 import type { CreativeServices } from './cards/creative/index.js';
 import { CreativeConnections, startCreativeConnection } from './features/draw/Connections.js';
+import { wireframeActions } from './features/wireframe/registrations.js';
 import { DrawingInspector } from './features/draw/Inspector.js';
 import type { DrawSettings, DrawTarget } from './features/draw/Inspector.js';
 import { readPreferences } from './features/draw/preferences.js';
@@ -115,7 +116,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       { id: 'import-image', label: 'Import', shortcut: 'i', run: () => importChoice.current?.() },
       { id: 'media', label: 'Media', run: () => importChoice.current?.() },
       ...(['swatch', 'link', 'audio', 'video'] as const).map(type => ({ id: type, label: type === 'swatch' ? 'Colour swatch' : type === 'link' ? 'Link' : type === 'audio' ? 'Audio recording' : 'Video recording', run: (context: FeatureContext) => { const scene = context.engine(); if (scene) scene.tool(mediaPlacementTool(scene, workspace, type)); } })),
-    ], panels: [...base.panels,
+    ], menus: [...base.menus, ...wireframeActions(() => setCreativeMode('wireframe'))], panels: [...base.panels,
       { id: 'board-colours', label: 'Board colours', side: 'left', Body: BoardColours },
       { id: 'draw', label: 'Drawing', side: 'left', Body: ({ context }) => <div className="creative-panel-tools">{(['ink', 'shape', 'path', 'stamp'] as const).map(kind => <button type="button" key={kind} onClick={() => draw(kind)(context)}>{kind === 'ink' ? 'Draw ink' : kind === 'shape' ? 'Shapes' : kind === 'path' ? 'Vector pen' : 'Emoji stamps'}</button>)}</div> },
       { id: 'media-devices', label: 'Media devices', side: 'left', Body: DevicesPanel },
