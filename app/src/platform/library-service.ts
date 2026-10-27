@@ -46,6 +46,8 @@ export function createLibraryService(args: {
     const next = hostValue(await args.client.library.read(AbortSignal.any([lifetime.signal, signal])));
     if (lifetime.signal.aborted || signal.aborted) return;
     raw = next; publish();
+    const current = args.workspace.metadata.getSnapshot().id;
+    if (!next.boards.some(board => board.id === current) && next.boards[0]) await args.open(next.boards[0].id);
   }
   function save(value: z.output<typeof PendingSchema> | null): void {
     pending.set(value);
@@ -94,6 +96,7 @@ export function createLibraryService(args: {
       return created;
     },
     rename: async (item, name) => {
+      await args.replication.settled();
       if (item.item === 'board') hostValue(await args.client.library.renameBoard(item.id, name, lifetime.signal));
       else hostValue(await args.client.library.change({ op: 'rename', id: item.id, name }, lifetime.signal));
       args.replication.resynchronise(); await args.replication.settled(); await refresh(lifetime.signal);

@@ -892,7 +892,6 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
 
 .aegis-chrome .adds button { --button-height: 32px; --button-padding: 5px 9px; }
 
-.aegis-chrome .bar-right:has(#showChip:not([hidden])) { opacity: 1; pointer-events: auto; transform: none; }
 
 #world > .card.selected:not(.editor-source, .coll, .template-group) { outline: 1px solid var(--muted); outline-offset: 0; }
 

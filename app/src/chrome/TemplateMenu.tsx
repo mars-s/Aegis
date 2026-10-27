@@ -60,18 +60,19 @@ export function Templates({
                   .boards.find((item) => item.id === id);
                 if (!board)
                   throw new Error("The new board was not found in Library.");
-                await library.rename({ ...board, item: "board" }, key);
-                if (context.workspace.metadata.getSnapshot().id !== id) return;
                 if (
                   submit(
                     context,
                     templateCommands(key, context.workspace.scene.snapshot()),
                     notify,
                   )
-                )
+                ) {
+                  await library.rename({ ...board, item: "board" }, key);
+                  if (context.workspace.metadata.getSnapshot().id !== id) return;
                   context
                     .engine()
                     ?.navigate({ kind: "fit", ids: [], motion: "glide" });
+                }
               } catch (cause) {
                 notify({
                   text:

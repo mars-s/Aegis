@@ -11,6 +11,7 @@ import { createComposition, defineComposition } from './composition.js';
 import type { FeatureContext } from './composition.js';
 import { Chrome, ToolbarPreferences, PanelPreferences } from './chrome/index.js';
 import { CanvasLibrary } from './chrome/CanvasDoor.js';
+import { resolveCollectionDrop } from './chrome/CollectionDrop.js';
 import { Notifications } from './chrome/Notifications.js';
 import type { ChromeGestures } from './chrome/index.js';
 import { Icon } from './chrome/controls.js';
@@ -135,7 +136,10 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
       await runtime.replication.settled();
       if (signal.aborted || workspace.saving.getSnapshot().kind === 'blocked') return false;
       const current = workspace.metadata.getSnapshot().id, camera = engine.current?.camera();
-      if (camera) hostValue(await client.saveCamera(current, { x: camera.x, y: camera.y, z: camera.zoom }, signal));
+      if (camera) {
+        const saved = await client.saveCamera(current, { x: camera.x, y: camera.y, z: camera.zoom }, signal);
+        if (!(saved.kind === 'error' && saved.error.kind === 'http' && saved.error.status === 404)) hostValue(saved);
+      }
       const board = hostValue(await client.board(id, signal));
       if (signal.aborted || !workspace.replaceBoard(board)) return false;
       localStorage.setItem('aegis:board', id);
@@ -248,7 +252,7 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
     <CreativeImports context={context} attached={importAttached} />
     <CaptureViews context={context} />
     {chromeEngine ? <CreativeConnections context={context} onSelectionChange={connectionSelectionChanged} /> : null}
-    <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request })} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
+    <Canvas workspace={workspace} composition={composition} attached={attached} cameraChanged={persistCamera} availableArea={area.source} resolveCardDrop={request => resolveDocumentDrop({ workspace, ...request }) ?? resolveCollectionDrop(context, request)} toolChanged={name => { if (name === null) setCreativeMode(mode => mode === 'wireframe' ? mode : null); }} />
     {chromeEngine ? <Chrome context={context} engine={chromeEngine} composition={composition} library={library.service} {...(gestures ? { gestures } : {})} settings={() => controls.current?.settings()} customiseToolbar={() => controls.current?.settings('toolbar')} ask={ids => { workspace.act({ kind: 'select', ids }); controls.current?.runtime.pin(ids); controls.current?.openAsk(); }} cameraChanged={persistCamera} barContent={<><CaptureButton />{agentControls?.follow}</>} rightContent={agentControls?.activity} wireframeSheet={close => <WireframePanel context={context} onPlace={request => { chromeEngine.tool(placementTool(chromeEngine, workspace, request)); close(); }} onClose={close} />} /> : null}
     {schedule ? <AgentShell context={context} service={agentService} settingsService={settingsService} schedule={schedule} importCsv={importCsv} attached={setAgentControls} activityInChrome settingsSlots={{ toolbar: <ToolbarPreferences composition={composition} />, panels: <PanelPreferences composition={composition} />, board: <BoardColours context={context} />, appearance: <><AppearanceColours mode={document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'} board={workspace.scene.snapshot} invalidate={() => engine.current?.invalidate()} /><DevicesPanel /></> }} /> : null}
     {drawTarget && chromeEngine ? <DrawingInspector key={drawTarget.kind === 'tool' ? drawTarget.tool : drawTarget.id} context={context} target={drawTarget} onSettings={settings => { drawSettings.current = settings; }} onArm={(request, settings) => { drawSettings.current = settings; if (request.kind === 'edit-points') { beginPointEdit(workspace, chromeEngine, request.id); return; } setCreativeMode({ kind: 'tool', tool: request.kind }); chromeEngine.tool(drawingTool(chromeEngine, workspace, request.kind, () => drawSettings.current, () => setCreativeMode(null))); }} onFinish={() => { chromeEngine.tool(null); setCreativeMode(null); workspace.act({ kind: 'select', ids: [] }); }} /> : null}
