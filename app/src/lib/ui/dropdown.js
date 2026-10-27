@@ -1,3 +1,4 @@
+import { cssMilliseconds } from './duration.ts';
 import './dropdown.css';
 import './surface.css';
 import { mountInteraction } from './interaction.js';
@@ -31,7 +32,7 @@ export function createPopup({ trigger, menu, onToggle = () => {}, portal = false
     animation?.cancel(); animation = null;
     if (instant || keyboardInput || reduced()) { menu.hidden = !show; return; }
     menu.hidden = false;
-    animation = menu.animate([current, { opacity: show ? 1 : 0, transform: show ? 'scale(1)' : 'scale(.97)' }], { duration: duration ?? (parseFloat(getComputedStyle(menu).getPropertyValue('--motion-menu')) || 140), easing: easing(), fill: 'both' });
+    animation = menu.animate([current, { opacity: show ? 1 : 0, transform: show ? 'scale(1)' : 'scale(.97)' }], { duration: duration ?? (cssMilliseconds(getComputedStyle(menu).getPropertyValue('--motion-menu'), 140)), easing: easing(), fill: 'both' });
     animation.onfinish = () => { menu.hidden = !opened; animation?.cancel(); animation = null; };
   }
   function position() {
