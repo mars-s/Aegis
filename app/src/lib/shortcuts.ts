@@ -39,14 +39,20 @@ const entries = {
   readme: ['Read-me note', 'R'],
   link: ['Link', 'L'],
   media: ['Image or video', 'M'],
-};
+} as const;
 export const SHORTCUTS = Object.freeze(Object.fromEntries(Object.entries(entries).map(([id, [label, mac, pc = mac]]) => {
   const macText = mac.replace('⇧', 'Shift+').replace('⌥', 'Option+').replace('⌘', 'Cmd+');
   return [id, Object.freeze({ label, mac, pc, macText, display: mac === pc ? mac : `${mac} / ${pc}`, text: macText === pc ? macText : `${macText} / ${pc}` })];
 })));
 export const SHORTCUT_LIST = Object.freeze(['ask', 'askSlash', 'quickCapture', 'addNotes', 'justBoard', 'leftSidebar', 'rightSidebar', 'stackBack', 'stackForward', 'stackToBack', 'stackToFront', 'sidebar', 'newNote', 'pan', 'zoom', 'fit', 'focus', 'follow', 'agents', 'remove', 'undo', 'redo']);
-export const shortcutText = (id, format = 'display') => SHORTCUTS[id][format];
-export const shortcutTitle = (id, label = SHORTCUTS[id].label) => `${label} (${shortcutText(id, 'text')})`;
+type Shortcut = typeof SHORTCUTS[string];
+function shortcut(id: string): Shortcut {
+  const value = SHORTCUTS[id];
+  if (!value) throw new Error(`Unknown shared shortcut: ${id}`);
+  return value;
+}
+export const shortcutText = (id: string, format: keyof Shortcut = 'display'): string => shortcut(id)[format];
+export const shortcutTitle = (id: string, label = shortcut(id).label): string => `${label} (${shortcutText(id, 'text')})`;
 export const TOOL_SHORTCUTS = Object.freeze(['select', 'note', 'title', 'todo', 'readme', 'link', 'media']);
 
-export const menuShortcut = id => shortcutText(id, /Mac|iPhone|iPad/.test(navigator.platform) ? 'mac' : 'pc');
+export const menuShortcut = (id: string) => shortcutText(id, /Mac|iPhone|iPad/.test(navigator.platform) ? 'mac' : 'pc');

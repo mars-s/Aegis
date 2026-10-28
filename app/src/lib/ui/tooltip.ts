@@ -1,8 +1,11 @@
 import { isKeyboard, reduceMotion } from './interaction.js';
 let serial = 0, warmUntil = 0;
-export function createTooltip(trigger, text = trigger.title) {
+export interface Tooltip { readonly close: () => void; readonly destroy: () => void }
+const tooltips = new WeakMap<HTMLElement, Tooltip>();
+export const tooltipFor = (trigger: HTMLElement): Tooltip | undefined => tooltips.get(trigger);
+export function createTooltip(trigger: HTMLElement, text = trigger.title): Tooltip {
   const tip = document.createElement('div'); tip.className = 'aegis-tooltip'; tip.id = `aegis-tooltip-${++serial}`; tip.role = 'tooltip'; tip.textContent = text; tip.hidden = true;
-  trigger.removeAttribute('title'); let timer, animation;
+  trigger.removeAttribute('title'); let timer: ReturnType<typeof setTimeout> | undefined, animation: Animation | undefined;
   function close() { clearTimeout(timer); animation?.cancel(); if (!tip.hidden) warmUntil = performance.now() + 400; tip.hidden = true; trigger.removeAttribute('aria-describedby'); }
   function show() {
     clearTimeout(timer); const instant = isKeyboard() || performance.now() < warmUntil;
@@ -17,6 +20,7 @@ export function createTooltip(trigger, text = trigger.title) {
     }, instant ? 0 : 450);
   }
   trigger.addEventListener('pointerenter', show); trigger.addEventListener('pointerleave', close); trigger.addEventListener('focus', show); trigger.addEventListener('blur', close); trigger.addEventListener('pointerdown', close);
-  const key = event => { if (event.key === 'Escape') close(); }; trigger.addEventListener('keydown', key);
-  return { close, destroy() { close(); tip.remove(); trigger.removeEventListener('pointerenter', show); trigger.removeEventListener('pointerleave', close); trigger.removeEventListener('focus', show); trigger.removeEventListener('blur', close); trigger.removeEventListener('pointerdown', close); trigger.removeEventListener('keydown', key); } };
+  const key = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); }; trigger.addEventListener('keydown', key);
+  const api = { close, destroy() { close(); tip.remove(); trigger.removeEventListener('pointerenter', show); trigger.removeEventListener('pointerleave', close); trigger.removeEventListener('focus', show); trigger.removeEventListener('blur', close); trigger.removeEventListener('pointerdown', close); trigger.removeEventListener('keydown', key); tooltips.delete(trigger); } };
+  tooltips.set(trigger, api); return api;
 }

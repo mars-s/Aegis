@@ -1,3 +1,4 @@
+import { lineChart } from '../../platform/deck-test.js';
 import { describe, expect, it } from 'vitest';
 import { CardIdSchema } from '@aegis/domain/schema';
 import { createElement } from 'react';
@@ -29,4 +30,13 @@ describe('saved deck chart compatibility', () => {
     expect([...html.matchAll(/class="axis x-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['Mon', 'Tue', 'Wed', 'Thu', '&lt;Fri&gt;']);
     expect(html).toContain('class="target"'); expect(html).toContain('>hours</text>');
   });
+});
+
+// Preserve the browser probe's historical category fallback and HTML escaping checks.
+it('renders the React value chart with aligned labels for invalid historical values', () => {
+  const fallback = lineChart({ values: [1, 2, 3] });
+  expect([...fallback.matchAll(/class="axis x-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['1', '2', '3']);
+  const escaped = lineChart({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] });
+  expect([...escaped.matchAll(/class="axis x-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['Mon', '&lt;Fri&gt;']);
+  expect([...lineChart({ values: [1, 2], labels: ['Mon'] }).matchAll(/class="axis x-tick"[^>]*>(.*?)<\/text>/g)].map(match => match[1])).toEqual(['Mon', '2']);
 });

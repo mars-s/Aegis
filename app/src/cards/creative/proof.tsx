@@ -1,4 +1,3 @@
-import '../../features/colours/legacy-menu.js';
 // Development-only fixture. The browser driver supplies the real workspace and semantic host adapter.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { mountDropdowns } from '../../lib/ui/dropdown.js';

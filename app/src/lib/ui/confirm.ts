@@ -2,8 +2,14 @@ import { createDialog } from './dialog.js';
 
 // The app's own confirmation. Tauri's WKWebView has no JavaScript panel handler, so window.confirm() returns
 // false without showing anything there. Resolves true only for the confirming button.
-/** @param {{ title: string, body?: string, confirm?: string, cancel?: string, destructive?: boolean }} options */
-export function confirmAction({ title, body = '', confirm = 'Delete', cancel = 'Cancel', destructive = true }) {
+interface ConfirmOptions {
+  readonly title: string;
+  readonly body?: string;
+  readonly confirm?: string;
+  readonly cancel?: string;
+  readonly destructive?: boolean;
+}
+export function confirmAction({ title, body = '', confirm = 'Delete', cancel = 'Cancel', destructive = true }: ConfirmOptions): Promise<boolean> {
   const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const dialog = createDialog({ className: 'aegis-confirm' });
   const heading = document.createElement('h2'), text = document.createElement('p'), actions = document.createElement('div');
@@ -18,9 +24,9 @@ export function confirmAction({ title, body = '', confirm = 'Delete', cancel = '
   // A dialog opened over another modal must sit inside it to stay interactive.
   const host = [...document.querySelectorAll('dialog[open]')].findLast(d => d.matches(':modal')) ?? document.body;
   host.append(dialog);
-  return new Promise(resolve => {
+  return new Promise<boolean>(resolve => {
     let done = false;
-    const finish = value => {
+    const finish = (value: boolean) => {
       if (done) return; done = true;
       dialog.close(); dialog.remove();
       if (previous?.isConnected) previous.focus({ preventScroll: true });

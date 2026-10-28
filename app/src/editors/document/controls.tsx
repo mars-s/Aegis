@@ -1,4 +1,3 @@
-import "./legacy-controls.js";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Board } from "@aegis/domain";
@@ -11,7 +10,7 @@ import type { Dropdown, DropdownOption } from "../../lib/ui/dropdown.js";
 import { writingFontChooser } from "../../features/editing/writing-fonts.js";
 import type { FontChooser } from "../../features/editing/writing-fonts.js";
 import { OrbMark } from "../../lib/ui/orb-mark.js";
-import { createColourPicker } from "../../features/colors/colour-picker.js";
+import { createColourPicker } from "../../features/colours/colour-picker.js";
 import "../../lib/ui/ribbon.css";
 
 export function Choice({
