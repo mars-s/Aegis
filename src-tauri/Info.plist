@@ -6,5 +6,7 @@
   <string>Aegis uses your camera when you preview or record a video on a board.</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>Aegis uses your microphone when you record a voice memo or video on a board.</string>
+  <key>NSSpeechRecognitionUsageDescription</key>
+  <string>Aegis turns your speech into text when you dictate into Ask, using on-device recognition.</string>
 </dict>
 </plist>

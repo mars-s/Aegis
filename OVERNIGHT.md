@@ -65,3 +65,13 @@ fragile. "Jarvis's table, built by Apple."
   `index-CbE3ZkiR.js`, the build that contains the chip.
 - The app relaunched clean and the board reads fine at revision 13.
 - Not verified by eye: nobody has looked at the native window yet.
+
+### 2026-10-29, early
+
+- Added dictation: the Ask orb starts Apple's on-device recogniser and streams
+  partial text into the box. `src-tauri/src/dictation.rs` owns the microphone
+  tap and the recogniser; the page polls `speech_poll` every 120 ms.
+- Installed and relaunched. The bundle links `Speech.framework` and carries both
+  privacy strings.
+- Not verified by ear: nobody has clicked the orb, so the two permission prompts
+  and the transcript itself are still unseen.

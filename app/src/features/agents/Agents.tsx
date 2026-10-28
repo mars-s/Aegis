@@ -5,6 +5,7 @@ import { CardIdSchema } from '@aegis/domain/schema';
 import type { AgentId, Command } from '@aegis/domain/schema';
 import { Conversation } from './Chat.js';
 import { Orb } from './Orb.js';
+import { useDictation } from './dictation.js';
 import { AgentDrafts } from './StreamingDrafts.js';
 import { Options } from './Options.js';
 import { AgentActivity, AgentWindows } from './Windows.js';
@@ -50,12 +51,14 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
   const expanded = phase === 'typing' || phase === 'conversation';
   const agent = runtime.current(), result = requestResult(agent);
   const hint = useOrbHint(runtime, island);
+  const dictation = useDictation(setPrompt);
   function change(next: Phase, instant: boolean): void { morph.current?.capture({ instant, crossfade: next !== phase }); setPhase(next); }
   function open(keyboard = false): void {
     composerRevision.current++;
     hint.dismiss(); change(runtime.current() ? 'conversation' : 'typing', keyboard);
   }
   function close(keyboard = false): void {
+    if (dictation.listening) void dictation.stop();
     composerRevision.current++;
     change(runtime.current()?.running ? 'running' : 'idle', keyboard);
     suppressHover.current = island.current?.matches(':hover') ?? false;
@@ -198,12 +201,15 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
       <div className="island-morph"><div className="island-surface" aria-hidden="true">{islandTiles.map(name => <i className={`island-tile island-${name}`} key={name} />)}</div>
         <div className="island-content">
           <button ref={orb} id="askPill" type="button" className={`ask-orb${agent?.running ? ' working' : ''}`} hidden={expanded} aria-expanded={expanded} aria-label={phase === 'done' && result ? `${result.label}. Show changed windows.` : 'Ask the agent. Shortcut Cmd+K.'}
-            onFocus={() => { if (!restoringFocus.current && phase !== 'done') open(true); }} onClick={event => { if (phase === 'done' && result) scene.frame(result.ids, 0, event.detail === 0); else open(event.detail === 0); }}>
-            <Orb resolved={resolved} /><span className="orb-invite">Ask Aegis</span><span className="orb-key">⌘K</span><span id="orbStatus" className="orb-status">{agent?.running ? agent.status : result?.label || agent?.error || agent?.text.replace(/\s+/g, ' ').slice(0, 130) || 'Ready for your next request'}</span>
+            onFocus={() => { if (!restoringFocus.current && phase !== 'done') open(true); }} onClick={event => {
+              if (event.target instanceof Element && event.target.closest('.orb-mark')) { open(event.detail === 0); void dictation.start(); return; }
+              if (phase === 'done' && result) scene.frame(result.ids, 0, event.detail === 0); else open(event.detail === 0);
+            }}>
+            <Orb resolved={resolved} /><span className="orb-invite">Ask Aegis</span><span className="orb-key">⌘K</span><span id="orbStatus" className="orb-status">{agent?.running ? agent.status : dictation.listening ? 'Listening…' : result?.label || agent?.error || agent?.text.replace(/\s+/g, ' ').slice(0, 130) || 'Ready for your next request'}</span>
           </button>
           <form id="composer" className={`agent-composer${expanded ? ' open' : ''}`} inert={!expanded} onSubmit={event => { event.preventDefault(); if (!state.sending) void send(input.current?.value ?? prompt); }}
             onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(true); } }}>
-            <div className="island-head"><Orb /><p className="orb-activity">{agent?.error || agent?.status || 'Aegis'}</p><button type="button" className="text-btn island-stop" hidden={!agent?.running} onClick={() => { if (agent) void runtime.stop(agent.id); }}>Stop</button><button type="button" className="island-icon island-collapse" aria-label="Collapse Ask" onClick={event => close(event.detail === 0)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button></div>
+            <div className="island-head"><Orb listening={dictation.listening} onActivate={() => void dictation.start()} label={dictation.listening ? 'Stop dictation' : 'Dictate'} /><p className="orb-activity">{agent?.error || agent?.status || 'Aegis'}</p><button type="button" className="text-btn island-stop" hidden={!agent?.running} onClick={() => { if (agent) void runtime.stop(agent.id); }}>Stop</button><button type="button" className="island-icon island-collapse" aria-label="Collapse Ask" onClick={event => close(event.detail === 0)}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button></div>
             <Conversation agent={agent} className="island-turns" />
             <div id="islandContext" className="island-context" hidden={!state.pinned.length} title={names.join('\n')}><span className="context-label">{names.length === 1 ? names[0] : `${names.length} windows · ${names.slice(0, 2).join(', ')}${names.length > 2 ? '…' : ''}`}</span><button type="button" className="context-clear" aria-label="Clear selected context" onClick={() => { runtime.pin([]); input.current?.focus({ preventScroll: true }); }}>×</button></div>
             <textarea ref={input} id="prompt" aria-label="Message" rows={1} value={prompt} placeholder={state.pinned.length ? state.pinned.length === 1 ? 'What should the agent do with this window?' : `What should the agent do with these ${state.pinned.length} windows?` : agent ? 'Follow up with this agent…' : 'Ask about your board…'}

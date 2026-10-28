@@ -55,3 +55,12 @@ body.motion-off .orb-mark { transition: none; }
   .orb-colours, .orb-light, .orb-mark.resolved { animation: none; }
   .orb-mark { transition: none; }
 }
+
+/* The orb is the dictation control. A breathing ring says the microphone is live. */
+.orb-button { display: inline-flex; align-items: center; justify-content: center; padding: 0; min-height: 0; background: transparent; border: 0; border-radius: 50%; }
+.orb-button:focus-visible { outline: 2px solid var(--data, #3f8dfd); outline-offset: 3px; }
+.orb-mark.listening { filter: saturate(1.2) brightness(1.25); }
+.orb-mark.listening::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 1px solid var(--data, #3f8dfd); opacity: .65; animation: aegis-orb-listen 1.6s ease-out infinite; }
+@keyframes aegis-orb-listen { 0% { transform: scale(.9); opacity: .7; } 70% { transform: scale(1.18); opacity: 0; } 100% { opacity: 0; } }
+body.motion-off .orb-mark.listening::after { animation: none; opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .orb-mark.listening::after { animation: none; opacity: .6; } }

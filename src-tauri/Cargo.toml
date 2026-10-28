@@ -17,8 +17,11 @@ dirs = "5"
 [target.'cfg(target_os = "macos")'.dependencies]
 # Match Tauri 2.12 / wry 0.57 so the retained configuration has the same type.
 objc2 = "0.6.5"
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSString"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSArray", "NSString", "NSError"] }
 objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "WKPreferences", "WKWebViewConfiguration"] }
+objc2-avf-audio = "0.3.2"
+objc2-speech = "0.3.2"
+block2 = "0.6"
 
 [profile.release]
 opt-level = "s"

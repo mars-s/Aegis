@@ -12,11 +12,35 @@ use tauri_plugin_opener::OpenerExt;
 
 #[cfg(target_os = "macos")]
 mod native_refresh;
+#[cfg(target_os = "macos")]
+mod dictation;
 
 struct Agent {
     child: Mutex<Option<Child>>,
     info: Mutex<Option<Value>>,
 }
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn speech(action: String, state: tauri::State<'_, dictation::Dictation>) -> Result<(), String> {
+    match action.as_str() {
+        "start" => dictation::start(&state),
+        "stop" => { dictation::stop(&state); Ok(()) }
+        _ => Err("unknown speech action".into()),
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn speech_poll(state: tauri::State<'_, dictation::Dictation>) -> dictation::Transcript { dictation::latest(&state) }
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn speech(_action: String) -> Result<(), String> { Err("Dictation is only available on macOS.".into()) }
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn speech_poll() -> Value { Value::Null }
 
 #[tauri::command]
 fn agent_info(state: tauri::State<'_, Agent>) -> Option<Value> {
@@ -187,10 +211,13 @@ fn stop_agent(app: &tauri::AppHandle) {
 extern "C" { #[link_name = "kill"] fn libc_kill(pid: i32, sig: i32) -> i32; }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) })
-        .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text, save_download, print_page])
+        .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) });
+    #[cfg(target_os = "macos")]
+    let builder = builder.manage(dictation::Dictation::default());
+    builder
+        .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text, save_download, print_page, speech, speech_poll])
         .setup(|app| {
             // Build from the usual window config, after setting WebKit's rendering preference.
             let config = app.config().app.windows.iter().find(|window| window.label == "main")
@@ -208,6 +235,10 @@ fn main() {
         .build(tauri::generate_context!())
         .expect("Aegis couldn't start")
         .run(|app, event| {
-            if let RunEvent::Exit = event { stop_agent(app); }
+            if let RunEvent::Exit = event {
+                #[cfg(target_os = "macos")]
+                dictation::stop(&app.state::<dictation::Dictation>());
+                stop_agent(app);
+            }
         });
 }
