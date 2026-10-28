@@ -274,3 +274,18 @@ fragile. "Jarvis's table, built by Apple."
 - No action. Queue blocked on the sidebar branch and the owner's typography
   call; nothing was running. Checked the app instead: still healthy on the same
   process since 6:45, tree clean apart from untracked `.claude` folders.
+
+### 2026-10-29, tick at 7:45am
+
+- Turned the typography question into measurements instead of a guess.
+- Locked comp, document card: 748 px wide, text column about 636, body line
+  spacing 29 px, which works out at roughly 18 px type. That is about 65
+  characters per line.
+- The app's default document: 480 px wide with 62 px padding, so a 356 px
+  column at 18 px / 28 px, roughly 35 characters per line. Imported PDFs get
+  560, so still narrower than the comp.
+- The type itself matches the comp. The difference is the default width, not the
+  font. A default of about 720 px would land near 60 characters per line.
+- Not applied: the queue says "if the owner wants it". One line in
+  `packages/domain/src/commands.ts` (the `doc` default) plus the importer's 560
+  if you want them the same.
