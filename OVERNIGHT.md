@@ -250,3 +250,11 @@ fragile. "Jarvis's table, built by Apple."
   hub's own breakpoint. Verified: the chip is now at (12, 44) and on top at
   390x844, and unchanged at desktop width.
 - Full check green.
+
+### 2026-10-29, tick at 6:05am
+
+- Followed the phone chip from last tick. It was 30 px tall, which is below the
+  44 px touch target the app already uses for the board hub.
+- Gave it `min-height: 44px` below 700 px. Verified at 390x844: 208 by 44,
+  text centred, still clear of the title and the dock.
+- Full check green.
