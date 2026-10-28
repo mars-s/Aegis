@@ -160,8 +160,9 @@ fragile. "Jarvis's table, built by Apple."
 
 ## Next
 
-1. Pre-empt the module-copy trap: switch the remaining `/src/...js` imports in
-   `checks/ui/deck.mjs`, `editors.mjs` and `media.mjs` to `.ts`.
+1. `checks/ui/editing.mjs` still imports `/src/features/editing/board-export.js`.
+   It is on the sidebar session's list, so it waits until that branch lands.
+   The real path is `.tsx`.
 2. Document card typography against the comp, if the owner wants it tighter.
 
 ### 2026-10-29, tick at 2:55am
@@ -176,3 +177,14 @@ fragile. "Jarvis's table, built by Apple."
   reading "Claude Code changed 1 card", then deleted its own card.
 - Gotcha: the host runs compiled JS, so a source edit is invisible to
   `node --test checks/host` until `npm run build:shared`.
+
+### 2026-10-29, tick at 3:15am
+
+- Pre-empted the module-copy trap in the rest of the UI checks. Switched
+  `deck.mjs`, `editors.mjs`, `media.mjs` and `docs.mjs` to the real `.ts` paths.
+- Ran all four suites: deck, media, editors and docs pass. Full check green,
+  157 host tests.
+- One left: `editing.mjs` still imports `board-export.js`, and that file belongs
+  to the sidebar session, so it waits. The real path is `.tsx`.
+- Nothing was broken before this; it was a trap waiting for the next test that
+  needs shared module state.

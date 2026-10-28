@@ -307,7 +307,7 @@ try {
   await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function saveFile() { throw new Error("Unexpected save in the print probe"); } export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
   await nativePage.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   const nativePrint = await nativePage.evaluate(async () => {
-    const { printPDF } = await import('/src/platform/document-export-test.js');
+    const { printPDF } = await import('/src/platform/document-export-test.ts');
     await printPDF({ getJSON: () => ({ content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Native body' }] }] }), getHTML: () => '<p>Native body</p>' }, 'Native title', 'letter');
     return { html: window.__nativePrintHTML, frames: document.querySelectorAll('iframe.docs-print-frame').length };
   });

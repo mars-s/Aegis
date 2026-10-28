@@ -106,7 +106,7 @@ try {
   await page.locator('#closeSettings').click();
   log('Global colour preferences, panel contrast, theme separation, reset and board background priority verified');
   const preparedImages = await page.evaluate(async () => {
-    const { prepareImage } = await import('/src/features/media/image-utils.js');
+    const { prepareImage } = await import('/src/features/media/image-utils.ts');
     const cv = document.createElement('canvas'); cv.width = 1600; cv.height = 1100;
     const context = cv.getContext('2d'), pixels = context.createImageData(cv.width, cv.height);
     let state = 123456789;

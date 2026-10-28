@@ -77,7 +77,7 @@ try {
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .pt').count(), 5);
   await page.screenshot({ path: out(`r6-deck-weekday-labels-${stamp}.png`) });
   const labelFallbacks = await page.evaluate(async () => {
-    const { lineChart } = await import('/src/platform/deck-test.js');
+    const { lineChart } = await import('/src/platform/deck-test.ts');
     const read = chart => [...new DOMParser().parseFromString(lineChart(chart), 'text/html').querySelectorAll('.x-tick')].map(el => el.textContent);
     // A null value cannot be saved: the domain schema refuses it before any chart renders.
     let refused = false; try { lineChart({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] }); } catch { refused = true; }
