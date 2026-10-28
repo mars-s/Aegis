@@ -57,6 +57,14 @@ for (const name of suites) {
   if (!/^[a-z][a-z0-9-]*$/.test(name) || !existsSync(new URL(`./${name}.mjs`, import.meta.url))) throw new Error(`Unknown UI suite ${JSON.stringify(name)}.`);
 }
 const names = suites.length ? suites : all;
+// Several suites drive the shipped bundle, which only exposes the test handles
+// when it is built with the facade. Build once here so a clean checkout runs.
+const built = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], {
+  cwd: new URL('../..', import.meta.url).pathname,
+  env: { ...process.env, AEGIS_TEST_FACADE: '1' },
+  stdio: 'inherit',
+});
+if (built.status !== 0) throw new Error('The UI build failed, so no suite can run.');
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();

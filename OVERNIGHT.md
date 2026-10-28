@@ -163,7 +163,9 @@ fragile. "Jarvis's table, built by Apple."
 1. `checks/ui/editing.mjs` still imports `/src/features/editing/board-export.js`.
    It is on the sidebar session's list, so it waits until that branch lands.
    The real path is `.tsx`.
-2. Document card typography against the comp, if the owner wants it tighter.
+2. Run the whole UI suite once (`node checks/ui/run.mjs`) and triage anything
+   else that is red. It takes about an hour, so give it its own tick.
+3. Document card typography against the comp, if the owner wants it tighter.
 
 ### 2026-10-29, tick at 2:55am
 
@@ -188,3 +190,15 @@ fragile. "Jarvis's table, built by Apple."
   to the sidebar session, so it waits. The real path is `.tsx`.
 - Nothing was broken before this; it was a trap waiting for the next test that
   needs shared module state.
+
+### 2026-10-29, tick at 3:35am
+
+- The queue is blocked: editing.mjs belongs to the sidebar session, and
+  typography is the owner's call. Ran a regression sweep instead over objects,
+  draw, canvas, parity and polish.
+- objects, draw and canvas pass. parity and polish failed in helpers that drive
+  the shipped bundle, because app/dist had been rebuilt without the test facade.
+  Same precondition that bit genui.
+- Fixed it once in `checks/ui/run.mjs`: build the UI with `AEGIS_TEST_FACADE=1`
+  before any suite runs, and stop with a clear message if the build fails.
+- `node checks/ui/run.mjs parity polish` passes 2 of 2. Full check green.
