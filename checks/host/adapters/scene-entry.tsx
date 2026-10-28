@@ -1,12 +1,9 @@
-import { createRoot } from 'react-dom/client';
-import { flushSync } from 'react-dom';
 import { BoardSchema, CardSchema } from '@aegis/domain/schema';
 import type { Card } from '@aegis/domain/schema';
 import { emptyBoard } from '@aegis/domain/commands';
 import { createCanvas } from '@aegis/scene';
 import type { CanvasEngine, Rect, ToolPointer } from '@aegis/scene';
 import { createWorkspace } from '../../../app/src/workspace/store.ts';
-import { DrawingBody } from '../../../app/src/cards/creative/Drawing.tsx';
 import { drawingTool } from '../../../app/src/features/draw/tool.ts';
 import { PreferencesSchema } from '../../../app/src/features/draw/preferences.ts';
 import '../../../app/src/styles/react.css';
@@ -67,23 +64,5 @@ async function inkHit(value: unknown): Promise<boolean> {
     return running.workspace.record(card.id).getSnapshot() === null;
   } finally { running.dispose(); }
 }
-async function worldToLocal(value: unknown) {
-  const { card, at } = z.object({ card: CardSchema, at: pointSchema }).parse(value);
-  const running = scene([card], { x: 0, y: 0, width: 1280, height: 900 });
-  let unmount: (() => void) | undefined;
-  try {
-    await idle(running.engine);
-    const lease = running.engine.leases.getSnapshot().find(value => value.cardId === card.id);
-    if (!lease) throw new Error(`No lease for the real DrawingBody: ${JSON.stringify(running.engine.inspect())}`);
-    const root = createRoot(lease.host); unmount = () => root.unmount();
-    flushSync(() => root.render(<DrawingBody cardId={card.id} workspace={running.workspace} engine={running.engine} />));
-    const art = lease.host.querySelector('svg');
-    if (!(art instanceof SVGSVGElement)) throw new Error('DrawingBody has no SVG');
-    const transform = art.getScreenCTM();
-    if (!transform) throw new Error('DrawingBody has no rendered transform');
-    const result = new DOMPoint(at.x, at.y).matrixTransform(transform.inverse());
-    return { x: result.x, y: result.y };
-  } finally { unmount?.(); running.dispose(); }
-}
-window.hostScene = { fit, inkHit, worldToLocal };
-declare global { interface Window { hostScene: { readonly fit: typeof fit; readonly inkHit: typeof inkHit; readonly worldToLocal: typeof worldToLocal } } }
+window.hostScene = { fit, inkHit };
+declare global { interface Window { hostScene: { readonly fit: typeof fit; readonly inkHit: typeof inkHit } } }

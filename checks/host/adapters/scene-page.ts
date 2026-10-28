@@ -1,5 +1,4 @@
 import { after } from 'node:test';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'vite';
 import type { ViteDevServer } from 'vite';
@@ -7,7 +6,6 @@ import { chromium } from 'playwright';
 import type { Browser, Page } from 'playwright';
 import type {} from './scene-entry.tsx';
 const root = fileURLToPath(new URL('../../../', import.meta.url));
-const appRequire = createRequire(new URL('../../../app/package.json', import.meta.url));
 let server: ViteDevServer | undefined, browser: Browser | undefined;
 let starting: Promise<void> | undefined;
 async function start(): Promise<void> {
@@ -18,13 +16,7 @@ async function start(): Promise<void> {
         response.end('<!doctype html><html><head><meta charset="utf-8"><title>Host scene checks</title></head><body><script type="module" src="/checks/host/adapters/scene-entry.tsx"></script></body></html>');
       });
     } }],
-    resolve: { alias: [
-      { find: /^react-dom\/client$/, replacement: appRequire.resolve('react-dom/client') },
-      { find: /^react-dom$/, replacement: appRequire.resolve('react-dom') },
-      { find: /^react$/, replacement: appRequire.resolve('react') },
-      { find: /^react\/jsx-dev-runtime$/, replacement: appRequire.resolve('react/jsx-dev-runtime') },
-      { find: /^react\/jsx-runtime$/, replacement: appRequire.resolve('react/jsx-runtime') },
-    ] }, server: { host: '127.0.0.1', port: 4940, strictPort: false, fs: { allow: [root] } } });
+    server: { host: '127.0.0.1', port: 4940, strictPort: false, fs: { allow: [root] } } });
   await server.listen();
   const address = server.httpServer?.address();
   if (!address || typeof address === 'string' || address.port > 4959) throw new Error('Host scene fixture escaped its assigned listener block');

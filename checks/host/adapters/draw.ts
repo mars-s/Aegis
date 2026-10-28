@@ -18,13 +18,10 @@ export function shapePoints(shape: string) { return art.shapePoints(art.DrawingP
 export function splitSegment(points: unknown, index: number, t: number) { return geometry.splitSegment(z.array(art.VectorPointSchema).parse(points), index, t); }
 export function pointOnSegment(a: unknown, b: unknown, t: number) { return geometry.pointOnSegment(art.VectorPointSchema.parse(a), art.VectorPointSchema.parse(b), t); }
 export function localToWorld(card: unknown, at: unknown) {
-  const parsed = fixtureCard(card), props = art.InkProps.parse(parsed.props ?? {});
-  const transformed = geometry.worldPoints(parsed, [point.parse(at)], props.ow, props.oh)[0];
-  if (!transformed) throw new Error('No point was transformed');
-  return { x: transformed.x, y: transformed.y };
+  return geometry.localToWorld(fixtureCard(card), point.parse(at));
 }
-export async function worldToLocal(card: unknown, at: unknown) {
-  return withScenePage(page => page.evaluate(raw => { const value: unknown = JSON.parse(raw); return window.hostScene.worldToLocal(value); }, JSON.stringify({ card: fixtureCard({ type: 'ink', ...z.record(z.string(), z.unknown()).parse(card) }), at: point.parse(at) })));
+export function worldToLocal(card: unknown, at: unknown) {
+  return geometry.worldToLocal(fixtureCard(card), point.parse(at));
 }
 export function squigPath(options: unknown) { return art.squigPath({ ...art.DrawingProps.parse(options), id: 'host-squiggle' }); }
 export function outlineAttrs(options: unknown) {
