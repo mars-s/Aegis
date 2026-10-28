@@ -29,7 +29,8 @@
 }
 :root[data-theme="dark"] {
   --bg: #000000; --canvas: #000000; --dot: rgb(128 137 157 / 0.6);
-  --card: #141618; --strip: #1a1d20; --inset: #1d2023; --raised: #24272b; --pill: #0b0c0d;
+  /* Surfaces sampled from the locked comp: card 13,14,15 and strip 19,20,22. */
+  --card: #0d0e0f; --strip: #131416; --inset: #16191c; --raised: #1d2024; --pill: #0b0c0d;
   --line: rgb(255 255 255 / 0.09); --line-strong: rgb(255 255 255 / 0.16); --edge-top: rgb(255 255 255 / 0.14);
   --text: #ffffff; --ink-2: rgb(255 255 255 / 0.74); --muted: #abb2bf; --faint: #959ba4;
   --hover: rgb(255 255 255 / 0.06); --press: rgb(255 255 255 / 0.1);

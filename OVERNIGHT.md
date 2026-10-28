@@ -146,3 +146,22 @@ fragile. "Jarvis's table, built by Apple."
   misses it on roughly one frame in twenty. It cannot certify the native window.
 - No code changed, so the gate was re-run as a formality.
 - Next: UX polish against the locked comp, avoiding the sidebar files.
+
+### 2026-10-29, tick at 2:25am
+
+- UX polish against the locked comp. Sampled both images: the comp's card body
+  is `#0d0e0f` and its header strip `#131416`, while the app used `#141618` and
+  `#1a1d20`. The whole dark ramp sat about seven shades high.
+- Moved card, strip, inset and raised down by seven. The card now samples exactly
+  `(13,14,15)` in the built UI, matching the comp, and cards still read as
+  separate windows because the border and lighter header carry the edge.
+- Verified with a fresh screenshot. Revert is one line in `app/src/styles/app.css`.
+- The queue is now empty. Next candidates:
+
+## Next
+
+1. MCP presence: pass the real client name through the bridge instead of the
+   hardcoded "Local MCP".
+2. Pre-empt the module-copy trap: switch the remaining `/src/...js` imports in
+   `checks/ui/deck.mjs`, `editors.mjs` and `media.mjs` to `.ts`.
+3. Document card typography against the comp, if the owner wants it tighter.
