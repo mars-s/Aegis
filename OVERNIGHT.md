@@ -268,3 +268,9 @@ fragile. "Jarvis's table, built by Apple."
   `index-BMEaTG_8.js`, so it is the current UI.
 - Host healthy, Demo assignment board intact at revision 25. Old install is in
   Trash as `Aegis-0.3.0-2026-10-29-0645.app`.
+
+### 2026-10-29, tick at 7:15am
+
+- No action. Queue blocked on the sidebar branch and the owner's typography
+  call; nothing was running. Checked the app instead: still healthy on the same
+  process since 6:45, tree clean apart from untracked `.claude` folders.
