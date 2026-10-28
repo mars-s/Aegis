@@ -1,11 +1,11 @@
+import { log as checkLog, mkdtempSync } from './playwright.ts';
 // Runs every UI check one after another (each owns a fixed Vite port, so they never run together).
-// node checks/ui/run.mjs [name ...]
+// node checks/ui/run.ts [name ...]
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { uiImplementation } from '../../scripts/ui-implementation.ts';
-const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'imports', 'wireframe', 'editing', 'svelte', 'genui', 'parity', 'agent-types', 'agents', 'agent-motion'];
+const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'imports', 'wireframe', 'editing', 'hmr', 'genui', 'parity', 'agent-types', 'agents', 'agent-motion'];
 // fix1: chat context, separate shortcuts and the two notes entry points.
 all.push('polish');
 // PM4: pan modifiers take priority over canvas gestures.
@@ -54,20 +54,26 @@ all.push('trust-undo');
 all.push('crop-a11y');
 const requested = process.argv.slice(2);
 const selector = requested.find(argument => argument.startsWith('--impl='));
-const implementation = uiImplementation(selector?.slice('--impl='.length) ?? process.env.AEGIS_UI_IMPL);
+if (selector && selector !== '--impl=react') throw new Error('The UI runner supports React only.');
+const implementation = 'react';
+if (all.length !== 44) throw new Error('The UI manifest must retain all 44 suites.');
 const suites = requested.filter(argument => !argument.startsWith('--impl='));
 for (const name of suites) {
-  if (!/^[a-z][a-z0-9-]*$/.test(name) || !existsSync(new URL(`./${name}.mjs`, import.meta.url))) throw new Error(`Unknown UI suite ${JSON.stringify(name)}.`);
+  if (!/^[a-z][a-z0-9-]*$/.test(name) || !existsSync(new URL(`./${name}.ts`, import.meta.url))) throw new Error(`Unknown UI suite ${JSON.stringify(name)}.`);
 }
 const names = suites.length ? suites : all;
-console.log(`UI implementation: ${implementation}`);
+checkLog(`UI implementation: ${implementation}`);
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_UI_IMPL: implementation, AEGIS_TEST_FACADE: '1', AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
+  const data = mkdtempSync(join(tmpdir(), 'aegis-ui-data-'));
+  const cache = mkdtempSync(join(tmpdir(), 'aegis-ui-vite-'));
+  try {
+  const r = spawnSync(process.execPath, [new URL(`./${name}.ts`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_UI_IMPL: implementation, AEGIS_TEST_FACADE: '1', AEGIS_DATA: data, AEGIS_VITE_CACHE: cache } });
   const ok = r.status === 0;
-  console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
-  if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }
+  checkLog(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+  if (!ok) { failed.push(name); checkLog((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }
+  } finally { rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); }
 }
-console.log(`${names.length - failed.length}/${names.length} UI suites passed${failed.length ? ': failed ' + failed.join(', ') : ''}`);
+checkLog(`${names.length - failed.length}/${names.length} UI suites passed${failed.length ? ': failed ' + failed.join(', ') : ''}`);
 process.exitCode = failed.length ? 1 : 0;

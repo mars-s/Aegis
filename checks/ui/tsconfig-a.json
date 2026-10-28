@@ -1,0 +1,82 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "paths": {
+      "/src/features/media/images.js": [
+        "../../app/src/features/media/image-utils.ts"
+      ],
+      "/src/features/docs/editor.js": [
+        "../../app/src/platform/document-test.ts"
+      ],
+      "/src/features/editing/export.js": [
+        "../../app/src/features/editing/board-export.tsx"
+      ],
+      "/src/platform/document-test.ts": [
+        "../../app/src/platform/document-test.ts"
+      ],
+      "/src/features/editing/board-export.tsx": [
+        "../../app/src/features/editing/board-export.tsx"
+      ],
+      "/src/features/media/image-utils.ts": [
+        "../../app/src/features/media/image-utils.ts"
+      ]
+    },
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "files": [
+    "./agent-drafts.ts",
+    "./agent-motion.ts",
+    "./agent-types.ts",
+    "./agents.ts",
+    "./bench.ts",
+    "./canvas.ts",
+    "./chart-defaults.ts",
+    "./chrome.ts",
+    "./deck.ts",
+    "./deck-fit.ts",
+    "./deck-studio.ts",
+    "./design-system.ts",
+    "./draw.ts",
+    "./dropdown.ts",
+    "./editing.ts",
+    "./editor-return.ts",
+    "./editors.ts",
+    "./evidence-fidelity.ts",
+    "./fit-finish.ts",
+    "./library.ts",
+    "./media.ts",
+    "./out.ts",
+    "./pan.ts",
+    "./playwright.ts",
+    "./poll.ts",
+    "./prod-composer.ts",
+    "./refine-settings.ts",
+    "./run.ts",
+    "./sandbox-lifecycle.ts",
+    "./spatial-interaction.ts",
+    "./spatial-memory.ts",
+    "./startup-board.ts",
+    "./static-geometry.ts",
+    "./hmr.ts",
+    "../../app/src/env.d.ts",
+    "../../app/src/lib/ui/dropdown.d.ts",
+    "../../app/src/canvas/shared-menu.d.ts",
+    "../../app/src/chrome/shared-ui.d.ts",
+    "../../app/src/features/colors/colour-picker.d.ts",
+    "../../app/src/features/editing/writing-fonts.d.ts",
+    "../../app/src/features/agents/shared-shortcuts.d.ts"
+  ]
+}

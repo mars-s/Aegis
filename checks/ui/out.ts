@@ -4,4 +4,4 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const dir = process.env.AEGIS_CHECK_OUT || join(tmpdir(), 'aegis-check');
 mkdirSync(dir, { recursive: true });
-export const out = name => join(dir, name);
+export const out = (name: string) => join(dir, name);

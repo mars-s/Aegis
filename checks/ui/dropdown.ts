@@ -1,6 +1,7 @@
+import type { Locator } from 'playwright';
 import assert from 'node:assert/strict';
 // Exercise the visible picker, including custom menus portalled into a modal dialog.
-export async function choose(locator, value) {
+export async function choose(locator: Locator, value: string | { readonly index: number }) {
   if (await locator.evaluate(el => el.tagName === 'SELECT')) return locator.selectOption(value);
   await locator.click();
   const id = await locator.getAttribute('aria-controls');
