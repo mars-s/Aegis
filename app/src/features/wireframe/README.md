@@ -14,14 +14,14 @@ W1 to W10 use Aegis card commands and independent editable cards. Open **Wirefra
 
 ## Generic canvas integration
 
-`registerDragHandler(id, { select, start, snap, end })` in `canvas/engine.js` is optional and contains no wireframe-specific branching:
+The scene's `CanvasAttachment` exposes four optional drag policies, with no wireframe-specific branching in the engine. `canvas/wireframe-policies.ts` supplies them from `commands.ts`:
 
-- `select(ids, hitId, board, event)` returns selected IDs. Pieces use it to select a group or reach one part with Command/Control.
-- `start(cards, board, event)` returns the cards to move together.
-- `snap(startSnapshots, dx, dy, board, view, event)` returns `{ dx, dy, guides }`. Guides are world-space `{ x1, y1, x2, y2 }` lines drawn in a pointer-transparent SVG layer.
-- `end(cards, board, kind)` adds commands to the move/resize batch. Wireframes use it for ownership, stacking and marking resized device screens as Custom.
+- `selectForDrag` returns selected IDs. Pieces use it to select a group or reach one part with Command/Control.
+- `expandDrag` returns the cards to move together, including template members.
+- `snapDrag` returns the snapped delta and world-space guide lines, drawn in a pointer-transparent layer.
+- `dropCommands` adds commands to the move/resize batch. Wireframes use it for ownership, stacking and marking resized device screens as Custom.
 
-The hook also clears guide lines on cancellation and restores cancelled drag geometry.
+Cancellation clears guides and restores the original geometry.
 
 ## Fill image, W11
 
@@ -31,15 +31,9 @@ The cancellable `aegis:wireframe-image-request` event remains available on `docu
 
 ## Verification
 
-Board and geometry checks: `node --test agent/checks/wireframe.test.mjs`.
+Board and geometry checks: `app/src/features/wireframe/wireframe.test.ts`.
 
 Full app smoke: `checks/ui/wireframe.mjs`, Vite port 5184, fake-model host and a fresh temporary data folder. It creates and edits cards through the UI, drags containers and cards, searches/swaps icons, inspects guides, asserts the saved host board and reloads the app. It never uses the real Aegis data folder.
-
-Latest verification for these gaps: `npm run check` passed 136 host tests and reported 0 Svelte errors with 6 existing warnings in one file. The scoped draw/wireframe unit run passed 53 tests. Both browser checks passed on ports 5182 and 5184, including saved-state reloads, with no browser errors. No dependencies were added.
-
-Results were visually inspected at `/tmp/aegis-check-draw/draw-gap-options.png` and `/tmp/aegis-check-draw/wireframe-gap-options.png`. The root check log is `/tmp/aegis-check-draw/final-check.log`.
-
-The shared canvas switches to a bitmap overview below 40% zoom and unmounts card DOM, including section names. Counter-scaled names therefore work from 40% zoom upward. Keeping names below that threshold needs a shared canvas label-rendering hook in `app/src/canvas/engine.js`, outside this task's edit scope.
 
 ## Gap regression checks
 

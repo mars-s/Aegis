@@ -1,5 +1,7 @@
 # Library and navigation
 
+The React implementation lives in `LibraryView.tsx`, `library-model.ts` and `templates.ts` in this folder.
+
 Ports L1 to L6 and L13. No character art, branded helper copy or external assets are used.
 
 - Home opens a full-window project, folder and board overview. Tiles use card geometry previews. Project covers can use a chosen image, reduced to a JPEG at most 720 px wide, or the first board preview. Back climbs the library and Escape returns to the board.
@@ -20,8 +22,6 @@ Ports L1 to L6 and L13. No character art, branded helper copy or external assets
 - `POST /boards/:id/delete` deletes a board and its children.
 - `POST /library {op:'delete', id, recursive:true}` deletes a folder/project and its contents after UI confirmation. The older operation without `recursive:true` still refuses non-empty nodes.
 - Library mutations are serialised. Existing board locks protect their snapshots from overlapping board batches. Files are written individually; this is not a multi-file crash-atomic transaction.
-
-Shared integration edits are the library feature import, shared card-type import, host adapters/endpoints and the empty `#boardCrumbs` nav in App.svelte. No controller or canvas-engine changes are required by this feature.
 
 ## Verification
 

@@ -3,13 +3,12 @@
 This folder owns document content, editing sessions, references and exports.
 `cards/document/registration.tsx` exports `documentCard`, `documentEditor` and
 `documentTool` for the app's explicit composition. Import from this folder's
-`index.js` to use `DocumentProvider`, `DocumentContext`, clipboard setup and
-session cleanup. The legacy `features/docs` implementation remains separate
-while legacy is the default.
+`index.ts` to use `DocumentProvider`, `DocumentContext`, clipboard setup and
+session cleanup.
 
 Canvas bodies use the scene's leases. They render the same rich document and
 KaTeX nodes as the editor without creating TipTap editors. CSS container queries
-keep small legacy document pills compact without subscribing to geometry.
+keep small older document pills compact without subscribing to geometry.
 Documents keep their real world positions and sizes at every camera scale.
 
 An opened document acquires a separate TipTap session. The session keeps its
@@ -36,10 +35,8 @@ source and table region, and cancels reads when a dataset source changes.
 Sheet values update directly from the canonical board. Chart rendering is
 injected from the chart owner rather than copied into this feature.
 
-The port reuses the existing dropdown, writing-font, colour-picker and inline
-orb controls through the narrow declarations in `legacy-controls.ts`. These
-declarations describe the inspected implementations; they do not relax the
-type checker. Shared control migration can replace these adapters later.
+Format controls use the shared typed dropdown and font chooser in `lib/ui` and
+`features/editing/writing-fonts.ts`, and the React `ColourPicker`.
 
 Word export writes editable WordprocessingML with the existing `fflate`
 dependency. This avoids `docx@9.14.0`'s invalid global `ImportMeta.glob`
@@ -69,3 +66,31 @@ Parity results and exact cross-owner proposals are recorded under
 `~/.codex/orchestrate/aegis-react/reports/fix-documents-final.md`. Conditional
 verification copies include those proposed changes. They do not prove parity
 on the worker branch until the integration owner lands the proposals.
+
+## Card contract and authoring
+
+The `doc` card uses `text` for its title and `props.doc` for Tiptap JSON.
+`props.body` mirrors the document as plain text for board tools and agents.
+All edits use board `update` commands. Existing props remain intact.
+The board overview retains a plain-text `props.body` when it summarises a large
+rich payload, so agents can still read a long document without its rich JSON.
+
+Use Doc or D and click the board to
+create a document. Double-click a pill, press Enter with one doc selected, or
+choose Open document from its context menu to reopen it. The title's Enter key
+moves into the editor. Back, Close and Escape flush pending edits.
+
+The title is an inline input in the editor's window strip. The canvas strip shows
+the same title. There is no title field in the page and no formatting toolbar.
+Write Markdown directly: `#`, `##`, `###`, `-`, `1.`, `- [ ]`, `>`, `**bold**`,
+`*italic*`, inline code, fenced code blocks, `---` and links. TipTap input rules
+format as you type. Pasted Markdown becomes rich content, including maths.
+Rich HTML, board cards and image clipboard content retain their existing paths.
+
+Use `$inline LaTeX$` and `$$block LaTeX$$` for maths. KaTeX 0.19.1 (MIT)
+renders `inlineMath` and `blockMath` nodes with a `latex` attribute. Click or
+keyboard-focus a formula and press Enter to edit its source. Escape or blur
+commits the source and renders it again. The plain text mirror keeps the LaTeX
+and delimiters for agents. Canvas previews render the same nodes. PDF print
+embeds KaTeX fonts so the native print window works offline. Word exports maths
+as a Menlo run containing the LaTeX source and delimiters.

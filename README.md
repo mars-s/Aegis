@@ -10,16 +10,15 @@ Agents sign in with your own ChatGPT or Claude subscription (Settings). Boards, 
 
 ## Run
 
-Needs Rust and Node 22.19 or newer.
+Needs Rust and Node 22.19 or newer. The repository is one npm workspace with one lockfile.
 
 ```sh
-npm --prefix agent install
-npm --prefix app install
+npm install
 npm run dev        # the app with live UI updates (Vite dev server inside the Tauri window)
 npm run build      # Aegis.app in src-tauri/target/release/bundle/macos
-npm run check      # board and agent-host checks (scripted local model, no provider calls) and svelte-check
-npm run check:ui   # browser checks for each feature, one after another (needs Playwright with Chromium)
-npm run bench      # pan and zoom over 5,000 cards, with the slowest functions
+npm run check      # safe-type and ownership gate, strict types, lint, unit and agent-host tests (scripted local model, no provider calls)
+npm run check:ui   # browser checks for each feature, one after another (needs Playwright with Chromium and WebKit)
+npm run bench      # pan and zoom over 5,000 cards in the production React scene
 ```
 
 The UI checks start their own agent host on a temporary data folder and a Vite server on ports 5181 to 5189. Screenshots and downloads go to `AEGIS_CHECK_OUT`, or `aegis-check` in the temp folder. Set `PLAYWRIGHT=/path/to/playwright/index.mjs` if Node can't find Playwright. `node checks/ui/run.mjs docs draw` runs only those two.
@@ -43,22 +42,26 @@ See [Local MCP for Codex and Claude](docs/local-mcp.md) for tools, setup and lim
 
 | Path | What |
 | --- | --- |
-| `app/src/lib/board/commands.js` | Board commands: the only way a board changes, shared by the canvas, the agent tools and the checks |
-| `app/src/lib/board/objects.js` | Object kinds (reply, plot, sheet, diagram, plan, list, code): shapes, limits, and checks that name the exact bad field |
-| `app/src/objects/` | Svelte object cards; `chart/` is Zephium's chart (MPL-2.0) |
-| `app/src/canvas/engine.js` | The canvas: viewport culling, one transform for pan and zoom, shapes when zoomed far out |
-| `app/src/controller.ts`, `app/src/chrome/` | Boards, library, layers, tools, composer, agents panel, settings |
-| `app/src/features/` | Docs, drawing, wireframes, colours and media, library, editing, phone layout, settings, first-run tour. Each has a README |
-| `app/src/lib/board/types/` | Feature card types and the one-line guide agents read for each |
-| `checks/ui/` | Browser checks and the canvas benchmark |
+| `packages/domain` | Board schemas, branded IDs and board commands: the only way a board changes, shared by the canvas, the agent tools and the checks |
+| `packages/protocol` | Storage and wire codecs between the app, the host and saved files |
+| `packages/scene` | The canvas engine: R-tree culling, one transform for pan and zoom, one demand-driven animation frame, leased card shells |
+| `packages/host-client` | Effect-based client for the agent host: scoped requests, cancellation, live events and uploads |
+| `app/src/workspace` | The client board store: optimistic batches, Undo, save queue and replication |
+| `app/src/canvas`, `app/src/cards` | React card bodies rendered into scene leases |
+| `app/src/editors` | Document, sheet, deck, dataset and object editors |
+| `app/src/chrome` | Boards, library, layers, tools, selection, composer and settings |
+| `app/src/charts` | Charts, adapted from Zephium (MPL-2.0) |
+| `app/src/features` | Agents, drawing, wireframes, colours, media, imports, editing, onboarding and the phone layout |
+| `checks/` | Unit, host, browser, performance and native checks |
 | `agent/src/main.ts` (built as `agent/dist/main.js`) | Agent host: Pi Durable, board and object tools, parts (lead and helpers), skills, sign-in, loopback HTTP and live events |
 | `agent/skills/` | How to do a kind of job (analyse data, explain a flow and so on); your own skills in the data folder override them |
-| `agent/ui-update.mjs` | Build, check, swap and roll back the installed UI |
-| `src-tauri` | Tauri shell: starts the agent host with a per-launch token and stops it on quit |
-| `.scratch/aegis-workbench` | Spec and stack notes |
+| `agent/src/ui-update.ts` | Check, build, swap and roll back the installed UI |
+| `src-tauri` | Tauri shell: starts the agent host with a per-launch token, stops it on quit, and lets WKWebView render at 120 Hz |
+
+All TypeScript is strict. `npm run check:safe-types` refuses `any`, type assertions other than `as const`, non-null assertions, suppression comments and imports that cross package ownership.
 
 ## Credits
 
 Started from [Mochiboard](https://github.com/jessawolfe-ux/mochiboard)'s Tauri setup (MIT, see `LICENSE.mochiboard`). None of Mochiboard's name, character, art, music, fonts or icons are used.
 
-The chart in `app/src/objects/chart/` and parts of the object cards come from [Zephium](https://github.com/zephium-browser/Zephium) at `0eaad6d` under the Mozilla Public License 2.0 (`LICENSE.zephium`). Each such file says so at the top, and those files stay under MPL-2.0. The object kinds, the agent workflow and the skills follow Zephium's Work design, written for Aegis.
+The charts in `app/src/charts/` and parts of the object cards are adapted from [Zephium](https://github.com/zephium-browser/Zephium) at `0eaad6d` under the Mozilla Public License 2.0 (`LICENSE.zephium`). Each such file says so at the top, and those files stay under MPL-2.0. The object kinds, the agent workflow and the skills follow Zephium's Work design, written for Aegis.

@@ -108,7 +108,7 @@ try {
   assert.equal(await page.locator('.side-editor-head .docs-title').count(), 1, 'The title is editable in the window strip');
   await page.getByLabel('Format document', { exact: true }).click();
   const toolbarFocus = await page.evaluate(async () => {
-    const { currentDocument } = await import('/src/platform/document-test.ts');
+    const { currentDocument } = await import('/src/platform/document-test.js');
     const editor = currentDocument().editor, text = editor.getText();
     editor.commands.selectAll();
     const font = document.querySelector('[aria-label="Font family"]');

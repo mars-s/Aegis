@@ -1,7 +1,7 @@
 # File imports, items 14 and 15
 
 Canvas drops, file paste, More tools > Media > Import, Import images (I) and the
-media picker share `features/media/imports.js`. Mixed file lists import once.
+media picker share `features/imports/react.tsx`. Mixed file lists import once.
 Each import captures its destination board before waiting for other imports,
 conversion or upload. A thin progress line remains visible throughout conversion.
 

@@ -77,11 +77,13 @@ try {
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .pt').count(), 5);
   await page.screenshot({ path: out(`r6-deck-weekday-labels-${stamp}.png`) });
   const labelFallbacks = await page.evaluate(async () => {
-    const { lineChart } = await import('/src/platform/deck-test.ts');
+    const { lineChart } = await import('/src/platform/deck-test.js');
     const read = chart => [...new DOMParser().parseFromString(lineChart(chart), 'text/html').querySelectorAll('.x-tick')].map(el => el.textContent);
-    return [read({ values: [1, 2, 3] }), read({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] }), read({ values: [1, 2], labels: ['Mon'] })];
+    // A null value cannot be saved: the domain schema refuses it before any chart renders.
+    let refused = false; try { lineChart({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] }); } catch { refused = true; }
+    return [read({ values: [1, 2, 3] }), read({ values: [1, 3], labels: ['Mon', '<Fri>'] }), read({ values: [1, 2], labels: ['Mon'] }), refused];
   });
-  assert.deepEqual(labelFallbacks, [['1', '2', '3'], ['Mon', '<Fri>'], ['Mon', '2']], 'numeric fallback, invalid-value alignment and escaped category text stay intact');
+  assert.deepEqual(labelFallbacks, [['1', '2', '3'], ['Mon', '<Fri>'], ['Mon', '2'], true], 'numeric fallback and escaped category text stay intact, and an invalid value is refused');
   console.log('PASS slide charts: Mon to Fri labels survive pointer and keyboard slide navigation, with all five original points');
   console.log('PASS chart uses nice whole-hour ticks, preserves units and includes every point and target');
   const chartTitle = page.getByRole('textbox', { name: 'Slide 2 title', exact: true });

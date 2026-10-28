@@ -3,9 +3,8 @@ import { extname, join, resolve, sep } from 'node:path';
 import type { Plugin } from 'vite';
 import { z } from 'zod';
 const BuildSchema = z.object({ implementation: z.literal('react'), facade: z.boolean() });
-const contentTypes: Readonly<Record<string, string>> = { '.html': 'text/html', '.js': 'text/javascript', '.ts': 'text/javascript', '.tsx': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.bcmap': 'application/octet-stream' };
-/** Existing suites can keep their listener and assertions while receiving only built assets.
- * Browser probe entries keep their source path, so a compiled `.ts` URL is served as JavaScript. */
+const contentTypes: Readonly<Record<string, string>> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.wasm': 'application/wasm', '.bcmap': 'application/octet-stream' };
+/** Existing suites can keep their listener and assertions while receiving only built assets. */
 export function productionBrowser(): Plugin {
   return {
     name: 'aegis-production-browser-check',
