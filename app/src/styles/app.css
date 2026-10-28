@@ -24,6 +24,16 @@
   --ui-danger: #b91c26;
   --dim: 0.62;
   --side-w: 300px;
+  /* Instrument plate: one opaque surface, hairline bands, colour only in marks. */
+  --side-plate: #ffffff;
+  --side-rule: rgb(0 0 0 / 0.08);
+  --side-rule-strong: rgb(0 0 0 / 0.12);
+  --side-edge: 0 0 0 1px rgb(0 0 0 / 0.08), 0 10px 30px rgb(0 0 0 / 0.10);
+  --side-hollow: rgb(0 0 0 / 0.34);
+  --mark-windows: #0a6cff;
+  --mark-library: #e2441c;
+  --mark-tools: #b58900;
+  --side-current: rgb(0 0 0 / 0.075);
   --c-gray: #f0f0f2; --c-blue: #e8f0fe; --c-green: #e7f5ec; --c-yellow: #fdf5d8; --c-orange: #fdeee0; --c-red: #fdebeb; --c-purple: #f0ebfb;
   color-scheme: light;
 }
@@ -40,6 +50,15 @@
   --danger: #e5484d; --warn: #e5a93b; --ok: #3dd68c;
   --shadow: none;
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.09), 0 16px 40px rgb(0 0 0 / 0.6);
+  --side-plate: #0c0d0f;
+  --side-rule: rgb(255 255 255 / 0.075);
+  --side-rule-strong: rgb(255 255 255 / 0.12);
+  --side-edge: 0 0 0 1px rgb(255 255 255 / 0.10), inset 0 1px 0 rgb(255 255 255 / 0.05), 0 16px 40px rgb(0 0 0 / 0.6);
+  --side-hollow: rgb(255 255 255 / 0.36);
+  --mark-windows: #3f8dfd;
+  --mark-library: #ff5b2e;
+  --mark-tools: #ffc800;
+  --side-current: rgb(255 255 255 / 0.10);
   /* Note tints stay for people who colour notes; on black they are quiet steps, not fills. */
   --c-gray: #1c1e21; --c-blue: #142033; --c-green: #142a1e; --c-yellow: #2a2614; --c-orange: #2c1f14; --c-red: #2c1616; --c-purple: #221c33;
   color-scheme: dark;

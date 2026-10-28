@@ -12,6 +12,7 @@ export function Panel({
   children,
   count,
   filtered = false,
+  nested = false,
 }: {
   readonly id: string;
   readonly label: string;
@@ -20,64 +21,91 @@ export function Panel({
   readonly children: ReactNode;
   readonly count?: string;
   readonly filtered?: boolean;
+  readonly nested?: boolean;
 }) {
   const section = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null),
-    dragCleanup = useRef<(() => void) | null>(null);
+    dragCleanup = useRef<(() => void) | null>(null),
+    lifted = useRef(0);
   const folded =
     layout.folded[id] ?? !["layers", "library", "unsorted"].includes(id);
+  const family = id === "layers" ? "windows" : id === "library" ? "library" : "tools";
+  const fold = (): void =>
+    change({ ...layout, folded: { ...layout.folded, [id]: !folded } });
   useEffect(() => () => dragCleanup.current?.(), []);
   return (
     <section
       ref={section}
       data-panel={id}
-      className={`pbox${folded ? " folded" : ""}${filtered ? " is-filtered" : ""}`}
+      data-family={family}
+      className={`pbox${folded ? " folded" : ""}${filtered ? " is-filtered" : ""}${nested ? " nested" : ""}`}
       hidden={layout.off[id] === true}
     >
-      <div
-        className="phead"
-        onPointerDown={(event) => {
-          if (
-            !section.current ||
-            (event.target instanceof Element &&
-              event.target.closest("button, input"))
-          )
-            return;
-          dragCleanup.current?.();
-          dragCleanup.current = beginPanelDrag({
-            event: event.nativeEvent,
-            element: section.current,
-            id,
-            layout,
-            change,
-          });
-        }}
-      >
-        <span>
-          {label}
-          {count ? <span className="pcount">{count}</span> : null}
-        </span>
-        <button
-          className="fold"
-          type="button"
-          aria-label={`Toggle ${label}`}
-          aria-expanded={!folded}
-          onClick={() =>
-            change({ ...layout, folded: { ...layout.folded, [id]: !folded } })
-          }
+      {nested ? (
+        <div className="phead subhead">
+          <i className="tri" aria-hidden="true" />
+          <span className="plabel">{label}</span>
+          <button
+            className="icon-btn"
+            type="button"
+            aria-label={`Fold ${label}`}
+            aria-expanded={!folded}
+            onClick={fold}
+          >
+            <Icon name="right" />
+          </button>
+        </div>
+      ) : (
+        <div
+          className="phead"
+          onPointerDown={(event) => {
+            if (
+              !section.current ||
+              (event.target instanceof Element &&
+                event.target.closest("button:not(.ptoggle), input"))
+            )
+              return;
+            dragCleanup.current?.();
+            dragCleanup.current = beginPanelDrag({
+              event: event.nativeEvent,
+              element: section.current,
+              id,
+              layout,
+              change,
+              onLift: () => {
+                lifted.current = performance.now();
+              },
+            });
+          }}
         >
-          <Icon name="fold" />
-        </button>
-      </div>
+          <button
+            className="ptoggle"
+            type="button"
+            aria-label={`Toggle ${label}`}
+            aria-expanded={!folded}
+            onClick={() => {
+              // A press that became a panel drag still ends with a click; it must not also fold.
+              if (performance.now() - lifted.current < 250) return;
+              fold();
+            }}
+          >
+            <span className="pmark" aria-hidden="true" />
+            <span className="plabel">{label}</span>
+            {count ? <span className="pcount">{count}</span> : null}
+            <span className="pchev" aria-hidden="true"><Icon name="right" /></span>
+          </button>
+          <div className="pactions" data-actions={id} />
+        </div>
+      )}
       <div
         ref={body}
+        id={nested ? `tool-${id}` : undefined}
         className="pbody"
         hidden={folded}
         style={{ height: filtered ? undefined : layout.heights[id] }}
       >
         {children}
       </div>
-      {id === "library" ? <footer className="library-footer adds" /> : null}
       <div
         className="resize-handle"
         role="separator"

@@ -7,12 +7,14 @@ export function beginPanelDrag({
   id,
   layout,
   change,
+  onLift,
 }: {
   readonly event: PointerEvent;
   readonly element: HTMLElement;
   readonly id: string;
   readonly layout: PanelLayout;
   readonly change: (layout: PanelLayout) => void;
+  readonly onLift?: () => void;
 }): () => void {
   if (
     event.button !== 0 ||
@@ -86,6 +88,7 @@ export function beginPanelDrag({
         gripX = event.clientX - rect.left;
         gripY = event.clientY - rect.top;
         dragging = true;
+        onLift?.();
         element.classList.add("panel-lifted", "aegis-chrome");
         Object.assign(element.style, {
           position: "fixed",

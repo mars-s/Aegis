@@ -93,20 +93,22 @@ try {
       console.log(`PASS ${engineName}: secondary canvas text has at least 4.5:1 contrast in both themes; matching full-height edge zones retain approached arrows`);
       for (const viewport of [{ width: 1586, height: 992 }, { width: 1440, height: 900 }, { width: 760, height: 800 }]) {
         await page.setViewportSize(viewport); await page.mouse.move(100, 20);
+        // The island rides the window's centre: opening a side panel must not slide it sideways.
+        await page.waitForFunction(() => { const r = document.getElementById('agentIsland').getBoundingClientRect(); return !r.width || Math.abs(r.x + r.width / 2 - innerWidth / 2) <= 1; }, undefined, { timeout: 2000 });
         await page.locator('#sideBtn').click(); await page.locator('#side.open').waitFor();
         await page.waitForFunction(() => getComputedStyle(document.getElementById('side')).opacity === '1');
+        await page.waitForFunction(() => { const r = document.getElementById('agentIsland').getBoundingClientRect(); return !r.width || Math.abs(r.x + r.width / 2 - innerWidth / 2) <= 1; }, undefined, { timeout: 2000 });
         const geometry = await page.evaluate(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
-          return { toggle: rect('#sideBtn'), tools: rect('#tools'), close: rect('#closeSide'), title: rect('.side-head > span'), adds: [...document.querySelectorAll('#side .adds button')].map(el => el.getBoundingClientRect().toJSON()), icons: [...document.querySelectorAll('#side .phead .fold')].filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect().toJSON()) };
+          return { toggle: rect('#sideBtn'), tools: rect('#tools'), close: rect('#closeSide'), title: rect('#side .pbox:first-of-type .plabel'), actions: [...document.querySelectorAll('#side [data-panel=library] .pactions .icon-btn')].map(el => el.getBoundingClientRect().toJSON()), icons: [...document.querySelectorAll('#side .phead .ptoggle')].filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect().toJSON()) };
         });
         assert.equal(geometry.toggle.x, 84, 'traffic lights have the first 80px'); assert.equal(geometry.toggle.height, 32);
         assert.ok(geometry.toggle.bottom <= 44 && geometry.tools.top >= geometry.toggle.bottom);
-        const buttonSize = 32, iconSize = 32;
-        assert.equal(geometry.close.width, buttonSize); assert.equal(geometry.close.height, buttonSize);
-        assert.ok(Math.abs(geometry.close.y + buttonSize / 2 - geometry.title.y - geometry.title.height / 2) <= 1, 'close icon aligns with the title');
-        assert.ok(geometry.icons.every(r => r.width === iconSize && r.height === iconSize));
-        assert.equal(geometry.adds.length, 3); assert.ok(geometry.adds.every(r => r.height === buttonSize && r.y === geometry.adds[0].y));
-        assert.equal(await page.locator('#side [data-panel=library] > footer.library-footer').count(), 1, 'Library creation stays outside the scrolling body');
+        assert.equal(geometry.close.width, 28); assert.equal(geometry.close.height, 28);
+        assert.ok(Math.abs(geometry.close.y + 14 - (geometry.title.y + geometry.title.height / 2)) <= 2, 'close icon aligns with the first section label');
+        assert.ok(geometry.icons.length >= 3 && geometry.icons.every(r => r.height === 40 && r.width > 100), 'section headers are one quiet 40px toggle');
+        assert.equal(geometry.actions.length, 2, 'Home and New live in the Library header');
+        assert.ok(geometry.actions.every(r => r.height === 28 && r.y === geometry.actions[0].y));
         assert.ok((await page.locator('#side [data-panel=layers]').boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
         assert.ok((await page.locator('#side [data-panel=library]').boundingBox()).height >= 240);
         await page.keyboard.press('Tab'); await page.locator('#closeSide').focus(); assert.equal(await page.locator('#closeSide').evaluate(el => getComputedStyle(el).outlineColor), 'rgb(63, 141, 253)');
@@ -213,7 +215,7 @@ try {
         const boardId = await page.evaluate(() => aegis.canvas.board.id);
         await touch.addInitScript(id => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:board', id); }, boardId); await touch.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await touch.waitForFunction(() => window.aegis?.canvas?.board);
         await touch.locator('#sideBtn').click(); await touch.locator('#side.open').waitFor();
-        assert.ok(await touch.locator('#side :is(.side-head .icon-btn, .phead .fold, .adds button)').evaluateAll(nodes => nodes.filter(el => el.getClientRects().length).every(el => el.getBoundingClientRect().height >= 44)));
+        assert.ok(await touch.locator('#side :is(.side-close, .phead .ptoggle, .pactions .icon-btn, .tile)').evaluateAll(nodes => nodes.filter(el => el.getClientRects().length).every(el => el.getBoundingClientRect().height >= 44)));
         await touch.locator('#closeSide').click();
         await touch.evaluate(() => { aegis.canvas.select(['chromedocument']); aegis.canvas.setView({ x: 50, y: 220, z: .55 }); });
         const open = touch.locator('.window-actions [data-window-action="chromedocument"]'); await open.waitFor();

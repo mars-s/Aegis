@@ -247,7 +247,7 @@ export function Layers({
               id: child.id,
               set: { props: { [flag]: card.props?.[flag] !== true } },
             }));
-          const style: CSSProperties = { paddingLeft: 6 + depth * 14 };
+          const style: CSSProperties = { paddingLeft: 10 + depth * 14 };
           return (
             <div
               key={card.id}
@@ -380,10 +380,10 @@ export function Layers({
                   tabIndex={activeId === card.id ? 0 : -1}
                   onClick={() => toggle(card.id)}
                 >
-                  <Icon name={folded.has(card.id) ? "right" : "fold"} />
+                  <Icon name="right" />
                 </button>
               ) : (
-                <Icon name="window" />
+                <span className="glyph"><Icon name="window" /><i aria-hidden="true" /></span>
               )}
               {editing === card.id ? (
                 <input
