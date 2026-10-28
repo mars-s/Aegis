@@ -39,9 +39,11 @@ fragile. "Jarvis's table, built by Apple."
    - `checks/ui/wireframe.mjs`: NaN attribute at line 262.
    - `checks/ui/genui.mjs`: `$RefreshSig$` not defined in the Vite dev path.
    - `checks/ui/agent-edges.mjs`: assertion at line 125.
-3. **Bundled runtime start test.** Start
-   `<bundle>/Contents/Resources/runtime/agent/dist/main.js` on temp data and
-   wait for `{"aegis":"ready"}`. This would have caught the symlink crash.
+3. **Bundled runtime start test.** The test already exists at
+   `scripts/check-staged-runtime.ts` and runs as `npm run check:runtime`. It
+   copies the staged runtime to a temp folder and waits for `{"aegis":"ready"}`.
+   It is not part of `npm run check`. Wire it in so the symlink crash cannot
+   ship again, and prove it fails against a symlinked stage.
 4. **Native frame rate.** Re-measure pan and zoom FPS in the installed app.
 5. **UX polish** against `.scratch/aegis-redesign/comps/6-zen-dark-LOCKED.png`,
    avoiding the files the sidebar session owns.
@@ -57,3 +59,9 @@ fragile. "Jarvis's table, built by Apple."
 - Verified with a headless browser against the live app: the chip appears
   bottom-left after an MCP batch.
 - Cleaned the probe card off the `Demo assignment` board (now revision 13).
+- Built and installed the native app (`~/Applications/Aegis.app`, new host on
+  a fresh port). The old copy is at
+  `~/.Trash/Aegis-0.3.0-2026-10-28-2341.app`. The installed binary embeds
+  `index-CbE3ZkiR.js`, the build that contains the chip.
+- The app relaunched clean and the board reads fine at revision 13.
+- Not verified by eye: nobody has looked at the native window yet.
