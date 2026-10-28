@@ -202,3 +202,11 @@ fragile. "Jarvis's table, built by Apple."
 - Fixed it once in `checks/ui/run.mjs`: build the UI with `AEGIS_TEST_FACADE=1`
   before any suite runs, and stop with a clear message if the build fails.
 - `node checks/ui/run.mjs parity polish` passes 2 of 2. Full check green.
+
+### 2026-10-29, tick at 3:55am
+
+- The only actionable item was the full UI sweep, so it is running in the
+  background at port offset 3800 across every suite. Results are triaged next
+  tick; anything red becomes the queue.
+- No code changed in this tick, so the gate was not re-run. The last full check
+  was green minutes ago.
