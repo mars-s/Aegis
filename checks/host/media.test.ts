@@ -1,3 +1,4 @@
+import { assertionGroup } from './assertion-group.ts';
 import { required } from './required.ts';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -100,7 +101,7 @@ test('real host requires authentication for previews and accepts playable audio 
 });
 
 test('recording uploads report measured progress and wait for host confirmation', async () => {
-  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  const assertions = assertionGroup();
   const originalRequest = Object.getOwnPropertyDescriptor(globalThis, 'XMLHttpRequest');
   const progress: number[] = [];
   const requests: RecordingRequest[] = [];
@@ -114,14 +115,14 @@ test('recording uploads report measured progress and wait for host confirmation'
     response: unknown;
     statusText = '';
     get responseText(): string { return JSON.stringify(this.response); }
-    abort(): void {}
+    onabort?: () => void;
+    abort(): void { this.onabort?.(); }
     onload?: () => void;
     constructor() { requests.push(this); }
     open(method: string, url: string) { this.method = method; this.url = url; }
     setRequestHeader(name: string, value: string) { this.headers[name] = value; }
     send(body: unknown) { this.body = body; }
   }
-  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: () => JSON.stringify({ port: '12345', token: 'test-only-token' }) } });
   Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: RecordingRequest });
   try {
     const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
@@ -135,14 +136,14 @@ test('recording uploads report measured progress and wait for host confirmation'
     required(request.upload.onprogress)({ lengthComputable: true, loaded: 100, total: 100 });
     await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
     request.status = 200; request.response = { url: 'asset:clip.webm', type: file.type, size: file.size }; required(request.onload)();
-    assert.equal((await saving).url, 'asset:clip.webm'); assert.equal(complete, true);
+    await assertions.checkAsync(async () => { assert.equal((await saving).url, 'asset:clip.webm'); }); assertions.check(() => { assert.equal(complete, true); });
     const failed = uploadRecording({ base: 'http://127.0.0.1:12345', token: 'test-only-token' }, file, () => {});
     const failedRequest = required(requests[1]);
     failedRequest.status = 500; failedRequest.response = { error: 'Disk full' }; required(failedRequest.onload)();
     await assert.rejects(failed, /Disk full/);
-    await assert.rejects(uploadRecording({ base: 'https://other.example', token: 'test-only-token' }, file, () => {}), /Reconnect/);
+    await assertions.checkAsync(async () => { await assert.rejects(uploadRecording({ base: 'https://other.example', token: 'test-only-token' }, file, () => {}), /Reconnect/); });
+    assertions.finish();
   } finally {
-    if (originalStorage === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage'); else Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
     if (originalRequest === undefined) Reflect.deleteProperty(globalThis, 'XMLHttpRequest'); else Object.defineProperty(globalThis, 'XMLHttpRequest', originalRequest);
   }
 });

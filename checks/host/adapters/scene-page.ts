@@ -12,6 +12,12 @@ let server: ViteDevServer | undefined, browser: Browser | undefined;
 let starting: Promise<void> | undefined;
 async function start(): Promise<void> {
   server = await createServer({ root, configFile: false, ...(process.env.AEGIS_VITE_CACHE ? { cacheDir: process.env.AEGIS_VITE_CACHE } : {}),
+    plugins: [{ name: 'host-scene-entry', configureServer(current) {
+      current.middlewares.use('/__host_scene__', (_request, response) => {
+        response.setHeader('content-type', 'text/html');
+        response.end('<!doctype html><html><head><meta charset="utf-8"><title>Host scene checks</title></head><body><script type="module" src="/checks/host/adapters/scene-entry.tsx"></script></body></html>');
+      });
+    } }],
     resolve: { alias: [
       { find: /^react-dom\/client$/, replacement: appRequire.resolve('react-dom/client') },
       { find: /^react-dom$/, replacement: appRequire.resolve('react-dom') },
@@ -30,7 +36,7 @@ export async function withScenePage<T>(run: (page: Page) => Promise<T>): Promise
   if (!browser || !address || typeof address === 'string') throw new Error('Missing host scene fixture');
   const page = await browser.newPage();
   try {
-    await page.goto(`http://127.0.0.1:${address.port}/checks/host/adapters/scene.html`);
+    await page.goto(`http://127.0.0.1:${address.port}/__host_scene__`);
     await page.waitForFunction(() => window.hostScene !== undefined);
     return await run(page);
   } finally { await page.close(); }

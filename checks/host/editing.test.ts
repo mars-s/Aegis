@@ -1,3 +1,4 @@
+import { assertionGroup } from './assertion-group.ts';
 import { CardIdSchema, BoardSchema } from '@aegis/domain/schema';
 import type { Board } from '@aegis/domain/schema';
 import { required } from './required.ts';
@@ -28,19 +29,21 @@ test('copy expands groups and remaps links, groups and nested collection members
   assert.equal(required(same.cards.at(-1)).x, 860); assert.equal(required(same.cards.at(-1)).y, 260);
 });
 test('undo and redo restore saved card, link and tray state, branch history and reset on board switch', async () => {
+  const assertions = assertionGroup();
   let board = emptyBoard('history-a'); const apply = (commands: unknown[]) => { board = batch(board, commands); history.observe(board); };
   const history = createHistory({ read: () => board, apply, delay: 10 }); history.observe(board);
   apply([{ op: 'create', type: 'note', newId: 'aaaaaa', text: 'One' }]);
   apply([{ op: 'update', id: 'aaaaaa', set: { text: 'Two' } }]);
-  await new Promise(r => setTimeout(r, 25)); assert.equal(history.status.length, 2);
+  await new Promise(r => setTimeout(r, 25)); assertions.check(() => { assert.equal(history.status.length, 2); });
   apply([{ op: 'board_set', set: { tray: [{ id: 'tray01', text: 'Idea' }] } }]); history.flush();
   assert.equal(history.travel(-1), true); assert.deepEqual(board.tray, []); assert.equal(required(board.cards[0]).text, 'Two');
-  assert.equal(history.travel(-1), true); assert.equal(board.cards.length, 0);
+  assert.equal(history.travel(-1), true); assertions.check(() => { assert.equal(board.cards.length, 0); });
   assert.equal(history.travel(1), true); assert.equal(required(board.cards[0]).text, 'Two');
   apply([{ op: 'update', id: 'aaaaaa', set: { text: 'New branch' } }]); history.flush(); assert.equal(history.travel(1), false);
   for (let i = 0; i < 90; i++) { apply([{ op: 'update', id: 'aaaaaa', set: { text: String(i) } }]); history.flush(); }
-  assert.equal(history.status.length, 80);
+  assertions.check(() => { assert.equal(history.status.length, 80); });
   board = emptyBoard('history-b'); history.observe(board); assert.equal(history.travel(-1), false); assert.equal(history.status.length, 1);
+  assertions.finish();
 });
 test('delete removes attached links and restore returns them through the command path', () => {
   const board = seed(), removed = batch(board, [{ op: 'delete', ids: ['aaaaaa'] }]); assert.equal(removed.links.length, 0);
