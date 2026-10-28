@@ -3,17 +3,20 @@ import './compat.js';
 // The legacy distribution includes the JS built-ins required by older WKWebView releases.
 import { PDFWorker, getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import type { TextItem } from 'pdfjs-dist/types/src/display/api';
-import type { JSONContent } from '@tiptap/core';
+import type { RichNode } from '@aegis/domain/schema';
+import { z } from 'zod/v4';
 import type { Imported, ImportHost, Progress, Picture } from './types';
 
+const TransformSchema = z.tuple([z.number(), z.number(), z.number(), z.number(), z.number(), z.number()]);
 function textBlocks(items: TextItem[]) {
   const lines: { text: string; size: number; y: number; end: number }[] = [];
   const sizes = new Map<number, number>();
   for (const item of items) {
     if (!item.str.trim()) continue;
-    const size = Math.round(Math.hypot(item.transform[2], item.transform[3]) || item.height || 12);
+    const transform = TransformSchema.parse(item.transform);
+    const size = Math.round(Math.hypot(transform[2], transform[3]) || item.height || 12);
     sizes.set(size, (sizes.get(size) || 0) + item.str.length);
-    const y = item.transform[5], x = item.transform[4], last = lines.at(-1);
+    const y = transform[5], x = transform[4], last = lines.at(-1);
     if (last && Math.abs(last.y - y) < Math.max(2, size * .25) && x >= last.end - 2) {
       last.text += (x - last.end > size * .15 ? ' ' : '') + item.str;
       last.size = Math.max(last.size, size); last.end = x + item.width;
@@ -44,7 +47,7 @@ export async function importPDF(file: File, host: ImportHost, progress: Progress
     const pdf = await read(loading.promise);
     clearTimeout(readyTimer);
     if (pdf.numPages > 100) throw new Error('This PDF has over 100 pages. Split it into smaller PDFs first.');
-    const content: JSONContent[] = [], markdown: string[] = [], pages: Picture[] = [];
+    const content: RichNode[] = [], markdown: string[] = [], pages: Picture[] = [];
     let textLength = 0, imageBytes = 0;
     for (let number = 1; number <= pdf.numPages; number++) {
       progress((number - 1) / pdf.numPages, `Reading page ${number} of ${pdf.numPages}`);

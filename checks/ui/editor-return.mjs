@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `editor-return-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-editor-return-')), AEGIS_UI: repo + '/app/dist',
   AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1',
 }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -71,7 +71,7 @@ try {
         await page.waitForFunction(({ before, source }) => {
           const view = aegis.canvas.view;
           return ['x', 'y', 'z'].every(key => view[key] === before.view[key])
-            && (!source || (document.activeElement?.closest('.card')?.dataset.id ?? document.activeElement?.closest('.semantic-window')?.dataset.cardId) === source);
+            && (!source || document.activeElement?.closest('.card')?.dataset.id === source);
         }, { before, source });
         assert.deepEqual((await snapshot()).selection, before.selection);
         assert.deepEqual((await snapshot()).view, before.view);

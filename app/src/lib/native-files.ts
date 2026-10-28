@@ -1,12 +1,13 @@
 // Saving and printing inside the macOS app. WKWebView ignores <a download> and window.print() in an
 // iframe, so in the app these go through the shell's save_download and print_page commands instead.
-type Invoke = (cmd: string, args?: unknown, options?: { headers: Record<string, string> }) => Promise<unknown>;
-const tauri = (window as unknown as { __TAURI_INTERNALS__?: { invoke: Invoke } }).__TAURI_INTERNALS__;
+import { z } from 'zod/v4';
+import type { NativeBridge } from '../platform/connection.js';
+const tauri: NativeBridge | undefined = window.__TAURI_INTERNALS__;
 
 export async function saveFile(blob: Blob, name: string): Promise<string> {
   if (!tauri) throw new Error('saveFile is for the desktop app');
   const bytes = new Uint8Array(await blob.arrayBuffer());
-  return String(await tauri.invoke('save_download', bytes, { headers: { 'x-file-name': encodeURIComponent(name) } }));
+  return z.string().parse(await tauri.invoke('save_download', bytes, { headers: { 'x-file-name': encodeURIComponent(name) } }));
 }
 
 // Features download with a temporary <a download href="blob:...">, often never added to the page,
@@ -17,14 +18,21 @@ const blobs = new Map<string, Blob>();
 async function linkBytes(link: HTMLAnchorElement): Promise<Blob> {
   const known = blobs.get(link.href); if (known) return known;
   if (link.href.startsWith('data:')) {
-    const [head, data] = link.href.split(',', 2), type = head.slice(5).split(';')[0];
+    const separator = link.href.indexOf(',');
+    if (separator < 0) throw new Error('The download has no data');
+    const head = link.href.slice(0, separator), data = link.href.slice(separator + 1), type = head.slice(5).split(';')[0] ?? 'application/octet-stream';
     const text = head.endsWith(';base64') ? atob(data) : decodeURIComponent(data);
     return new Blob([Uint8Array.from(text, c => c.charCodeAt(0))], { type });
   }
   throw new Error('the file is no longer available');
 }
+let installed = false;
+let notifyDownload: ((message: string) => void) | null = null;
 export function installNativeDownloads(say: (message: string) => void) {
   if (!tauri) return;
+  notifyDownload = say;
+  if (installed) return;
+  installed = true;
   const create = URL.createObjectURL, revoke = URL.revokeObjectURL;
   URL.createObjectURL = (object: Blob | MediaSource) => { const url = create(object); if (object instanceof Blob) blobs.set(url, object); return url; };
   // Keep the Blob a little after revoke: a download's click() and its revoke run back to back.
@@ -32,14 +40,14 @@ export function installNativeDownloads(say: (message: string) => void) {
   const save = async (link: HTMLAnchorElement) => {
     try {
       const path = await saveFile(await linkBytes(link), link.download || 'Download');
-      say(`Saved to ${path.replace(/^\/Users\/[^/]+/, '~')}`);
-    } catch (error) { say(`Could not save: ${(error as Error).message ?? error}`); }
+      notifyDownload?.(`Saved to ${path.replace(/^\/Users\/[^/]+/, '~')}`);
+    } catch (error) { notifyDownload?.(`Could not save: ${error instanceof Error ? error.message : String(error)}`); }
   };
   const isDownload = (link: HTMLAnchorElement) => link.hasAttribute('download') && /^(blob|data):/.test(link.href);
   const click = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) { if (isDownload(this)) void save(this); else click.call(this); };
   document.addEventListener('click', event => {
-    const link = (event.target as Element | null)?.closest?.('a[download]');
+    const link = event.target instanceof Element ? event.target.closest('a[download]') : null;
     if (link instanceof HTMLAnchorElement && isDownload(link)) { event.preventDefault(); event.stopImmediatePropagation(); void save(link); }
   }, true);
 }

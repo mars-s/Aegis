@@ -1,20 +1,18 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { realpathSync, mkdtempSync, readFileSync, cpSync, symlinkSync, existsSync, writeFileSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `editors-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-editors-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-editors-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', reject); });
-const ui = mkdtempSync(join(tmpdir(), 'aegis-editors-ui-'));
-for (const file of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'svelte.config.js', 'public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
-// Vite must serve the bundled font through the dependency symlink in this snapshot.
-writeFileSync(join(ui, 'vite.config.ts'), readFileSync(join(ui, 'vite.config.ts'), 'utf8').replace('server: {', `server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} },`));
+const ui = createUiSnapshot(repo, 'aegis-editors-ui-');
+// The snapshot retains the complete workspace dependency layout.
 const vite = spawn('npx', ['vite', '--port', String(5191 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('editors-vite.txt'), d));
 const ready = new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
@@ -93,7 +91,7 @@ try {
   assert.equal(await page.locator('body.editor-open.docs-open').count(), 1);
   const titleFocus = await page.getByLabel('Document title', { exact: true }).evaluate(el => ({ outline: getComputedStyle(el).outlineStyle, caret: getComputedStyle(el).caretColor }));
   assert.equal(titleFocus.outline, 'none'); assert.equal(titleFocus.caret, 'rgb(63, 141, 253)');
-  const half = await page.locator('.docs-panel').boundingBox(); assert.equal(half.width, 788); assert.equal(half.y, 8);
+  const half = await page.locator('.side-editor').boundingBox(); assert.equal(half.width, 788); assert.equal(half.y, 8);
   assert.deepEqual(await stageBounds(), stage, 'Opening documents does not reflow the stage');
   const type = await page.locator('.docs-prose').evaluate(el => { const css = getComputedStyle(el); return [css.fontSize, css.lineHeight, css.caretColor, css.fontFamily]; });
   assert.deepEqual(type.slice(0, 3), ['18px', '28px', 'rgb(63, 141, 253)']); assert.match(type[3], /Inter Variable/);
@@ -102,7 +100,7 @@ try {
   assert.ok(source.x >= 24 && source.x + source.width <= half.x - 24, 'Pointer open frames a compact source with clearance beside the actual editor');
   await page.screenshot({ path: out('editors-document-half.png') });
   await page.getByRole('button', { name: 'Full width', exact: true }).click();
-  assert.equal((await page.locator('.docs-panel').boundingBox()).width, 1584);
+  assert.equal((await page.locator('.side-editor').boundingBox()).width, 1584);
   assert.equal(await page.locator('body.editor-wide.docs-full').count(), 1);
   assert.deepEqual(await stageBounds(), stage);
   await page.screenshot({ path: out('editors-document-wide.png') });
@@ -110,7 +108,7 @@ try {
   assert.equal(await page.locator('.side-editor-head .docs-title').count(), 1, 'The title is editable in the window strip');
   await page.getByLabel('Format document', { exact: true }).click();
   const toolbarFocus = await page.evaluate(async () => {
-    const { currentDocument } = await import('/src/features/docs/editor.js');
+    const { currentDocument } = await import('/src/platform/document-test.js');
     const editor = currentDocument().editor, text = editor.getText();
     editor.commands.selectAll();
     const font = document.querySelector('[aria-label="Font family"]');
@@ -145,12 +143,12 @@ try {
   console.log('PASS sheet double-click and context menu, header sort preservation and ignored other card kinds');
 
   await page.emulateMedia({ reducedMotion: 'reduce' }); await openEvent('sheet001');
-  const reduced = await page.locator('.sheet-editor').evaluate(el => ({ transform: getComputedStyle(el).transform, transition: getComputedStyle(el).transitionProperty }));
+  const reduced = await page.locator('.side-editor').evaluate(el => ({ transform: getComputedStyle(el).transform, transition: getComputedStyle(el).transitionProperty }));
   assert.equal(reduced.transform, 'none'); assert.equal(reduced.transition, 'opacity'); await page.keyboard.press('Escape');
   await page.emulateMedia({ reducedMotion: 'no-preference' }); await page.evaluate(() => document.body.classList.add('motion-off'));
   await openEvent('sheet001');
-  assert.equal(await page.locator('.sheet-editor').evaluate(el => getComputedStyle(el).transitionProperty), 'opacity');
-  await grid.locator('[data-r="0"][data-c="0"]').click(); await grid.press('Shift+Tab');
+  assert.equal(await page.locator('.side-editor').evaluate(el => getComputedStyle(el).transitionProperty), 'opacity');
+  await grid.locator('[data-r][data-c="0"]').first().click(); await grid.press('Shift+Tab');
   assert.equal(await page.getByLabel('Selected cell value', { exact: true }).evaluate(el => el === document.activeElement), true, 'Tab can leave the grid');
   await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -158,4 +156,4 @@ try {
   assert.deepEqual(errors, []);
   console.log('PASS reduced motion, Motion off, focus can leave, persisted sheet after reload and no browser errors');
 } catch (error) { await page.screenshot({ path: out('editors-fail.png') }); console.error(error); console.error(errors); process.exitCode = 1; }
-finally { await browser.close(); host.kill(); vite.kill(); }
+finally { await browser.close(); host.kill(); vite.kill(); disposeUiSnapshot(ui); }

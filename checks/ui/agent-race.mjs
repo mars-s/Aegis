@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 const offset = Number(process.env.AEGIS_PORT_OFFSET || 0);
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const token = `race-${process.pid}`, capture = Date.now();
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-race-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1000' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 host.stderr.on('data', d => process.stderr.write(d));
@@ -31,6 +31,35 @@ try {
       localStorage.setItem('aegis:onboarded', '1');
       localStorage.setItem('aegis:model', 'fake|fake');
       localStorage.setItem('aegis:board', boardId);
+      const nativeFetch = window.fetch;
+      const encoder = new TextEncoder();
+      window.fetch = async (...args) => {
+        const response = await nativeFetch(...args);
+        if (!String(args[0]).includes('/events?')) return response;
+        const decoder = new TextDecoder();
+        let buffered = '';
+        const stream = new TransformStream({
+          start(controller) {
+            window.__agentRace.deliver = data => controller.enqueue(encoder.encode('data: ' + JSON.stringify(data) + '\n\n'));
+          },
+          transform(chunk, controller) {
+            buffered += decoder.decode(chunk, { stream: true });
+            for (;;) {
+              const boundary = /\r?\n\r?\n/.exec(buffered);
+              if (!boundary) break;
+              const frame = buffered.slice(0, boundary.index);
+              buffered = buffered.slice(boundary.index + boundary[0].length);
+              const payload = frame.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+              if (!payload) continue;
+              const data = JSON.parse(payload);
+              if (legacy && data.type === 'agent') delete data.revision;
+              if (data.type === 'agent') window.__agentRace.events.push(data);
+              controller.enqueue(encoder.encode('data: ' + JSON.stringify(data) + '\n\n'));
+            }
+          }
+        });
+        return new Response(response.body.pipeThrough(stream), { headers: response.headers, status: response.status });
+      };
       const NativeEventSource = window.EventSource;
       window.__agentRace = { events: [], deliver: null };
       window.EventSource = class extends NativeEventSource {
@@ -88,7 +117,7 @@ try {
     assert.equal(state.count, '');
     assert.ok(state.answer.includes(completed.text), 'the spatial conversation retains the completed reply');
     assert.match(state.history, /No board changes/);
-    assert.equal(await page.locator('#runStrip').isVisible(), false);
+    assert.equal(await page.locator('#runStrip, #agentIsland.working').isVisible(), false);
     await page.keyboard.press('Meta+k');
     assert.equal(await page.locator('#composer .island-turn.assistant .turn-text').last().textContent(), completed.text, 'opening the conversation shows the assistant turn without reload');
     if (!legacy) {

@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { once } from 'node:events';
 import { Client } from '../../agent/node_modules/@modelcontextprotocol/sdk/dist/esm/client/index.js';
 import { StdioClientTransport } from '../../agent/node_modules/@modelcontextprotocol/sdk/dist/esm/client/stdio.js';
-import { codexMcpClient } from '../mcp/codex-client.mjs';
+import { codexMcpClient } from '../mcp/codex-client.ts';
 
 const repo = new URL('../..', import.meta.url).pathname;
 const bundle = resolve(process.argv[2] || join(repo, 'src-tauri/target/release/bundle/macos/Aegis.app'));
@@ -31,8 +31,8 @@ try {
   const { config } = await response.json(), server = config.mcpServers.aegis;
   const resources = join(bundle, 'Contents/Resources');
   assert.equal(server.args[0], join(data, 'integrations/mcp/server.mjs'));
-  assert.deepEqual(await readFile(server.args[0]), await readFile(join(resources, 'plugins/aegis/server.mjs')));
-  assert.ok((await stat(join(resources, 'plugins/aegis/.claude-plugin/plugin.json'))).isFile());
+  assert.deepEqual(await readFile(server.args[0]), await readFile(join(resources, 'runtime/plugins/aegis/server.mjs')));
+  assert.ok((await stat(join(resources, 'runtime/plugins/aegis/.claude-plugin/plugin.json'))).isFile());
   assert.equal(server.env.AEGIS_DATA, data);
   if (process.env.AEGIS_MCP_CLIENT === 'codex') client = await codexMcpClient(config);
   else {

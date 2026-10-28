@@ -10,7 +10,7 @@ const output = join(repo, '.scratch/live-references/chart-defaults'); mkdirSync(
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-chart-defaults-')), token = `charts-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 const port = await new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(Error('Host startup timed out')), 20000);
   host.stdout.on('data', bytes => { const match = /"port":(\d+)/.exec(String(bytes)); if (match) { clearTimeout(timer); resolve(match[1]); } });
@@ -38,15 +38,14 @@ try {
       const matrix = svg.getScreenCTM(), scale = Math.hypot(matrix.a, matrix.b);
       return { path: line.getAttribute('d'), stroke: getComputedStyle(line).strokeWidth, vector: getComputedStyle(line).vectorEffect, radius: +dot.getAttribute('r') * scale, label: parseFloat(getComputedStyle(text).fontSize) * scale };
     });
-    const check = (result, smooth = false) => {
+    const check = (result, smooth = false, z = 1) => {
       assert.equal(/[CSQ]/.test(result.path), smooth); assert.equal(result.stroke, '1.5px'); assert.equal(result.vector, 'non-scaling-stroke');
-      assert.ok(Math.abs(result.radius - 2.5) < .02, JSON.stringify(result)); assert.ok(result.label >= 11.99, JSON.stringify(result));
+      assert.ok(Math.abs(result.radius - 2.5 * z) < .02, JSON.stringify(result)); assert.ok(result.label >= 11.99 * z, JSON.stringify(result));
     };
-    // Below 100% a plot is shown as its semantic summary (features/overview/zoom.js), so detail is measured from 100%.
-    for (const z of [1, 1.5, 3]) {
+    for (const z of [.3, .5, .75, 1, 2, 3]) {
       await page.evaluate(z => { aegis.canvas.setView({ x: 10, y: 0, z }); aegis.canvas.select(['plotchart']); }, z);
       await page.locator('#world [data-id="plotchart"] .cartesian svg .dot').first().waitFor(); await page.waitForTimeout(550);
-      const result = await measure('#world [data-id="plotchart"] .cartesian svg'); check(result); metrics.push({ engine: name, z, ...result });
+      const result = await measure('#world [data-id="plotchart"] .cartesian svg'); check(result, false, z); metrics.push({ engine: name, z, ...result });
     }
     await page.evaluate(() => aegis.canvas.setView({ x: 10, y: 0, z: 1 }));
     const smoothing = page.locator('#world [data-id="plotchart"]').getByLabel('Smooth line', { exact: true }); await smoothing.check();
@@ -54,20 +53,20 @@ try {
     await page.waitForFunction(() => /C/.test(document.querySelector('#world [data-id="plotchart"] .line')?.getAttribute('d') || ''));
     const saved = await page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`)); assert.equal(saved.cards.find(c => c.id === 'plotchart').data.smooth, true);
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: 'slides', keyboard: true } })));
-    const deck = '.deck-stage .deck-slide-wrap:not([hidden]) .deck-resolved-chart .cartesian svg';
+    const deck = '.deck-stage .deck-slide-wrap:not([hidden]) .deck-evidence .cartesian svg';
     await page.locator(deck).waitFor(); await page.waitForTimeout(550); check(await measure(deck), true);
     await page.screenshot({ path: join(output, `${name}-smooth-deck.png`) });
-    await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-resolved-chart svg').waitFor(); await page.waitForTimeout(100);
-    check(await measure('.deck-present .deck-resolved-chart svg'), true);
+    await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-evidence svg').waitFor(); await page.waitForTimeout(100);
+    check(await measure('.deck-present .deck-evidence svg'), true);
     await page.screenshot({ path: join(output, `${name}-smooth-presentation.png`) }); await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Close editor', exact: true }).click(); await page.locator('.side-editor').waitFor({ state: 'detached' });
+    await page.locator('.side-editor [data-close]').click(); await page.locator('.side-editor').waitFor({ state: 'detached' });
     await page.evaluate(() => new Promise(resolve => aegis.apply([{ op: 'object_set', id: 'plotchart', path: ['smooth'], value: false }], resolve)));
     await page.evaluate(() => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: 'slides', keyboard: true } })));
     await page.locator(deck).waitFor(); await page.waitForTimeout(550); check(await measure(deck));
     await page.screenshot({ path: join(output, `${name}-straight-deck.png`) });
-    await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-resolved-chart svg').waitFor(); await page.waitForTimeout(100); check(await measure('.deck-present .deck-resolved-chart svg'));
+    await page.getByRole('button', { name: 'Present', exact: true }).click(); await page.locator('.deck-present .deck-evidence svg').waitFor(); await page.waitForTimeout(100); check(await measure('.deck-present .deck-evidence svg'));
     await page.screenshot({ path: join(output, `${name}-straight-presentation.png`) });
-    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 100%, 150%, 300%, 1.5px stroke, 2.5px points, 12px labels, saved explicit smoothing and source transfer into deck/presentation`);
+    assert.deepEqual(errors, []); console.log(`PASS ${name}: straight defaults at 30%, 50%, 75%, 100%, 200%, 300%, scaled points and labels, 1.5px stroke, saved explicit smoothing and source transfer into deck/presentation`);
     await browser.close(); browser = null;
   }
   writeFileSync(join(output, 'metrics.json'), JSON.stringify(metrics, null, 2));

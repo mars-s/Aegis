@@ -1,9 +1,10 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { assertSlideFits } from './deck-fit.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, appendFileSync, cpSync, symlinkSync, existsSync, writeFileSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
+import { mkdtempSync, appendFileSync, writeFileSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -11,9 +12,9 @@ const offset = Number(process.env.AEGIS_PORT_OFFSET || 0), vitePort = 5195 + off
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const token = `imports-${process.pid}`, stamp = Date.now(), built = process.env.AEGIS_IMPORTS_BUILT === '1';
 const data = mkdtempSync(join(tmpdir(), 'aegis-imports-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => appendFileSync(out(`imports-host-${stamp}.txt`), d));
-let vite, browser, page;
+let vite, browser, page, snapshotUi;
 const errors = [], workerRequests = [];
 const fixture = name => ({ name, bytes: readFileSync(join(repo, 'checks/fixtures', name)).toString('base64') });
 const cards = () => page.evaluate(() => aegis.canvas.board.cards);
@@ -53,11 +54,9 @@ async function screenshots(name, id) {
 try {
   const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', code => reject(new Error(`Host exited ${code}`))); });
   if (!built) {
-    const ui = mkdtempSync(join(tmpdir(), 'aegis-imports-ui-'));
-    for (const file of ['src', 'index.html', 'package.json', 'tsconfig.json', 'vite.config.ts', 'svelte.config.js', 'public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-    symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
+    const ui = snapshotUi = createUiSnapshot(repo, 'aegis-imports-ui-');
     // macOS resolves worker entries through /private/var while tmpdir() returns /var.
-    writeFileSync(join(ui, 'vite.imports.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config.ts'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([ui, realpathSync(ui), repo + '/app/node_modules', realpathSync(repo + '/app/node_modules')])} } } });`);
+    writeFileSync(join(ui, 'vite.imports.config.ts'), `import { mergeConfig } from 'vite'; import base from './vite.config.ts'; export default mergeConfig(base, { server: { fs: { allow: ${JSON.stringify([join(ui, '..'), realpathSync(join(ui, '..'))])} } } });`);
     vite = spawn('npx', ['vite', '--config', 'vite.imports.config.ts', '--port', String(vitePort), '--strictPort'], { cwd: ui, stdio: 'pipe' });
     vite.stderr.on('data', d => appendFileSync(out(`imports-vite-${stamp}.txt`), d));
     await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error(`Vite exited ${code}`))); });
@@ -76,7 +75,7 @@ try {
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 20000 });
   await page.evaluate(() => {
     window.__importMotions = [];
-    new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node instanceof HTMLElement && node.dataset.id) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true });
+    new MutationObserver(records => { for (const record of records) for (const node of record.type === 'attributes' ? [record.target] : record.addedNodes) if (node instanceof HTMLElement && node.matches('#world > .card[data-id]')) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true, subtree: true, attributes: true, attributeFilter: ['data-id'] });
   });
   assert.equal((await cards()).length, 0);
   assert.equal(await page.locator('#empty .empty-actions button').count(), 3);
@@ -141,6 +140,7 @@ try {
   await page.evaluate(id => aegis.canvas.select([id]), pptx.id);
   await page.locator(`.window-actions [data-window-action="${pptx.id}"]`).click();
   await page.locator('.deck-panel').waitFor();
+  await page.waitForFunction(() => document.querySelector('.deck-panel')?.getAnimations().every(animation => !animation.pending && animation.playState !== 'running'));
   assert.equal(await page.locator('.deck-panel .deck-slide-wrap').count(), 2);
   await assertSlideFits(page.locator('.deck-panel .deck-slide-wrap > .deck-fit').first(), { label: 'Imported PPTX editor', pictures: 2 });
   await assertSlideFits(page.locator('.deck-panel .deck-film-item > .deck-fit').first(), { label: 'Imported PPTX filmstrip', pictures: 2 });
@@ -148,7 +148,7 @@ try {
   await page.waitForFunction(() => document.querySelector('.deck-panel [data-saved]')?.textContent === 'Saved');
   pptx = (await stored()).cards.find(card => card.id === pptx.id);
   assert.equal(pptx.props.slides[0].title, 'Edited import title'); assert.equal(pptx.props.slides[0].images.length, 2);
-  await page.getByRole('button', { name: 'Close editor', exact: true }).click();
+  await page.getByRole('button', { name: 'Back to board', exact: true }).click();
   await page.locator('.deck-panel').waitFor({ state: 'detached' });
   console.log('PASS synthetic PPTX drop follows presentation relationship order, imports titles, bodies and pictures, and retains pictures after a slide edit');
 
@@ -161,9 +161,8 @@ try {
   await verifyAsset(key.props.import.original, 'application/vnd.apple.keynote', 'two-previews.key');
   await screenshots('keynote', key.id);
   assert.match(await page.locator(`.card[data-id="${key.id}"] .deck-source`).getAttribute('href'), /\/assets\/.*\.key$/);
-  // Detail links live in the detail tier; below it the card is a semantic summary.
   await page.evaluate(id => { const c = aegis.canvas.board.cards.find(c => c.id === id); aegis.canvas.setView({ x: 80 - c.x, y: 80 - c.y, z: 1 }); }, key.id);
-  await page.waitForFunction(() => document.getElementById('stage').dataset.zoomTier === 'detail');
+  await page.waitForFunction(() => aegis.canvas.view.z === 1);
   const downloadEvent = page.waitForEvent('download');
   await page.locator(`.card[data-id="${key.id}"] .deck-source`).click();
   const originalDownload = await downloadEvent;
@@ -318,4 +317,4 @@ try {
   if (page) console.error('Last toast:', await page.locator('#toast').textContent().catch(() => 'unavailable'));
   if (page) console.error('Import progress:', await page.locator('.import-progress').allTextContents(), 'workers:', workerRequests);
   console.error(error); console.error(errors); process.exitCode = 1;
-} finally { await browser?.close(); host.kill(); vite?.kill(); }
+} finally { await browser?.close(); host.kill(); vite?.kill(); if(snapshotUi) disposeUiSnapshot(snapshotUi); }

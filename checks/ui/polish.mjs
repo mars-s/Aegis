@@ -1,6 +1,8 @@
+import { verifyStartupBoard } from './startup-board.mjs';
 import { checkChrome } from './chrome.mjs';
+import { waitForAsync } from './poll.mjs';
 import { checkRefineSettings } from './refine-settings.mjs';
-import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.js';
+import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.ts';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -11,7 +13,7 @@ import assert from 'node:assert/strict';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const webPort = 5196 + Number(process.env.AEGIS_PORT_OFFSET || 0), token = 'polish-' + process.pid;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-polish-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 host.stderr.on('data', d => process.stderr.write(d));
@@ -28,7 +30,7 @@ const errors = [], requests = [], capture = Date.now();
 page.on('pageerror', error => errors.push(error.message));
 page.on('request', r => { if (r.method() === 'POST' && /\/agents(?:$|\/)/.test(new URL(r.url()).pathname)) requests.push({ path: new URL(r.url()).pathname, data: r.postDataJSON() }); });
 const saved = async () => {
-  await page.waitForFunction(async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).rev === aegis.canvas.board.rev);
+  await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).rev === aegis.canvas.board.rev);
   return page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 };
 const agents = () => page.evaluate(() => aegis.host.get(`/agents?board=${aegis.canvas.board.id}`));
@@ -193,12 +195,12 @@ try {
   const selectedIds = board.cards.slice(0, 2).map(c => c.id);
   await page.evaluate(ids => aegis.canvas.select(ids), selectedIds);
   await page.keyboard.press('Meta+k'); const brief = 'Tidy just these ideas\nKeep all my words'; await prompt.fill(brief); await prompt.press('Enter');
-  await page.waitForFunction(async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).some(a => !a.running && a.turns.length === 2));
+  await waitForAsync(page, async () => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).some(a => !a.running && a.turns.length === 2));
   const [{ id }] = await agents();
   assert.equal(requests[0].data.brief, brief); assert.deepEqual(requests[0].data.selectedIds, selectedIds);
   await assertChat(id, brief); await shot('selected-conversation-1586');
   const follow = 'Keep these headings'; await prompt.fill(follow); await prompt.press('Enter');
-  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 4, id);
+  await waitForAsync(page, async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 4, id);
   assert.equal(requests[1].path, `/agents/${id}/message`); assert.equal(requests[1].data.content, follow); assert.deepEqual(requests[1].data.selectedIds, selectedIds);
   await assertChat(id, follow); await prompt.press('Escape');
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -207,7 +209,7 @@ try {
   const [{ id: oldId }] = await page.evaluate(({ brief, selectedIds }) => aegis.host.post('/agents', {
     boardId: aegis.canvas.board.id, brief: `${brief}\n\n(Work on the selected cards: ${selectedIds.join(', ')}.)`, model: { provider: 'fake', modelId: 'fake' },
   }), { brief: legacy, selectedIds });
-  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 2, oldId);
+  await waitForAsync(page, async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.turns.length === 2, oldId);
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   await assertChat(oldId, legacy); await shot('legacy-conversation-1440'); await prompt.press('Escape');
   console.log('PASS selection IDs travel separately on spawn/follow-up; windows, titles and island show only typed text; reload and legacy saved suffixes are clean');
@@ -245,7 +247,7 @@ try {
     ['board_apply', { commands: [{ op: 'update', id: movedId, set: { text: 'Review plan' } }, { op: 'delete', id: removedId }, { op: 'board_set', set: { bg: '#111111' } }] }],
   ];
   const [{ id: historyAgent }] = await page.evaluate(commands => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKETOOLS ' + JSON.stringify(commands) }), commands);
-  await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, historyAgent);
+  await waitForAsync(page, async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, historyAgent);
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.text === 'Review plan'));
   await page.locator('#stage').focus(); await page.keyboard.press('a');
   const requestRow = page.locator(`#agentList [data-id="${historyAgent}"]`);
@@ -268,3 +270,5 @@ try {
 } catch (error) {
   console.error(error); console.error('page errors', errors); process.exitCode = 1; await shot('failure');
 } finally { await browser.close(); host.kill(); vite.kill(); }
+
+if (!process.exitCode) await verifyStartupBoard();

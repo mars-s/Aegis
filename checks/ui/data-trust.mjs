@@ -1,3 +1,5 @@
+import { assertCameraScale } from './static-geometry.mjs';
+import { choose } from './dropdown.mjs';
 // Exercise the production bundle and real host with temporary data only.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -6,13 +8,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
-import { parseCsv } from '../../app/src/lib/board/dataset.js';
+import { parseCsv } from '@aegis/domain/dataset';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `trust-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-trust-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_TOKEN: token, AEGIS_PORT: '0', AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_TOKEN: token, AEGIS_PORT: '0', AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', code => reject(Error(`Host exited ${code}`))); });
 const playwright = await import(process.env.PLAYWRIGHT || 'playwright');
 const webkit = playwright.webkit ?? playwright.default?.webkit;
@@ -20,6 +22,23 @@ let checks = 0;
 const pass = message => { checks++; console.log('PASS ' + message); };
 const source = '/tmp/aegis-fix/data/expenses.csv';
 const expenses = existsSync(source) ? readFileSync(source, 'utf8') : 'amount,department,opened_at,note\n' + Array.from({ length: 500 }, (_, i) => `${i + 1},${i % 2 ? 'Sales' : 'Support'},2024-01-03,Row ${i + 1}`).join('\n');
+// Read each rendered column when the React viewer virtualises the horizontal axis.
+const rowValues = async row => {
+  const table = row.page().locator('.data-viewer-grid');
+  const count = await table.getAttribute('aria-colcount');
+  if (!count) return row.locator('td').allTextContents();
+  const picker = row.page().getByRole('combobox', { name: 'Go to column' });
+  const selected = await picker.evaluate(el => el.value);
+  const values = [];
+  for (let column = 0; column < Number(count) - 1; column++) {
+    await choose(picker, String(column));
+    const cell = row.locator(`[aria-colindex="${column + 2}"]`);
+    await cell.waitFor({ state: 'attached' });
+    values.push(await cell.textContent());
+  }
+  await choose(picker, selected);
+  return values;
+};
 const expected = parseCsv(expenses);
 assert.equal(expected.rows.length, 500);
 
@@ -50,12 +69,12 @@ try {
       await page.waitForFunction(() => document.querySelector('.data-viewer-grid') && document.querySelector('.data-viewport')?.getAttribute('aria-busy') === 'false');
       assert.equal(await page.locator('.data-viewer-grid').getAttribute('aria-rowcount'), '501');
       assert.ok(await page.locator('.data-viewer-grid tbody tr:not(.data-spacer)').count() < 60);
-      assert.deepEqual(await page.locator('.data-viewer-grid tbody tr:not(.data-spacer)').first().locator('td').allTextContents(), expected.rows[0]);
+      assert.deepEqual(await rowValues(page.locator('.data-viewer-grid tbody tr:not(.data-spacer)').first()), expected.rows[0]);
       assert.equal(await page.locator('.data-profile').getAttribute('open'), null);
       await page.screenshot({ path: out(`trust-data-500-${engineName}.png`) });
       await page.locator('.data-viewport').evaluate(el => { el.scrollTop = el.scrollHeight; });
       await page.waitForFunction(() => [...document.querySelectorAll('.data-viewer-grid tbody th')].some(el => el.textContent === '500'));
-      assert.deepEqual(await page.locator('.data-viewer-grid tbody tr:not(.data-spacer)').last().locator('td').allTextContents(), expected.rows.at(-1));
+      assert.deepEqual(await rowValues(page.locator('.data-viewer-grid tbody tr:not(.data-spacer)').last()), expected.rows.at(-1));
       const sticky = await page.locator('.data-viewer-grid thead').evaluate(el => ({ head: el.querySelector('th').getBoundingClientRect().top, viewport: el.closest('.data-viewport').getBoundingClientRect().top }));
       assert.ok(Math.abs(sticky.head - sticky.viewport) < 2);
       pass(`${engineName}: Open reads all 500 source rows, with a bounded DOM and sticky header`);
@@ -100,11 +119,12 @@ try {
       pass(`${engineName}: unavailable Open is hidden, heading size increments 24 to 25 and line-height controls agree`);
 
       await apply([{ op: 'create', type: 'object', kind: 'sheet', newId: 'trustsht', text: 'Plan the week', x: 0, y: 180, data: { columns: [{ label: 'Day', kind: 'text' }, { label: 'Focus', kind: 'number', unit: 'h' }], rows: [{ cells: ['Mon', '3'] }, { cells: ['Tue', '4'] }] } }]);
+      await assertCameraScale(page, ['trustsht']);
       await select(['trustsht']); await page.keyboard.press('Enter'); await page.locator('.sheet-grid').waitFor();
       assert.equal(await page.locator('.sheet-grid td[data-r="0"][data-c="1"]').textContent(), 'Focus (h)');
       assert.equal(await page.locator('.sheet-fx').textContent(), 'Value');
       await page.locator('.sheet-grid td[data-r="1"][data-c="1"]').click();
-      assert.equal(await page.locator('[data-kind-label]').textContent(), 'Number · h');
+      assert.equal(await page.locator('[data-kind-label], .sheet-editor [aria-label="Column type"]').textContent(), 'Number · h');
       await page.screenshot({ path: out(`trust-sheet-${engineName}.png`) }); await close();
       pass(`${engineName}: sheet headers retain units and the raw value field says Value`);
 

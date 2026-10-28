@@ -1,0 +1,340 @@
+.basic-note,
+.basic-todo {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  font-family: var(--font);
+}
+.react-stage .card .basic-note .body,
+.react-stage .card .basic-todo .body {
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit !important;
+}
+.basic-note .heading {
+  font: 650 15px/1.3 var(--font);
+}
+.basic-note .badge,
+.basic-note .card-tag {
+  padding: 4px 14px;
+  font-size: 12px;
+}
+.basic-note {
+  position: relative;
+}
+.react-stage .card:has(.basic-note > :is(.badge, .card-tag)) {
+  overflow: visible;
+  contain: layout style;
+}
+.basic-note .badge {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--canvas);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.basic-note .card-tag {
+  position: absolute;
+  top: -25px;
+  left: 0;
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.basic-note.fixed-height .body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.basic-todo .items {
+  padding: 0 14px;
+}
+.basic-todo.fixed-height .items {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.basic-todo .todo-item {
+  display: flex;
+  gap: 8px;
+  align-items: start;
+  padding: 2px 0;
+}
+.basic-todo .todo-item input {
+  width: 13px;
+  height: 13px;
+  margin: 3px 0 0;
+  flex: none;
+  accent-color: var(--text, var(--color-text));
+}
+.basic-todo .todo-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.basic-todo .done .todo-text {
+  text-decoration: line-through;
+  color: var(--muted, var(--color-muted));
+}
+.basic-todo .remove-item {
+  min-height: 24px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  opacity: 0;
+}
+.basic-todo .todo-item:focus-within .remove-item,
+.basic-todo .todo-item:hover .remove-item {
+  opacity: 1;
+}
+.basic-todo .add-item,
+.url-input {
+  width: 100%;
+  padding: 6px 16px;
+  background: transparent;
+  border: 0;
+  color: var(--text, var(--color-text));
+  font: inherit;
+}
+.basic-image,
+.basic-video {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.basic-image .image-viewport {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.basic-image img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  user-select: none;
+}
+.basic-image .image-caption {
+  flex: none;
+  padding: 6px 10px;
+  font: 400 12px/1.4 var(--font);
+  background: var(--strip, var(--color-fill));
+}
+.basic-video .media-head,
+.basic-web .web-head {
+  padding: 8px 10px;
+  color: var(--muted, var(--color-muted));
+  background: var(--strip, var(--color-fill));
+  font-size: 12px;
+}
+.basic-video :is(video, .media-poster) {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  background: #000;
+}
+.basic-link a {
+  display: block;
+  padding: 0 16px 16px;
+  overflow-wrap: anywhere;
+  color: var(--muted, var(--color-muted));
+  font-size: 12px;
+  text-decoration: none;
+}
+.basic-web {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.basic-web .web-head {
+  display: flex;
+  align-items: center;
+  flex: none;
+  min-height: 36px;
+  border-bottom: 1px solid var(--line);
+}
+.basic-web .web-body {
+  display: grid;
+  place-content: center;
+  flex: 1;
+  padding: 12px;
+  color: var(--muted, var(--color-muted));
+  text-align: center;
+}
+.react-stage .card .basic-web .body {
+  padding: 0;
+  flex: none;
+}
+.basic-web small {
+  color: var(--faint);
+  font-size: 11px;
+}
+.basic-collection .collection-head {
+  padding: 12px 14px;
+  font: inherit;
+  outline: none;
+}
+.react-stage .card:is(.template-group, .coll) {
+  border: 1px dashed var(--line);
+  box-shadow: none;
+}
+.template-group-title {
+  padding: 12px 14px;
+  font: 600 13px/1.4 var(--font);
+  outline: none;
+}
+.basic-note :is(.body, .heading, .badge, .card-tag)::selection,
+.basic-todo .todo-text::selection {
+  background: var(--data-soft, var(--color-fill-hover));
+}
+@media (pointer: coarse) {
+  .basic-todo .remove-item {
+    opacity: 1;
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+.scene-body:has(
+  > :is(
+    .basic-note,
+    .basic-todo,
+    .basic-image,
+    .basic-video,
+    .basic-web,
+    .basic-collection
+  )
+) {
+  flex: 1;
+  min-height: 0;
+}
+
+.react-stage .card .basic-note .body {
+  padding: 12px 14px;
+}
+.react-stage .card.title .basic-note .body {
+  padding: 4px 2px;
+  letter-spacing: -0.02em;
+}
+.react-stage .card .basic-todo .label {
+  flex: none;
+  padding: 12px 14px 6px;
+  font-weight: 600;
+}
+.basic-note .body:empty::before {
+  content: "Write something";
+  color: var(--faint, var(--color-faint));
+}
+.basic-note .heading {
+  padding: 12px 14px 0;
+  margin-bottom: 4px;
+}
+.react-stage .card .basic-note:has(> .heading) .body {
+  padding-top: 0;
+}
+
+.react-stage .card[data-type="frame"]:has(.basic-frame) {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+}
+.basic-frame {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.basic-frame .wf-visual {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.basic-frame .wf-surface {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.basic-frame .wf-surface rect {
+  vector-effect: non-scaling-stroke;
+}
+.basic-frame .wf-visual > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+.react-stage .card .basic-frame .wf-frame-name {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  min-width: 100px;
+  padding: 0;
+  color: var(--text);
+  font: 500 12px/1.4 var(--font);
+  white-space: nowrap;
+}
+.basic-frame .wf-placeholder {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #71717a;
+  font: 13px/1.3 var(--font);
+  text-align: center;
+  padding: 10px;
+}
+.basic-frame .wf-placeholder button {
+  background: white;
+  color: #27272a;
+  border: 1px solid #d4d4d8;
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+.basic-frame .wf-placeholder-pattern {
+  border-radius: inherit;
+  color: #334155;
+  background: repeating-linear-gradient(
+    135deg,
+    #f1f5f9 0 12px,
+    #e2e8f0 12px 24px
+  );
+}
+.basic-frame .wf-placeholder-pattern small {
+  font-size: 12px;
+}
+.basic-frame .wf-image-notice {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 12px;
+}

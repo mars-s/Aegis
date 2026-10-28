@@ -1,7 +1,7 @@
 # File imports, items 14 and 15
 
 Canvas drops, file paste, More tools > Media > Import, Import images (I) and the
-media picker share `features/media/imports.js`. Mixed file lists import once.
+media picker share `features/imports/react.tsx`. Mixed file lists import once.
 Each import captures its destination board before waiting for other imports,
 conversion or upload. A thin progress line remains visible throughout conversion.
 
@@ -34,7 +34,7 @@ before the host's one MB props boundary. No OCR is performed. Conversion failure
 create no partial card. Uploaded assets from a later failed conversion stay in
 the asset store, which has no deletion endpoint.
 
-`pdf-resources.ts` provides same-origin CMaps, fallback fonts and decoders in
+`scripts/pdf-resources.ts` provides same-origin CMaps, fallback fonts and decoders in
 Vite and emits the same relative paths in a production build. The worker is a
 Vite worker entry using the compatibility distribution and an original
 `Promise.withResolvers` shim in both threads. Each import terminates its worker

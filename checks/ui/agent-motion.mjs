@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
-import { freeAgentRect } from '../../app/src/features/agents/placement.js';
+import { freeAgentRect } from '../../app/src/features/agents/geometry.ts';
 
 const exactWidthArea = { x: 8188.749999998775, y: 550, w: 3500, h: 10400 };
 const exactWidthLabel = freeAgentRect([], [], exactWidthArea, 775, null, exactWidthArea, 3500);
@@ -15,7 +15,7 @@ assert.equal(exactWidthLabel.x, exactWidthArea.x, 'a label fills the available w
 
 const root = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'motion-' + process.pid;
 const data = await mkdtemp(join(tmpdir(), 'aegis-motion-')), stamp = Date.now();
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '60' }, stdio: ['ignore', 'pipe', 'pipe'] });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '60' }, stdio: ['ignore', 'pipe', 'pipe'] });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((resolve, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); host.once('exit', reject); });
 const webPort = 5200 + Number(process.env.AEGIS_PORT_OFFSET || 0);
@@ -144,7 +144,7 @@ try {
   assert.equal((await cardAnimations()).length, 0, 'a person takes control immediately');
   const dragged = await page.locator('.card[data-id="motion00"]').boundingBox();
   assert.ok(Math.abs(dragged.x - box.x - 50) < 2, 'drag tracks pointer from the visible position');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
 
   await batch([{ op: 'create', type: 'note', text: 'A new step', newId: 'newmotion', x: 100, y: 600 }, { op: 'delete', id: 'motion17' }]);
   animations = await cardAnimations();
@@ -165,7 +165,7 @@ try {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.evaluate(() => aegis.apply([{ op: 'move', id: 'motion02', x: 200, y: 100 }]));
   assert.equal((await cardAnimations()).length, 0, 'local board edits stay instant');
-  await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+  await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
 
   await batch([{ op: 'delete', ids: await page.evaluate(() => aegis.canvas.board.cards.map(c => c.id)) }, ...demoBatch]);
   await settle(); await page.waitForTimeout(500);
@@ -207,7 +207,7 @@ try {
     await settle();
     const win = page.locator(`.agent-window[data-agent-id="${layoutAgent}"]`);
     const assertInView = async label => {
-      const visibleWindow = await win.evaluate(el => el.classList.contains('agent-semantic')) ? win.locator('.agent-zoom-summary') : win;
+      const visibleWindow = win;
       const rect = await visibleWindow.boundingBox();
       assert.ok(rect && rect.x >= 0 && rect.y >= 0 && rect.x + rect.width <= 1440 && rect.y + rect.height <= 992, `${label}: agent window fits the viewport: ${JSON.stringify(rect)}`);
     };
@@ -225,7 +225,7 @@ try {
     await assertInView(`Fit with ${count} notes`);
     assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false');
     await shot(`fit-${count}-notes`);
-    // Low zoom keeps identity in the summary. Detail retains the existing hover and focus label.
+    // Screen-sized chrome retains its existing hover and focus identity at every zoom.
     const identity = page.locator('#agentIdentity'), toggle = win.locator('.agent-window-toggle');
     const identityViews = count === 25 ? [1440, 1586, 390] : [1440];
     for (const width of identityViews) {
@@ -236,25 +236,8 @@ try {
         await page.evaluate(z => { const at = aegis.canvas.centre(); aegis.canvas.setView({ x: innerWidth / 2 - at.x * z, y: innerHeight / 2 - at.y * z, z }); }, zoom);
         await page.evaluate(() => new Promise(requestAnimationFrame));
         const spatial = await win.getAttribute('style'), camera = await page.evaluate(() => ({ ...aegis.canvas.view }));
-        if (await win.evaluate(el => el.classList.contains('agent-semantic'))) {
-          const summary = win.locator('.agent-zoom-summary');
-          await summary.focus();
-          assert.match(await summary.textContent(), /Agent \d+ · Board assistant/);
-          assert.ok(await summary.locator('.semantic-copy > *').evaluateAll(nodes => nodes.every(el => parseFloat(getComputedStyle(el).fontSize) >= 12)), 'identity and status stay readable at Fit and 5%');
-          assert.equal(await identity.isVisible(), false, 'summary identity does not compete with a second tooltip');
-          const overlaps = await summary.evaluate(el => {
-            const r = el.getBoundingClientRect();
-            return [...document.querySelectorAll('.semantic-window')].filter(node => {
-              if (node.closest('[inert]')) return false;
-              const c = node.getBoundingClientRect(); return c.left < r.right && c.right > r.left && c.top < r.bottom && c.bottom > r.top;
-            }).map(node => node.dataset.cardId);
-          });
-          assert.deepEqual(overlaps, [], 'readable agent summary does not cover window summaries');
-          assert.equal(await win.getAttribute('style'), spatial);
-          assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera);
-          await shot(`identity-${count}-${width}-${zoom === .05 ? '5-percent' : 'fit'}`);
-          continue;
-        }
+        assert.equal(await win.locator('.agent-zoom-summary').count(), 0);
+        assert.equal(await win.evaluate(el => Math.abs(el.getBoundingClientRect().width - 340) < 1), true);
         const target = await toggle.boundingBox();
         await page.mouse.move(700, 900); await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2);
         await identity.waitFor({ state: 'visible' });
@@ -293,10 +276,6 @@ try {
     await assertInView(`Edge return with ${count} notes`);
     assert.equal(await win.locator('.agent-window-toggle').getAttribute('aria-expanded'), 'false', 'edge navigation preserves collapse');
     assert.equal(await edge.isVisible(), false);
-    if (await win.evaluate(el => el.classList.contains('agent-semantic'))) {
-      await win.locator('.agent-zoom-summary').click();
-      await page.waitForFunction(() => document.getElementById('stage').dataset.zoomTier === 'detail');
-    }
     const openAt = await win.locator('.agent-window-toggle').boundingBox();
     await page.mouse.click(openAt.x + openAt.width / 2, openAt.y + openAt.height / 2);
     assert.equal(await identity.isVisible(), false, 'expanding with the mouse dismisses the identity label');
@@ -304,15 +283,11 @@ try {
     await page.evaluate(() => new Promise(requestAnimationFrame));
     await page.evaluate(() => aegis.canvas.fit()); await page.waitForTimeout(500);
     await assertInView(`Expanded history Fit with ${count} notes`);
-    if (await win.evaluate(el => el.classList.contains('agent-semantic'))) {
-      await win.locator('.agent-zoom-summary').click();
-      await page.waitForFunction(() => document.getElementById('stage').dataset.zoomTier === 'detail');
-    }
     assert.ok(await win.locator('.agent-history time').evaluate(el => { const r = el.getBoundingClientRect(), body = el.closest('.agent-window-body').getBoundingClientRect(); return r.top >= body.top && r.bottom <= body.bottom; }), 'time stays visible above the expanded change list');
     await shot(`fit-${count}-expanded`);
     await win.locator('.agent-close').click(); assert.equal(await edge.isVisible(), false);
   }
-  console.log('PASS Fit keeps agent windows inside the viewport at 12 and 25 notes; real centre clicks on blue edge indicators pan back without expanding; summaries keep 12px+ identity at Fit and 5% without covering window summaries at 1440, 1586 and 390; framing restores expanded history');
+  console.log('PASS Fit keeps agent windows inside the viewport at 12 and 25 notes; real centre clicks on blue edge indicators pan back without expanding; real chrome keeps 12px+ identity at Fit and 5% without covering windows at 1440, 1586 and 390; framing restores expanded history');
   assert.deepEqual(errors, []);
   console.log('PASS agent diffs without reloads, 320ms moves, 30ms stagger, 12-card cap, interruption, pointer handover, enter/exit, reduced motion, local edits and fitted demo at 1440, 1586 and 390');
   console.log(JSON.stringify({ screenshots, fit }));

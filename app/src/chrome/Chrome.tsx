@@ -1,0 +1,1207 @@
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { ReactNode } from "react";
+import { z } from 'zod/v4';
+import { CardIdSchema } from '@aegis/domain';
+import type { CardId } from "@aegis/domain";
+import type { CanvasEngine } from "@aegis/scene";
+import type {
+  ActionRegistration,
+  Composition,
+  FeatureContext,
+} from "../composition.js";
+import {
+  useSaveState,
+  useSource,
+  useWorkspaceMetadata,
+} from "../workspace/index.js";
+import { createMenu } from "../lib/ui/menu.js";
+import { mountDropdowns } from "../lib/ui/dropdown.js";
+import { deleteCards, duplicateCards, groupCards, submit, undoDeletedCards } from "./actions.js";
+import type { Notice, Notify } from "./actions.js";
+import { Icon, MenuButton, PopupButton } from "./controls.js";
+import { Layers } from "./Windows.js";
+import { Library } from "./LibraryView.js";
+import type { LibraryService } from "./library-model.js";
+import { normaliseLayout, readLayout, saveLayout } from "./layout.js";
+import type { PanelLayout } from "./layout.js";
+import { Selection } from "./Selection.js";
+import type { ChromeGestures } from "./Selection.js";
+import { useBoard } from "./model.js";
+import { Panel, SideResize } from "./Panel.js";
+import { MobileHub } from "../features/mobile/MobileHub.js";
+import { useChromeExports } from "./exports.js";
+import { toolOrder, useToolbar } from "./Preferences.js";
+import { Templates } from "./TemplateMenu.js";
+import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
+import { MobileTools } from "./MobileTools.js";
+import { createCoreTools } from "./CoreTools.js";
+import { restack, stackMenu, stacking } from './Stacking.js';
+import { KeyboardHints, ShortcutReference } from "./Shortcuts.js";
+import "./chrome.css";
+
+function setZoom(
+  engine: CanvasEngine,
+  zoom: number,
+  changed: (() => void) | undefined,
+): void {
+  const camera = engine.camera(),
+    next = Math.max(0.05, Math.min(4, zoom)),
+    ratio = next / camera.zoom;
+  engine.navigate({
+    kind: "restore",
+    camera: {
+      x: innerWidth / 2 - (innerWidth / 2 - camera.x) * ratio,
+      y: innerHeight / 2 - (innerHeight / 2 - camera.y) * ratio,
+      zoom: next,
+    },
+    motion: "instant",
+  });
+  changed?.();
+}
+
+export interface ChromeProps {
+  readonly context: FeatureContext;
+  readonly engine: CanvasEngine;
+  readonly composition: Composition;
+  readonly library?: LibraryService;
+  readonly gestures?: ChromeGestures;
+  readonly settings?: () => void;
+  readonly ask?: (ids: readonly CardId[]) => void;
+  readonly cameraChanged?: () => void;
+  readonly customiseToolbar?: () => void;
+  readonly barContent?: ReactNode;
+  readonly rightContent?: ReactNode;
+  readonly wireframeSheet?: (close: () => void) => ReactNode;
+}
+
+export function Chrome({
+  context,
+  engine,
+  composition,
+  library,
+  gestures,
+  settings,
+  ask,
+  cameraChanged,
+  customiseToolbar,
+  barContent,
+  rightContent,
+  wireframeSheet,
+}: ChromeProps) {
+  const metadata = useWorkspaceMetadata(context.workspace),
+    save = useSaveState(context.workspace),
+    ui = useSource(context.workspace.ui),
+    history = useSource(context.workspace.history);
+  const [layout, setLayout] = useState(readLayout),
+    [notice, setNotice] = useState<Notice | null>(null),
+    [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
+  const [captureReveal, setCaptureReveal] = useState<{ readonly id: string; readonly side: 'left' | 'right' } | null>(null);
+  const toolbar = useToolbar();
+  const refreshChrome = useRef<() => void>(() => {});
+  useLayoutEffect(() => {
+    document.body.dataset.toolSize = toolbar.size;
+  }, [toolbar.size]);
+  useLayoutEffect(() => {
+    const stage = document.getElementById('stage');
+    let dirty = true, source: HTMLElement | null = null;
+    let observedTool: string | null | undefined;
+    const changed = (): void => { dirty = true; engine.invalidate(); };
+    const detach = engine.registerFrameParticipant({ write: () => {
+      const name = engine.toolName();
+      if (observedTool !== name) {
+        observedTool = name;
+        stage?.classList.toggle('connecting', name === 'connect');
+        stage?.classList.toggle('placing', name !== null && name !== 'connect');
+        engine.invalidate();
+        engine.afterInput(() => {
+          refreshChrome.current();
+          for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
+        });
+      }
+      if (!dirty) return;
+      dirty = false;
+      const opened = context.workspace.ui.getSnapshot().editor;
+      const host = opened ? engine.leases.getSnapshot().find(lease => lease.cardId === opened.id)?.host.closest<HTMLElement>('.card') ?? null : null;
+      if (source !== host) { source?.classList.remove('editor-source'); source = host; }
+      source?.classList.add('editor-source');
+      document.getElementById('stage')?.classList.toggle('editor-source-selected', !!opened && context.workspace.selection.getSnapshot().length === 1 && context.workspace.selection.getSnapshot()[0] === opened.id);
+    } });
+    const offUi = context.workspace.ui.subscribe(changed), offLeases = engine.leases.subscribe(changed), offSelection = context.workspace.selection.subscribe(changed);
+    changed();
+    return () => { detach(); offUi(); offLeases(); offSelection(); source?.classList.remove('editor-source'); stage?.classList.remove('editor-source-selected', 'connecting', 'placing'); };
+  }, [context, engine]);
+  useEffect(() => {
+    const refresh = () => {
+      const next = readLayout();
+      setLayout(next);
+      context.workspace.act({
+        kind: "panel",
+        side: "left",
+        open: next.open.left,
+      });
+      context.workspace.act({
+        kind: "panel",
+        side: "right",
+        open: next.open.right,
+      });
+    };
+    window.addEventListener("aegis:panels-changed", refresh);
+    return () => window.removeEventListener("aegis:panels-changed", refresh);
+  }, [context]);
+  const [palette, setPalette] = useState(false),
+    [query, setQuery] = useState("");
+  const paletteDialog = useRef<HTMLDialogElement>(null),
+    paletteTrigger = useRef<HTMLButtonElement>(null);
+  const dock = useRef<HTMLElement>(null),
+    leftBar = useRef<HTMLDivElement>(null),
+    rightBar = useRef<HTMLDivElement>(null);
+  const previousRightOpen = useRef(ui.rightPanel);
+  const arrows = useRef<{
+    left: HTMLButtonElement | null;
+    right: HTMLButtonElement | null;
+  }>({ left: null, right: null });
+  const current = useRef({
+    context,
+    engine,
+    composition,
+    layout,
+    ui,
+    save,
+    ask,
+    cameraChanged,
+  });
+  useEffect(() => {
+    current.current = {
+      context,
+      engine,
+      composition,
+      layout,
+      ui,
+      save,
+      ask,
+      cameraChanged,
+    };
+  }, [context, engine, composition, layout, ui, save, ask, cameraChanged]);
+  const notify = useCallback<Notify>((value) => setNotice(value), []);
+  const coreTools = useMemo(() => createCoreTools(context, notify), [context, notify]);
+  useEffect(() => () => coreTools.dispose(), [coreTools]);
+  useEffect(() => {
+    const stage = document.getElementById('stage'); if (!stage) return;
+    let active = true;
+    const double = (event: MouseEvent): void => {
+      if (event.defaultPrevented || engine.toolName() || localStorage.getItem('aegis:double-click-note') === 'off' || !(event.target instanceof Element) || event.target.closest('input,textarea,button,summary,a,[contenteditable],.canvas-orientation,.window-actions,[data-scene-interactive]')) return;
+      const bounds = stage.getBoundingClientRect(), point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      if (engine.hitTest(point)) return;
+      event.preventDefault();
+      const board = context.workspace.metadata.getSnapshot().id, at = engine.screenToWorld(point);
+      engine.afterInput(() => { if (active && context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
+    };
+    stage.addEventListener('dblclick', double);
+    return () => { active = false; stage.removeEventListener('dblclick', double); };
+  }, [coreTools, context, engine]);
+  const exportBoard = useChromeExports(context, engine, composition, notify);
+  const filtered = useCallback(
+    (filtered: boolean, matches: number, total: number) =>
+      setFilter((previous) =>
+        previous.filtered === filtered &&
+        previous.matches === matches &&
+        previous.total === total
+          ? previous
+          : { filtered, matches, total },
+      ),
+    [],
+  );
+  const change = useCallback(
+    (next: PanelLayout) => {
+      const updated = normaliseLayout(next);
+      saveLayout(updated);
+      setLayout(updated);
+      context.workspace.act({
+        kind: "panel",
+        side: "left",
+        open: updated.open.left,
+      });
+      context.workspace.act({
+        kind: "panel",
+        side: "right",
+        open: updated.open.right,
+      });
+    },
+    [context],
+  );
+  function setOpen(side: "left" | "right", open: boolean): void {
+    context.workspace.act({ kind: "panel", side, open });
+    change({ ...layout, open: { ...layout.open, [side]: open } });
+  }
+  useLayoutEffect(() => {
+    const closed = previousRightOpen.current && !ui.rightPanel;
+    previousRightOpen.current = ui.rightPanel;
+    if (!closed) return;
+    if (layout.open.right) change({ ...layout, open: { ...layout.open, right: false } });
+    arrows.current.right?.focus({ preventScroll: true });
+  }, [change, layout, ui.rightPanel]);
+  useEffect(() => {
+    mountDropdowns();
+    const saved = readLayout();
+    context.workspace.act({
+      kind: "panel",
+      side: "left",
+      open: saved.open.left,
+    });
+    context.workspace.act({
+      kind: "panel",
+      side: "right",
+      open: saved.open.right,
+    });
+  }, [context]);
+  useEffect(() => {
+    document.body.classList.toggle("left-open", ui.leftPanel);
+    document.body.classList.toggle("right-open", ui.rightPanel);
+    document.documentElement.style.setProperty(
+      "--side-w",
+      ui.leftPanel ? `${layout.width}px` : "0px",
+    );
+    document.documentElement.style.setProperty(
+      "--right-side-w",
+      ui.rightPanel ? `${layout.rightWidth}px` : "0px",
+    );
+    return () => {
+      document.body.classList.remove("left-open", "right-open");
+      document.documentElement.style.removeProperty("--side-w");
+      document.documentElement.style.removeProperty("--right-side-w");
+    };
+  }, [ui.leftPanel, ui.rightPanel, layout.width, layout.rightWidth]);
+  useEffect(() => {
+    if (!notice || notice.action && !notice.text.startsWith("Deleted ")) return;
+    const timer = setTimeout(() => setNotice(null), notice.text.startsWith("Deleted ") ? 5000 : 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  useEffect(() => {
+    if (palette) {
+      paletteDialog.current?.showModal();
+      paletteDialog.current?.querySelector("input")?.focus();
+    }
+  }, [palette]);
+  useEffect(() => {
+    const lifetime = new AbortController(),
+      timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>(),
+      near = new Set<HTMLElement>();
+    const groups = [dock.current, leftBar.current, rightBar.current].filter(
+      (item): item is HTMLElement => item !== null,
+    );
+    const touch = matchMedia(
+      "(hover: none), (pointer: coarse), (max-width: 700px)",
+    );
+    let keyboard = false;
+    function sync(): void {
+      for (const group of groups) {
+        const held =
+          touch.matches ||
+          engine.toolName() !== null ||
+          context.workspace.selection.getSnapshot().length > 0 ||
+          near.has(group) ||
+          group.contains(document.activeElement) ||
+          !!group.querySelector('[aria-expanded="true"], details[open]') ||
+          (group === rightBar.current &&
+            (current.current.save.kind === "blocked" ||
+              !!document.querySelector("dialog[open]")));
+        if (held) {
+          const timer = timers.get(group);
+          if (timer) clearTimeout(timer);
+          timers.delete(group);
+          group.classList.add("chrome-visible");
+          group.classList.toggle("chrome-instant", keyboard);
+        } else if (!timers.has(group))
+          timers.set(
+            group,
+            setTimeout(() => {
+              group.classList.remove("chrome-visible");
+              timers.delete(group);
+            }, 1200),
+          );
+      }
+    }
+    window.addEventListener(
+      "pointermove",
+      (event) => {
+        if (event.pointerType !== "mouse" || event.buttons) return;
+        keyboard = false;
+        near.clear();
+        if (dock.current && event.clientX <= 48) near.add(dock.current);
+        if (leftBar.current && event.clientY <= 48) near.add(leftBar.current);
+        if (
+          rightBar.current &&
+          (event.clientY <= 48 || innerWidth - event.clientX <= 48)
+        )
+          near.add(rightBar.current);
+        for (const side of ["left", "right"] as const) {
+          const arrow = arrows.current[side],
+            distance =
+              side === "left" ? event.clientX : innerWidth - event.clientX;
+          if (arrow)
+            arrow.classList.toggle(
+              "show",
+              distance <= 20 ||
+                (distance <= 96 && arrow.classList.contains("show")),
+            );
+        }
+        sync();
+      },
+      { passive: true, signal: lifetime.signal },
+    );
+    window.addEventListener(
+      "blur",
+      () => {
+        near.clear();
+        for (const arrow of Object.values(arrows.current))
+          arrow?.classList.remove("show");
+        sync();
+      },
+      { signal: lifetime.signal },
+    );
+    document.addEventListener(
+      "keydown",
+      (event) => {
+        keyboard = true;
+        if (
+          event.key === "Tab" ||
+          (event.code === "KeyT" &&
+            event.shiftKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !(
+              event.target instanceof Element &&
+              event.target.closest(
+                "input,textarea,[contenteditable],dialog[open]",
+              )
+            ))
+        ) {
+          groups.forEach((group) => {
+            group.classList.add("chrome-visible", "chrome-instant");
+          });
+          if (event.code === "KeyT") {
+            event.preventDefault();
+            dock.current?.querySelector("button")?.focus();
+          }
+        }
+      },
+      { capture: true, signal: lifetime.signal },
+    );
+    for (const group of groups) {
+      group.addEventListener(
+        "pointerenter",
+        () => {
+          near.add(group);
+          sync();
+        },
+        { signal: lifetime.signal },
+      );
+      group.addEventListener(
+        "pointerleave",
+        () => {
+          near.delete(group);
+          sync();
+        },
+        { signal: lifetime.signal },
+      );
+      group.addEventListener("focusin", sync, { signal: lifetime.signal });
+      group.addEventListener("focusout", () => queueMicrotask(sync), {
+        signal: lifetime.signal,
+      });
+    }
+    const observer = new MutationObserver(sync);
+    for (const group of groups)
+      observer.observe(group, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ["aria-expanded", "open"],
+      });
+    refreshChrome.current = sync;
+    const offSaving = context.workspace.saving.subscribe(sync);
+    const offSelection = context.workspace.selection.subscribe(sync);
+    touch.addEventListener("change", sync, { signal: lifetime.signal });
+    sync();
+    return () => {
+      lifetime.abort();
+      refreshChrome.current = () => {};
+      observer.disconnect();
+      offSaving();
+      offSelection();
+      timers.forEach((timer) => clearTimeout(timer));
+    };
+  }, [context]);
+  useEffect(() => {
+    const reveal = (event: Event): void => {
+      if (!(event.target instanceof Element)) return;
+      const panel = event.target.closest<HTMLElement>('[data-panel]');
+      if (!panel?.dataset.panel) return;
+      const side = panel.closest('#sideRight') ? 'right' : 'left';
+      if (event instanceof CustomEvent) {
+        const detail: unknown = event.detail;
+        if (z.object({ capture: z.literal(true) }).safeParse(detail).success) setCaptureReveal({ id: panel.dataset.panel, side });
+      }
+      const layout = current.current.layout, folded = { ...layout.folded };
+      for (let ancestor: HTMLElement | null = panel; ancestor; ancestor = ancestor.parentElement?.closest<HTMLElement>('[data-panel]') ?? null) {
+        const id = ancestor.dataset.panel; if (id) folded[id] = false;
+      }
+      change({ ...layout, folded, off: { ...layout.off, [panel.dataset.panel]: false }, open: { ...layout.open, [side]: true } });
+    };
+    document.addEventListener('panelreveal', reveal);
+    const end = (): void => setCaptureReveal(null);
+    document.addEventListener('panelrevealend', end);
+    return () => { document.removeEventListener('panelreveal', reveal); document.removeEventListener('panelrevealend', end); };
+  }, [change]);
+  useEffect(() => {
+    if (!captureReveal) return;
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('.capture-confirmation [data-put]')) setCaptureReveal(null);
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [captureReveal]);
+  function add(type: "note" | "title" | "todo" | "readme"): void {
+    coreTools.arm(type);
+    refreshChrome.current();
+  }
+  function zoom(scale: number): void {
+    setZoom(engine, engine.camera().zoom * scale, cameraChanged);
+  }
+  const actions: readonly ActionRegistration[] = useMemo(
+    () => [
+      { id: "note", label: "Note", shortcut: "N", run: () => add("note") },
+      { id: "title", label: "Heading", shortcut: "H", run: () => add("title") },
+      { id: "todo", label: "Checklist", shortcut: "C", run: () => add("todo") },
+      {
+        id: "readme",
+        label: "Read me",
+        shortcut: "R",
+        run: () => add("readme"),
+      },
+      ...(library ? [{ id: "canvas", label: "Canvas", run: () => armCanvasPlacement(context, library, notify) }] : []),
+      ...composition.tools,
+      ...composition.menus.filter(action => !stacking.some(stack => stack.id === action.id)),
+      ...stacking.map(action => ({ id: action.id, label: action.label, shortcut: action.shortcut, run: (target: FeatureContext) => restack(target, target.workspace.selection.getSnapshot(), action.id, notify) })),
+    ],
+    [composition, context, engine, notify],
+  );
+  const actionRef = useRef(actions);
+  const dockIds = toolOrder(
+    [
+      "select",
+      "note",
+      "title",
+      "todo",
+      "readme",
+      ...["link", "media"].filter(id => composition.tools.some(tool => tool.id === id)),
+      ...(library ? ["templates", "canvas"] : []),
+      ...composition.tools.map((action) => action.id),
+    ],
+    toolbar.order,
+  );
+  const toolbarIdentity = dockIds.join(',');
+  useLayoutEffect(() => {
+    for (const button of dock.current?.querySelectorAll<HTMLElement>('[data-tool]') ?? []) button.hidden = toolbar.hidden.includes(button.dataset.tool ?? '');
+  }, [toolbar.hidden, toolbarIdentity]);
+  const toolButton = (id: string) => {
+    if (id === "templates" && library)
+      return (
+        <Templates
+          key={id}
+          context={context}
+          library={library}
+          notify={notify}
+        />
+      );
+    if (id === "select")
+      return (
+        <button
+          key={id}
+          type="button"
+          data-tool={id}
+          onClick={() => {
+            engine.tool(null);
+            context.workspace.act({ kind: "select", ids: [] });
+          }}
+        >
+          Select
+        </button>
+      );
+    const action = actions.find((item) => item.id === id);
+    return action ? (
+      <button
+        key={id}
+        type="button"
+        data-tool={id}
+        title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
+        onClick={() => { action.run(context); refreshChrome.current(); }}
+      >
+        {action.label}
+      </button>
+    ) : null;
+  };
+  useEffect(() => {
+    actionRef.current = actions;
+  }, [actions]);
+  useEffect(() => {
+    function key(event: globalThis.KeyboardEvent): void {
+      if (
+        event.defaultPrevented ||
+        event.repeat ||
+        (event.key === "Enter" && event.target instanceof Element && !!event.target.closest("button,a,[role=gridcell]")) ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            "input,textarea,select,[contenteditable],dialog[open],.side-editor,.aegis-dropdown-menu",
+          ))
+      )
+        return;
+      const { context, engine, ask } = current.current,
+        mod = event.metaKey || event.ctrlKey,
+        name = event.key.toLowerCase(),
+        ids = context.workspace.selection.getSnapshot();
+      if (
+        !mod &&
+        !event.altKey &&
+        event.target instanceof Element &&
+        event.target.closest("button,summary,[role=treeitem]") &&
+        !event.target.closest("#askPill")
+      )
+        return;
+      let handled = true;
+      if (mod && name === "z") {
+        if (event.shiftKey) context.workspace.redo();
+        else if (!undoDeletedCards(context)) context.workspace.undo();
+      } else if (mod && name === "d") duplicateCards(context, ids, notify);
+      else if (mod && name === "g" && !event.altKey)
+        groupCards(context, ids, event.shiftKey, notify);
+      else if (mod && name === "p") {
+        setQuery("");
+        setPalette(true);
+      } else if ((name === "delete" || name === "backspace") && ids.length)
+        void deleteCards(context, ids, notify);
+      else if (!mod && !event.altKey && (name === "\\" || name === "a")) {
+        const side = name === "a" ? "right" : "left";
+        const opened = context.workspace.ui.getSnapshot();
+        change({
+          ...current.current.layout,
+          open: {
+            ...current.current.layout.open,
+            [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel,
+          },
+        });
+      } else if (mod && !event.shiftKey && !event.altKey && (name === "[" || name === "]")) {
+        const side = name === "[" ? "left" : "right", opened = context.workspace.ui.getSnapshot();
+        change({ ...current.current.layout, open: { ...current.current.layout.open, [side]: side === "left" ? !opened.leftPanel : !opened.rightPanel } });
+      } else if (mod && event.altKey && (event.code === 'BracketLeft' || event.code === 'BracketRight')) {
+        restack(context, ids, event.code === 'BracketRight' ? event.shiftKey ? 'front' : 'forward' : event.shiftKey ? 'back' : 'backward', notify);
+      } else if (mod && name === "0") {
+        setZoom(engine, 1, current.current.cameraChanged);
+      } else if (mod && (name === "+" || name === "=" || name === "-")) {
+        setZoom(
+          engine,
+          engine.camera().zoom * (name === "-" ? 0.8 : 1.25),
+          current.current.cameraChanged,
+        );
+      } else if (
+        !mod &&
+        !event.altKey &&
+        (name === "0" || (event.shiftKey && event.code === "Digit1"))
+      ) {
+        engine.navigate({ kind: "fit", ids: [], motion: "instant" });
+        current.current.cameraChanged?.();
+      } else if (mod && !event.shiftKey && name === "k" && ask) ask(ids);
+      else {
+        const action = actionRef.current.find(
+          (item) => item.shortcut && shortcutMatches(item.shortcut, event),
+        );
+        if (action) action.run(context);
+        else handled = false;
+      }
+      if (handled) {
+        refreshChrome.current();
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [notify, change]);
+  useEffect(() => {
+    const stage = document.getElementById("stage");
+    if (!stage) return;
+    const menuElement = document.createElement("div");
+    menuElement.className = "ctx-menu";
+    const menu = createMenu({
+      menu: menuElement,
+      bindTrigger: false,
+      label: "Window actions",
+    });
+    function open(event: MouseEvent): void {
+      if (
+        event.target instanceof Element &&
+        event.target.closest('input,textarea,[contenteditable="plaintext-only"]:focus')
+      )
+        return;
+      event.preventDefault();
+      const rect = stage?.getBoundingClientRect();
+      if (!rect) return;
+      const id = engine.hitTest({
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      });
+      const selection = context.workspace.selection.getSnapshot(),
+        ids = id && !selection.includes(id) ? [id] : selection;
+      if (id) context.workspace.act({ kind: "select", ids });
+      const card = id ? context.workspace.record(id).getSnapshot() : null;
+      const hasEditor = card && composition.editors.some(editor => editor.kind === (card.type === 'object' ? `object:${card.kind}` : card.type));
+      const inlineEdit = id ? document.querySelector<HTMLElement>(`.card[data-id="${CSS.escape(id)}"] [contenteditable]:not([contenteditable="false"])`) : null;
+      const editActions = id && hasEditor ? [{ title: 'Open', run: () => { context.openEditor(id); } }] : inlineEdit ? [{ title: 'Edit', run: () => { engine.afterInput(() => { if (inlineEdit.isConnected) inlineEdit.focus({ preventScroll: true }); }); } }] : [];
+      menu.setTrigger(stage ?? document.body);
+      menu.setItems(
+        id
+          ? [
+              ...editActions,
+              {
+                title: "Copy",
+                run: () => {
+                  const text = context.workspace.scene
+                    .snapshot()
+                    .cards.filter((card) => ids.includes(card.id))
+                    .map((card) => card.text)
+                    .join("\n\n");
+                  void navigator.clipboard
+                    .writeText(text)
+                    .catch(() =>
+                      notify({ text: "Could not copy the selection." }),
+                    );
+                },
+              },
+              {
+                title: "Duplicate",
+                run: () => duplicateCards(context, ids, notify),
+              },
+              {
+                title: "Arrange",
+                items: stackMenu(context, ids, notify),
+              },
+              {
+                title: "Lock",
+                run: () => {
+                  submit(
+                    context,
+                    ids.map((id) => ({
+                      op: "update",
+                      id,
+                      set: { props: { locked: true } },
+                    })),
+                    notify,
+                  );
+                },
+              },
+              {
+                title: "Delete",
+                run: () => {
+                  void deleteCards(context, ids, notify);
+                },
+              },
+            ]
+          : [
+              { title: "New note here", run: () => { coreTools.place("note", engine.screenToWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top })); } },
+              ...actionRef.current.map((action) => ({
+                title: action.label,
+                run: () => action.run(context),
+              })),
+              ...(["png", "pdf"] as const).map((format) => ({
+                title: `Export board as ${format.toUpperCase()}`,
+                run: () => {
+                  void exportBoard(false, format);
+                },
+              })),
+            ],
+      );
+      menu.open(event, { x: event.clientX, y: event.clientY });
+    }
+    const layer = (event: Event): void => {
+      if (!(event instanceof CustomEvent)) return;
+      const detail: unknown = event.detail;
+      const parsed = z.object({ x: z.number().finite(), y: z.number().finite(), ids: CardIdSchema.array() }).safeParse(detail);
+      if (!parsed.success) return;
+      const ids = parsed.data.ids.filter(id => context.workspace.record(id).getSnapshot() !== null);
+      context.workspace.act({ kind: 'select', ids });
+      menu.setTrigger(stage);
+      menu.setItems([
+        { title: "Duplicate", run: () => duplicateCards(context, ids, notify) },
+        ...(ids.some(id => { const card = context.workspace.record(id).getSnapshot(); return card?.rot && !['frame', 'section', 'coll', 'ink'].includes(card.type); }) ? [{ title: 'Reset tilts', run: () => { submit(context, ids.flatMap(id => { const card = context.workspace.record(id).getSnapshot(); return card && !['frame', 'section', 'coll', 'ink'].includes(card.type) ? [{ op: 'update' as const, id, set: { rot: 0 } }] : []; }), notify); } }] : []),
+        ...stackMenu(context, ids, notify),
+        { title: "Delete", run: () => { void deleteCards(context, ids, notify); } },
+      ]);
+      menu.open(event, { x: parsed.data.x, y: parsed.data.y });
+    };
+    stage.addEventListener("contextmenu", open);
+    stage.addEventListener('layercontext', layer);
+    return () => {
+      stage.removeEventListener("contextmenu", open);
+      stage.removeEventListener('layercontext', layer);
+      menu.destroy();
+    };
+  }, [context, engine, composition, notify, exportBoard, coreTools]);
+  const board = useBoard(context.workspace);
+  let panelLayout = layout;
+  if (captureReveal) {
+    const folded = { ...layout.folded, [captureReveal.id]: false };
+    for (const id of layout.columns[captureReveal.side]) folded[id] = id !== 'tools' && id !== captureReveal.id;
+    panelLayout = { ...layout, folded, heights: { ...layout.heights, tools: Math.max(300, innerHeight - 280), [captureReveal.id]: Math.max(220, Math.min(340, innerHeight - 420)) } };
+  }
+  const panels = (side: "left" | "right") =>
+    layout.columns[side].map((id) => {
+      if (id === "layers")
+        return (
+          <Panel
+            key={id}
+            id={id}
+            label="Windows"
+            layout={panelLayout}
+            change={change}
+            count={
+              filter.filtered
+                ? `${filter.matches} of ${filter.total}`
+                : String(board.cards.length || "")
+            }
+            filtered={filter.filtered}
+          >
+            <Layers context={context} notify={notify} onFilter={filtered} />
+          </Panel>
+        );
+      if (id === "library")
+        return (
+          <Panel
+            key={id}
+            id={id}
+            label="Library"
+            layout={panelLayout}
+            change={change}
+          >
+            {library ? (
+              <Library
+                service={library}
+                current={metadata.id}
+                notify={notify}
+              />
+            ) : (
+              <p className="chrome-empty">Library is unavailable.</p>
+            )}
+          </Panel>
+        );
+      if (id === "tools")
+        return (
+          <Panel key={id} id={id} label="Tools" layout={panelLayout} change={change}>
+            <div className="tools-panels">
+              {composition.panels
+                .filter(
+                  (panel) =>
+                    panel.side === "left" &&
+                    !layout.columns.left.includes(panel.id) &&
+                    !layout.columns.right.includes(panel.id),
+                )
+                .map((panel) => (
+                  <Panel
+                    key={panel.id}
+                    id={panel.id}
+                    label={panel.label ?? panel.id}
+                    layout={panelLayout}
+                    change={change}
+                  >
+                    <panel.Body context={context} />
+                  </Panel>
+                ))}
+              {!layout.columns.left.includes("keys") &&
+              !layout.columns.right.includes("keys") ? (
+                <Panel
+                  id="keys"
+                  label="Shortcuts"
+                  layout={layout}
+                  change={change}
+                >
+                  <ShortcutReference />
+                </Panel>
+              ) : null}
+            </div>
+          </Panel>
+        );
+      const registered = composition.panels.find((panel) => panel.id === id);
+      return registered ? (
+        <Panel
+          key={id}
+          id={id}
+          label={registered.label ?? id}
+          layout={layout}
+          change={change}
+        >
+          <registered.Body context={context} />
+        </Panel>
+      ) : null;
+    });
+  function closePalette(): void {
+    paletteDialog.current?.close();
+    setPalette(false);
+    paletteTrigger.current?.focus();
+  }
+  return (
+    <div className="aegis-chrome">
+      <MobileHub
+        sheets={{
+          boards: (close) =>
+            library ? (
+              <Library
+                service={{ ...library, open: async id => { const opened = await library.open(id); if (opened) close(); return opened; } }}
+                current={metadata.id}
+                notify={notify}
+              />
+            ) : (
+              <p>Library is unavailable.</p>
+            ),
+          layers: (close) => <Layers context={context} notify={notify} onPick={close} />,
+          add: (close) => <MobileTools actions={actions.filter(action => dockIds.includes(action.id))} context={context} close={close} {...(wireframeSheet ? { wireframe: wireframeSheet } : {})} />,
+          unsorted: () => {
+            const panel = composition.panels.find(
+              (item) => item.id === "unsorted",
+            );
+            return panel ? (
+              <panel.Body context={context} />
+            ) : (
+              <p>No unsorted ideas.</p>
+            );
+          },
+          agents: () => rightContent,
+        }}
+      />
+      <header className="bar">
+        <div ref={leftBar} className="bar-left">
+          <button
+            id="sideBtn"
+            className="icon-btn"
+            aria-label={
+              ui.leftPanel
+                ? "Hide windows and library"
+                : "Show windows and library"
+            }
+            aria-expanded={ui.leftPanel}
+            onClick={() => setOpen("left", !ui.leftPanel)}
+          >
+            <Icon name="window" />
+          </button>
+        </div>
+        <nav id="boardCrumbs" aria-label="Board path">{library ? <BoardCrumbs library={library} current={metadata.id} /> : null}</nav>
+        <button
+          id="boardName"
+          aria-expanded={ui.leftPanel}
+          onClick={() => setOpen("left", !ui.leftPanel)}
+        >
+          {metadata.name}
+        </button>
+        <div ref={rightBar} className="bar-right">
+          {barContent}
+          <span data-saved data-save-state={save.kind} role="status" title={save.kind === "blocked" ? save.reason : undefined}>
+            {save.kind === "saving"
+              ? "Saving"
+              : save.kind === "blocked"
+                ? "Not saved"
+                : "Saved"}
+          </span>
+          {save.kind === "blocked" ? (
+            <button id="retrySave" onClick={context.workspace.retry}>
+              Retry
+            </button>
+          ) : null}
+          <MenuButton
+            label="Zoom"
+            triggerLabel="Zoom menu"
+            menuClass="editing-zoom-menu"
+            items={[
+              { title: "Zoom in", shortcut: "+", run: () => zoom(1.25) },
+              { title: "Zoom out", shortcut: "−", run: () => zoom(0.8) },
+              {
+                title: "Fit board",
+                shortcut: "0",
+                run: (event) => {
+                  engine.navigate({
+                    kind: "fit",
+                    ids: [],
+                    motion: event.detail === 0 ? "instant" : "glide",
+                  });
+                  cameraChanged?.();
+                },
+              },
+              ...[0.25, 0.5, 1, 2].map((value) => ({
+                title: `${value * 100}%`,
+                run: () => setZoom(engine, value, cameraChanged),
+              })),
+            ]}
+          >
+            <span aria-label="Zoom menu">Zoom</span>
+          </MenuButton>
+          <button
+            ref={paletteTrigger}
+            aria-label="Commands"
+            onClick={() => {
+              setQuery("");
+              setPalette(true);
+            }}
+          >
+            Commands
+          </button>
+          <button
+            id="agentsBtn"
+            aria-pressed={ui.rightPanel}
+            onClick={() => setOpen("right", !ui.rightPanel)}
+          >
+            Agents
+          </button>
+          {settings ? (
+            <button id="settingsBtn" onClick={settings}>
+              Settings
+            </button>
+          ) : null}
+        </div>
+      </header>
+      <button
+        ref={(element) => {
+          arrows.current.left = element;
+        }}
+        id="revealLeft"
+        className="reveal-arrow"
+        aria-label="Open Library and Windows"
+        aria-expanded={ui.leftPanel}
+        onClick={() => setOpen("left", true)}
+      >
+        <Icon name="right" />
+      </button>
+      <button
+        ref={(element) => {
+          arrows.current.right = element;
+        }}
+        id="revealRight"
+        className="reveal-arrow"
+        aria-label="Open agent activity and panels"
+        aria-expanded={ui.rightPanel}
+        onClick={() => setOpen("right", true)}
+      >
+        <Icon name="left" />
+      </button>
+      <aside
+        id="side"
+        className={`side${ui.leftPanel ? " open" : ""}${captureReveal?.side === 'left' ? ' capture-reveal' : ''}`}
+        aria-label="Library and Windows"
+        hidden={!ui.leftPanel}
+        style={{ width: layout.width }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape" && !event.defaultPrevented) {
+            event.preventDefault();
+            setOpen("left", false);
+            arrows.current.left?.focus();
+          }
+        }}
+      >
+        <div className="side-head">
+          <span>Workspace</span>
+          <button
+            id="closeSide"
+            className="icon-btn"
+            aria-label="Close Library and Windows"
+            onClick={() => {
+              setOpen("left", false);
+              arrows.current.left?.focus();
+            }}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        {panels("left")}
+        <SideResize side="left" layout={layout} change={change} />
+      </aside>
+      <aside
+        id="sideRight"
+        className={`side side-right${ui.rightPanel ? " open" : ""}${captureReveal?.side === 'right' ? ' capture-reveal' : ''}`}
+        aria-label="Agent activity and panels"
+        hidden={!ui.rightPanel}
+        aria-hidden={!ui.rightPanel}
+        style={{ width: layout.rightWidth }}
+        onKeyDown={event => {
+          if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); setOpen("right", false); arrows.current.right?.focus(); }
+        }}
+        onClick={event => {
+          if (event.target instanceof Element && event.target.closest("#closeAgents")) { setOpen("right", false); arrows.current.right?.focus(); }
+        }}
+      >
+        {!rightContent ? (
+        <div className="side-head">
+          <span>Agent activity</span>
+          <button
+            className="icon-btn"
+            aria-label="Close agent activity and panels"
+            onClick={() => {
+              setOpen("right", false);
+              arrows.current.right?.focus();
+            }}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+        ) : null}
+        {rightContent}
+        {panels("right")}
+        <SideResize side="right" layout={layout} change={change} />
+        {composition.panels
+          .filter(
+            (panel) =>
+              panel.side === "right" &&
+              !layout.columns.right.includes(panel.id),
+          )
+          .map((panel) => (
+            <panel.Body key={panel.id} context={context} />
+          ))}
+      </aside>
+      <nav ref={dock} id="tools" aria-label="Canvas tools">
+        {dockIds.slice(0, 7).map(toolButton)}
+        <PopupButton
+          label="More tools"
+          triggerId="toolsFold"
+          menuId="toolsPopover"
+          closeOnResize
+          className="tools-popover"
+        >
+          <div className="tools-grid">{dockIds.slice(7).filter(id => toolbar.order.length || !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          {!toolbar.order.length && dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
+            <h3>Media</h3>
+            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          </section> : null}
+          <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}>Add as notes</button>
+          {customiseToolbar ? (
+            <button aria-label="Customise toolbar" onClick={customiseToolbar}>
+              Customise toolbar
+            </button>
+          ) : null}
+        </PopupButton>
+        <button
+          disabled={!history.undo}
+          onClick={() => context.workspace.undo()}
+        >
+          Undo
+        </button>
+        <button
+          disabled={!history.redo}
+          onClick={() => context.workspace.redo()}
+        >
+          Redo
+        </button>
+      </nav>
+      <KeyboardHints />
+      <Selection
+        canOpen={card => composition.editors.some(editor => editor.kind === (card.type === "object" ? `object:${card.kind}` : card.type))}
+        context={context}
+        engine={engine}
+        notify={notify}
+        exportSelection={(format) => {
+          void exportBoard(true, format);
+        }}
+        {...(gestures ? { gestures } : {})}
+        {...(ask ? { ask } : {})}
+      />
+      {notice ? (
+        <div
+          className={`toast${notice.action ? " layer-undo" : ""}${notice.text.startsWith("Deleted ") ? " canvas-undo" : ""}`}
+          role="status"
+        >
+          <span>{notice.text}</span>{notice.text.startsWith("Deleted ") ? <span aria-hidden="true"> · </span> : null}
+          {notice.action ? (
+            <button
+              onClick={() => {
+                notice.action?.run();
+                setNotice(null);
+              }}
+            >
+              Undo
+            </button>
+          ) : null}
+          <button
+            aria-label="Dismiss notification"
+            onClick={() => setNotice(null)}
+          >
+            <Icon name="close" />
+          </button>
+        </div>
+      ) : null}
+      {palette ? (
+        <dialog
+          ref={paletteDialog}
+          className="aegis-dialog command-palette"
+          aria-label="Commands"
+          onCancel={(event) => {
+            event.preventDefault();
+            closePalette();
+          }}
+        >
+          <input
+            aria-label="Find a command"
+            placeholder="Find a command"
+            value={query}
+            onChange={(event) => setQuery(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                paletteDialog.current
+                  ?.querySelector<HTMLButtonElement>("button[data-command]")
+                  ?.focus();
+              }
+            }}
+          />
+          <div role="menu" aria-label="Commands">
+            {actions
+              .filter((action) =>
+                action.label
+                  .toLocaleLowerCase()
+                  .includes(query.toLocaleLowerCase()),
+              )
+              .map((action) => (
+                <button
+                  role="menuitem"
+                  key={action.id}
+                  data-command={action.id}
+                  onClick={() => {
+                    closePalette();
+                    action.run(context);
+                  }}
+                >
+                  {action.label}
+                  <kbd>{action.shortcut}</kbd>
+                </button>
+              ))}
+          </div>
+          <button onClick={closePalette}>Close</button>
+        </dialog>
+      ) : null}
+    </div>
+  );
+}
+
+function shortcutMatches(
+  shortcut: string,
+  event: globalThis.KeyboardEvent,
+): boolean {
+  const keys = shortcut.toLowerCase().split("+"),
+    key = keys.at(-1);
+  return (
+    key === event.key.toLowerCase() &&
+    keys.includes("shift") === event.shiftKey &&
+    (keys.includes("meta") || keys.includes("cmd") || keys.includes("mod")
+      ? event.metaKey || event.ctrlKey
+      : !event.metaKey && !event.ctrlKey) &&
+    keys.includes("alt") === event.altKey
+  );
+}

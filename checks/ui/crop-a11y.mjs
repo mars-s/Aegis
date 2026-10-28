@@ -13,7 +13,7 @@ const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo,
 assert.equal(build.status, 0, build.stdout + build.stderr);
 writeFileSync(out('crop-build.log'), build.stdout + build.stderr);
 const token = `crop-a11y-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-crop-a11y-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_FAKE_MODEL: '1', AEGIS_PORT: '0', AEGIS_TOKEN: token }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 host.stderr.on('data', bytes => process.stderr.write(bytes));
@@ -48,7 +48,12 @@ try {
             g.fillStyle = '#ededeb'; g.fillRect(150, 100, 260, 400); g.fillStyle = '#bd6b45'; g.beginPath(); g.arc(680, 300, 180, 0, Math.PI * 2); g.fill();
             return canvas.toDataURL().split(',')[1];
           }), 'base64');
-          await page.locator('#mediaFile').setInputFiles({ name: 'crop-fixture.png', mimeType: 'image/png', buffer });
+          const fixture = { name: 'crop-fixture.png', mimeType: 'image/png', buffer };
+          {
+            const picker = page.waitForEvent('filechooser');
+            await page.locator('[data-tool="import-image"]').dispatchEvent('click');
+            await (await picker).setFiles(fixture);
+          }
           await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'image'));
           const imageId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'image').id);
           await page.evaluate(id => new Promise(resolve => aegisCtx.apply([{ op: 'update', id, set: { props: { tagText: 'Two forms, one piece of evidence' } } }], resolve)), imageId);
@@ -72,7 +77,7 @@ try {
             await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
             await trigger.focus(); assert.equal(await active(), 'Crop'); await page.keyboard.press('Enter'); await dialog.waitFor();
             await page.waitForFunction(() => document.querySelector('.crop-frame > img')?.complete);
-            await page.waitForFunction(() => document.getElementById('crop-w')?.value === '1000' || Number(document.getElementById('crop-w')?.value) > 0);
+            await page.waitForFunction(() => { const width = document.querySelector('.crop-fields input[aria-label="Width"], #crop-w'); return width?.value === '1000' || Number(width?.value) > 0; });
             assert.equal(await active(), 'Crop area');
           };
           const saved = async () => {

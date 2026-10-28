@@ -2,6 +2,7 @@
 import { chromium, webkit } from './playwright.mjs';
 import { demoBatch } from '../demo-batch.mjs';
 import { choose } from './dropdown.mjs';
+import { assertStaticWindows, assertRealLinkEdges, assertFitBounds, readDiagramTopology } from './static-geometry.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -11,35 +12,12 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const output = join(repo, '.scratch/summary-truth/overview-model'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' }); assert.equal(build.status, 0, build.stdout + build.stderr);
 const data = mkdtempSync(join(tmpdir(), 'aegis-overview-model-')), token = `overview-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(repo, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 let browser, page; const results = [];
 const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-const measure = () => page.evaluate(() => {
-  const rect = el => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
-  return { view: { ...aegis.canvas.view }, area: aegis.canvas.availableArea, summaries: [...document.querySelectorAll('.semantic-window')].map(el => ({ id: el.dataset.cardId, ...rect(el), title: el.querySelector('strong').textContent, titlePx: parseFloat(getComputedStyle(el.querySelector('strong')).fontSize), labels: [...el.querySelectorAll('.semantic-kind, .semantic-fact, th, td')].map(n => parseFloat(getComputedStyle(n).fontSize)), iconColour: getComputedStyle(el.querySelector('svg')).stroke, muted: getComputedStyle(el).getPropertyValue('--muted').trim(), clipped: [...el.querySelectorAll('strong, .semantic-fact')].filter(n => n.scrollHeight > n.clientHeight + 1).map(n => n.textContent), contentHeight: el.firstElementChild.getBoundingClientRect().height })), island: rect(document.querySelector('#agentIsland .island-morph')), scroll: document.querySelector('.semantic-summaries').scrollHeight > document.querySelector('.semantic-summaries').clientHeight, representations: [...aegis.canvas.representations].map(([id, r]) => ({ id, ...r })) };
-});
-const verifyLayout = m => {
-  assert.equal(m.summaries.length, 9, JSON.stringify(m)); assert.equal(m.scroll, false);
-  const a = m.area;
-  for (const r of m.summaries) {
-    assert.ok(r.x >= a.x - .1 && r.y >= a.y - .1 && r.x + r.w <= a.x + a.w + .1 && r.y + r.h <= a.y + a.h + .1, `outside available area ${JSON.stringify(r)} ${JSON.stringify(a)}`);
-    assert.ok(r.y + r.h <= m.island.y - 24 + .1); assert.ok(r.w >= 220 && r.h >= 127.9);
-    assert.equal(r.titlePx, 14); assert.ok(r.labels.every(n => n >= 12)); assert.deepEqual(r.clipped, [], `clipped ${r.title}`); assert.ok(r.contentHeight <= r.h + .1);
-    for (const b of m.summaries) if (r !== b) assert.ok(r.x + r.w + 7.9 <= b.x || b.x + b.w + 7.9 <= r.x || r.y + r.h + 7.9 <= b.y || b.y + b.h + 7.9 <= r.y, `overlap ${r.title} / ${b.title}`);
-  }
-};
-const verifyLink = async () => {
-  const m = await page.evaluate(() => {
-    const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`);
-    const endpoint = (id, at) => { const r = aegis.canvas.representations.get(id); const p = path.getPointAtLength(at ? path.getTotalLength() : 0); return { r, p: { x: p.x, y: p.y } }; };
-    return { endpoints: [endpoint(link.a, false), endpoint(link.b, true)], stroke: parseFloat(getComputedStyle(path).strokeWidth), arrows: document.querySelectorAll('#links path:not([class])').length };
-  });
-  for (const { r, p } of m.endpoints) {
-    assert.ok(p.x >= r.x - .2 && p.x <= r.x + r.w + .2 && p.y >= r.y - .2 && p.y <= r.y + r.h + .2, JSON.stringify(m));
-    assert.ok(Math.min(Math.abs(p.x - r.x), Math.abs(p.x - r.x - r.w), Math.abs(p.y - r.y), Math.abs(p.y - r.y - r.h)) < .2, JSON.stringify(m));
-  }
-  assert.equal(m.stroke, m.endpoints.some(e => e.r.summary) ? 1 : 1.5); assert.ok(m.arrows >= 1); return m;
-};
+const measure = () => page.evaluate(() => ({ view: { ...aegis.canvas.view }, area: aegis.canvas.availableArea, rectangles: aegis.canvas.board.cards.map(c => { const r = aegis.canvas.representationRect(c.id); return { id: c.id, left: r?.left, top: r?.top, width: r?.width, height: r?.height }; }) }));
+const verifyLayout = () => assertFitBounds(page);
+const verifyLink = () => assertRealLinkEdges(page);
 async function verifySummaryTruth(name, width, theme) {
   const line = { style: 'line', basis: 'Fictional hours', x: { kind: 'category', label: 'Day' }, y: { format: 'number', label: 'Hours' }, series: [{ name: 'Focus', points: [{ x: 'Mon', y: 3 }, { x: 'Fri', y: 2 }] }] };
   const money = { format: 'money', currency: 'AUD' };
@@ -64,40 +42,39 @@ async function verifySummaryTruth(name, width, theme) {
     aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Summary truth fixtures' }));
     await new Promise(resolve => aegis.apply([...fixtures, { op: 'connect', a: 'truthsheet', b: 'truthline' }, { op: 'connect', a: 'truthdoc', b: 'truthsheet' }], resolve));
   }, fixtures);
-  await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
-  const summaries = page.locator('.semantic-summaries');
-  const card = id => summaries.locator(`[data-card-id="${id}"]`);
+  await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9);
+  const card = id => page.locator(`#world > .card[data-id="${id}"]`);
   const zoom = async z => { await page.evaluate(z => { aegis.canvas.select([]); aegis.canvas.setView({ x: 110, y: 80, z }); }, z); await settle(); };
   await zoom(.6);
-  await card('truthline').waitFor();
-  assert.equal(await card('truthline').locator('.semantic-headline').textContent(), '2');
-  const beforePath = await card('truthline').locator('.semantic-graphic path').getAttribute('d');
+  await card('truthline').locator('.line').waitFor();
+  assert.equal(await card('truthline').locator('.values tbody tr:last-child td').textContent(), '2');
+  const beforePath = await card('truthline').locator('.line').getAttribute('d');
   const donut = card('truthdonut');
-  assert.equal(await donut.locator('.semantic-headline').textContent(), '100 customers');
-  assert.match(await donut.textContent(), /3 segments/);
-  assert.equal(await donut.locator('.semantic-graphic path, .semantic-graphic polyline').count(), 0);
-  const shares = await donut.locator('.semantic-graphic rect').evaluateAll(nodes => nodes.map(n => +n.getAttribute('width') / 96));
-  shares.forEach((share, i) => assert.ok(Math.abs(share - [.7, .2, .1][i]) < 1e-6));
-  assert.equal(await card('truthbars').locator('.semantic-graphic rect').count(), 2);
-  assert.equal(await card('truthbars').locator('.semantic-graphic path').count(), 0);
+  assert.equal(await donut.locator('.round .total').textContent(), '100 customers');
+  assert.equal(await donut.locator('.slice').count(), 3);
+  assert.deepEqual(await donut.locator('.chart-legend .share').allTextContents(), ['70%', '20%', '10%']);
+  assert.equal(await donut.locator('.line, .bar').count(), 0);
+  await card('truthbars').locator('.bar').first().waitFor();
+  assert.equal(await card('truthbars').locator('.bar').count(), 2);
+  assert.equal(await card('truthbars').locator('.line').count(), 0);
   const multi = card('truthmulti');
-  assert.equal(await multi.locator('.semantic-graphic g').count(), 2);
-  const values = await multi.locator('.semantic-series').allTextContents();
-  assert.ok(values[0].includes('Revenue') && values[0].includes(moneyText[0]), JSON.stringify(values));
-  assert.ok(values[1].includes('Support cost') && values[1].includes(moneyText[1]), JSON.stringify(values));
-  assert.match(await multi.locator('.semantic-kind').textContent(), /2 series/);
-  assert.equal(await card('truthmany').locator('.semantic-series').count(), 3);
-  assert.match(await card('truthmany').locator('.semantic-kind').textContent(), /5 series.*\+2/);
-  const topology = await card('truthbranch').locator('.semantic-graphic').evaluate(svg => ({ label: svg.getAttribute('aria-label'), names: [...svg.querySelectorAll('text')].map(n => n.textContent), edges: [...svg.querySelectorAll('path')].map(n => [Number(n.dataset.from), Number(n.dataset.to)]) }));
-  assert.deepEqual(topology.edges, [[2, 3], [2, 0], [3, 1], [0, 1]]);
-  assert.match(topology.label, /Intake to Design, Intake to Data, Design to Approve, Data to Approve/);
-  assert.doesNotMatch(topology.label, /Design to Data/);
-  assert.equal(await card('truthcomplex').locator('.semantic-graphic').count(), 0);
-  assert.match(await card('truthcomplex').textContent(), /6 nodes · 3 connections/);
-  assert.deepEqual(await card('truthsheet').locator('th').allTextContents(), ['Day', 'Focus (h)', 'Revenue (AUD)']);
+  assert.equal(await multi.locator('.line').count(), 2);
+  const values = await multi.locator('.values tbody tr:last-child td').allTextContents();
+  assert.ok(values[0].includes(moneyText[0]), JSON.stringify(values));
+  assert.ok(values[1].includes(moneyText[1]), JSON.stringify(values));
+  assert.match(await multi.locator('.values').textContent(), /Revenue.*Support cost/);
+  await card('truthmany').locator('.line').first().waitFor();
+  assert.equal(await card('truthmany').locator('.line').count(), 5, 'all five real series remain in the chart');
+  assert.match(await card('truthmany').textContent(), /Measure 5/);
+  const topology = await readDiagramTopology(card('truthbranch'));
+  assert.deepEqual(topology.names, ['Data', 'Approve', 'Intake', 'Design']);
+  assert.deepEqual(topology.edges, [[2, 3], [2, 0], [3, 1], [0, 1]], 'real branching edges retain their topology');
+  await card('truthcomplex').locator('.node').first().waitFor();
+  assert.equal(await card('truthcomplex').locator('.node').count(), 6);
+  assert.equal(await card('truthcomplex').locator('.flow').count(), 3);
+  assert.deepEqual((await card('truthsheet').locator('.sheet thead tr:last-child th:not(.rn)').allTextContents()).map(text => text.trim()), ['Day', 'Focus (h)', 'Revenue']);
   assert.ok((await card('truthsheet').locator('td').allTextContents()).includes(moneyText[2]));
-  const layout = await summaries.locator('.semantic-window').evaluateAll(nodes => nodes.map(n => ({ id: n.dataset.cardId, height: n.getBoundingClientRect().height, content: n.firstElementChild.getBoundingClientRect().height, clipped: [...n.querySelectorAll('strong, .semantic-fact, .semantic-headline, .semantic-series > span')].filter(el => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1).map(el => el.textContent) })));
-  for (const r of layout) { assert.ok(r.content <= r.height, JSON.stringify(r)); assert.deepEqual(r.clipped, [], JSON.stringify(r)); }
+  const layout = await assertStaticWindows(page);
   await page.screenshot({ path: join(output, `${name}-${width}-${theme}-truth.png`) });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: 'truthsheet', keyboard: true } })));
   await page.locator('.sheet-editor').waitFor();
@@ -112,15 +89,15 @@ async function verifySummaryTruth(name, width, theme) {
   await page.screenshot({ path: join(output, `${name}-${width}-${theme}-live-nine.png`) });
   await page.locator('.side-editor [data-close]').click(); await page.locator('.side-editor').waitFor({ state: 'detached' });
   await zoom(.6);
-  assert.equal(await card('truthline').locator('.semantic-headline').textContent(), '9');
-  assert.notEqual(await card('truthline').locator('.semantic-graphic path').getAttribute('d'), beforePath);
+  assert.equal(await card('truthline').locator('.values tbody tr:last-child td').textContent(), '9');
+  assert.notEqual(await card('truthline').locator('.line').getAttribute('d'), beforePath);
   await zoom(1);
   await page.waitForFunction(() => document.querySelector('#world [data-id="truthline"] .values tbody tr:last-child td')?.textContent === '9');
   const saved = await page.evaluate(async () => { const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); aegis.canvas.setBoard(saved); return saved; });
   assert.equal(saved.cards.find(c => c.id === 'truthsheet').data.rows[1].cells[1], '9');
   assert.equal(saved.cards.find(c => c.id === 'truthline').data.series[0].points[1].y, 2, 'the stale fallback is deliberately unchanged');
   await zoom(.6);
-  assert.equal(await card('truthline').locator('.semantic-headline').textContent(), '9');
+  assert.equal(await card('truthline').locator('.values tbody tr:last-child td').textContent(), '9');
   await page.screenshot({ path: join(output, `${name}-${width}-${theme}-saved-nine.png`) });
   await page.evaluate(() => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: 'truthdoc', keyboard: true } })));
   await page.locator('.docs-panel').waitFor(); await page.locator('.editor-reference-table').waitFor();
@@ -133,11 +110,12 @@ async function verifySummaryTruth(name, width, theme) {
   assert.ok((await page.locator('.editor-reference-table td').allTextContents()).includes(moneyText[3]));
   await page.screenshot({ path: join(output, `${name}-${width}-${theme}-table-units.png`) });
   await page.locator('.side-editor [data-close]').click(); await page.locator('.side-editor').waitFor({ state: 'detached' });
-  // Unsupported diagrams keep honest counts; gaps and an explicit extra-series count survive cluster view too.
+  // A far camera retains the same data and original diagram DOM.
   await page.evaluate(() => aegis.canvas.setView({ x: 110, y: 80, z: .05 })); await settle();
-  assert.ok(await page.locator('.overview-members').count());
+  await assertStaticWindows(page);
+  assert.equal(await card('truthcomplex').locator('.node').count(), 6);
   await page.evaluate(() => aegis.canvas.setView({ x: 110, y: 80, z: .6 })); await settle();
-  assert.equal(await card('truthline').locator('.semantic-headline').textContent(), '9');
+  assert.equal(await card('truthline').locator('.values tbody tr:last-child td').textContent(), '9');
   return { topology, layout, values, savedEnding: 9 };
 }
 try {
@@ -150,71 +128,81 @@ try {
       await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async batch => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Overview model' })); aegis.apply(batch); }, demoBatch);
-      await page.waitForFunction(() => aegis.canvas.board.cards.length === 9); await page.waitForTimeout(700);
+      await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9); await page.waitForTimeout(700);
       await page.evaluate(() => { const [doc, plot] = ['doc', 'plot'].map(type => aegis.canvas.board.cards.find(c => c.type === type || c.kind === type)); aegis.apply([{ op: 'connect', newId: 'overviewlink', a: doc.id, b: plot.id, }, { op: 'link_update', id: 'overviewlink', set: { arrow: 'end' } }]); });
       await page.waitForTimeout(150); await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await settle();
-      await page.waitForFunction(() => document.querySelector('.semantic-summaries .semantic-plot svg')?.getBoundingClientRect().width > 95);
-      const fit = await measure(); verifyLayout(fit); const link = await verifyLink();
-      const previews = await page.evaluate(() => {
-        const graph = document.querySelector('.semantic-summaries .semantic-plot svg').getBoundingClientRect();
-        return { graph: { w: graph.width, h: graph.height }, metric: parseFloat(getComputedStyle(document.querySelector('.semantic-metric')).fontSize), progress: document.querySelector('.semantic-track').getBoundingClientRect().height, headers: document.querySelectorAll('.semantic-table th').length, cells: document.querySelectorAll('.semantic-table td').length, slides: document.querySelectorAll('.semantic-deck .deck-slide').length };
-      });
-      assert.deepEqual(previews, { graph: { w: 96, h: 28 }, metric: 24, progress: 6, headers: 3, cells: 6, slides: 1 });
-      assert.match(await page.locator('.semantic-progress').textContent(), /Mornings protected.*Weekly review/);
-      assert.match(await page.locator('.semantic-summaries').textContent(), /Protect two quiet blocks/);
-      assert.match(await page.locator('.semantic-summaries .semantic-plot').textContent(), /2.*Fri.*Hours/);
-      const neutral = await page.locator('.semantic-content > svg').evaluateAll(nodes => nodes.every(n => { const probe = document.createElement('span'); probe.style.color = 'var(--muted)'; n.parentElement.append(probe); const expected = getComputedStyle(probe).color; probe.remove(); return getComputedStyle(n).stroke === expected; })); assert.ok(neutral);
+      await page.waitForFunction(() => [...document.querySelectorAll('.card.object, .card.doc')].every(el => el.dataset.intrinsicHeight && Math.abs(aegis.canvas.board.cards.find(c => c.id === el.dataset.id).h - Number(el.dataset.intrinsicHeight)) <= 1));
+      await page.waitForTimeout(350); await page.evaluate(() => aegis.canvas.fit()); await settle();
+      const fit = await measure(); await verifyLayout(); const link = await verifyLink();
+      const previews = {
+        series: await page.locator('.card.kind-plot .line').count(),
+        headers: await page.locator('.card.kind-sheet .sheet thead tr:last-child th:not(.rn)').count(),
+        cells: await page.locator('.card.kind-sheet .sheet td').count(),
+        slides: await page.locator('.card.deck .deck-main .deck-slide').count(),
+      };
+      assert.deepEqual(previews, { series: 1, headers: 3, cells: 15, slides: 1 });
+      assert.match(await page.locator('.card.kind-progress').textContent(), /Mornings protected.*Weekly review/);
+      assert.match(await page.locator('.card.doc').textContent(), /Protect two quiet blocks/);
+      assert.match(await page.locator('.card.kind-plot .cartesian svg').getAttribute('aria-label'), /Hours/);
       await page.locator('#toast').waitFor({ state: 'hidden' });
       await page.screenshot({ path: join(output, `${name}-${width}-${theme}-fit.png`) });
       const docId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'doc').id);
-      await page.locator(`.semantic-window[data-card-id="${docId}"]`).press('Enter'); await settle();
+      await page.evaluate(id => { aegis.canvas.select([id]); document.getElementById('stage').focus(); }, docId); await settle();
+      const action = page.locator(`.window-actions [data-window-action="${docId}"]`); await action.focus();
+      const focus = await action.evaluate(el => ({ id: el.dataset.windowAction, h: el.getBoundingClientRect().height, z: aegis.canvas.view.z }));
+      assert.equal(focus.id, docId); assert.ok(focus.h >= 32);
+      const camera = await page.evaluate(() => ({ ...aegis.canvas.view }));
+      await page.keyboard.press('Enter'); await page.locator('.docs-panel').waitFor(); await page.keyboard.press('Escape'); await page.locator('.docs-panel').waitFor({ state: 'detached' }); await settle();
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [docId]);
-      const focus = await page.evaluate(() => ({ id: document.activeElement.dataset.windowAction || document.activeElement.dataset.id, h: document.activeElement.getBoundingClientRect().height, z: aegis.canvas.view.z }));
-      assert.equal(focus.id, docId); assert.ok(focus.h >= 32); assert.ok(focus.z >= 1, JSON.stringify(focus));
-      await page.keyboard.press('Enter'); await page.locator('.docs-panel').waitFor(); await page.keyboard.press('Escape'); await page.locator('.docs-panel').waitFor({ state: 'detached' });
-      assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [docId]);
-      await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await settle();
-      await page.locator(`.semantic-window[data-card-id="${docId}"]`).click(); await settle(); assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [docId]);
+      assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), camera);
+      await page.locator(`.card[data-id="${docId}"] .win-strip`).click(); await settle(); assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [docId]);
       const transitions = [];
-      for (const z of [.69, .71, .77, .85, .99, 1, 1.2, .77]) {
+      for (const z of [.3, .5, .75, 1, 2]) {
+        await page.setViewportSize({ width: 5600, height: 4400 });
         await page.evaluate(z => aegis.canvas.setView({ x: 200, y: 100, z }), z); await settle();
-        const measured = await page.evaluate(() => ['plot', 'sheet'].map(kind => { const card = aegis.canvas.board.cards.find(c => c.kind === kind), el = document.querySelector(`.card[data-id="${card.id}"]`); return { kind, summary: aegis.canvas.representations.get(card.id).summary, inert: el.inert, labels: [...el.querySelectorAll('.tick, .sheet thead th, .sheet .note')].map(n => parseFloat(getComputedStyle(n).fontSize) * aegis.canvas.view.z) }; }));
-        for (const r of measured) { assert.equal(r.summary, z < 1); assert.equal(r.inert, z < 1); if (!r.summary) assert.ok(r.labels.length && r.labels.every(px => px >= 12 - .01), JSON.stringify(r)); }
+        const measured = await assertStaticWindows(page);
         transitions.push({ z, measured, link: await verifyLink() });
       }
+      await page.setViewportSize({ width, height });
       await page.emulateMedia({ reducedMotion: 'no-preference' });
       const motion = await page.evaluate(async () => {
         const stage = document.getElementById('stage'), frames = [];
         const check = () => {
-          const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`);
-          if (!path) return;
+          const link = aegis.canvas.board.links[0], path = document.querySelector(`[data-link-line="${link.id}"]`), canvas = document.querySelector('.scene-overlay');
+          const route = aegis.canvas.engine?.linkGeometry().find(entry => entry.id === link.id)?.route;
+          const stroke = route && canvas?.linkPaint.find(stroke => stroke.commands[0]?.method === 'moveTo' && Math.hypot(stroke.commands[0].args[0] - route.p0.x, stroke.commands[0].args[1] - route.p0.y) < .01 && Math.hypot(stroke.commands.at(-1).args.at(-2) - route.p2.x, stroke.commands.at(-1).args.at(-1) - route.p2.y) < .01);
+          if (!path && !stroke) return;
           const endpoints = [link.a, link.b].map((id, i) => {
-            const model = aegis.canvas.representations.get(id);
-            const el = document.querySelector(model.summary ? `.semantic-window[data-card-id="${id}"]` : `.card[data-id="${id}"]`);
-            if (!el) return Infinity;
-            const r = el.getBoundingClientRect(), p = path.getPointAtLength(i ? path.getTotalLength() : 0);
+            const el = document.querySelector(`.card[data-id="${id}"]`);
+            const card = aegis.canvas.board.cards.find(card => card.id === id), v = aegis.canvas.view;
+            const projected = { left: card.x * v.z + v.x, top: card.y * v.z + v.y, right: (card.x + card.w) * v.z + v.x, bottom: (card.y + card.h) * v.z + v.y };
+            const onScreen = projected.left < innerWidth && projected.right > 0 && projected.top < innerHeight && projected.bottom > 0;
+            if (onScreen && (!el || el.hidden)) return Infinity;
+            const command = stroke?.commands[i ? stroke.commands.length - 1 : 0];
+            const r = el && !el.hidden ? el.getBoundingClientRect() : projected, p = command ? { x: command.args.at(-2), y: command.args.at(-1) } : path.getPointAtLength(i ? path.getTotalLength() : 0);
             return Math.min(Math.abs(p.x - r.left), Math.abs(p.x - r.right), Math.abs(p.y - r.top), Math.abs(p.y - r.bottom));
           });
           frames.push({ z: aegis.canvas.view.z, endpoints });
         };
-        stage.addEventListener('canvaspaint', check);
+        const release = aegis.canvas.engine?.registerFrameParticipant({ write: check });
+        if (!release) stage.addEventListener('canvaspaint', check);
         await new Promise(resolve => aegis.canvas.glideTo({ x: 200, y: 100, z: 1.2 }, 420, resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve)); stage.removeEventListener('canvaspaint', check); return frames;
+        await new Promise(resolve => requestAnimationFrame(resolve)); release?.(); stage.removeEventListener('canvaspaint', check); return frames;
       });
       assert.ok(motion.length >= 5); assert.ok(motion.every(f => f.endpoints.every(d => d < .3)), JSON.stringify(motion));
       await page.emulateMedia({ reducedMotion: 'reduce' });
-      // A deliberate collision must move the summaries and their connected endpoints together.
+      // A deliberate collision stays at the saved position and its endpoints follow the real edges.
       await page.evaluate(() => { const cards = aegis.canvas.board.cards; aegis.apply(cards.slice(0, 3).map(c => ({ op: 'update', id: c.id, set: { x: 40, y: 40 } }))); }); await page.waitForTimeout(150);
       await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); }); await settle();
-      const collision = await measure(); verifyLayout(collision); await verifyLink();
+      const collision = await measure(); await verifyLayout(); await verifyLink();
       await page.screenshot({ path: join(output, `${name}-${width}-${theme}-collision.png`) });
       // Fit reserves the actual expanded island, including its current conversation height.
       await page.locator('#askPill').click(); await page.waitForTimeout(300); await page.evaluate(() => aegis.canvas.fit()); await settle();
-      const island = await measure(); verifyLayout(island); await page.screenshot({ path: join(output, `${name}-${width}-${theme}-island.png`) });
+      const island = await measure(); await verifyLayout(); await page.screenshot({ path: join(output, `${name}-${width}-${theme}-island.png`) });
       assert.deepEqual(errors, []); results.push({ engine: name, width, height, theme, fit, link, previews, focus, transitions, motion, collision, island });
       const truth = await verifySummaryTruth(name, width, theme); results.at(-1).truth = truth;
       assert.deepEqual(errors, []);
-      console.log(`PASS ${name} ${width}x${height} ${theme}: Fit, gaps, measured island, representations, links, keyboard, type previews, minimum detail text`);
+      console.log(`PASS ${name} ${width}x${height} ${theme}: Fit, measured island, real rectangles, links, keyboard, full content, scaled charts and sheets`);
       await page.close(); page = null;
     }
     await browser.close(); browser = null;

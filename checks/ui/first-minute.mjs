@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = 'first-minute-' + process.pid, data = mkdtempSync(join(tmpdir(), 'aegis-first-minute-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 const port = await new Promise((resolve, reject) => {
   let output = ''; host.stdout.on('data', d => { output += d; const m = /"port":(\d+)/.exec(output); if (m) resolve(m[1]); });
   host.stderr.on('data', d => process.stderr.write(d)); host.on('exit', code => reject(Error('Host exited ' + code)));
@@ -74,20 +74,13 @@ try {
       await page.waitForFunction(() => document.querySelectorAll('.card').length === 9);
       await page.screenshot({ path: out(`first-minute-demo-${engineName}-${viewport.width}.png`) });
       check(`${engineName} ${viewport.width}: weekly intent follows the composer submit path and fake agent delivers demo-batch`);
-      // A bookmarked working view survives a trip to 5%, cluster focus and a single return.
-      const working = await page.evaluate(() => { const view = { x: 260, y: 160, z: .8 }; aegis.canvas.setView(view); return view; });
+      await page.evaluate(() => aegis.canvas.setView({ x: 80, y: 160, z: .05 }));
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-      await page.evaluate(() => aegis.canvas.setView({ x: innerWidth / 2 - 40, y: innerHeight / 2 - 30, z: .05 }));
-      await page.locator('.overview-cluster:not([hidden])').first().waitFor();
-      assert.match(await page.locator('.overview-cluster').first().textContent(), /9 windows/);
-      assert.ok(await page.locator('.overview-cluster strong').first().evaluate(el => parseFloat(getComputedStyle(el).fontSize) >= 14));
-      await page.mouse.move(viewport.width / 2, 700);
-      await page.screenshot({ path: out(`first-minute-overview-${engineName}-${viewport.width}.png`) });
-      await page.locator('.overview-cluster').first().click();
-      await page.waitForFunction(() => aegis.canvas.view.z >= .2);
-      await page.getByRole('button', { name: 'Back to where you were', exact: true }).click();
-      assert.deepEqual(await page.evaluate(() => ({ ...aegis.canvas.view })), working);
-      check(`${engineName} ${viewport.width}: idle 5% overview has readable names, counts, cluster framing and an exact return`);
+      assert.equal(await page.locator('.overview-cluster, .overview-members, .overview-back').count(), 0);
+      assert.equal(await page.locator('#world > .card').count(), 9);
+      assert.ok(await page.locator('#world > .card').evaluateAll(nodes => nodes.every(el => !el.inert && getComputedStyle(el).opacity === '1')));
+      await page.screenshot({ path: out(`first-minute-far-${engineName}-${viewport.width}.png`) });
+      check(`${engineName} ${viewport.width}: 5% zoom keeps original windows and has no cluster or return button`);
       await page.locator('#stage').focus(); await page.keyboard.press('?');
       await page.getByRole('dialog', { name: 'Keyboard shortcuts', exact: true }).waitFor();
       assert.ok(await page.locator('.shortcuts-sheet dt').count() > 35);
@@ -120,7 +113,7 @@ try {
       assert.equal(await page.locator('.onboarding').isVisible(), false);
       check(`${engineName} ${viewport.width}: three-step task saves a thought, asks through the composer and frames the real result`);
       await page.evaluate(async () => {
-        const board = await aegis.host.post('/boards', { name: 'Named clusters' }); aegis.canvas.setBoard(board);
+        const board = await aegis.host.post('/boards', { name: 'Named clusters' }); if (typeof aegis.flush === 'function') await aegis.flush(); aegis.canvas.setBoard(board);
         aegis.apply([
           { op: 'create', type: 'title', newId: 'discover', text: 'Discover', x: 0, y: 0 },
           { op: 'create', type: 'doc', newId: 'insights', text: 'Interview notes', x: 0, y: 100 },
@@ -131,14 +124,15 @@ try {
         ]);
         aegis.canvas.setView({ x: 420, y: 320, z: .05 });
       });
-      await page.waitForFunction(() => document.querySelectorAll('.overview-cluster:not([hidden])').length === 2);
-      const cluster = page.getByRole('button', { name: 'Frame Discover, 1 window', exact: true });
-      assert.equal(await page.getByRole('button', { name: 'Frame Decide, 1 window', exact: true }).count(), 1);
-      assert.equal(await page.locator('.overview-cluster').filter({ hasText: 'Private' }).count(), 0);
-      await page.screenshot({ path: out(`first-minute-clusters-${engineName}-${viewport.width}.png`) });
-      await cluster.focus(); await page.keyboard.press('Enter');
-      assert.ok(await page.evaluate(() => aegis.canvas.view.z >= .2));
-      check(`${engineName} ${viewport.width}: named clusters count their own windows, hide private descendants and frame with Enter`);
+      await page.evaluate(() => aegis.canvas.setView({ x: 30, y: 150, z: .05 }));
+      await page.waitForFunction(() => document.querySelectorAll('#world > .card[data-id]').length === 4);
+      assert.ok(await page.locator('#world > .card:not([data-id])').evaluateAll(nodes => nodes.every(el => el.hidden && el.inert)), 'spare scene shells remain hidden, inert and without a window identity');
+      assert.equal(await page.locator('.card[data-id="privatework"], .card[data-id="privategroup"]').count(), 0);
+      assert.equal(await page.locator('.card[data-id="discover"] .body').textContent(), 'Discover');
+      assert.equal(await page.locator('.card[data-id="decide"] .body').textContent(), 'Decide');
+      assert.equal(await page.locator('.overview-cluster').count(), 0);
+      await page.screenshot({ path: out(`first-minute-static-${engineName}-${viewport.width}.png`) });
+      check(`${engineName} ${viewport.width}: real headings and windows retain their positions and private descendants stay hidden`);
 
       assert.deepEqual(errors, []); await page.close();
     }

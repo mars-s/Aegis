@@ -2,7 +2,7 @@
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { waitForAsync } from './poll.mjs';
-import { codexMcpClient } from '../mcp/codex-client.mjs';
+import { codexMcpClient } from '../mcp/codex-client.ts';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -15,7 +15,7 @@ import { StdioClientTransport } from '../../agent/node_modules/@modelcontextprot
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const data = await mkdtemp(join(tmpdir(), 'aegis-mcp-ui-'));
 const token = `mcp-ui-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_UI: repo + '/app/dist',
 }, stdio: ['pipe', 'pipe', 'pipe'] });
 let hostErrors = '';
@@ -65,7 +65,12 @@ try {
     }
     throw new Error('Board did not settle after five reads.');
   };
-  await page.locator('#mediaFile').setInputFiles([repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx']);
+  const imports = [repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx'];
+  {
+    const picker = page.waitForEvent('filechooser');
+    await page.locator('[data-tool="import-image"]').dispatchEvent('click');
+    await (await picker).setFiles(imports);
+  }
   await waitForAsync(page, async () => {
     const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
     return saved.cards.filter(c => c.props?.import).length === 2;
@@ -111,7 +116,7 @@ try {
   await page.locator('.docs-prose').click();
   await page.locator('.docs-prose').press('ControlOrMeta+End');
   await page.keyboard.type(' Added by hand.');
-  await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved');
+  await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved');
   const edited = await call('card_read', { boardId, cardId: doc.cardId });
   assert.match(edited.content, /Added by hand/);
   await edit('document_write', { cardId: doc.cardId, body: '## Updated notes\nRevision from the external session.' });

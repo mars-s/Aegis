@@ -1,0 +1,11 @@
+--- a/agent/package.json
++++ b/agent/package.json
+@@ -8,7 +8,7 @@
+   },
+   "scripts": {
+     "start": "node dist/main.js",
+-    "check": "node --test checks/*.test.mjs",
++    "check": "node --test ../checks/host/*.test.ts",
+     "build": "tsc -p tsconfig.json"
+   },
+   "dependencies": {

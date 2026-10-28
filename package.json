@@ -2,12 +2,42 @@
   "name": "aegis",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "app",
+    "agent",
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "scripts": {
-    "dev": "npx --yes @tauri-apps/cli@2.12.4 dev",
-    "build": "npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
-    "check": "npm --prefix agent run check && npm --prefix app run check",
+    "dev": "npm run build:shared && npx --yes @tauri-apps/cli@2.12.4 dev",
+    "build": "npm run stage:runtime && npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
+    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check",
+    "check:safe-types": "node scripts/check-safe-types.ts",
+    "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json && tsc --noEmit -p checks/host/tsconfig.json",
+    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit checks/host checks/mcp checks/perf agent/src app/src vitest.config.ts",
+    "check:unit": "vitest run",
     "ui": "npm --prefix app run dev",
     "check:ui": "node checks/ui/run.mjs",
-    "bench": "node checks/ui/bench.mjs"
+    "bench": "node scripts/run-bench.ts",
+    "build:shared": "tsc -p packages/domain/tsconfig.json && tsc -p packages/protocol/tsconfig.json && tsc -p agent/tsconfig.json && tsc -p packages/scene/tsconfig.json && tsc -p packages/host-client/tsconfig.json",
+    "stage:runtime": "npm run build:shared && node scripts/stage-runtime.ts",
+    "check:runtime": "npm run stage:runtime && node scripts/check-staged-runtime.ts",
+    "check:dependencies": "npm ls --workspaces --depth=0",
+    "check:react": "node scripts/check-react.ts",
+    "bench:react": "node scripts/bench-react.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.0",
+    "@types/rbush": "4.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "oxc-parser": "0.95.0",
+    "oxlint": "1.89.0",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5",
+    "zod": "4.6.7",
+    "playwright": "1.60.0"
   }
 }

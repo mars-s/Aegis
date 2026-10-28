@@ -1,0 +1,11 @@
+# Data and charts
+
+React card registrations are `dataCards` and `dataEditors` in `registrations.tsx`. The composition owner adds them to the app. `dataEditors` takes the host client's `assetUrl` capability. CSV import takes `upload` separately, plus an AbortSignal and the destination workspace. No data component opens its own host connection or uses the test facade.
+
+`importDataset` runs parsing and profiling in an import worker, uploads the original file, then submits one dataset create command. Cancellation or any board replacement aborts the import, including a switch away and back to the same board. A late upload cannot create a card after that replacement. The dataset viewer owns one worker per source view, validates structured-clone messages and ignores stale epochs and row requests. It virtualises both rows and columns. Canvas previews are capped at the original 40 rows.
+
+Sheets use workspace commands for cells, column types, structure and sorting. `sheetSession` retains the selection, scroll and unfinished text independently of the view lease. `flushSheet` is the editor registration's synchronous close guard. If the same cell changed while a person was typing, the draft remains available and the editor refuses to close. Changes to other cells remain intact. Saving and Retry come from the workspace's real save source.
+
+Charts use `@aegis/domain/chart-source` for live bindings and saved snapshots. React never writes derived snapshots. `useChartCards` shares one payload subscription per workspace and ignores geometry-only changes. `useBox` observes layout changes only. Canvas chart text and points scale with the camera, without a second frame loop or camera-driven React state. The canvas engine keeps ownership of card geometry and leases.
+
+`app/src/charts/index.tsx` exports the chart renderers. `DeckChart` accepts the typed workspace, chart model, optional deck/slide identities and source chooser. Its `presentationHeight` is the screen height of the containing slide fit, and `viewScale` describes the slide fit alone. It excludes the canvas camera. The deck owner supplies both to size labels and points for the containing slide. All chart code adapted from Zephium retains MPL-2.0 notices.

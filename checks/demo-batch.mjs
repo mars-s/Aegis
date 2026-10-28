@@ -36,7 +36,7 @@ async function checkDemo() {
     child.once('exit', code => { clearTimeout(timer); reject(new Error(`Server exited ${code}: ${output}`)); });
   });
   try {
-    host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: join(root, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+    host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(root, 'agent'), env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
     const port = await ready(host);
     web = spawn('npx', ['vite', '--port', String(webPort), '--strictPort'], { cwd: join(root, 'app') }); await ready(web);
     browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1586, height: 992 }, reducedMotion: 'reduce' });

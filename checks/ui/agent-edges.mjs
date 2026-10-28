@@ -39,7 +39,7 @@ const stickyProvider = async menu => {
 };
 
 try {
-  host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-edges-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'] });
   host.stderr.on('data', data => process.stderr.write(data));
   const port = await ready(host, /"port":(\d+)/);
   vite = spawn('npx', ['vite', '--port', String(vitePort), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
@@ -163,6 +163,14 @@ try {
     await page.waitForFunction(() => document.querySelectorAll('.agent-edge[data-agent-id]:not([hidden])').length > 0 || document.querySelector('.agent-edge-cluster:not([hidden])'));
     await page.waitForTimeout(100);
   };
+  await panAway();
+  const stableAgentWidths = await page.locator('.agent-window:not([hidden])').evaluateAll(nodes => nodes.map(el => el.getBoundingClientRect().width));
+  for (const z of [.3, .5, .75, 1, 2]) {
+    await page.evaluate(z => aegis.canvas.setView({ x: 0, y: 0, z }), z);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.deepEqual(await page.locator('.agent-window:not([hidden])').evaluateAll(nodes => nodes.map(el => el.getBoundingClientRect().width)), stableAgentWidths, 'real agent chrome stays screen-sized at every camera scale');
+    assert.equal(await page.locator('.agent-zoom-summary').count(), 0);
+  }
   await panAway();
   const cues = await page.locator('.agent-edge[data-agent-id]:visible').evaluateAll(nodes => nodes.map(el => { const r = el.getBoundingClientRect(); return { id: el.dataset.agentId, x: r.x, y: r.y, w: r.width, h: r.height, hit: document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest('[data-agent-id]')?.dataset.agentId }; }));
   observations.threeCues = cues;

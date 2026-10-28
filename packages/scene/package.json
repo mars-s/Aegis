@@ -1,0 +1,32 @@
+{
+  "name": "@aegis/scene",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./layout": {
+      "types": "./dist/representations.d.ts",
+      "default": "./dist/representations.js"
+    },
+    "./links": {
+      "types": "./dist/links.d.ts",
+      "default": "./dist/links.js"
+    },
+    "./geometry": {
+      "types": "./dist/geometry.d.ts",
+      "default": "./dist/geometry.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.check.json"
+  },
+  "dependencies": {
+    "@aegis/domain": "*",
+    "rbush": "4.0.1"
+  }
+}

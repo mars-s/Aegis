@@ -1,3 +1,4 @@
+import {viteModule} from '../support/ui-snapshot.ts';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
@@ -10,10 +11,10 @@ import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'wireframe-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-wireframe-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((r, reject) => { const timer = setTimeout(() => reject(Error('host startup timeout')), 20000); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) { clearTimeout(timer); r(m[1]); } }); });
-writeFileSync(out('wireframe-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5184 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
+writeFileSync(out('wireframe-vite.mjs'), `import { createServer } from ${JSON.stringify(viteModule(repo))}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo, realpathSync(repo)])} }, host: '127.0.0.1', port: ${5184 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
 const vite = spawn(process.execPath, [out('wireframe-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
@@ -23,9 +24,17 @@ const log = (...args) => console.log(...args);
 const panel = page.locator('.wf-design');
 const snapshot = () => page.evaluate(() => structuredClone(aegis.canvas.board));
 const point = (x, y) => page.evaluate(([x, y]) => aegis.canvas.worldToScreen(x, y), [x, y]);
-async function clickAt(x, y) { const p = await point(x, y); await page.mouse.click(p.x, p.y); }
+async function clickAt(x, y) {
+  const p = await point(x, y); await page.mouse.click(p.x, p.y);
+  await page.evaluate(() => {
+    window.__wireframeInputComplete = false;
+    const engine = aegis.canvas.engine;
+    const off = engine.registerFrameParticipant({ write: () => { off(); engine.afterInput(() => { window.__wireframeInputComplete = true; }); } });
+  });
+  await page.waitForFunction(() => window.__wireframeInputComplete);
+}
 async function select(id) { await page.evaluate(id => aegis.canvas.select([id]), id); await page.waitForTimeout(260); }
-async function prop(name, value) { const input = panel.getByLabel(name, { exact: true }); await input.fill(String(value)); await input.press('Tab'); await panel.locator('.wf-panel-head strong').click(); await page.waitForTimeout(260); }
+async function prop(name, value) { const input = panel.getByLabel(name, { exact: true }); if (await input.evaluate(element => element instanceof HTMLButtonElement)) { await input.click(); const editor = page.getByRole('dialog', { name: 'Colour editor', exact: true }); await editor.getByLabel('Hex', { exact: true }).fill(String(value)); await editor.getByRole('button', { name: 'Done', exact: true }).click(); } else { await input.fill(String(value)); await input.press('Tab'); } await panel.locator('.wf-panel-head strong').click(); await page.waitForTimeout(260); }
 async function drag(x, y, dx, dy, guideScreenshot) {
   const start = await point(x, y), end = await point(x + dx, y + dy);
   await page.mouse.move(start.x, start.y); await page.mouse.down(); await page.mouse.move(end.x, end.y, { steps: 12 });
@@ -75,6 +84,7 @@ try {
   // Search and swap real bundled Material Icons.
   await panel.locator('[data-wf="icon"]').click(); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('settings');
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="settings"]').click(); await clickAt(330, 125);
+  await page.locator('.card[data-type="icon"] .wf-icon').filter({ hasText: 'settings' }).waitFor();
   let icon = (await snapshot()).cards.find(c => c.type === 'icon' && c.props.name === 'settings'); assert.ok(icon);
   await select(icon.id); await panel.getByRole('button', { name: 'Change icon', exact: true }).click();
   await page.getByRole('dialog', { name: 'Choose icon', exact: true }).getByLabel('Search icons', { exact: true }).fill('favorite border'); await page.getByRole('dialog', { name: 'Choose icon', exact: true }).locator('[data-icon="favorite_border"]').click();

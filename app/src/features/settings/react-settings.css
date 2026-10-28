@@ -1,0 +1,27 @@
+#settings.aegis-feature { background: var(--card); color: var(--text); border: 1px solid var(--line-strong); border-radius: var(--radius-dialog); }
+#settings.aegis-feature::backdrop { background: rgb(0 0 0 / .45); }
+#settings .sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; }
+#settings h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; font-weight: 500; }
+#settings h3 { font-size: 14px; font-weight: 500; margin: 20px 0 12px; }
+#settings .settings-tabs { display: flex; gap: 4px; overflow: auto; scrollbar-width: thin; }
+#settings [role=tab] { flex-shrink: 0; border: 0; background: transparent; padding: 8px; min-height: 36px; }
+#settings [role=tab][aria-selected=true] { background: var(--hover); color: var(--text); }
+#settings [hidden] { display: none !important; }
+#settings .sheet-sec { padding-bottom: 16px; }
+#settings .muted { color: var(--muted); }
+#settings p { line-height: 1.6; }
+#settings .small { font-size: 12px; }
+#settings label { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 44px; }
+#settings select { min-width: 100px; max-width: 60%; min-height: 32px; font: 13px var(--font); background: var(--raised); color: var(--text); border: 1px solid var(--line-strong); border-radius: 6px; padding: 4px 8px; }
+#settings .seg { display: flex; gap: 4px; width: max-content; }
+#settings .setting-switch { display: flex; align-items: center; width: 36px; height: 22px; min-height: 22px; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--inset); padding: 2px; }
+#settings .setting-switch span { width: 16px; height: 16px; background: var(--muted); border-radius: 50%; }
+#settings .setting-switch[aria-checked=true] { justify-content: flex-end; background: var(--text); }
+#settings .setting-switch[aria-checked=true] span { background: var(--card); }
+#settings .acct-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0; }
+#settings .acct-name { display: grid; gap: 4px; }
+#settings .acct-state { font-size: 12px; color: var(--muted); }
+#settings .row { display: flex; flex-wrap: wrap; gap: 8px; }
+#settings input { max-width: 100%; min-height: 32px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--text); background: var(--inset); padding: 6px 8px; font: 13px var(--font); }
+#settings ::selection { color: var(--text); background: var(--data-soft); }
+#settings button { font-size: 12px; }

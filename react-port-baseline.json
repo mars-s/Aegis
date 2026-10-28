@@ -1,0 +1,295 @@
+{
+  "base": "971d0380b4e9ecd9f1454fa19d7a3c74e4c51d05",
+  "worktree": "/tmp/aegis-wt/react/integration",
+  "startedAt": "2026-10-26T23:28:29Z",
+  "environment": {
+    "AEGIS_DATA": "/var/folders/1n/12735_4573j584sd0thxrwnc0000gn/T/aegis-baseline-data-ojjqjjp9",
+    "AEGIS_VITE_CACHE": "/var/folders/1n/12735_4573j584sd0thxrwnc0000gn/T/aegis-baseline-cache-ujcubt0x",
+    "AEGIS_PORT_OFFSET": "4100",
+    "PLAYWRIGHT": "/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.mjs",
+    "AEGIS_CHECK_OUT": "/Users/avi/.codex/orchestrate/aegis-react/evidence/baseline/ui-artifacts"
+  },
+  "runs": [
+    {
+      "name": "host",
+      "command": [
+        "/bin/zsh",
+        "-c",
+        "node --test agent/checks/*.test.mjs"
+      ],
+      "exitCode": 0,
+      "durationSeconds": 2.951,
+      "log": "/Users/avi/.codex/orchestrate/aegis-react/evidence/baseline/host.log"
+    },
+    {
+      "name": "ui",
+      "command": [
+        "node",
+        "checks/ui/run.mjs"
+      ],
+      "exitCode": 0,
+      "durationSeconds": 1129.585,
+      "log": "/Users/avi/.codex/orchestrate/aegis-react/evidence/baseline/ui.log",
+      "suites": [
+        {
+          "name": "canvas",
+          "status": "pass",
+          "durationSeconds": 25
+        },
+        {
+          "name": "library",
+          "status": "pass",
+          "durationSeconds": 27
+        },
+        {
+          "name": "docs",
+          "status": "pass",
+          "durationSeconds": 26
+        },
+        {
+          "name": "editors",
+          "status": "pass",
+          "durationSeconds": 7
+        },
+        {
+          "name": "deck",
+          "status": "pass",
+          "durationSeconds": 8
+        },
+        {
+          "name": "draw",
+          "status": "pass",
+          "durationSeconds": 20
+        },
+        {
+          "name": "media",
+          "status": "pass",
+          "durationSeconds": 30
+        },
+        {
+          "name": "imports",
+          "status": "pass",
+          "durationSeconds": 12
+        },
+        {
+          "name": "wireframe",
+          "status": "pass",
+          "durationSeconds": 23
+        },
+        {
+          "name": "editing",
+          "status": "pass",
+          "durationSeconds": 55
+        },
+        {
+          "name": "svelte",
+          "status": "pass",
+          "durationSeconds": 5
+        },
+        {
+          "name": "genui",
+          "status": "pass",
+          "durationSeconds": 102
+        },
+        {
+          "name": "parity",
+          "status": "pass",
+          "durationSeconds": 9
+        },
+        {
+          "name": "agent-types",
+          "status": "pass",
+          "durationSeconds": 8
+        },
+        {
+          "name": "agents",
+          "status": "pass",
+          "durationSeconds": 43
+        },
+        {
+          "name": "agent-motion",
+          "status": "pass",
+          "durationSeconds": 21
+        },
+        {
+          "name": "polish",
+          "status": "pass",
+          "durationSeconds": 63
+        },
+        {
+          "name": "pan",
+          "status": "pass",
+          "durationSeconds": 30
+        },
+        {
+          "name": "agent-edges",
+          "status": "pass",
+          "durationSeconds": 17
+        },
+        {
+          "name": "agent-race",
+          "status": "pass",
+          "durationSeconds": 4
+        },
+        {
+          "name": "prod-composer",
+          "status": "pass",
+          "durationSeconds": 12
+        },
+        {
+          "name": "orb-capture",
+          "status": "pass",
+          "durationSeconds": 22
+        },
+        {
+          "name": "agent-drafts",
+          "status": "pass",
+          "durationSeconds": 11
+        },
+        {
+          "name": "ask-selection",
+          "status": "pass",
+          "durationSeconds": 4
+        },
+        {
+          "name": "office",
+          "status": "pass",
+          "durationSeconds": 5
+        },
+        {
+          "name": "editor-return",
+          "status": "pass",
+          "durationSeconds": 30
+        },
+        {
+          "name": "editor-context",
+          "status": "pass",
+          "durationSeconds": 65
+        },
+        {
+          "name": "chart-defaults",
+          "status": "pass",
+          "durationSeconds": 11
+        },
+        {
+          "name": "deck-studio",
+          "status": "pass",
+          "durationSeconds": 23
+        },
+        {
+          "name": "data-import",
+          "status": "pass",
+          "durationSeconds": 3
+        },
+        {
+          "name": "mcp",
+          "status": "pass",
+          "durationSeconds": 4
+        },
+        {
+          "name": "design-system",
+          "status": "pass",
+          "durationSeconds": 63
+        },
+        {
+          "name": "controls-polish",
+          "status": "pass",
+          "durationSeconds": 40
+        },
+        {
+          "name": "fit-finish",
+          "status": "pass",
+          "durationSeconds": 42
+        },
+        {
+          "name": "canvas-chrome",
+          "status": "pass",
+          "durationSeconds": 14
+        },
+        {
+          "name": "data-trust",
+          "status": "pass",
+          "durationSeconds": 24
+        },
+        {
+          "name": "first-minute",
+          "status": "pass",
+          "durationSeconds": 14
+        },
+        {
+          "name": "semantic-zoom",
+          "status": "pass",
+          "durationSeconds": 12
+        },
+        {
+          "name": "overview-model",
+          "status": "pass",
+          "durationSeconds": 37
+        },
+        {
+          "name": "evidence-fidelity",
+          "status": "pass",
+          "durationSeconds": 67
+        },
+        {
+          "name": "spatial-interaction",
+          "status": "pass",
+          "durationSeconds": 20
+        },
+        {
+          "name": "spatial-memory",
+          "status": "pass",
+          "durationSeconds": 56
+        },
+        {
+          "name": "trust-undo",
+          "status": "pass",
+          "durationSeconds": 8
+        },
+        {
+          "name": "crop-a11y",
+          "status": "pass",
+          "durationSeconds": 11
+        }
+      ]
+    },
+    {
+      "name": "bench",
+      "command": [
+        "node",
+        "checks/ui/bench.mjs"
+      ],
+      "exitCode": 0,
+      "durationSeconds": 21.236,
+      "log": "/Users/avi/.codex/orchestrate/aegis-react/evidence/baseline/bench.log"
+    }
+  ],
+  "finishedAt": "2026-10-26T23:47:42Z",
+  "host": {
+    "tests": 236,
+    "passed": 236,
+    "failed": 0
+  },
+  "benchmark": {
+    "cards": 5000,
+    "frames": 240,
+    "seconds": "19.56",
+    "mountedNear": 140,
+    "mountedFar": 0,
+    "zoom": 0.05,
+    "p50ms": 8.7,
+    "p95ms": 33.5,
+    "maxms": 13318.8
+  },
+  "benchmarkLimitations": "Headless Chromium with CDP CPU sampling. No engine callback CPU histogram or verified display pacing.",
+  "machine": {
+    "node": "v22.22.3",
+    "npm": "10.9.8",
+    "macOS": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+    "hardware": "Mac16,8",
+    "cpu": "Apple M4 Pro",
+    "architecture": "arm64",
+    "benchmarkMode": "Existing checks/ui/bench.mjs launches headless Chromium with CDP sampling. It records frame intervals, not engine callback CPU or verified display pacing."
+  },
+  "sourceDiffUnchanged": true
+}

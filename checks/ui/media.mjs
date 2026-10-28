@@ -1,22 +1,21 @@
+import {createUiSnapshot,disposeUiSnapshot} from '../support/ui-snapshot.ts';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, cpSync, symlinkSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'media-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-media-smoke-'));
-const host = spawn(process.execPath, ['--no-warnings','server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings','dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1' } });
 host.stderr.on('data', d => process.stderr.write(d));
 const port = await new Promise((accept, reject) => { host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) accept(m[1]); }); host.once('exit', reject); });
 // Freeze all UI sources for the run, so concurrent feature ports cannot interrupt capture with HMR.
-const ui = mkdtempSync(join(tmpdir(), 'aegis-media-ui-'));
-for (const file of ['src','index.html','package.json','tsconfig.json','vite.config.ts','svelte.config.js','public']) if (existsSync(repo + '/app/' + file)) cpSync(repo + '/app/' + file, join(ui, file), { recursive: true });
-symlinkSync(repo + '/app/node_modules', join(ui, 'node_modules'), 'dir');
+const ui = createUiSnapshot(repo, 'aegis-media-ui-');
 console.log('Testing complete UI snapshot: ' + ui);
 const vite = spawn('npx', ['vite','--port',String(5183 + PORT_OFFSET),'--strictPort'], { cwd: ui });
 await new Promise((accept, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) accept(); }); vite.once('exit', reject); });
@@ -28,7 +27,7 @@ debug.on('Debugger.scriptFailedToParse', async info => { console.error('SCRIPT P
 const errors = []; page.on('pageerror', error => errors.push(error.stack || error.message));
 const log = message => console.log(message);
 const centreCard = async type => { await page.evaluate(type => { const card = aegis.canvas.board.cards.find(c => c.type === type); aegis.canvas.frameIds([card.id], 1); }, type); await page.waitForTimeout(400); };
-const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${name}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); };
+const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const id = ({ 'voice-memo': 'audio', 'camera-recording': 'video' }[name] || name); const button = page.locator(`#tools [data-tool="${id}"]`); const closed = (await page.locator(`#toolsPopover [data-tool="${id}"]`).count() > 0 && await page.locator('#toolsFold').getAttribute('aria-expanded') !== 'true'); if (closed) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); if ((id === 'audio' || id === 'video')) await page.locator(`.card[data-type="${id}"]`).waitFor(); };
 try {
   await page.goto(`http://127.0.0.1:${5183 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -100,14 +99,14 @@ try {
   await page.screenshot({ path: out('media-appearance.png') });
   await appearance.getByRole('button', { name: 'Reset colours for this mode', exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--canvas')), '');
-  await page.locator('#theme [data-v="dark"]').click();
+  await page.locator('#theme').getByText('Dark', { exact: true }).click();
   await setColour('Grid dots', '#333344');
-  await page.locator('#theme [data-v="light"]').click();
+  await page.locator('#theme').getByText('Light', { exact: true }).click();
   assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--dot')), '');
   await page.locator('#closeSettings').click();
   log('Global colour preferences, panel contrast, theme separation, reset and board background priority verified');
   const preparedImages = await page.evaluate(async () => {
-    const { prepareImage } = await import('/src/features/media/images.js');
+    const { prepareImage } = await import('/src/features/media/image-utils.js');
     const cv = document.createElement('canvas'); cv.width = 1600; cv.height = 1100;
     const context = cv.getContext('2d'), pixels = context.createImageData(cv.width, cv.height);
     let state = 123456789;
@@ -135,7 +134,10 @@ try {
   log('Image preparation falls back to JPEG for large PNGs, preserves transparency and animation, and resizes stills');
   const image = out('media-fixture.svg');
   writeFileSync(image, '<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="300"><path fill="#ff69b4" d="M0 0h200v300H0z"/><path fill="#87ceeb" d="M200 0h200v300H200z"/><path fill="#ffd700" d="M400 0h200v300H400z"/><path fill="#163029" d="M600 0h200v300H600z"/><path fill="#903cff" d="M800 0h200v300H800z"/></svg>');
-  const chooser = page.waitForEvent('filechooser'); await page.locator('#toolsFold').click(); await page.locator('#tools [data-tool="import-image"]').click(); await (await chooser).setFiles(image);
+  await page.mouse.move(24, 480);
+  if (await page.locator('#toolsFold').getAttribute('aria-expanded') !== 'true') await page.locator('#toolsFold').click();
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.locator('#tools [data-tool="import-image"]').click()]);
+  await chooser.setFiles(image);
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'image')); await centreCard('image');
   const imageCard = page.locator('.card.image'); await imageCard.hover(); await imageCard.getByRole('button', { name: 'Pull colours', exact: true }).click();
   await page.waitForFunction(() => aegis.canvas.board.cards.filter(c => c.type === 'swatch').length >= 4);
@@ -176,14 +178,14 @@ try {
   };
   await page.route('**/link-preview?url=https%3A%2F%2Fpreview.test%2F', previewRoute);
   await tool('link'); await page.locator('.url-input').fill('https://preview.test/'); await page.locator('.url-input').press('Enter');
-  const pendingLink = page.locator('.card.link');
-  await pendingLink.getByRole('status').waitFor(); assert.equal(await pendingLink.getAttribute('aria-busy'), 'true');
+  const pendingLink = page.locator('.card.link'), busyLink = page.locator('.card.link[aria-busy], .card.link [aria-busy]');
+  await pendingLink.getByRole('status').waitFor(); assert.equal(await busyLink.getAttribute('aria-busy'), 'true');
   assert.equal(await pendingLink.getByRole('status').textContent(), 'Loading preview…');
   await page.screenshot({ path: out('media-link-loading.png') }); releasePreview();
-  await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).waitFor(); assert.equal(await pendingLink.getAttribute('aria-busy'), 'false');
+  await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).waitFor(); assert.equal(await busyLink.getAttribute('aria-busy'), 'false');
   await pendingLink.getByRole('button', { name: 'Retry preview', exact: true }).click();
   await pendingLink.getByText('Loaded preview', { exact: true }).waitFor();
-  assert.equal(await pendingLink.getAttribute('aria-busy'), 'false'); assert.equal(await pendingLink.locator('.link-loading-status').count(), 0);
+  assert.equal(await busyLink.getAttribute('aria-busy'), 'false'); assert.equal(await pendingLink.locator('.link-loading-status').count(), 0);
   assert.equal(await pendingLink.locator('.link-description').textContent(), 'Loaded summary');
   const checkedLink = await pendingLink.getAttribute('data-id');
   await page.evaluate(id => aegis.apply([{ op: 'delete', ids: [id] }]), checkedLink);
@@ -311,11 +313,11 @@ try {
   const firstBoard = await page.evaluate(() => aegis.canvas.board.id);
   const otherBoard = await page.evaluate(async () => aegis.host.post('/boards', { name: 'Separate palette' }));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  await page.getByText('Separate palette', { exact: true }).click();
+  await (page.locator(`.tree-row.board[data-board="${otherBoard.id}"]`)).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, otherBoard.id);
   assert.equal(await page.evaluate(() => aegis.canvas.board.bg || null), null);
   assert.equal(await page.evaluate(() => aegis.canvas.board.palette?.length || 0), 0);
-  await page.getByText('First board', { exact: true }).last().click();
+  await (page.locator(`.tree-row.board[data-board="${firstBoard}"]`)).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, firstBoard);
   await centreCard('video'); await page.screenshot({ path: out('media-persisted.png') });
   await page.evaluate(() => {
@@ -325,9 +327,10 @@ try {
     document.getElementById('stage').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: clipboard }));
   });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.url === 'https://example.com/') && aegis.canvas.board.cards.some(c => c.url?.includes('/album/4aawyAB9vmqN3uQ7FjRGTy')));
-  await page.locator('#settingsBtn').click(); await page.locator('#theme [data-v="dark"]').click(); await page.locator('#closeSettings').click();
+  await page.mouse.move(1550, 24);
+  await page.locator('#settingsBtn').click(); await page.locator('#theme').getByText('Dark', { exact: true }).click(); await page.locator('#closeSettings').click();
   await page.waitForFunction(() => document.documentElement.style.getPropertyValue('--dot') === '#333344');
   await page.screenshot({ path: out('media-dark.png') });
   assert.deepEqual(errors, []); log('PASS. Persistent data: ' + data);
 } catch (error) { await page.screenshot({ path: out('media-fail.png') }); console.error(error); console.error('Page errors:', errors); console.error('UI board:', await page.evaluate(() => JSON.stringify(window.aegis?.canvas?.board))); process.exitCode = 1; }
-finally { await browser.close(); host.kill(); vite.kill(); }
+finally { await browser.close(); host.kill(); vite.kill(); disposeUiSnapshot(ui); }

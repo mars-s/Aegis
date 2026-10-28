@@ -19,7 +19,7 @@ const answer = async yes => {
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = 'library-smoke-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-library-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
 let vite, browser, page;
 const errors = [], checks = [];
 const check = s => { checks.push(s); console.log('PASS', s); };
@@ -36,7 +36,7 @@ try {
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
   const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
-  const uiMenu = title => page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
+  const uiMenu = title => page.locator('.aegis-action-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
   const board = () => page.evaluate(() => aegis.canvas.board.id);
@@ -369,11 +369,11 @@ try {
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('aegis:panels')).columns), orderBeforeCancel);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'library');
   check('panel lift shows selectable slots on both sides, Escape and pointer cancellation restore order, touch skips dragging and Library stays pinned');
-  await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-panel-visibility="layers"]').uncheck(); await page.locator('#closeSettings').click();
+  await page.mouse.move(page.viewportSize().width - 24, 20); await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-panel-visibility="layers"]').uncheck(); await page.locator('#closeSettings').click();
   assert.equal(await page.locator('[data-panel="layers"]').isVisible(), false);
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await page.locator('[data-panel="layers"]').isVisible(), false);
-  await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-reset-panels]').click(); await page.locator('#closeSettings').click();
+  await page.mouse.move(page.viewportSize().width - 24, 20); await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-reset-panels]').click(); await page.locator('#closeSettings').click();
   assert.ok(await page.locator('#side [data-panel="layers"]').isVisible());
   await page.screenshot({ path: out('library-panels-reset.png') }); check('panel drag between sides, persisted order and visibility, Settings reset');
   // Template collections keep their notes together when dragged.

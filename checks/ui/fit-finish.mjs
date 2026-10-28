@@ -1,3 +1,4 @@
+import { assertCameraScale } from './static-geometry.mjs';
 // Production browser checks, isolated host data and no real model providers.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
@@ -7,13 +8,13 @@ import { join } from 'node:path';
 import { chromium, webkit } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
-import { documentWordCount } from '../../app/src/lib/board/words.js';
+import { documentWordCount } from '@aegis/domain/words';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `fit-finish-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-fit-finish-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1',
 }, stdio: ['ignore', 'pipe', 'pipe'] });
 const port = await new Promise((resolve, reject) => {
@@ -119,11 +120,12 @@ try {
         await page.getByLabel('Format selection', { exact: true }).click();
         const format = page.getByRole('dialog', { name: 'Format selection controls', exact: true });
         await inspect('format-menu', format); await shot('format-menu'); await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+        await assertCameraScale(page, [ids.doc, ids.sheet]);
         await open(ids.doc); assert.equal(await count(), expectedCount);
         assert.ok((await page.locator('.editor-context-source').textContent()).includes(expectedCount));
         await inspect('editor-header', page.locator('.side-editor-head')); await inspect('document-ribbon', page.locator('.docs-ribbon')); await inspect('document-footer', page.locator('.docs-footer')); await shot('document-before-save');
         await page.locator('.docs-prose').press('ControlOrMeta+End'); await page.keyboard.type(' More words.');
-        await page.waitForFunction(() => document.querySelector('[data-saved]')?.textContent === 'Saved');
+        await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved');
         const after = await count();
         const stored = await page.evaluate(async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id), ids.doc);
         assert.equal(after, `${documentWordCount(stored)} words`);
@@ -139,7 +141,7 @@ try {
         await inspect('deck-ribbon', page.locator('.deck-ribbon')); await inspect('deck-footer', page.locator('.deck-film')); await shot('deck');
         await present.click(); await shot('presentation'); await page.keyboard.press('Escape');
         await page.locator('.deck-panel [data-close]').click();
-        await open(ids.sheet); await inspect('sheet-header', page.locator('.side-editor-head')); await inspect('sheet-ribbon', page.locator('.sheet-editor .office-ribbon')); await shot('sheet'); await page.keyboard.press('Escape');
+        await open(ids.sheet); await inspect('sheet-header', page.locator('.react-editor-toolbar')); await inspect('sheet-ribbon', page.locator('.sheet-editor .office-ribbon')); await shot('sheet'); await page.keyboard.press('Escape');
         await page.evaluate(() => aegis.apply([{ op: 'create', type: 'audio', newId: 'recorder', x: 100, y: 100, w: 440, h: 320, text: 'Recording' }]));
         await select('recorder'); await page.getByRole('button', { name: 'Start recording', exact: true }).click();
         const notice = page.locator('.media-status'); assert.match(await notice.textContent(), /Recording is unavailable.*Import a file instead/);

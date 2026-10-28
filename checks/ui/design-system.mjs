@@ -11,7 +11,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `design-system-${process.pid}`;
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: {
   ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-design-system-')), AEGIS_UI: repo + '/app/dist',
   AEGIS_FAKE_MODEL: '1', AEGIS_PORT: '0', AEGIS_TOKEN: token,
 }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -85,6 +85,10 @@ try {
     await select(['designnote']); await note.click({ button: 'right', position: { x: 2, y: 80 } });
     await shot('card-context', page.locator('.ctx-menu:not([hidden])'));
     assert.deepEqual(await page.locator('.ctx-menu:not([hidden]) > button').evaluateAll(nodes => nodes.map(el => el.dataset.label)), ['Edit', 'Copy', 'Duplicate', 'Arrange', 'Lock', 'Delete']);
+    await page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    await page.waitForFunction(() => document.activeElement?.closest('.card')?.dataset.id === 'designnote' && document.activeElement?.getAttribute('contenteditable') !== null);
+    assert.equal(await note.locator('.body').evaluate(el => el === document.activeElement), true, 'Edit focuses the actual inline text');
+    await note.click({ button: 'right', position: { x: 2, y: 80 } });
     await page.locator('.ctx-menu:not([hidden])').getByRole('menuitem', { name: 'Arrange', exact: true }).click(); await shot('card-arrange', page.getByRole('menu', { name: 'Arrange', exact: true }));
     assert.equal(await page.getByRole('menuitem', { name: 'Group', exact: true }).count(), 0, 'a single object cannot group itself');
     assert.equal(await page.getByRole('menuitem', { name: 'Ungroup', exact: true }).count(), 0, 'ungroup needs an existing group'); await dismiss(); await dismiss();
@@ -120,8 +124,8 @@ try {
     await shot('doc-ribbon');
     await page.getByLabel('Format document', { exact: true }).click(); await shot('doc-format', page.getByRole('dialog', { name: 'Format document controls', exact: true }));
     for (const label of ['Text colour', 'Highlight']) {
-      await doc.locator(`summary[aria-label="${label}"]`).click();
-      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: label + ' choices', exact: true })); await dismiss();
+      await (page.getByRole('dialog', { name: 'Format document controls', exact: true }).getByLabel(label, { exact: true })).click();
+      await shot('doc-' + label.toLowerCase().replaceAll(' ', '-'), page.getByRole('dialog', { name: 'Colour editor', exact: true })); await dismiss();
     }
     await doc.getByRole('button', { name: 'Link', exact: true }).click();
     await shot('doc-link', page.getByRole('dialog', { name: 'Edit document link', exact: true })); await dismiss();
@@ -143,9 +147,9 @@ try {
     assert.equal(await pageColour.getAttribute('data-value'), 'dark', 'nested select opens with the keyboard before its parent consumes arrows');
     await dismiss();
     await dismiss(); await open("c.kind === 'sheet'");
-    const kind = page.locator('.sheet-editor .office-ribbon [data-kind]'); await kind.click(); await shot('sheet-column-type', await popupFor(kind)); await dismiss(); await dismiss();
+    const kind = page.getByRole('combobox', { name: 'Column type', exact: true }); await kind.click(); await shot('sheet-column-type', await popupFor(kind)); await dismiss(); await dismiss();
     await open("c.type === 'deck'");
-    const layout = page.locator('.deck-ribbon [data-layout]'); await layout.click(); await shot('slide-layout', await popupFor(layout)); await dismiss(); await dismiss();
+    const layout = page.getByRole('button', { name: 'Slide layout', exact: true }); await layout.click(); await shot('slide-layout', await popupFor(layout)); await dismiss(); await dismiss();
     // Owned geometric fixture, uploaded through the same image input as a person's file.
     if (theme === 'dark') {
       const buffer = Buffer.from(await page.evaluate(() => { const c = document.createElement('canvas'); c.width = 640; c.height = 360; const g = c.getContext('2d'); g.fillStyle = '#141618'; g.fillRect(0, 0, 640, 360); g.fillStyle = '#3f8dfd'; g.fillRect(96, 96, 448, 168); return c.toDataURL().split(',')[1]; }), 'base64');

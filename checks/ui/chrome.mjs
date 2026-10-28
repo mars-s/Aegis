@@ -5,6 +5,8 @@ import { out } from './out.mjs';
 export async function checkChrome(browser, url) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 992 } });
   const stamp = Date.now();
+  const documentPanel = '.side-editor.is-open .docs-panel';
+  const objectPanel = '.side-editor.is-open:has(.object.expanded)';
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
@@ -81,12 +83,12 @@ export async function checkChrome(browser, url) {
     await revealed('#tools'); await page.locator('#selectionBar:not([hidden])').waitFor();
     assert.equal(await page.locator('.rotation-handle').isVisible(), true);
     await page.locator('#selectionBar').getByRole('button', { name: 'Open', exact: true }).click();
-    await page.locator('.docs-panel.is-open').waitFor();
+    await page.locator(documentPanel).waitFor();
     const assertQuiet = async id => {
-      await page.waitForFunction(() => {
-        const saved = document.querySelector('.docs-panel.is-open [data-saved]');
+      await page.waitForFunction(selector => {
+        const saved = document.querySelector(selector);
         return !saved || saved.textContent === 'Saved';
-      });
+      }, `${documentPanel} [data-saved]`);
       await page.evaluate(() => new Promise(requestAnimationFrame));
       // A save replaces the preview before its connector overlay catches up on the next paint.
       await page.waitForFunction(id => {
@@ -109,7 +111,7 @@ export async function checkChrome(browser, url) {
     await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'chromedoc').text === 'Working notes, saved');
     await assertQuiet('chromedoc');
     await page.evaluate(() => aegis.canvas.setView({ x: -10000, y: -10000, z: 1 }));
-    await page.locator('#world [data-id="chromedoc"]').waitFor({ state: 'detached' });
+    await page.locator('#world [data-id="chromedoc"]:not([hidden])').waitFor({ state: 'detached' });
     await page.evaluate(() => aegis.canvas.setView({ x: 140, y: 230, z: 1 })); await assertQuiet('chromedoc');
     await page.keyboard.press('Escape');
     await page.locator('#selectionBar').waitFor({ state: 'visible' });
@@ -121,7 +123,7 @@ export async function checkChrome(browser, url) {
     await shot('document-return-1440');
     await page.evaluate(() => { aegis.canvas.select(['chromeobject']); aegis.canvas.setView({ x: -460, y: 230, z: 1 }); });
     await page.locator('#stage').focus(); await page.keyboard.press('Enter');
-    await page.locator('.object-editor.is-open').waitFor(); await assertQuiet('chromeobject');
+    await page.locator(objectPanel).waitFor(); await assertQuiet('chromeobject');
     await page.setViewportSize({ width: 1586, height: 992 }); await shot('object-focus-1586');
     await page.keyboard.press('Escape'); await page.locator('#selectionBar').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.rotation-handle').isVisible(), true);
@@ -134,7 +136,7 @@ export async function checkChrome(browser, url) {
     await shot('phone-visible-390');
     await page.evaluate(() => { aegis.canvas.select(['chromeobject']); aegis.canvas.setView({ x: -540, y: 200, z: .6 }); });
     await page.locator('#stage').focus(); await page.keyboard.press('Enter');
-    await page.locator('.object-editor.is-open').waitFor(); await assertQuiet('chromeobject'); await shot('phone-editor-390');
+    await page.locator(objectPanel).waitFor(); await assertQuiet('chromeobject'); await shot('phone-editor-390');
     await page.keyboard.press('Escape'); assert.equal(await page.locator('.card.editor-source').count(), 0);
     const touch = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true });
     try {

@@ -1,3 +1,5 @@
+import {viteModule} from '../support/ui-snapshot.ts';
+import { readRenderedLinks, assertCameraScale } from './static-geometry.mjs';
 import { waitForAsync } from './poll.mjs';
 import { choose } from './dropdown.mjs';
 import { chromium, webkit } from './playwright.mjs';
@@ -11,12 +13,12 @@ const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate work
 const built = process.env.AEGIS_DRAW_BUILT === '1', engineName = process.env.AEGIS_BROWSER || 'chromium';
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), TOKEN = 'draw-' + process.pid;
 const data = mkdtempSync(join(tmpdir(), 'aegis-draw-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: TOKEN, AEGIS_FAKE_MODEL: '1', ...(built ? { AEGIS_UI: repo + '/app/dist' } : {}) } });
 host.stderr.on('data', d => process.stderr.write('[host] ' + d));
 const port = await new Promise((resolve, reject) => { host.on('error', reject); host.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m) resolve(m[1]); }); });
 let vite;
 if (!built) {
-  writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(repo + '/app/node_modules/vite/dist/node/index.js')}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo + '/app', realpathSync(repo + '/app/node_modules')])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
+  writeFileSync(out('draw-vite.mjs'), `import { createServer } from ${JSON.stringify(viteModule(repo))}; const server = await createServer({ root: ${JSON.stringify(repo + '/app')}, server: { fs: { allow: ${JSON.stringify([repo, realpathSync(repo)])} }, host: '127.0.0.1', port: ${5182 + PORT_OFFSET}, strictPort: true, watch: null } }); await server.listen(); server.printUrls();`);
   vite = spawn(process.execPath, [out('draw-vite.mjs')], { cwd: repo + '/app', stdio: 'pipe' });
   vite.stderr.on('data', d => process.stderr.write('[vite] ' + d));
   await new Promise((resolve, reject) => { vite.on('exit', code => reject(new Error('Vite exited ' + code))); vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); });
@@ -33,7 +35,17 @@ const persist = async check => {
   await waitForAsync(page, async () => { const b = await aegis.host.get('/boards/' + aegis.canvas.board.id); return JSON.stringify(b.cards) === JSON.stringify(aegis.canvas.board.cards) && JSON.stringify(b.links) === JSON.stringify(aegis.canvas.board.links); }, null, { timeout: 6000 });
 };
 async function drag(from, to, steps = 20) { await page.mouse.move(...from); await page.mouse.down(); await page.mouse.move(...to, { steps }); await page.mouse.up(); await pause(); }
-async function pathPoint(selector, fraction) { return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
+async function pathPoint(selector, fraction) {
+  if (selector === '.link-hit') {
+    const [painted] = await readRenderedLinks(page);
+    return page.evaluate(({ painted, fraction }) => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', painted.d);
+      const point = path.getPointAtLength(path.getTotalLength() * fraction), stage = document.getElementById('stage').getBoundingClientRect();
+      if (aegis.canvas.engine.hitTestLink(point) !== painted.id) throw Error('The painted connector must be pickable at its stroke.');
+      return [point.x + stage.left, point.y + stage.top];
+    }, { painted, fraction });
+  }
+  return page.locator(selector).evaluate((el, f) => { const p = el.getPointAtLength(el.getTotalLength() * f), q = new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()); return [q.x, q.y]; }, fraction); }
 try {
   await page.goto(built ? `http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${TOKEN}` : `http://127.0.0.1:${5182 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -106,15 +118,16 @@ try {
   const shapeIds = (await board()).cards.filter(c => c.type === 'shape' && c.props.shape !== 'line').map(c => c.id);
   await page.evaluate(id => aegis.canvas.select([id]), shapeIds[0]); await pause();
   assert.equal(await page.locator('[data-connect-card]').count(), 0);
-  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await page.mouse.move(870, 520);
   await page.locator(`[data-connect-target="${shapeIds[1]}"]`).waitFor();
   await page.screenshot({ path: out('draw-connect-preview.png') });
   await page.keyboard.press('Escape');
+  await page.locator('[data-connect-preview]').waitFor({ state: 'detached' });
   assert.equal(await page.locator('[data-connect-preview]').count(), 0);
   assert.equal((await board()).links.length, 0);
-  await page.locator('#selectionBar .selection-more > summary').click();
+  await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await drag([500, 520], [870, 520]);
   await persist(() => aegis.canvas.board.links.length === 1);
@@ -244,6 +257,7 @@ try {
   assert.equal(await page.getByRole('button', { name: 'Recent 🦉', exact: true }).count(), 1, 'recent survives reload');
   await page.screenshot({ path: out('draw-extended-dark.png') });
   assert.deepEqual(errors, []);
+  await assertCameraScale(page, await page.evaluate(() => aegis.canvas.board.cards.filter(c => c.type === 'shape').slice(0, 1).map(c => c.id)));
   console.log('PASS: ink, marker, highlighter, eraser, shapes/text, four line styles, vector curves/points/corners, repeated emoji, connector creation/style/bend/reattach/selection, saved host state and reload, connected shape conversion, direct text editing, closed paths, point insertion/deletion, stamp favourites/motion/square resize, zoom, connector flip/deletion. Data: ' + data);
 } catch (error) {
   await page.screenshot({ path: out('draw-fail.png') });

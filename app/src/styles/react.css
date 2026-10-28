@@ -1,0 +1,57 @@
+* { box-sizing: border-box; }
+html, body, #app, .react-app { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { font: 13px var(--font); color: var(--text); background: var(--board-canvas, var(--canvas)); }
+button { font: inherit; color: inherit; cursor: pointer; background: #1b1d20; border: 1px solid #34383e; border-radius: 6px; padding: 7px 12px; min-height: 32px; }
+button:hover { background: #282b30; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible, [contenteditable]:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 2px; }
+.react-stage { position: absolute; inset: 0; overflow: clip; outline: none; touch-action: none; }
+.scene-backdrop, .scene-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.scene-overlay { z-index: 2; }
+#world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+.react-stage .card { position: absolute; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; color: var(--text); }
+.react-stage .card.selected { border-color: #b3bac4; }
+.react-stage .scene-body { display: flex; flex-direction: column; }
+.react-stage .card .body { padding: 16px; flex: 1; min-height: 0; outline: none; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; }
+.react-stage .card.title { background: transparent; border: none; font-size: 30px; font-weight: 600; }
+.card-heading { padding: 12px 16px 0; font-weight: 600; }
+.react-board-label { position: absolute; top: 22px; left: 24px; color: #a6abb4; pointer-events: none; }
+.react-tools { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; padding: 6px; border: 1px solid #2c3035; border-radius: 12px; background: #111316; z-index: 10; }
+.react-save-state { position: absolute; right: 24px; bottom: 26px; display: flex; gap: 10px; align-items: center; color: #a6abb4; font-size: 12px; z-index: 10; }
+.react-connection { margin: 0; position: absolute; top: 45%; width: 100%; text-align: center; color: #b9bdc5; }
+.react-editor { position: absolute; inset: 8px 8px 8px calc(50% + 4px); padding: 24px; background: var(--card); z-index: 80; border-radius: 8px; overflow: auto; }
+.react-editor.full { left: 8px; }
+#toast:not(:empty) { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; max-width: min(480px, calc(100vw - 48px)); padding: 8px 12px; background: var(--color-float); color: var(--color-text); border: 1px solid var(--color-border); border-radius: 10px; z-index: 120; }
+#toast button { margin-left: 12px; }
+@media (max-width: 600px) { .react-tools { bottom: 18px; } .react-save-state { top: 20px; bottom: auto; } .react-editor { left: 8px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+.react-editor { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.react-editor-toolbar { display: flex; flex: none; gap: 8px; padding: 12px; border-bottom: 1px solid var(--color-border); }
+.react-editor-content { display: flex; flex: 1; min-height: 0; overflow: hidden; }
+.react-editor-content > .data-editor { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.react-editor-content > * { min-width: 0; flex: 1; }
+.react-editor-toolbar { justify-content: flex-end; align-items: center; }
+.react-editor-toolbar > span:first-child { margin-right: auto; }
+.react-editor :is(.react-editor-toolbar,.side-editor-tools) button { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.react-editor :is(.react-editor-toolbar,.side-editor-tools) svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.react-editor kbd { font: 12px var(--font); opacity: .65; }
+.agent-island { max-width: min(calc(100vw - 24px), var(--composer-max-width, 100vw)); }
+.library-undo { position: fixed; left: 24px; bottom: 24px; z-index: 80; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--raised); }
+
+.react-import-error { position: absolute; z-index: 30; top: 16px; left: 50%; transform: translateX(-50%); padding: 12px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }
+
+.aegis-chrome .unsorted-list { display: grid; gap: 6px; overflow: auto; max-height: 42vh; }
+.aegis-chrome .unsorted-list .tray-item { text-align: left; overflow-wrap: anywhere; padding: 8px; border: 1px solid var(--line); }
+.aegis-chrome .unsorted-list .tray-item.dragging { opacity: .5; }
+.aegis-chrome .creative-panel-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.react-editor { transform: translateX(100%); opacity: 0; transition-property: transform, opacity; transition-duration: .26s; transition-timing-function: cubic-bezier(.32,.72,0,1); }
+.react-editor.is-open { transform: none; opacity: 1; }
+.react-editor.is-closing { transition-duration: .2s; pointer-events: none; }
+.react-editor.instant, body.motion-off .react-editor { transition-duration: 0s; }
+.react-editor-content, .react-editor-content > .docs-panel { transition-duration: inherit; }
+@media (prefers-reduced-motion: reduce) { .react-editor { transform: none; transition-duration: .16s; } }
+
+body.motion-off .react-editor { transition-property: opacity; }
+@media (prefers-reduced-motion: reduce) { .react-editor { transition-property: opacity; } }
+@media (max-width: 760px) { .react-editor { left: 8px; } }

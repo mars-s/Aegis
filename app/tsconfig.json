@@ -1,17 +1,13 @@
 {
-  "extends": "@tsconfig/svelte/tsconfig.json",
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "allowJs": true,
-    "checkJs": false,
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
     "noEmit": true,
-    "skipLibCheck": true,
-    "isolatedModules": true,
-    "types": ["svelte"]
+    "allowJs": false,
+    "types": ["react", "react-dom", "vite/client"]
   },
-  "include": ["src/**/*.ts", "src/**/*.js", "src/**/*.svelte"]
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

@@ -12,7 +12,7 @@ const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);
 const token = `trust-undo-${process.pid}`, data = mkdtempSync(join(tmpdir(), 'aegis-trust-undo-'));
-const host = spawn(process.execPath, ['--no-warnings', 'server.mjs'], {
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
   cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_UI: repo + '/app/dist', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' }, stdio: ['ignore', 'pipe', 'pipe'],
 });
 const port = await new Promise((resolve, reject) => {
@@ -48,11 +48,11 @@ try {
       await page.getByRole('button', { name: 'Plan my week', exact: true }).click();
       await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
       await page.locator('#agentIsland[data-state="done"]').waitFor();
-      await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+      await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
       await page.waitForTimeout(500);
       await page.evaluate(() => { aegis.canvas.select([]); aegis.canvas.fit(); });
       await page.waitForFunction(() => !!aegis.canvas.board.cards.find(c => c.kind === 'html')?.data.state);
-      await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+      await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
       await page.waitForTimeout(250);
       const undo = page.locator('.island-result-undo');
       await page.screenshot({ path: out(`trust-undo-fresh-${name}.png`) });
@@ -70,7 +70,7 @@ try {
       const [{ id: agentId }] = await api('/agents', { boardId: board.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKE ' + JSON.stringify(demoBatch) });
       await page.waitForFunction(() => aegis.canvas.board.cards.length === 9);
       await page.waitForFunction(async id => (await aegis.host.get(`/agents?board=${aegis.canvas.board.id}`)).find(a => a.id === id)?.history[0]?.canUndo, agentId);
-      await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+      await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
       await page.evaluate(() => { aegis.canvas.select([aegis.canvas.board.cards.find(c => c.type === 'doc').id]); document.getElementById('stage').focus(); });
       await page.keyboard.press('Enter');
       await page.locator('.docs-panel .tiptap').fill('Keep my real later edit.');
@@ -127,7 +127,7 @@ try {
       console.log(`PASS ${name}: all four captures and count are visible at 1440 x 900, with highlights, Put on board, Undo and restored Windows`);
 
       const widgetBoard = await api('/boards', { name: `Widget Undo ${name}` });
-      await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+      await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
       await page.evaluate(board => { aegis.canvas.setBoard(board); aegis.canvas.setView({ x: 400, y: 160, z: 1 }); }, widgetBoard);
       const [{ id: widgetAgent }] = await api('/agents', { boardId: widgetBoard.id, model: { provider: 'fake', modelId: 'fake' }, brief: 'FAKE ' + JSON.stringify([demoBatch.find(c => c.kind === 'html')]) });
       await page.waitForFunction(() => !!aegis.canvas.board.cards[0]?.data?.state);
@@ -144,7 +144,7 @@ try {
         return JSON.parse(saved.cards[0].data.state).controls[0].value === '46';
       });
       assert.equal(JSON.parse((await api(`/boards/${widgetBoard.id}`)).cards[0].data.state).controls[0].value, '46');
-      await page.waitForFunction(() => document.getElementById('saveState').textContent === 'saved');
+      await page.waitForFunction(() => document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase() === 'saved');
       await page.waitForFunction(() => document.querySelector('.island-result-undo')?.disabled === true);
       await page.screenshot({ path: out(`trust-undo-widget-edited-${name}.png`) });
       console.log(`PASS ${name}: widget defaults leave Undo enabled and a keyboard slider edit saves and blocks Undo`);
