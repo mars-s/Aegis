@@ -1,0 +1,50 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": [
+      "node",
+      "vite/client"
+    ],
+    "lib": [
+      "ES2024",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "jsx": "react-jsx",
+    "paths": {
+      "/src/*": [
+        "../../app/src/*"
+      ]
+    },
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "files": [
+    "./agent-edges.ts",
+    "./agent-race.ts",
+    "./agents-submit.ts",
+    "./ask-selection.ts",
+    "./canvas-chrome.ts",
+    "./controls-polish.ts",
+    "./crop-a11y.ts",
+    "./data-import.ts",
+    "./data-trust.ts",
+    "./docs.ts",
+    "./double-note-input.ts",
+    "./editor-context.ts",
+    "./first-minute.ts",
+    "./genui.ts",
+    "./imports.ts",
+    "./mcp.ts",
+    "./office.ts",
+    "./orb-capture.ts",
+    "./overview-model.ts",
+    "./parity.ts",
+    "./polish.ts",
+    "./semantic-zoom.ts",
+    "./trust-undo.ts",
+    "./wireframe.ts"
+  ]
+}

@@ -1,0 +1,699 @@
+import { CardIdSchema } from '@aegis/domain/schema';
+import { format as formatCheckOutput } from 'node:util';
+import type { Browser, Page } from 'playwright';
+import type {} from '../../app/src/platform/test-facade.ts';
+import { checkTemp, installBrowserChecks } from './agents-submit.ts';
+// Production editor composition, fonts, shortcuts and inline AI in both engines.
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { choose } from './dropdown.ts';
+import { chromium, webkit } from './playwright.ts';
+let failurePage: Page | undefined;
+function present<T>(value: T | null | undefined): T {
+    if (value === undefined || value === null)
+        throw new Error('Missing expected test value');
+    return value;
+}
+const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
+const output = process.env.AEGIS_CHECK_OUT || join(repo, '.scratch/live-references/editor-context');
+mkdirSync(output, { recursive: true });
+const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
+assert.equal(build.status, 0, build.stdout + build.stderr);
+const data = checkTemp(join(tmpdir(), 'aegis-editor-context-')), token = `editor-context-${process.pid}`;
+const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: join(repo, 'agent'), env: {
+        ...process.env, AEGIS_DATA: data, AEGIS_UI: join(repo, 'app/dist'), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1',
+    } });
+const port = await new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => reject(Error('Host startup timed out')), 20000);
+    host.stdout.on('data', bytes => {
+        const match = /"port":(\d+)/.exec(String(bytes));
+        if (match?.[1]) {
+            clearTimeout(timer);
+            resolve(match[1]);
+        }
+    });
+    host.once('exit', code => { clearTimeout(timer); reject(Error(`Host exited ${code}`)); });
+});
+const fixtures = [
+    { op: 'create', type: 'doc', newId: 'contextdoc', text: 'A clear release plan', x: 100, y: 120, w: 760, h: 540, props: { body: Array.from({ length: 60 }, (_, i) => `Paragraph ${i + 1}. Write a clear brief and compare it with the supporting evidence.`).join('\n\n') } },
+    { op: 'create', type: 'object', kind: 'sheet', newId: 'contextsheet', text: 'Release evidence', x: 1000, y: 400, w: 640, h: 420, data: { columns: [{ label: 'Task', kind: 'text' }, { label: 'Hours', kind: 'number' }], rows: [{ cells: ['Review', '4'] }, { cells: ['Publish', '2'] }] } },
+    { op: 'create', type: 'deck', newId: 'contextdeck', text: 'Release story', x: 100, y: 900, w: 760, h: 540, props: { slides: [{ id: 'opening', layout: 'title', title: 'A clear release plan', sub: 'Evidence before action' }] } },
+    { op: 'create', type: 'note', newId: 'linkednote', heading: 'Customer feedback', text: 'Readers need a short explanation beside each result.', x: 1000, y: 100, w: 300, h: 220 },
+    { op: 'create', type: 'note', newId: 'nearnote', heading: 'Next step', text: 'Compare the brief with the evidence.', x: 100, y: 700, w: 300, h: 160 },
+    { op: 'create', type: 'note', newId: 'hiddentext', text: 'Hidden implementation detail', x: 100, y: 150, props: { hidden: true } },
+    { op: 'connect', a: 'contextdoc', b: 'linkednote' },
+];
+const metrics: unknown[] = [], captures: string[] = [];
+let browser: Browser | undefined, page: Page;
+try {
+    for (const [engineName, engine, platform] of [['chromium', chromium, 'MacIntel'], ['webkit', webkit, 'Win32']] as const) {
+        if (process.env.AEGIS_BROWSER && process.env.AEGIS_BROWSER !== engineName)
+            continue;
+        browser = await engine.launch();
+        page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
+        failurePage = page;
+        await installBrowserChecks(page);
+        page.setDefaultTimeout(12000);
+        const errors: string[] = [];
+        page.on('pageerror', error => errors.push(error.message));
+        await page.addInitScript(platform => {
+            Object.defineProperty(navigator, 'platform', { get: () => platform });
+            localStorage.setItem('aegis:onboarded', '1');
+            localStorage.setItem('aegis:orb-hint-seen', '1');
+            localStorage.setItem('aegis:theme', 'dark');
+            localStorage.setItem('aegis:follow', 'off');
+        }, platform);
+        await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
+        await page.waitForFunction(() => globalThis.window.aegis?.canvas?.board);
+        await page.evaluate(async (fixtures) => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            const board = await aegis.host.post('/boards', { name: 'Editor context checks' }).then(globalThis.window.__checkBoard);
+            aegis.canvas.setBoard(board);
+            await new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply(fixtures, resolve));
+        }, fixtures);
+        await page.waitForFunction(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return aegis.canvas.board.cards.length === 6;
+        });
+        const snapshot = () => page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return ({ view: { ...aegis.canvas.view }, selection: aegis.canvas.selection() });
+        });
+        const shot = async (name: string) => { const path = join(output, `${engineName}-${name}.png`); await page.screenshot({ path }); captures.push(path); };
+        const prepare = async (id: string, z = .5) => {
+            await page.evaluate(({ id, z }) => {
+                function present<T>(value: T | null | undefined): T {
+                    if (value === undefined || value === null)
+                        throw new Error('Missing expected test value');
+                    return value;
+                }
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                aegis.canvas.setView({ x: 130, y: 80, z });
+                aegis.canvas.select([id, 'nearnote']);
+                present(document.getElementById('stage')).focus();
+            }, { id, z });
+            await page.waitForTimeout(50);
+            return snapshot();
+        };
+        const open = async (id: string, keyboard = false) => {
+            await page.evaluate(({ id, keyboard }) => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id, keyboard, viaKey: keyboard } })), { id, keyboard });
+            await page.locator('.side-editor.is-open').waitFor();
+            await page.waitForTimeout(500);
+        };
+        const close = async (before: Awaited<ReturnType<typeof snapshot>>) => {
+            await page.locator('.side-editor [data-close]').click();
+            await page.waitForFunction(before => {
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                return (['x', 'y', 'z'] as const).every(key => aegis.canvas.view[key] === before.view[key]);
+            }, before);
+            assert.deepEqual(await snapshot(), before, 'closing restores the original camera and selection');
+            await page.locator('.side-editor').waitFor({ state: 'detached' });
+            assert.equal(await page.locator('.document-context').count(), 0);
+            assert.deepEqual(await page.locator('#stage').evaluate(el => [el.scrollLeft, el.scrollTop]), [0, 0], 'focus cannot scroll the stage');
+        };
+        async function staticComposition(name: string, expected?: readonly string[]) {
+            await page.waitForFunction(() => {
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                const id = aegis.workspace.ui.getSnapshot().editor?.id;
+                return id && aegis.canvas.mountedEl(id)?.textContent;
+            });
+            const result = await page.evaluate(() => {
+                function present<T>(value: T | null | undefined): T {
+                    if (value === undefined || value === null)
+                        throw new Error('Missing expected test value');
+                    return value;
+                }
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                const rect = (el: Element | null) => { if (!el)
+                    throw new Error('Missing measured element'); const r = el.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }; };
+                const editor = document.querySelector('.side-editor'), stage = document.getElementById('stage');
+                const id = present(aegis.workspace.ui.getSnapshot().editor).id, board = aegis.canvas.board;
+                const mounted = board.cards.flatMap(card => { const el = aegis.canvas.mountedEl(card.id); return el ? [{ id: card.id, card, rect: rect(el), visibility: getComputedStyle(el).visibility, display: getComputedStyle(el).display, content: el.textContent }] : []; });
+                return { id, view: aegis.canvas.view, board, editor: rect(editor), stage: rect(stage), mounted,
+                    blockedLeft: Math.max(present(stage).getBoundingClientRect().left, ...[...document.querySelectorAll('.side.open:not([hidden]):not(.side-right), .tools:not([hidden])')].map(el => el.getBoundingClientRect().right)),
+                    marker: document.querySelector('.document-context .editor-context-source') ? rect(document.querySelector('.document-context .editor-context-source')) : null };
+            });
+            const source = result.mounted.find(card => card.id === result.id);
+            assert.ok(source, `${name}: the actual editing source stays mounted`);
+            assert.equal(source.visibility, 'visible', `${name}: the source is visible`);
+            assert.ok(source.content.trim().length > 0, `${name}: real source content remains available`);
+            assert.ok(source.rect.left >= result.blockedLeft + 24 - .1 && source.rect.right <= result.editor.left - 24 + .1, `${name}: source has horizontal clearance beside the actual editor`);
+            assert.ok(source.rect.top >= result.stage.top + 24 - .1 && source.rect.bottom <= result.stage.bottom - 24 + .1, `${name}: source has vertical clearance`);
+            for (const item of result.mounted) {
+                if (item.display === 'none') {
+                    const left = result.stage.left + result.view.x + item.card.x * result.view.z, top = result.stage.top + result.view.y + item.card.y * result.view.z;
+                    assert.ok(left + item.card.w * result.view.z < result.stage.left || left > result.stage.right || top + item.card.h * result.view.z < result.stage.top || top > result.stage.bottom, `${name}: only offscreen source bodies can be culled`);
+                    continue;
+                }
+                if (item.card.props?.hidden) {
+                    assert.equal(item.visibility, 'hidden', `${name}: hidden cards stay hidden`);
+                    continue;
+                }
+                assert.equal(item.visibility, 'visible', `${name}: real windows remain visible`);
+                for (const [actual, wanted] of [[item.rect.left, result.stage.left + result.view.x + item.card.x * result.view.z], [item.rect.top, result.stage.top + result.view.y + item.card.y * result.view.z], [item.rect.width, item.card.w * result.view.z], [item.rect.height, item.card.h * result.view.z]] as const)
+                    assert.ok(Math.abs(actual - wanted) < .1, `${name}: ${item.id} retains true camera geometry (${actual} vs ${wanted})`);
+            }
+            if (expected)
+                for (const id of expected)
+                    assert.ok(result.board.cards.some(card => card.id === id), `${name}: context source ${id} is retained at its authored position`);
+            if (result.marker)
+                assert.equal(result.marker.height, 40, 'the Editing marker remains one 40px header');
+            assert.equal(await page.locator('.editor-context-window, .semantic-summaries, .board-overview').count(), 0, 'static sources have no repacked summaries or adaptive overlays');
+            metrics.push({ engine: engineName, name, ...result });
+            await shot(name);
+        }
+        async function composition(name: string, expected?: readonly string[]) {
+            return staticComposition(name, expected);
+        }
+        for (const [id, keyboard, z] of [['contextdoc', false, .48], ['contextdoc', true, 1.4], ['contextsheet', false, .5], ['contextdeck', true, .5]] as const) {
+            const before = await prepare(id, z);
+            await open(id, keyboard);
+            await composition(`${id}-${keyboard ? 'keyboard' : 'pointer'}`, id === 'contextdoc' ? ['contextdoc', 'linkednote', 'nearnote'] : undefined);
+            await close(before);
+        }
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: document, sheet and deck context, retained sources, true camera geometry and exact return`) + '\n');
+        // Closing restores the invoking Open control with real source content retained.
+        for (const selector of ['.card[data-id="contextdoc"] .win-open', '#selectionBar [aria-label="Open"]'] as const) {
+            await prepare('contextdoc', 1);
+            await page.evaluate(() => {
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                return aegis.canvas.select(['contextdoc']);
+            });
+            const invoker = page.locator(selector);
+            await invoker.waitFor({ state: 'visible' });
+            await invoker.focus();
+            const before = await snapshot();
+            await page.keyboard.press('Enter');
+            await page.locator('.side-editor.is-open').waitFor();
+            await page.waitForTimeout(500);
+            await close(before);
+            await page.waitForFunction(selector => document.querySelector(selector) === document.activeElement, selector);
+            assert.equal(await page.locator('#stage').evaluate(el => el.classList.contains('editor-source-selected')), false);
+        }
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: focus returns to the window action and selection Open after clearing the editor source`) + '\n');
+        const original = await prepare('contextsheet');
+        await open('contextsheet');
+        {
+            await page.evaluate(() => {
+                const aegis = globalThis.window.aegis;
+                if (!aegis)
+                    throw new Error('Missing test facade');
+                return aegis.canvas.frameIds(['contextdoc'], .5);
+            });
+            await page.locator('.card[data-id="contextdoc"] .win-open').click();
+        }
+        await page.locator('.docs-panel').waitFor();
+        await page.waitForTimeout(500);
+        await close(original);
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: opening a neighbouring editor preserves the original camera and selection bookmark`) + '\n');
+        // A measured custom panel width, open sidebar, viewport resize and full width.
+        let before = await prepare('contextdoc');
+        await open('contextdoc');
+        await page.locator('.side-editor').evaluate(el => { el.style.width = '60vw'; });
+        await page.waitForTimeout(450);
+        await composition('custom-width');
+        await page.locator('.side-editor').evaluate(el => { el.style.width = ''; });
+        await page.locator('#sideBtn').click();
+        await page.locator('#side.open:not([hidden])').waitFor();
+        await page.waitForTimeout(500);
+        await composition('sidebar-open');
+        await page.locator('#sideBtn').click();
+        await page.locator('#side').waitFor({ state: 'hidden' });
+        await page.setViewportSize({ width: 1586, height: 992 });
+        await page.waitForTimeout(500);
+        await composition('resized');
+        const expand = page.getByRole('button', { name: 'Full width', exact: true });
+        await expand.click();
+        const side = page.getByRole('button', { name: 'Side panel', exact: true });
+        assert.equal(await side.getAttribute('aria-pressed'), 'true');
+        await page.waitForTimeout(100);
+        assert.equal(await page.locator('.document-context').isVisible(), false);
+        await shot('full-width');
+        await side.click();
+        await page.waitForTimeout(500);
+        await composition('side-again');
+        await close({ ...before, view: { ...before.view, x: before.view.x + 73, y: before.view.y + 46 } });
+        await page.setViewportSize({ width: 1440, height: 900 });
+        // Opening motion yields to a real wheel gesture and never resumes later.
+        before = await prepare('contextdoc');
+        await page.evaluate(() => window.dispatchEvent(new CustomEvent('aegis:open-card', { detail: { id: 'contextdoc' } })));
+        await page.waitForTimeout(120);
+        const moving = await snapshot();
+        assert.notDeepEqual(moving.view, before.view);
+        await page.mouse.move(600, 700);
+        await page.mouse.wheel(40, 100);
+        await page.waitForTimeout(60);
+        const interrupted = await snapshot();
+        await page.waitForTimeout(430);
+        assert.deepEqual((await snapshot()).view, interrupted.view, 'opening remains interrupted');
+        assert.ok(await page.locator('#world > .card').evaluateAll(cards => cards.some(el => getComputedStyle(el).visibility === 'visible')), 'manual navigation retains actual source windows');
+        await close(before);
+        for (const gesture of ['space', 'middle'] as const) {
+            before = await prepare('contextdoc');
+            await open('contextdoc');
+            await page.locator('#stage').focus();
+            if (gesture === 'space')
+                await page.keyboard.down('Space');
+            await page.mouse.move(600, 700);
+            await page.mouse.down({ button: gesture === 'middle' ? 'middle' : 'left' });
+            await page.mouse.move(640, 730, { steps: 4 });
+            await page.mouse.up({ button: gesture === 'middle' ? 'middle' : 'left' });
+            if (gesture === 'space')
+                await page.keyboard.up('Space');
+            assert.ok(await page.locator('#world > .card').evaluateAll(cards => cards.some(el => getComputedStyle(el).visibility === 'visible')), `${gesture} pan retains actual windows`);
+            await close(before);
+        }
+        for (const mode of ['reduce', 'off'] as const) {
+            await page.emulateMedia({ reducedMotion: mode === 'reduce' ? 'reduce' : 'no-preference' });
+            await page.evaluate(mode => document.body.classList.toggle('motion-off', mode === 'off'), mode);
+            before = await prepare('contextdoc');
+            await open('contextdoc');
+            const settled = await snapshot();
+            await page.waitForTimeout(100);
+            assert.deepEqual((await snapshot()).view, settled.view);
+            await composition(`motion-${mode}`);
+            await close(before);
+        }
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await page.evaluate(() => document.body.classList.remove('motion-off'));
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: actual panel bounds, sidebar, resize, active width label, interruption and both motion preferences`) + '\n');
+        before = await prepare('contextdoc', 1);
+        const preview = page.locator('#world > .card[data-id="contextdoc"] .doc-view');
+        const scroll = await preview.evaluate(el => { el.scrollTop = 180; return el.scrollTop; });
+        assert.ok(scroll > 0);
+        await open('contextdoc');
+        await page.getByLabel('Document title', { exact: true }).fill('Release brief');
+        await page.waitForFunction(() => document.querySelector('.side-editor [data-saved]')?.textContent === 'Saved');
+        await close(before);
+        await page.waitForFunction(scroll => document.querySelector('#world > .card[data-id="contextdoc"] .doc-view')?.scrollTop === scroll, scroll);
+        await page.setViewportSize({ width: 700, height: 800 });
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        assert.equal(await page.locator('.document-context').isVisible(), false, 'a full viewport editor leaves no usable reference rectangle');
+        await shot('narrow-editor');
+        await close(before);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'update', id: 'linkednote', set: { x: 8000, y: -5000 } }], resolve));
+        });
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await composition('distant-link', ['contextdoc', 'linkednote', 'nearnote']);
+        await close(before);
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'update', id: 'linkednote', set: { x: 1000, y: 100 } }], resolve));
+        });
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: scrolled source survives a saved edit, narrow editors and distant linked context`) + '\n');
+        // Import an actual local dataset through the app, then open its editor.
+        await page.evaluate(() => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const dt = new DataTransfer();
+            dt.items.add(new File(['task,hours\nReview,4\nPublish,2\n'], 'context.csv', { type: 'text/csv' }));
+            present(document.getElementById('stage')).dispatchEvent(new DragEvent('drop', { dataTransfer: dt, clientX: 500, clientY: 350, bubbles: true }));
+        });
+        await page.waitForFunction(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return aegis.canvas.board.cards.some(c => c.type === 'dataset');
+        });
+        const dataset = await page.evaluate(() => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return present(aegis.canvas.board.cards.find(c => c.type === 'dataset')).id;
+        });
+        before = await prepare(dataset);
+        await open(dataset);
+        await page.locator('.data-viewer-grid').waitFor();
+        await composition('dataset');
+        await close(before);
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'create', type: 'note', newId: 'addedreference', text: 'An extra source to drag into the document.', x: 300, y: 400 }], resolve));
+        });
+        {
+            await page.locator('.card[data-id="addedreference"]').waitFor({ state: 'visible' });
+            assert.equal(await page.locator('.card[data-id="addedreference"]').isVisible(), true, 'new board windows remain available for document drag and drop');
+        }
+        await close(before);
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'delete', ids: ['addedreference'] }], resolve));
+        });
+        const chartData = { style: 'line', basis: 'Release evidence', x: { kind: 'category', label: 'Task' }, y: { format: 'number', label: 'Hours' },
+            source: { cardId: 'contextsheet', xColumn: 0, yColumns: [1] }, series: [{ name: 'Hours', points: [{ x: 'Review', y: 4 }, { x: 'Publish', y: 2 }] }] };
+        await page.evaluate(data => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([
+                { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot', text: 'Hours by task', x: 1700, y: 400, data },
+                { op: 'create', type: 'object', kind: 'plot', newId: 'liveplot2', text: 'Hours comparison', x: 2500, y: 400, data },
+                { op: 'connect', a: 'contextsheet', b: 'liveplot' },
+                { op: 'connect', a: 'contextdoc', b: 'liveplot' },
+            ], resolve));
+        }, chartData);
+        before = await prepare('contextsheet');
+        await open('contextsheet');
+        const line = page.locator('.editor-reference-chart .line');
+        await line.waitFor();
+        const oldPath = await line.getAttribute('d');
+        assert.deepEqual(await page.locator('.editor-reference-chart').evaluate(el => {
+            function dom<T extends Element>(value: Element | null | undefined, kind: {
+                new (): T;
+            }): T {
+                if (!(value instanceof kind))
+                    throw new Error('Unexpected DOM element type');
+                return value;
+            }
+            return [dom(el, HTMLElement).offsetWidth, dom(el, HTMLElement).offsetHeight];
+        }), [320, 180]);
+        await page.locator('.sheet-grid td[data-r="1"][data-c="1"]').dblclick();
+        await page.getByLabel('Cell value', { exact: true }).fill('8');
+        await page.getByLabel('Cell value', { exact: true }).press('Enter');
+        await page.waitForFunction(old => document.querySelector('.editor-reference-chart .line')?.getAttribute('d') !== old, oldPath);
+        await page.waitForFunction(() => document.querySelector('.side-editor [data-saved]')?.textContent === 'Saved');
+        assert.equal(await page.locator('.sheet-editor').count(), 1, 'live evidence does not replace the editor');
+        assert.equal(await page.locator('.editor-context-reference:not([hidden])').count(), 1);
+        assert.ok(await page.locator('.editor-reference-chart text.tick').evaluateAll(labels => labels.every(el => parseFloat(getComputedStyle(el).fontSize) >= 12)));
+        await shot('sheet-live-chart');
+        const picker = page.getByRole('combobox', { name: 'Pinned reference', exact: true });
+        await picker.focus();
+        await page.keyboard.press('Enter');
+        const choices = page.getByRole('listbox', { name: 'Pinned reference options', exact: true });
+        assert.equal(await choices.getByRole('option').count(), 4, 'None and all chart and dataset candidates are offered');
+        await choices.locator('[data-value="liveplot2"]').focus();
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours comparison.'));
+        assert.equal(await page.locator('.editor-context-reference').getAttribute('data-card-id'), 'liveplot2');
+        await picker.focus();
+        await page.keyboard.press('Enter');
+        await choices.locator('[data-value="liveplot"]').focus();
+        await page.keyboard.press('Enter');
+        await page.waitForFunction(() => document.querySelector('.editor-reference-chart svg')?.getAttribute('aria-label')?.startsWith('Hours by task.'));
+        await picker.focus();
+        await page.keyboard.press('Enter');
+        await page.keyboard.press('Escape');
+        assert.equal(await picker.getAttribute('aria-expanded'), 'false');
+        assert.equal(await page.locator('.sheet-editor').count(), 1, 'Escape dismisses the switcher first');
+        await close(before);
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await picker.focus();
+        await page.keyboard.press('Enter');
+        assert.equal(await choices.getByRole('option').count(), 5, 'the switcher includes None and every eligible reference');
+        const sheetIndex = await choices.getByRole('option').evaluateAll(items => items.findIndex(el => el.dataset.value === 'contextsheet'));
+        await page.keyboard.press('Home');
+        for (let i = 0; i < sheetIndex; i++)
+            await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Enter');
+        await page.locator('.editor-reference-table table').waitFor();
+        assert.equal(await page.locator('.docs-panel').count(), 1, 'choosing a pin keeps the current editor');
+        assert.deepEqual(await page.locator('.editor-reference-table').evaluate(el => {
+            function dom<T extends Element>(value: Element | null | undefined, kind: {
+                new (): T;
+            }): T {
+                if (!(value instanceof kind))
+                    throw new Error('Unexpected DOM element type');
+                return value;
+            }
+            return [dom(el, HTMLElement).offsetWidth, dom(el, HTMLElement).offsetHeight];
+        }), [280, 160]);
+        assert.equal(await page.locator('.editor-reference-table td').nth(1).textContent(), '8');
+        await page.getByLabel('Reference first row', { exact: true }).fill('2');
+        await page.getByLabel('Reference first row', { exact: true }).press('Tab');
+        await page.waitForFunction(() => document.querySelector('.editor-reference-table td')?.textContent === 'Publish');
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'object_set', id: 'contextsheet', path: ['rows', 1, 'cells', 1], value: '5' }], resolve));
+        });
+        await page.waitForFunction(() => document.querySelectorAll('.editor-reference-table td')[1]?.textContent === '5');
+        await shot('selected-table-region');
+        await page.setViewportSize({ width: 1586, height: 992 });
+        await page.waitForTimeout(500);
+        assert.equal(await page.locator('.editor-reference-table td').first().textContent(), 'Publish', 'pin and region survive resizing');
+        await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+        await shot('reference-light');
+        await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+        await close({ ...before, view: { ...before.view, x: before.view.x + 73, y: before.view.y + 46 } });
+        await page.setViewportSize({ width: 1440, height: 900 });
+        // The same pin returns when the document is reopened.
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await page.locator('.editor-reference-table table').waitFor();
+        await close(before);
+        // A board update during a CSV read must not strand the pinned dataset in Loading.
+        const requested = Promise.withResolvers<void>();
+        const heldAsset = Promise.withResolvers<void>();
+        const assetUrl = await page.evaluate(id => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            const src = present(present(aegis.canvas.board.cards.find(c => c.id === id)).props).src;
+            if (typeof src !== 'string')
+                throw new Error('Expected asset URL');
+            return aegis.host.assetUrl(src);
+        }, dataset);
+        await page.route(assetUrl, async (route) => { requested.resolve(); await heldAsset.promise; await route.continue(); });
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await picker.focus();
+        await page.keyboard.press('Enter');
+        await choices.locator(`[data-value="${dataset}"]`).focus();
+        await page.keyboard.press('Enter');
+        await requested.promise;
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'update', id: 'nearnote', set: { text: 'Compare the latest evidence.' } }], resolve));
+        });
+        heldAsset.resolve();
+        await page.locator('.editor-reference-table table').waitFor();
+        assert.equal(await page.locator('.editor-reference-table td').first().textContent(), 'Review');
+        assert.deepEqual(await page.locator('.editor-reference-table').evaluate(el => {
+            function dom<T extends Element>(value: Element | null | undefined, kind: {
+                new (): T;
+            }): T {
+                if (!(value instanceof kind))
+                    throw new Error('Unexpected DOM element type');
+                return value;
+            }
+            return [dom(el, HTMLElement).offsetWidth, dom(el, HTMLElement).offsetHeight];
+        }), [280, 160]);
+        assert.ok(await page.locator('.editor-reference-table :is(th, td)').evaluateAll(cells => cells.every(el => getComputedStyle(el).fontSize === '12px')));
+        await shot('pinned-dataset');
+        await page.unroute(assetUrl);
+        await page.evaluate(async (id) => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            const saved = await aegis.host.upload(new File(['task,hours\nReview,9\nPublish,6\n'], 'updated.csv', { type: 'text/csv' }));
+            const source = aegis.canvas.board.cards.find(c => c.id === id);
+            await new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'update', id, set: { props: { ...present(source).props, src: saved.url } } }], resolve));
+        }, dataset);
+        await page.waitForFunction(() => document.querySelectorAll('.editor-reference-table td')[1]?.textContent === '9');
+        await close(before);
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'delete', ids: ['liveplot', 'liveplot2'] }], resolve));
+        });
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: live sheet edits, one pinned chart, all keyboard choices, selected table region, live table and dataset updates, concurrent CSV read, persistent pin and light theme`) + '\n');
+        // Font choices exclude loaded maths fonts and fonts already used by cards.
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'update', id: 'nearnote', set: { props: { font: 'KaTeX_AMS' } } }], resolve));
+        });
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await page.getByLabel('Format document', { exact: true }).click();
+        const font = page.getByRole('combobox', { name: 'Font family', exact: true });
+        await font.click();
+        const fontMenu = page.getByRole('listbox', { name: 'Font family choices', exact: true });
+        assert.doesNotMatch(present(await fontMenu.textContent()), /KaTeX|MathJax|Material Icons|Font Awesome|system-ui|Inter Variable/);
+        const inter = fontMenu.getByRole('option', { name: 'Inter', exact: true });
+        assert.match(await inter.evaluate(el => el.style.fontFamily), /Inter Variable/);
+        assert.equal(await fontMenu.getByRole('option', { name: 'Serif', exact: true }).count(), 1);
+        await shot('font-previews');
+        await fontMenu.getByRole('option', { name: 'Georgia', exact: true }).click();
+        await page.getByLabel('Format document', { exact: true }).click();
+        const rewrite = page.locator('.docs-ribbon .ribbon-ai [data-chooser="Rewrite selection"] button');
+        assert.equal(await rewrite.locator('.orb-inline').count(), 1);
+        const animations = () => rewrite.locator('.orb-inline').evaluate(el => el.getAnimations({ subtree: true }).filter(a => a.playState === 'running').length);
+        assert.equal(await animations(), 0, 'inline orb is still at rest');
+        await rewrite.hover();
+        assert.equal(await animations(), 0, 'hover does not animate inline AI');
+        const measureContrast = () => rewrite.evaluate(el => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const rgb = (text: string) => present(text.match(/[\d.]+/g)).slice(0, 3).map(Number);
+            const over = (fg: number[], bg: number[], a: number) => fg.map((v, i) => v * a + present(bg[i]) * (1 - a));
+            let background = [0, 0, 0];
+            for (const node of [el, ...function* () {
+                    for (let p = el.parentElement; p; p = p.parentElement)
+                        yield p;
+                }()].reverse()) {
+                const value = getComputedStyle(node).backgroundColor, parts = present(value.match(/[\d.]+/g)).map(Number);
+                background = over(parts.slice(0, 3), background, parts[3] ?? 1);
+            }
+            const luminance = (c: number[]) => c.map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((sum, v, i) => sum + v * present([.2126, .7152, .0722][i]), 0);
+            const a = luminance(rgb(getComputedStyle(el).color)), b = luminance(background);
+            return (Math.max(a, b) + .05) / (Math.min(a, b) + .05);
+        });
+        const contrast = await measureContrast();
+        assert.ok(contrast >= 4.5, `Rewrite contrast ${contrast}`);
+        await page.evaluate(() => document.documentElement.dataset.theme = 'light');
+        const lightContrast = await measureContrast();
+        assert.ok(lightContrast >= 4.5, `Light Rewrite contrast ${lightContrast}`);
+        await shot('rewrite-light');
+        await page.evaluate(() => document.documentElement.dataset.theme = 'dark');
+        metrics.push({ engine: engineName, rewriteContrast: contrast, lightRewriteContrast: lightContrast });
+        await page.route('**/rewrite', async (route) => { await new Promise<void>(resolve => setTimeout(resolve, 700)); await route.fulfill({ json: { text: 'A clearer release plan.' } }); });
+        const runRewrite = async (motion: 'reduce' | 'no-preference', off = false) => {
+            await page.emulateMedia({ reducedMotion: motion });
+            await page.evaluate(off => document.body.classList.toggle('motion-off', off), off);
+            await page.locator('.docs-prose').click();
+            await page.locator('.docs-prose').press('ControlOrMeta+a');
+            await choose(rewrite, 'Shorter');
+            await page.waitForFunction(() => document.querySelector('.docs-ribbon .ribbon-ai')?.getAttribute('aria-busy') === 'true');
+            assert.equal(await animations(), motion === 'reduce' || off ? 0 : 2, `working orb respects ${off ? 'Motion off' : motion}`);
+            assert.deepEqual(await rewrite.locator('.orb-inline').evaluate(el => { if (!el)
+                throw new Error('Missing measured element'); const r = el.getBoundingClientRect(); return [r.width, r.height]; }), [16, 16]);
+            if (motion !== 'reduce' && !off)
+                await shot('rewrite-working');
+            await page.waitForFunction(() => document.querySelector('.docs-ribbon .ribbon-ai')?.getAttribute('aria-busy') === 'false');
+            assert.equal(await animations(), 0);
+        };
+        await runRewrite('no-preference');
+        await runRewrite('reduce');
+        await runRewrite('no-preference', true);
+        await page.evaluate(() => document.body.classList.remove('motion-off'));
+        await page.unroute('**/rewrite');
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        await close(before);
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: real CSV editor, filtered writing fonts, font previews, shared 16px orb, working states, reduced motion and ${contrast.toFixed(2)}:1 text contrast`) + '\n');
+        // Selection menus use the same platform formatter as context menus.
+        await page.evaluate(() => {
+            function present<T>(value: T | null | undefined): T {
+                if (value === undefined || value === null)
+                    throw new Error('Missing expected test value');
+                return value;
+            }
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            aegis.canvas.setView({ x: 180, y: -530, z: 1 });
+            aegis.canvas.select(['nearnote']);
+            present(document.getElementById('stage')).focus();
+        });
+        await page.getByLabel('More selection controls', { exact: true }).click();
+        await page.getByLabel('Format selection', { exact: true }).click();
+        const underline = page.locator('.selection-menu-action[aria-label="Underline"] .selection-value');
+        assert.equal(await underline.textContent(), platform === 'MacIntel' ? '⌘U' : 'Ctrl+U');
+        assert.equal(await underline.evaluate(el => getComputedStyle(el).fontSize), '12px');
+        assert.ok(present((await underline.boundingBox())).width <= 96);
+        for (const hint of await page.locator('.selection-menu .selection-value').allTextContents())
+            assert.ok(!hint.includes(' / '));
+        assert.equal(await page.locator('#selectionBar .selection-ai .orb-inline').count(), 1);
+        await shot('selection-shortcuts');
+        await page.keyboard.press('Escape');
+        await page.keyboard.press('Escape');
+        await page.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return new Promise<import("@aegis/host-client").CreatedIds>(resolve => aegis.apply([{ op: 'restore', cards: [structuredClone(aegis.canvas.board.cards.find(c => c.id === 'contextdoc'))], links: [] }], resolve));
+        });
+        before = await prepare('contextdoc');
+        await open('contextdoc');
+        await composition('source-alone', ['contextdoc']);
+        await close({ ...before, selection: [CardIdSchema.parse('contextdoc')] });
+        assert.deepEqual(errors, []);
+        process.stdout.write(formatCheckOutput(`PASS ${engineName}: ${platform} shortcut hints, 12px capped hint column and no browser exceptions`) + '\n');
+        await browser.close();
+        browser = undefined;
+    }
+    writeFileSync(join(output, 'metrics.json'), JSON.stringify({ metrics, captures }, null, 2));
+}
+catch (error) {
+    if (typeof failurePage !== 'undefined' && !failurePage.isClosed()) {
+        await failurePage.screenshot({ path: join(output, 'failure.png') });
+        writeFileSync(join(output, 'failure.json'), JSON.stringify(await failurePage.evaluate(() => {
+            const aegis = globalThis.window.aegis;
+            if (!aegis)
+                throw new Error('Missing test facade');
+            return ({
+                view: aegis.canvas.view,
+                elements: [...document.querySelectorAll('#stage, .side-editor, .editor-context, .editor-context-window, .tools, .side')].map(el => ({
+                    className: el.className, rect: el.getBoundingClientRect().toJSON(), transform: getComputedStyle(el).transform,
+                })),
+            });
+        }), null, 2));
+    }
+    throw error;
+}
+finally {
+    await browser?.close();
+    host.kill();
+    rmSync(data, { recursive: true, force: true });
+}
