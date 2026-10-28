@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, '');
-const contextSelector = process.env.AEGIS_UI_IMPL === 'react' ? '.document-context' : '.editor-context';
+const contextSelector = '.document-context';
 const output = join(repo, '.scratch/spatial-interaction'); mkdirSync(output, { recursive: true });
 const build = spawnSync('npm', ['--prefix', 'app', 'run', 'build'], { cwd: repo, encoding: 'utf8' });
 assert.equal(build.status, 0, build.stdout + build.stderr);

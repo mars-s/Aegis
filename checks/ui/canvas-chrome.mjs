@@ -29,18 +29,17 @@ try {
     const page = await browser.newPage({ viewport: { width: 1586, height: 992 }, colorScheme: 'dark', reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', error => { errors.push(error.stack || error.message); console.error(engineName, error.stack || error.message); });
     const shot = name => page.screenshot({ path: out(`canvas-chrome-${engineName}-${name}.png`) });
-    const documentPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open .docs-panel' : '.docs-panel.is-open';
-    const objectPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open:has(.object.expanded)' : '.object-editor.is-open';
+    const documentPanel = '.side-editor.is-open .docs-panel';
+    const objectPanel = '.side-editor.is-open:has(.object.expanded)';
     const card = id => page.locator(`#world > .card[data-id="${id}"]`);
     const select = async id => { await page.evaluate(id => { document.activeElement?.blur(); aegis.canvas.select([id]); }, id); await page.locator('#selectionBar').waitFor({ state: 'visible' }); };
     const connect = async id => { await select(id); await page.locator('#selectionBar .selection-more > summary').click(); await page.getByRole('button', { name: 'Connect', exact: true }).click(); await page.locator('#stage.connecting').waitFor(); };
     const centre = locator => locator.evaluate(el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     const moveTo = async locator => { await locator.hover(); return centre(locator); };
     const inputDone = async () => {
-      if (process.env.AEGIS_UI_IMPL !== 'react') return;
       await page.evaluate(async () => { const engine = aegis.canvas.engine; const frame = () => new Promise(resolve => { const release = engine.registerFrameParticipant({ write() { release(); engine.afterInput(resolve); } }); }); await frame(); await frame(); });
     };
-    const linkPoint = () => process.env.AEGIS_UI_IMPL === 'react' ? page.evaluate(() => {
+    const linkPoint = () => page.evaluate(() => {
       const link = aegis.canvas.board.links[0], route = link && aegis.canvas.engine.linkRoute(link.id);
       if (!route) throw Error('The saved connector has no painted scene route');
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', route.d);
@@ -50,7 +49,7 @@ try {
         if (target?.closest('#stage') && !target.closest('.card,button,input,textarea,select,[data-scene-interactive]') && aegis.canvas.engine.hitTestLink(point) === link.id) return point;
       }
       throw Error('The saved connector has no unobstructed painted hit target');
-    }) : page.locator('.link-hit').evaluate(el => { const p = el.getPointAtLength(el.getTotalLength() / 2); return new DOMPoint(p.x, p.y).matrixTransform(el.getScreenCTM()).toJSON(); });
+    });
     try {
       await page.addInitScript(() => { if (window !== window.top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
@@ -178,9 +177,9 @@ try {
       await moveTo(page.locator('[data-connect-end="b"]')); await page.mouse.down(); const replacement = await centre(card('chromeplot')); await page.mouse.move(replacement.x, replacement.y, { steps: 10 }); await page.mouse.up();
       await waitForAsync(page, async () => (await aegis.host.get('/boards/' + aegis.canvas.board.id)).links[0]?.b === 'chromeplot');
       await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board?.links?.[0]?.label === 'Shared context');
-      if (process.env.AEGIS_UI_IMPL === 'react') { await inputDone(); const point = await linkPoint(); await page.mouse.click(point.x, point.y); await page.locator('[data-connect-end="b"]').waitFor(); }
-      assert.equal(await page.locator(process.env.AEGIS_UI_IMPL === 'react' ? '.creative-connections .draw-link-selection' : '.link-hit').count(), 1);
-      if (process.env.AEGIS_UI_IMPL === 'react') { await page.keyboard.press('Escape'); await inputDone(); }
+      { await inputDone(); const point = await linkPoint(); await page.mouse.click(point.x, point.y); await page.locator('[data-connect-end="b"]').waitFor(); }
+      assert.equal(await page.locator('.creative-connections .draw-link-selection').count(), 1);
+      { await page.keyboard.press('Escape'); await inputDone(); }
       console.log(`PASS ${engineName}: drag creates a persisted editable link; bend, label and reconnected endpoint save; duplicate and empty drops leave links unchanged; reload keeps the link`);
       await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'object', kind: 'html', newId: 'chromewidget', text: 'Widget actions', x: 400, y: 540, w: 440, h: 300, data: { html: '<p>Interactive widget</p>', css: '', js: '', height: 180 } }]); aegis.canvas.select([]); aegis.canvas.setView({ x: 0, y: 0, z: 1 }); });
       await card('chromewidget').locator('iframe').hover();

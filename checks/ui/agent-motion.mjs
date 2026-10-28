@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { demoBatch } from '../demo-batch.mjs';
-import { freeAgentRect } from '../../app/src/features/agents/placement.js';
+import { freeAgentRect } from '../../app/src/features/agents/geometry.ts';
 
 const exactWidthArea = { x: 8188.749999998775, y: 550, w: 3500, h: 10400 };
 const exactWidthLabel = freeAgentRect([], [], exactWidthArea, 775, null, exactWidthArea, 3500);

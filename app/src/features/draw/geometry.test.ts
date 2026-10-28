@@ -3,7 +3,7 @@ import { decodeStoredBoard } from '@aegis/protocol/storage';
 import { applyBatch as reduceBatch, emptyBoard } from '@aegis/domain/commands';
 import { BoardIdSchema, CardSchema } from '@aegis/domain/schema';
 import type { Board } from '@aegis/domain/schema';
-import { routeLink } from '../../../../packages/scene/src/links.js';
+import { routeLink } from '@aegis/scene';
 import { DrawingProps, outlineAttributes, pathD, shapePoints, squigPath, SHAPES } from './art.js';
 import { shapePathCommands } from './commands.js';
 import { fitPoints, inkHit, localToWorld, pointOnSegment, splitSegment, worldToLocal } from './vector-geometry.js';

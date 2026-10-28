@@ -27,7 +27,7 @@ debug.on('Debugger.scriptFailedToParse', async info => { console.error('SCRIPT P
 const errors = []; page.on('pageerror', error => errors.push(error.stack || error.message));
 const log = message => console.log(message);
 const centreCard = async type => { await page.evaluate(type => { const card = aegis.canvas.board.cards.find(c => c.type === type); aegis.canvas.frameIds([card.id], 1); }, type); await page.waitForTimeout(400); };
-const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const id = process.env.AEGIS_UI_IMPL === 'react' ? ({ 'voice-memo': 'audio', 'camera-recording': 'video' }[name] || name) : name; const button = page.locator(`#tools [data-tool="${id}"]`); const closed = process.env.AEGIS_UI_IMPL === 'react' ? await page.locator(`#toolsPopover [data-tool="${id}"]`).count() > 0 && await page.locator('#toolsFold').getAttribute('aria-expanded') !== 'true' : !await button.isVisible(); if (closed) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); if (process.env.AEGIS_UI_IMPL === 'react' && (id === 'audio' || id === 'video')) await page.locator(`.card[data-type="${id}"]`).waitFor(); };
+const tool = async name => { await page.locator('#stage').click({ position: { x: 1200, y: 80 } }); await page.mouse.move(24, 480); const id = ({ 'voice-memo': 'audio', 'camera-recording': 'video' }[name] || name); const button = page.locator(`#tools [data-tool="${id}"]`); const closed = (await page.locator(`#toolsPopover [data-tool="${id}"]`).count() > 0 && await page.locator('#toolsFold').getAttribute('aria-expanded') !== 'true'); if (closed) await page.locator('#toolsFold').click(); await button.click(); await page.locator('#stage').click({ position: { x: 850, y: 170 } }); if ((id === 'audio' || id === 'video')) await page.locator(`.card[data-type="${id}"]`).waitFor(); };
 try {
   await page.goto(`http://127.0.0.1:${5183 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
@@ -106,7 +106,7 @@ try {
   await page.locator('#closeSettings').click();
   log('Global colour preferences, panel contrast, theme separation, reset and board background priority verified');
   const preparedImages = await page.evaluate(async () => {
-    const { prepareImage } = await import('/src/features/media/images.js');
+    const { prepareImage } = await import('/src/features/media/image-utils.ts');
     const cv = document.createElement('canvas'); cv.width = 1600; cv.height = 1100;
     const context = cv.getContext('2d'), pixels = context.createImageData(cv.width, cv.height);
     let state = 123456789;
@@ -313,11 +313,11 @@ try {
   const firstBoard = await page.evaluate(() => aegis.canvas.board.id);
   const otherBoard = await page.evaluate(async () => aegis.host.post('/boards', { name: 'Separate palette' }));
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  await (process.env.AEGIS_UI_IMPL === 'react' ? page.locator(`.tree-row.board[data-board="${otherBoard.id}"]`) : page.getByText('Separate palette', { exact: true })).click();
+  await (page.locator(`.tree-row.board[data-board="${otherBoard.id}"]`)).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, otherBoard.id);
   assert.equal(await page.evaluate(() => aegis.canvas.board.bg || null), null);
   assert.equal(await page.evaluate(() => aegis.canvas.board.palette?.length || 0), 0);
-  await (process.env.AEGIS_UI_IMPL === 'react' ? page.locator(`.tree-row.board[data-board="${firstBoard}"]`) : page.getByText('First board', { exact: true }).last()).click();
+  await (page.locator(`.tree-row.board[data-board="${firstBoard}"]`)).click();
   await page.waitForFunction(id => aegis.canvas.board.id === id, firstBoard);
   await centreCard('video'); await page.screenshot({ path: out('media-persisted.png') });
   await page.evaluate(() => {

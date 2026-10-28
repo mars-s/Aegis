@@ -77,7 +77,7 @@ try {
   assert.equal(await panel.locator('.deck-slide-wrap[data-i="1"] .deck-chart .pt').count(), 5);
   await page.screenshot({ path: out(`r6-deck-weekday-labels-${stamp}.png`) });
   const labelFallbacks = await page.evaluate(async () => {
-    const { lineChart } = await import('/src/features/deck/slides.js');
+    const { lineChart } = await import('/src/platform/deck-test.ts');
     const read = chart => [...new DOMParser().parseFromString(lineChart(chart), 'text/html').querySelectorAll('.x-tick')].map(el => el.textContent);
     return [read({ values: [1, 2, 3] }), read({ values: [1, null, 3], labels: ['Mon', 'Tue', '<Fri>'] }), read({ values: [1, 2], labels: ['Mon'] })];
   });

@@ -1,4 +1,3 @@
-import "./legacy-controls.js";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import type { Board } from "@aegis/domain";
@@ -11,7 +10,7 @@ import type { Dropdown, DropdownOption } from "../../lib/ui/dropdown.js";
 import { writingFontChooser } from "../../features/editing/writing-fonts.js";
 import type { FontChooser } from "../../features/editing/writing-fonts.js";
 import { OrbMark } from "../../lib/ui/orb-mark.js";
-import { createColourPicker } from "../../features/colors/colour-picker.js";
+import { ColourPicker } from "../../features/colours/ColourEditor.js";
 import "../../lib/ui/ribbon.css";
 
 export function Choice({
@@ -76,20 +75,21 @@ export function FontChoice({
   const latest = useRef(change);
   latest.current = change;
   useEffect(() => {
-    const input = writingFontChooser(extra);
-    control.current = input;
-    input.onchange = () => {
-      if (input.fontFamily) latest.current(input.fontFamily);
+    const chooser = writingFontChooser(extra);
+    control.current = chooser;
+    chooser.input.onchange = () => {
+      const family = chooser.fontFamily();
+      if (family) latest.current(family);
     };
-    root.current?.append(input);
+    root.current?.append(chooser.input);
     return () => {
-      input.destroy();
-      input.remove();
+      chooser.destroy();
+      chooser.input.remove();
       control.current = null;
     };
   }, [extra]);
   useEffect(() => {
-    if (control.current && document.activeElement !== control.current)
+    if (control.current && document.activeElement !== control.current.input)
       control.current.setFont(font);
   }, [font]);
   return <span ref={root} />;
@@ -106,22 +106,7 @@ export function ColourChoice({
   readonly board: () => Board;
   readonly change: (colour: string) => void;
 }) {
-  const root = useRef<HTMLSpanElement>(null),
-    latest = useRef(change);
-  latest.current = change;
-  useEffect(() => {
-    const control = createColourPicker({
-      label,
-      value: colour,
-      board,
-      onChange: (next) => latest.current(next),
-    });
-    root.current?.append(control);
-    return () => {
-      control.remove();
-    };
-  }, [label, colour, board]);
-  return <span ref={root} />;
+  return <ColourPicker label={label} value={colour} board={board} onChange={change} />;
 }
 
 export function Disclosure({

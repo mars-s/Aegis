@@ -6,7 +6,6 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const react = process.env.AEGIS_UI_IMPL === 'react';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `editors-${process.pid}`;
 const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-editors-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
@@ -109,7 +108,7 @@ try {
   assert.equal(await page.locator('.side-editor-head .docs-title').count(), 1, 'The title is editable in the window strip');
   await page.getByLabel('Format document', { exact: true }).click();
   const toolbarFocus = await page.evaluate(async () => {
-    const { currentDocument } = await import('/src/features/docs/editor.js');
+    const { currentDocument } = await import('/src/platform/document-test.ts');
     const editor = currentDocument().editor, text = editor.getText();
     editor.commands.selectAll();
     const font = document.querySelector('[aria-label="Font family"]');

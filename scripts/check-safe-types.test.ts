@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkLegacyLimits, inspectSource } from "./check-safe-types.js";
+import { inspectSource } from "./check-safe-types.js";
 import type { Rule } from "./check-safe-types.js";
 
 interface Fixture {
@@ -83,39 +83,5 @@ describe("safe TypeScript and import ownership", () => {
     expect(inspectSource("scripts/input.ts", "\nconst value: any = 1;")).toEqual([
       { file: "scripts/input.ts", line: 2, column: 14, rule: "explicit-any", message: "Parse unknown boundary data into a schema-derived type." },
     ]);
-  });
-});
-
-describe("legacy finding limits", () => {
-  const file = "app/src/legacy.ts";
-  const findings = inspectSource(file, "let value: any;");
-  const manifest = { [file]: { "explicit-any": 1 } };
-
-  it("accepts the recorded count and permits a lower count", () => {
-    expect(checkLegacyLimits(findings, manifest)).toEqual([]);
-    expect(checkLegacyLimits(findings, manifest, { [file]: { "explicit-any": 2 } })).toEqual([]);
-  });
-  it("rejects a raised finding count", () => {
-    expect(checkLegacyLimits([...findings, ...findings], manifest)).not.toEqual([]);
-  });
-  it("rejects a new file containing a finding", () => {
-    expect(checkLegacyLimits(inspectSource("app/src/new.ts", "let value: any;"), manifest)).not.toEqual([]);
-  });
-  it("rejects removal of an entry while findings remain", () => {
-    expect(checkLegacyLimits(findings, {})).not.toEqual([]);
-  });
-  it("requires lowering the manifest when findings decrease", () => {
-    expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } })).not.toEqual([]);
-  });
-  it("rejects increasing or adding a manifest allowance", () => {
-    expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } }, manifest)).not.toEqual([]);
-    expect(checkLegacyLimits(findings, manifest, {})).not.toEqual([]);
-  });
-  it("requires removing deleted and fully ported files", () => {
-    expect(checkLegacyLimits([], manifest)).not.toEqual([]);
-    expect(checkLegacyLimits([], {}, manifest)).toEqual([]);
-  });
-  it("does not let one rule consume another rule's allowance", () => {
-    expect(checkLegacyLimits(inspectSource(file, "value!.run();"), manifest)).not.toEqual([]);
   });
 });

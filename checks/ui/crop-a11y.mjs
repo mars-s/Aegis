@@ -49,11 +49,11 @@ try {
             return canvas.toDataURL().split(',')[1];
           }), 'base64');
           const fixture = { name: 'crop-fixture.png', mimeType: 'image/png', buffer };
-          if (process.env.AEGIS_UI_IMPL === 'react') {
+          {
             const picker = page.waitForEvent('filechooser');
             await page.locator('[data-tool="import-image"]').dispatchEvent('click');
             await (await picker).setFiles(fixture);
-          } else await page.locator('#mediaFile').setInputFiles(fixture);
+          }
           await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'image'));
           const imageId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'image').id);
           await page.evaluate(id => new Promise(resolve => aegisCtx.apply([{ op: 'update', id, set: { props: { tagText: 'Two forms, one piece of evidence' } } }], resolve)), imageId);

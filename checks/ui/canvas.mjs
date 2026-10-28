@@ -34,7 +34,6 @@ try {
   const api = (path, body) => page.evaluate(([path, body]) => body === undefined ? aegis.host.get(path) : aegis.host.post(path, body), [path, body]);
   const settle = () => page.waitForTimeout(180);
   const sceneInput = async () => {
-    if (process.env.AEGIS_UI_IMPL !== 'react') return;
     await page.evaluate(() => new Promise(resolve => {
       const engine = aegis.canvas.engine;
       const release = engine.registerFrameParticipant({ read() { release(); engine.afterInput(resolve); } });

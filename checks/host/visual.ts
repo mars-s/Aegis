@@ -7,7 +7,7 @@ import { z } from 'zod/v4';
 import { BoardSchema, JsonRecordSchema } from '@aegis/domain/schema';
 import { hostFixture } from './fixture.ts';
 
-const implementation = z.enum(['legacy', 'react']).parse(process.argv[2]);
+const implementation = 'react';
 const output = fileURLToPath(new URL('.', import.meta.url));
 const evidence = process.env.AEGIS_CHECK_OUT ?? output;
 const source = await readFile(new URL('../ui/agent-types.mjs', import.meta.url), 'utf8');

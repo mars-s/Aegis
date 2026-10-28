@@ -52,7 +52,7 @@ try {
           if (new URL(request.url || '/', 'http://localhost').pathname !== '/') return next();
           const html = readFileSync(repo + '/app/dist/index.html', 'utf8');
           response.setHeader('Content-Type', 'text/html');
-          response.setHeader('X-Aegis-Build', `${process.env.AEGIS_UI_IMPL || 'legacy'}:production`);
+          response.setHeader('X-Aegis-Build', 'react:production');
           response.end(html.replace('<head>', `<head><meta http-equiv="Content-Security-Policy" content="${security.csp}"><script>window.__genuiParentInlineRan = true</script>`));
         });
       },
@@ -139,13 +139,13 @@ try {
       checkedOpen.add(kind); return;
     }
     await card.locator('.win-strip').hover();
-    const open = page.locator('.window-actions').getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' && ['plot', 'sheet'].includes(kind) ? 'Open' : `Open Sample ${kind}`, exact: true });
+    const open = page.locator('.window-actions').getByRole('button', { name: ['plot', 'sheet'].includes(kind) ? 'Open' : `Open Sample ${kind}`, exact: true });
     await open.click();
     const editor = page.locator('.side-editor.is-open');
     await editor.waitFor({ state: 'visible', timeout: 3000 });
     assert.equal(await editor.locator('.side-editor-name').textContent(), `Sample ${kind}`);
     assert.equal(await editor.evaluate(el => el.contains(document.activeElement)), true, `${kind} Open focuses its expanded view`);
-    const content = editor.locator(kind === 'sheet' ? '.sheet-scroll' : kind === 'plot' && process.env.AEGIS_UI_IMPL === 'react' ? '.plot-scroll' : `.object.${kind} .content`);
+    const content = editor.locator(kind === 'sheet' ? '.sheet-scroll' : kind === 'plot' ? '.plot-scroll' : `.object.${kind} .content`);
     assert.ok(await content.isVisible(), `${kind} expanded content is visible`);
     assert.equal(await content.evaluate(el => el === document.activeElement), true, `${kind} focuses its scrollable content`);
     assert.equal(await editor.locator('.win-open').count(), 0, 'the expanded view has no nested Open button');
@@ -175,8 +175,8 @@ try {
       assert.equal(await viewport.evaluate(el => getComputedStyle(el, '::after').opacity), '1', 'fade returns when scrolling back');
     }
     await page.keyboard.press('Escape');
-    if (kind === 'html' && process.env.AEGIS_UI_IMPL === 'react') await editor.waitFor({ state: 'detached', timeout: 2000 });
-    assert.equal(await editor.count(), 0, kind === 'html' && process.env.AEGIS_UI_IMPL === 'react' ? 'Escape removes the editor after sandbox acknowledgement' : 'Escape removes the editor immediately');
+    if (kind === 'html') await editor.waitFor({ state: 'detached', timeout: 2000 });
+    assert.equal(await editor.count(), 0, kind === 'html' ? 'Escape removes the editor after sandbox acknowledgement' : 'Escape removes the editor immediately');
     // Focus returns to the invoking Open action for this window (or the window itself if the action is gone).
     await page.waitForFunction(kind => { const a = document.activeElement; const id = a?.dataset.windowAction; const owner = a?.closest('#selectionBar') ? document.querySelector('.card.selected') : id ? document.querySelector(`.card[data-id="${id}"]`) : a?.closest('.card'); return owner?.classList.contains(`kind-${kind}`); }, kind);
     checkedOpen.add(kind);
@@ -833,7 +833,7 @@ try {
   await page.frameLocator('.card.kind-html iframe').locator('#total').filter({ hasText: '200 minutes' }).waitFor();
   assert.equal(await page.frameLocator('.card.kind-html iframe').locator('#minutes').inputValue(), '50', 'Open edits update the live canvas before Close');
   await page.screenshot({ path: out(`genui-html-open-50-${stamp}.png`) });
-  await expanded.editor.getByRole('button', { name: process.env.AEGIS_UI_IMPL === 'react' ? 'Back to board' : 'Close editor', exact: true }).click();
+  await expanded.editor.getByRole('button', { name: 'Back to board', exact: true }).click();
   await page.waitForFunction(() => !document.querySelector('.side-editor.is-open'));
   const canvasFrame = page.frameLocator('.card.kind-html iframe');
   assert.equal(await canvasFrame.locator('#minutes').inputValue(), '50', 'closing Open preserves its edits on the canvas');
@@ -1010,7 +1010,7 @@ try {
   assert.deepEqual(errors, []);
   writeFileSync(out(`genui-results-${stamp}.json`), JSON.stringify({ kinds: Object.keys(samples), openChecked: [...checkedOpen], screenshots: [1440, 1586, 390], outgoingSandboxRequests: outgoing, errors }, null, 2));
   console.log('pass genui: screenshots of every kind at 1440, 1586 and 390; no page errors');
-  if (process.env.AEGIS_UI_IMPL === 'react') await verifySandboxLifecycle();
+  await verifySandboxLifecycle();
 } catch (error) {
   console.error('FAIL genui:', error.stack);
   if (page) console.error('diagnostics', JSON.stringify(await page.evaluate(async () => ({ reports: window.__genuiReports, rev: aegis.canvas.board.rev, saved: document.querySelector('[data-save-state], #saveState')?.textContent, server: await aegis.host.get(`/boards/${aegis.canvas.board.id}`).then(b => ({ rev: b.rev, html: b.cards.find(c => c.kind === 'html') })), html: aegis.canvas.board.cards.find(c => c.kind === 'html'), widths: aegis.canvas.board.cards.map(c => [c.type, c.kind, c.w]) })).catch(() => null)), errors);

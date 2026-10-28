@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { Board } from '@aegis/domain';
 import { boardColours, colorName, hex2hsv, hsv2rgb, normHex, rgb2hex } from './model.js';
-import '../colors/style.css';
+import './style.css';
 
 export interface ColourValue { readonly hex: string; readonly label: string; readonly autoName: boolean }
 interface EditorProps {

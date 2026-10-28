@@ -7,7 +7,6 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const react = process.env.AEGIS_UI_IMPL === 'react';
 const PORT_OFFSET = Number(process.env.AEGIS_PORT_OFFSET || 0); // separate worktrees can run checks at once
 const repo = new URL('../..', import.meta.url).pathname.replace(/\/$/, ''), token = `docs-${process.pid}`;
 const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: repo + '/agent', env: { ...process.env, AEGIS_DATA: mkdtempSync(join(tmpdir(), 'aegis-docs-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' } });
@@ -32,12 +31,11 @@ const choose = async (label, value, scope = page.locator('.docs-panel')) => {
   const root = scope.locator(`[data-chooser="${label}"]`); if (!await root.isVisible()) { if (['Page colour', 'Paper size'].includes(label)) await more(); else await format(); }
   await chooseDropdown(root.getByRole('combobox', { name: label, exact: true }), value);
 };
-const saved = async () => { if (react) { await page.waitForFunction(() => !aegis.canvas.busy()); await page.evaluate(() => new Promise(resolve => aegis.canvas.engine.afterInput(resolve))); } await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
+const saved = async () => { { await page.waitForFunction(() => !aegis.canvas.busy()); await page.evaluate(() => new Promise(resolve => aegis.canvas.engine.afterInput(resolve))); } await page.waitForFunction(() => document.querySelector('.docs-panel [data-saved]')?.textContent === 'Saved', null, { timeout: 15000 }); };
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));
 let docId;
 try {
   await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.stderr.on('data', d => { if (/error/i.test(String(d))) reject(new Error(String(d))); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
-  if (process.env.AEGIS_DOCS_ISOLATED) await page.route('**/src/features/index.ts', route => route.fulfill({ contentType: 'text/javascript', body: "import '/src/features/docs/index.ts';" }));
   await page.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   await page.mouse.move(24, 480);
@@ -84,7 +82,7 @@ try {
   await less();
   await page.locator('.docs-prose p').first().click({ clickCount: 3 }); await page.locator('.docs-prose').press('ControlOrMeta+a');
   // Rewrite adapter test. A real agent adapter can supply this callback without changing the editor.
-  await page.evaluate(async () => { const { registerDocRewriter } = await import('/src/features/docs/editor.js'); registerDocRewriter(async ({ text, how, cardId }) => { if (!text || how !== 'Shorter' || !cardId) throw Error('Missing rewrite context'); return 'A clear release plan.'; }); });
+  await page.evaluate(async () => { const { registerDocRewriter } = await import('/src/platform/document-test.ts'); registerDocRewriter(async ({ text, how, cardId }) => { if (!text || how !== 'Shorter' || !cardId) throw Error('Missing rewrite context'); return 'A clear release plan.'; }); });
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear release plan.'));
   await more();
@@ -123,7 +121,7 @@ try {
   console.log('PASS document footer keeps Back and word count; Copy appears only for applicable board selection and otherwise lives in options');
   const noteBox = await page.locator('.card[data-id=docsnote]').boundingBox();
   const paperBox = await page.locator('.docs-paper').boundingBox();
-  await page.mouse.move(noteBox.x + 30, noteBox.y + (react ? 5 : 20)); await page.mouse.down();
+  await page.mouse.move(noteBox.x + 30, noteBox.y + 5); await page.mouse.down();
   await page.mouse.move(paperBox.x + 110, paperBox.y + 150, { steps: 18 });
   assert.equal(await page.locator('.docs-panel.docs-drop-target, .docs-panel[data-scene-drop-target]').count(), 1);
   await page.mouse.up(); await saved();
@@ -145,22 +143,21 @@ try {
   assert.deepEqual([b.cards.find(c => c.id === 'docslink').x, b.cards.find(c => c.id === 'docslink').y], [410, 200]);
   console.log('PASS copying a link keeps its preview title, description and link target');
   // Clipboard copy of the checklist, then paste into editor using the browser clipboard event.
-  if (react) await page.locator('.card[data-id=docstodo] .items').click({ position: { x: 5, y: 5 } });
-  else await page.locator('.card[data-id=docstodo]').click({ position: { x: 10, y: 10 } });
-  if (react) await page.waitForFunction(() => aegis.canvas.selection().includes('docstodo'));
-  const payload = await page.evaluate(type => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData(type); }, react ? 'application/x-aegis-cards' : 'text/x-aegis');
+  await page.locator('.card[data-id=docstodo] .items').click({ position: { x: 5, y: 5 } });
+  await page.waitForFunction(() => aegis.canvas.selection().includes('docstodo'));
+  const payload = await page.evaluate(type => { const transfer = new DataTransfer(); document.querySelector('#stage').dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true, clipboardData: transfer })); return transfer.getData(type); }, 'application/x-aegis-cards');
   assert.ok(payload.includes('docstodo'));
   await page.locator('.docs-prose').click();
   // On macOS Command+End scrolls without moving the caret. Paste must start at
   // the document end so it does not split the copied link title or description.
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
   const caret = await page.evaluate(async () => {
-    const { currentDocument } = await import('/src/features/docs/editor.js');
+    const { currentDocument } = await import('/src/platform/document-test.ts');
     const editor = currentDocument().editor;
     return { head: editor.state.selection.head, end: editor.state.doc.content.size - 1 };
   });
   assert.equal(caret.head, caret.end, 'Clipboard paste starts at the document end');
-  await page.evaluate(({ data, type }) => { const transfer = new DataTransfer(); transfer.setData(type, data); document.querySelector('.docs-prose').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })); }, { data: payload, type: react ? 'application/x-aegis-cards' : 'text/x-aegis' });
+  await page.evaluate(({ data, type }) => { const transfer = new DataTransfer(); transfer.setData(type, data); document.querySelector('.docs-prose').dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: transfer })); }, { data: payload, type: 'application/x-aegis-cards' });
   await saved(); b = await board(); assert.ok(JSON.stringify(b.cards.find(c => c.id === docId).props.doc).includes('taskList'));
   assert.equal(await page.locator('.docs-prose input[type=checkbox]:checked').count(), 1);
   await more();
@@ -194,17 +191,16 @@ try {
   await page.evaluate(id => aegis.canvas.frameIds([id, 'docsnote'], 1), docId); await page.waitForTimeout(500);
   const pill = page.locator(`.card[data-id="${docId}"]`); const pillBox = await pill.boundingBox();
   const start = await page.locator('.card[data-id=docsnote]').boundingBox();
-  await page.mouse.move(start.x + 50, start.y + (react ? 5 : 20)); await page.mouse.down(); await page.mouse.move(pillBox.x + 90, pillBox.y + 25, { steps: 15 }); await page.mouse.up();
+  await page.mouse.move(start.x + 50, start.y + 5); await page.mouse.down(); await page.mouse.move(pillBox.x + 90, pillBox.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
   await page.getByRole('button', { name: 'Undo card copy', exact: true }).click();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 1; }, docId);
   const again = await page.locator('.card[data-id=docsnote]').boundingBox(); const destination = await pill.boundingBox();
-  await page.mouse.move(again.x + 50, again.y + (react ? 5 : 20)); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
+  await page.mouse.move(again.x + 50, again.y + 5); await page.mouse.down(); await page.mouse.move(destination.x + 90, destination.y + 25, { steps: 15 }); await page.mouse.up();
   await page.waitForFunction(async id => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return (b.cards.find(c => c.id === id).props.body.match(/Copied note content/g) || []).length === 2; }, docId);
   await pill.dblclick(); await page.locator('.docs-panel').waitFor(); await more(); assert.equal(await page.getByLabel('Page colour', { exact: true }).getAttribute('data-value'), 'dark'); assert.deepEqual(await paperAppearance(), { background: 'rgb(36, 37, 43)', colour: 'rgb(230, 230, 236)' }); assert.equal(await page.getByLabel('Document title', { exact: true }).inputValue(), 'Project brief');
   await less(); await page.keyboard.press('Escape'); assert.equal(await page.locator('.docs-panel').count(), 0);
   await page.screenshot({ path: out('docs-board.png') });
-  
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   b = await board(); assert.ok(b.cards.find(c => c.id === docId).props.body.includes('Review copy'));
   console.log('PASS closed-pill drop, double-click reopen, Escape close and persistence after reload');
@@ -231,7 +227,7 @@ try {
   assert.equal(await page.locator('.docs-paper .docs-title, .docs-prose h1, .docs-toolbar').count(), 0, 'One title in the window strip and no formatting toolbar');
   assert.equal(await page.locator('.docs-panel select').count(), 0, 'Document choices use themed menus');
   console.log('PASS canvas render migrates a matching leading H1 once and keeps one editable title');
-  const reset = async () => page.evaluate(async () => { const { currentDocument } = await import('/src/features/docs/editor.js'); currentDocument().editor.commands.setContent('<p></p>'); currentDocument().editor.commands.focus('start'); currentDocument().editor.view.focus(); await new Promise(resolve => requestAnimationFrame(resolve)); });
+  const reset = async () => page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.ts'); currentDocument().editor.commands.setContent('<p></p>'); currentDocument().editor.commands.focus('start'); currentDocument().editor.view.focus(); await new Promise(resolve => requestAnimationFrame(resolve)); });
   for (const [typed, selector] of [
     ['# Section', 'h1'], ['## Findings', 'h2'], ['### Detail', 'h3'], ['- Item', 'ul:not([data-type]) li'], ['1. First', 'ol li'], ['- [ ] Task', 'ul[data-type=taskList] li'], ['> Quoted words', 'blockquote'], ['```js\nconst value = 2;', 'pre code'], ['---', 'hr'], ['**bold**', 'strong'], ['*italic*', 'em'], ['`code`', 'code'], ['[Source](https://example.com)', 'a[href="https://example.com"]'], ['$x^2$', '[data-type=inlineMath] .katex'], ['$$x^2+y^2=z^2$$', '[data-type=blockMath] .katex-display'],
   ]) {
@@ -293,13 +289,13 @@ try {
   assert.deepEqual((await board()).cards.find(c => c.id === 'mathsdoc').props.doc, mathsDoc.props.doc);
   // Old compact pills have no body preview, so opening must also perform the migration.
   await page.evaluate(doc => aegis.apply([{ op: 'create', type: 'doc', newId: 'oldpill', text: 'Maths notebook', x: 950, y: 100, h: 56, props: { doc, body: 'Maths notebook\nKeep the working.' } }]), legacy);
-  await page.evaluate(async () => { const { openDocument } = await import('/src/features/docs/editor.js'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
+  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.ts'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
   await saved();
   assert.equal((await board()).cards.find(c => c.id === 'oldpill').props.doc.content[0].type, 'paragraph');
   assert.equal(await page.locator('.docs-prose h1').count(), 0);
-  await page.evaluate(async () => { const { currentDocument } = await import('/src/features/docs/editor.js'); currentDocument().editor.commands.setContent('<h1>Maths notebook</h1><p>A deliberate section after migration.</p>'); });
+  await page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.ts'); currentDocument().editor.commands.setContent('<h1>Maths notebook</h1><p>A deliberate section after migration.</p>'); });
   await saved(); await page.keyboard.press('Escape');
-  await page.evaluate(async () => { const { openDocument } = await import('/src/features/docs/editor.js'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
+  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.ts'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
   assert.equal(await page.locator('.docs-prose h1').textContent(), 'Maths notebook', 'Migration runs once, preserving later deliberate headings');
   await page.keyboard.press('Escape');
   console.log('PASS canvas maths survives reload and the open migration runs once for legacy pills');
@@ -309,7 +305,7 @@ try {
   await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function saveFile() { throw new Error("Unexpected save in the print probe"); } export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
   await nativePage.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   const nativePrint = await nativePage.evaluate(async () => {
-    const { printPDF } = await import('/src/features/docs/export.js');
+    const { printPDF } = await import('/src/platform/document-export-test.ts');
     await printPDF({ getJSON: () => ({ content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Native body' }] }] }), getHTML: () => '<p>Native body</p>' }, 'Native title', 'letter');
     return { html: window.__nativePrintHTML, frames: document.querySelectorAll('iframe.docs-print-frame').length };
   });

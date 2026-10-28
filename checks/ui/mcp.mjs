@@ -66,11 +66,11 @@ try {
     throw new Error('Board did not settle after five reads.');
   };
   const imports = [repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx'];
-  if (process.env.AEGIS_UI_IMPL === 'react') {
+  {
     const picker = page.waitForEvent('filechooser');
     await page.locator('[data-tool="import-image"]').dispatchEvent('click');
     await (await picker).setFiles(imports);
-  } else await page.locator('#mediaFile').setInputFiles(imports);
+  }
   await waitForAsync(page, async () => {
     const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
     return saved.cards.filter(c => c.props?.import).length === 2;

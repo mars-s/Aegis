@@ -4,12 +4,12 @@ import { join } from 'node:path';
 import { BoardSchema } from '@aegis/domain/schema';
 import { withApplication } from './application.ts';
 
-const implementation = process.env.AEGIS_UI_IMPL === 'legacy' ? 'legacy' : 'react';
+const implementation = 'react';
 const output = process.env.AEGIS_CHECK_OUT ?? '/tmp/aegis-scene-parity';
 mkdirSync(output, { recursive: true });
 const results: { readonly name: string; readonly passed: boolean }[] = [];
 function verify(name: string, passed: boolean): void { results.push({ name, passed }); assert.ok(passed, name); }
-await withApplication(implementation, async page => {
+await withApplication(async page => {
   const settle = async (): Promise<void> => { await page.waitForTimeout(220); };
   await page.evaluate(() => { const facade = window.aegis; if (!facade) throw new Error('Missing workspace'); if (facade.canvas.board.cards.length) facade.apply(facade.canvas.board.cards.map(card => ({ op: 'delete', id: card.id }))); });
   await page.evaluate(() => window.aegis?.apply([
@@ -20,15 +20,15 @@ await withApplication(implementation, async page => {
   ]));
   await page.evaluate(() => { window.aegis?.canvas.select([]); window.aegis?.canvas.setView({ x: 0, y: 0, z: 1 }); });
   await page.mouse.move(1100, 650); await settle();
-  await page.screenshot({ path: join(output, `${implementation}-working.png`) });
+  await page.screenshot({ path: join(output, 'react-working.png') });
   const initial = await page.locator('#world .card[data-id="scenenote"]').boundingBox();
   verify('working card retains its world dimensions', !!initial && Math.abs(initial.width - 320) < 1 && Math.abs(initial.height - 180) < 1);
   // Plain zoom intentionally differs from the superseded adaptive legacy zoom.
   await page.evaluate(() => window.aegis?.canvas.setView({ x: 50, y: 70, z: .5 })); await settle();
   const scaled = await page.locator('#world .card[data-id="scenenote"]').boundingBox();
-  if (implementation === 'react') verify('static zoom retains real content and exact scaled geometry', !!scaled && Math.abs(scaled.x - 150) < 1 && Math.abs(scaled.y - 190) < 1 && Math.abs(scaled.width - 160) < 1 && Math.abs(scaled.height - 90) < 1);
-  await page.screenshot({ path: join(output, `${implementation}-scaled.png`) });
-  if (implementation === 'react') {
+  verify('static zoom retains real content and exact scaled geometry', !!scaled && Math.abs(scaled.x - 150) < 1 && Math.abs(scaled.y - 190) < 1 && Math.abs(scaled.width - 160) < 1 && Math.abs(scaled.height - 90) < 1);
+  await page.screenshot({ path: join(output, 'react-scaled.png') });
+  {
     await page.evaluate(() => {
       window.aegis?.apply([{ op: 'create', newId: 'fixednote', type: 'note', text: 'A fixed note', x: 4000, y: 4000, w: 240, h: 120 }]);
       window.aegis?.canvas.setView({ x: -3570, y: -3700, z: 1 }); window.aegis?.canvas.select(['fixednote']);
@@ -54,7 +54,7 @@ await withApplication(implementation, async page => {
   }
   await page.setViewportSize({ width: 1586, height: 992 });
   await page.evaluate(() => window.aegis?.apply(Array.from({ length: 40 }, (_, i) => ({ op: 'create', newId: `orientation${i}`, type: 'note', heading: `Research window ${i + 1}`, text: 'Overview fixture', x: 10000 + i % 8 * 1400, y: 10000 + Math.floor(i / 8) * 1200, w: 500 + i * 5, h: 300 + i * 3 }))));
-  const outside = implementation === 'react' ? page.locator('.react-tools button').first() : page.locator('#boardName');
+  const outside = page.locator('.react-tools button').first();
   await outside.focus(); await page.mouse.move(1000, 700);
   await page.evaluate(() => { window.aegis?.canvas.select([]); window.aegis?.canvas.setView({ x: -400, y: -400, z: .05 }); }); await settle();
   const orientation = page.locator('.canvas-orientation'), aid = orientation.locator('.orientation-aid');
@@ -70,9 +70,9 @@ await withApplication(implementation, async page => {
     const v = canvas.view;
     return Math.abs(Number(rect.getAttribute('x')) - (card.x * v.z + v.x)) < .1 && Math.abs(Number(rect.getAttribute('y')) - (card.y * v.z + v.y)) < .1 && Math.abs(Number(rect.getAttribute('width')) - card.w * v.z) < .1 && Math.abs(Number(rect.getAttribute('height')) - card.h * v.z) < .1 && getComputedStyle(rect).stroke === 'rgb(63, 141, 253)' && getComputedStyle(rect).strokeWidth === '1px' && getComputedStyle(el).pointerEvents === 'none' && Math.hypot(Number(line.getAttribute('x2')) - Number(line.getAttribute('x1')), Number(line.getAttribute('y2')) - Number(line.getAttribute('y1'))) > 0;
   }));
-  await page.screenshot({ path: join(output, `${implementation}-orientation.png`) });
+  await page.screenshot({ path: join(output, 'react-orientation.png') });
   const id = await label.getAttribute('data-card-id'); await label.click(); await page.keyboard.press('Tab'); await settle();
-  writeFileSync(join(output, `${implementation}-focus.json`), JSON.stringify(await page.evaluate(() => ({ active: document.activeElement?.outerHTML, aid: document.querySelector('.orientation-aid')?.outerHTML, labels: [...document.querySelectorAll('.canvas-orientation span')].map(label => label.getAttribute('data-card-id')) })), null, 2));
+  writeFileSync(join(output, 'react-focus.json'), JSON.stringify(await page.evaluate(() => ({ active: document.activeElement?.outerHTML, aid: document.querySelector('.orientation-aid')?.outerHTML, labels: [...document.querySelectorAll('.canvas-orientation span')].map(label => label.getAttribute('data-card-id')) })), null, 2));
   verify('Tab hands the aid to the focused name while the pointer stays parked', await orientation.evaluate(el => el.contains(document.activeElement) && document.activeElement?.getAttribute('data-card-id') === el.querySelector('.orientation-aid')?.getAttribute('data-card-id')) && await aid.getAttribute('data-card-id') !== id);
   await page.keyboard.press('Shift+Tab'); await settle(); verify('Shift+Tab restores the matching aid', await aid.getAttribute('data-card-id') === id);
   const box = await label.boundingBox(); if (!box) throw new Error('Missing orientation label');

@@ -36,7 +36,7 @@ const persist = async check => {
 };
 async function drag(from, to, steps = 20) { await page.mouse.move(...from); await page.mouse.down(); await page.mouse.move(...to, { steps }); await page.mouse.up(); await pause(); }
 async function pathPoint(selector, fraction) {
-  if (selector === '.link-hit' && process.env.AEGIS_UI_IMPL === 'react') {
+  if (selector === '.link-hit') {
     const [painted] = await readRenderedLinks(page);
     return page.evaluate(({ painted, fraction }) => {
       const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', painted.d);
@@ -124,7 +124,7 @@ try {
   await page.locator(`[data-connect-target="${shapeIds[1]}"]`).waitFor();
   await page.screenshot({ path: out('draw-connect-preview.png') });
   await page.keyboard.press('Escape');
-  if (process.env.AEGIS_UI_IMPL === 'react') await page.locator('[data-connect-preview]').waitFor({ state: 'detached' });
+  await page.locator('[data-connect-preview]').waitFor({ state: 'detached' });
   assert.equal(await page.locator('[data-connect-preview]').count(), 0);
   assert.equal((await board()).links.length, 0);
   await page.locator('#selectionBar').getByLabel('More selection controls', { exact: true }).click();

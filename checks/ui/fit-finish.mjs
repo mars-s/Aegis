@@ -141,7 +141,7 @@ try {
         await inspect('deck-ribbon', page.locator('.deck-ribbon')); await inspect('deck-footer', page.locator('.deck-film')); await shot('deck');
         await present.click(); await shot('presentation'); await page.keyboard.press('Escape');
         await page.locator('.deck-panel [data-close]').click();
-        await open(ids.sheet); await inspect('sheet-header', page.locator(process.env.AEGIS_UI_IMPL === 'react' ? '.react-editor-toolbar' : '.side-editor-head')); await inspect('sheet-ribbon', page.locator('.sheet-editor .office-ribbon')); await shot('sheet'); await page.keyboard.press('Escape');
+        await open(ids.sheet); await inspect('sheet-header', page.locator('.react-editor-toolbar')); await inspect('sheet-ribbon', page.locator('.sheet-editor .office-ribbon')); await shot('sheet'); await page.keyboard.press('Escape');
         await page.evaluate(() => aegis.apply([{ op: 'create', type: 'audio', newId: 'recorder', x: 100, y: 100, w: 440, h: 320, text: 'Recording' }]));
         await select('recorder'); await page.getByRole('button', { name: 'Start recording', exact: true }).click();
         const notice = page.locator('.media-status'); assert.match(await notice.textContent(), /Recording is unavailable.*Import a file instead/);

@@ -21,7 +21,6 @@ let page = await context.newPage(); const errors=[]; page.on('pageerror',e=>erro
 const url = `http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${token}`;
 const waitSaved = async () => {await page.waitForFunction(()=>document.querySelector('#saveState, .bar-right [data-save-state]').textContent.toLowerCase()==='saved'); return page.evaluate(()=>aegis.host.get(`/boards/${aegis.canvas.board.id}`));};
 const inputDone = async () => {
-  if (process.env.AEGIS_UI_IMPL !== 'react') return;
   await page.evaluate(async () => {
     const engine = aegis.canvas.engine;
     const frame = () => new Promise(resolve => { const release = engine.registerFrameParticipant({ write() { release(); engine.afterInput(resolve); } }); });
@@ -55,7 +54,7 @@ try {
   const hub = page.getByRole('navigation',{name:'Board hub'});
   await hub.getByRole('button',{name:'Boards',exact:true}).tap(); await page.locator('.mobile-sheet .tree-row[data-board]').first().tap(); await page.locator('.mobile-sheet').waitFor({state:'hidden'});
   await hub.getByRole('button',{name:'Windows',exact:true}).tap(); await page.getByRole('button',{name:'Close sheet',exact:true}).tap();
-  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); if (process.env.AEGIS_UI_IMPL === 'react') await page.touchscreen.tap(20,100); else await page.locator('.mobile-veil').tap({position:{x:20,y:100}});
+  await hub.getByRole('button',{name:'Unsorted',exact:true}).tap(); await page.touchscreen.tap(20,100);
   await hub.getByRole('button',{name:'Add',exact:true}).tap();
   for(const name of ['Basics','Wireframe','Colours']) assert.equal(await page.getByRole('heading',{name,exact:true}).isVisible(),true);
   await page.screenshot({path:out('parity-phone-add.png')});
@@ -114,4 +113,4 @@ try {
 } catch(e) {console.error(e); console.error('page errors:',errors); await page.screenshot({path:out('parity-fail.png')}); process.exitCode=1;}
 finally {await browser.close();host.kill();vite.kill();}
 
-if (!process.exitCode && process.env.AEGIS_UI_IMPL === 'react') await verifyDoubleNoteInput();
+if (!process.exitCode) await verifyDoubleNoteInput();

@@ -18,7 +18,6 @@
     "vitest.config.ts",
     "checks/unit/domain/**/*.ts",
     "checks/support/**/*.ts",
-    "app/src/objects/chart/context.ts",
     "checks/unit/**/*.ts"
   ]
 }

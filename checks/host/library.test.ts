@@ -51,7 +51,6 @@ test('only empty folders can be deleted', () => {
 
 import { duplicateLibrary, deleteLibrary, moveLibraryBoard, libraryContents, createLibraryActions } from '../../agent/src/library.ts';
 import { emptyBoard } from '@aegis/domain/commands';
-import { applyBatch } from './batch.ts';
 const ids = () => { let n = 0; return () => (++n).toString(16).padStart(8, '0'); };
 const nested = () => {
   const lib = StoredLibrarySchema.parse({ nodes: [{ id: 'project', kind: 'project', name: 'Work', parent: null }, { id: 'folder', kind: 'folder', name: 'Plans', parent: 'project' }], boards: { rootboard: 'folder', childboard: 'folder', otherboard: 'project' } });

@@ -55,13 +55,12 @@ try {
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.waitForTimeout(1500); assert.equal(await page.locator('.agent-first-hint').isVisible(), false, 'the invitation never returns');
   console.log('PASS first-use hint appears beside the 44px star, dismisses on hover and stays dismissed after reload');
-  const morphPerformance = await page.evaluate(async implementation => {
+  const morphPerformance = await page.evaluate(async () => {
     const island = document.getElementById('agentIsland'), shell = island.querySelector('.island-morph');
     const orb = document.getElementById('askPill'), prompt = document.getElementById('prompt'), stage = document.getElementById('stage');
     const click = () => orb.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
     const input = value => {
-      if (implementation === 'react') Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(prompt, value);
-      else prompt.value = value;
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(prompt, value);
       prompt.dispatchEvent(new Event('input', { bubbles: true }));
     };
     const close = () => { document.querySelector('#composer .island-collapse').dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 })); };
@@ -80,14 +79,14 @@ try {
       const sorted = [...deltas].sort((a, b) => a - b);
       results.push({ name, frames: deltas.length, p95ms: +sorted[Math.floor(sorted.length * .95)].toFixed(2), maxms: +Math.max(...deltas).toFixed(2), meanms: +(deltas.reduce((a, b) => a + b) / deltas.length).toFixed(2), maxCounterScaleError: Math.max(...scales), widths });
     }
-    await sample('orb to hover', () => island.dispatchEvent(new PointerEvent(implementation === 'react' ? 'pointerover' : 'pointerenter', { pointerType: 'mouse', bubbles: true })));
+    await sample('orb to hover', () => island.dispatchEvent(new PointerEvent('pointerover', { pointerType: 'mouse', bubbles: true })));
     await sample('hover to input', click);
     await sample('input grows vertically', () => input('A thought on its own line\n'.repeat(9)));
     input(''); await new Promise(r => setTimeout(r, 280));
     await sample('close and reverse at 70ms', () => { close(); setTimeout(click, 70); });
     await sample('input to orb', close);
     return results;
-  }, process.env.AEGIS_UI_IMPL);
+  });
   writeFileSync(out(`island-${captureId}-morph-performance.json`), JSON.stringify(morphPerformance, null, 2));
   for (const result of morphPerformance) {
     assert.ok(result.frames >= 10); assert.ok(result.maxCounterScaleError < .02, 'content remains counter-scaled');
@@ -366,6 +365,6 @@ try {
   console.log('PASS compact history fits one readable name and +24 more at 320px and 200px; real mouse disclosure reveals all 25 names and survives updates; one named activity close control works with real mouse input and Escape restores focus; request Undo restores positions, retains later text, is one board change and normal-undoable; overlapping text disables Undo with a reason in both timelines');
   assert.deepEqual(errors, []);
   console.log('PASS island idle, hover, growth and scrolling, keyboard, notes, spawn, spatial windows, live fake status, same-agent follow-up, Alt+Enter, Stop, drag, close/reopen, models and menu keyboard navigation, fade-only motion, durable chat reload, phone options and hidden-page pause');
-  if (process.env.AEGIS_UI_IMPL === 'react') await verifyAgentSubmission();
+  await verifyAgentSubmission();
 } catch (e) { writeFileSync(out(`island-${captureId}-failure.log`), String(e.stack ?? e)); console.error(e); console.error('page errors', errors); console.error('requests', requests); console.error('agents', await agents()); process.exitCode = 1; await page.screenshot({ path: out('agents-fail.png') }); }
 finally { await browser.close(); host.kill(); vite.kill(); }

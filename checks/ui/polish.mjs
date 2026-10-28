@@ -2,7 +2,7 @@ import { verifyStartupBoard } from './startup-board.mjs';
 import { checkChrome } from './chrome.mjs';
 import { waitForAsync } from './poll.mjs';
 import { checkRefineSettings } from './refine-settings.mjs';
-import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.js';
+import { SHORTCUTS, shortcutText, shortcutTitle } from '../../app/src/lib/shortcuts.ts';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -271,4 +271,4 @@ try {
   console.error(error); console.error('page errors', errors); process.exitCode = 1; await shot('failure');
 } finally { await browser.close(); host.kill(); vite.kill(); }
 
-if (!process.exitCode && process.env.AEGIS_UI_IMPL === 'react') await verifyStartupBoard();
+if (!process.exitCode) await verifyStartupBoard();

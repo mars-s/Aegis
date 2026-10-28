@@ -1,4 +1,3 @@
-import './legacy-menu.js';
 import { CardIdSchema } from '@aegis/domain';
 import { requestCardEdit, takeCardEdit } from '../media/creation-edit.js';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';

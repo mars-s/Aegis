@@ -11,7 +11,7 @@ import {decodeBoardList,decodeBatchResponse,decodeHostEvent,decodeOkResponse} fr
 import {EventDecoder} from '@aegis/protocol/events';
 
 test('all ported production and differential test files have zero safe-type findings',()=>{
-  const paths=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{encoding:'utf8'}).split('\0').filter(path=>path.endsWith('.ts') && (path.startsWith('packages/domain/')||path.startsWith('packages/protocol/')||path.startsWith('checks/unit/domain/')||path==='agent/link-preview.ts'||path==='app/src/objects/chart/context.ts'));
+  const paths=execFileSync('git',['ls-files','--cached','--others','--exclude-standard','-z'],{encoding:'utf8'}).split('\0').filter(path=>path.endsWith('.ts') && (path.startsWith('packages/domain/')||path.startsWith('packages/protocol/')||path.startsWith('checks/unit/domain/')||path==='agent/link-preview.ts'));
   const findings=paths.flatMap(path=>inspectSource(path,readFileSync(path,'utf8')));
   expect(findings).toEqual([]);
 });

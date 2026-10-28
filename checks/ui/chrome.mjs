@@ -5,8 +5,8 @@ import { out } from './out.mjs';
 export async function checkChrome(browser, url) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 992 } });
   const stamp = Date.now();
-  const documentPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open .docs-panel' : '.docs-panel.is-open';
-  const objectPanel = process.env.AEGIS_UI_IMPL === 'react' ? '.side-editor.is-open:has(.object.expanded)' : '.object-editor.is-open';
+  const documentPanel = '.side-editor.is-open .docs-panel';
+  const objectPanel = '.side-editor.is-open:has(.object.expanded)';
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
@@ -111,7 +111,7 @@ export async function checkChrome(browser, url) {
     await page.waitForFunction(() => aegis.canvas.board.cards.find(c => c.id === 'chromedoc').text === 'Working notes, saved');
     await assertQuiet('chromedoc');
     await page.evaluate(() => aegis.canvas.setView({ x: -10000, y: -10000, z: 1 }));
-    await page.locator(process.env.AEGIS_UI_IMPL === 'react' ? '#world [data-id="chromedoc"]:not([hidden])' : '#world [data-id="chromedoc"]').waitFor({ state: 'detached' });
+    await page.locator('#world [data-id="chromedoc"]:not([hidden])').waitFor({ state: 'detached' });
     await page.evaluate(() => aegis.canvas.setView({ x: 140, y: 230, z: 1 })); await assertQuiet('chromedoc');
     await page.keyboard.press('Escape');
     await page.locator('#selectionBar').waitFor({ state: 'visible' });
