@@ -70,7 +70,7 @@ Their full licence is in `fonts/LICENSE`. The release archive's SHA256 is
 The production output also includes pdf.js and fflate's full licences.
 
 Fixtures contain original text and canvas drawings. Regenerate them with
-`PLAYWRIGHT=… node checks/fixtures/generate-imports.mjs`. The `.key` fixtures
+`node checks/fixtures/generate-imports.ts`. The `.key` fixtures
 exercise bundle preview extraction, rather than pretending to be real editable
 Keynote presentations.
 
