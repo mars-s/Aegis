@@ -15,6 +15,8 @@ const port = await new Promise((resolve, reject) => { host.stdout.on('data', d =
 // Freeze UI sources so concurrent feature changes cannot reload the document mid-check.
 const ui = createUiSnapshot(repo, 'aegis-docs-ui-');
 // The snapshot retains the complete workspace dependency layout.
+// The document rewriter override is only wired in facade builds; match run.mjs.
+process.env.AEGIS_TEST_FACADE = '1';
 const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
@@ -82,7 +84,7 @@ try {
   await less();
   await page.locator('.docs-prose p').first().click({ clickCount: 3 }); await page.locator('.docs-prose').press('ControlOrMeta+a');
   // Rewrite adapter test. A real agent adapter can supply this callback without changing the editor.
-  await page.evaluate(async () => { const { registerDocRewriter } = await import('/src/platform/document-test.js'); registerDocRewriter(async ({ text, how, cardId }) => { if (!text || how !== 'Shorter' || !cardId) throw Error('Missing rewrite context'); return 'A clear release plan.'; }); });
+  await page.evaluate(async () => { const { registerDocRewriter } = await import('/src/platform/document-test.ts'); registerDocRewriter(async ({ text, how, cardId }) => { if (!text || how !== 'Shorter' || !cardId) throw Error('Missing rewrite context'); return 'A clear release plan.'; }); });
   await choose('Rewrite selection', 'Shorter', page.getByRole('toolbar', { name: 'Selection formatting', exact: true }));
   await page.waitForFunction(() => document.querySelector('.docs-prose').textContent.includes('A clear release plan.'));
   await more();
@@ -152,7 +154,7 @@ try {
   // the document end so it does not split the copied link title or description.
   await page.keyboard.press(process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End');
   const caret = await page.evaluate(async () => {
-    const { currentDocument } = await import('/src/platform/document-test.js');
+    const { currentDocument } = await import('/src/platform/document-test.ts');
     const editor = currentDocument().editor;
     return { head: editor.state.selection.head, end: editor.state.doc.content.size - 1 };
   });
@@ -227,7 +229,7 @@ try {
   assert.equal(await page.locator('.docs-paper .docs-title, .docs-prose h1, .docs-toolbar').count(), 0, 'One title in the window strip and no formatting toolbar');
   assert.equal(await page.locator('.docs-panel select').count(), 0, 'Document choices use themed menus');
   console.log('PASS canvas render migrates a matching leading H1 once and keeps one editable title');
-  const reset = async () => page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.js'); currentDocument().editor.commands.setContent('<p></p>'); currentDocument().editor.commands.focus('start'); currentDocument().editor.view.focus(); await new Promise(resolve => requestAnimationFrame(resolve)); });
+  const reset = async () => page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.ts'); currentDocument().editor.commands.setContent('<p></p>'); currentDocument().editor.commands.focus('start'); currentDocument().editor.view.focus(); await new Promise(resolve => requestAnimationFrame(resolve)); });
   for (const [typed, selector] of [
     ['# Section', 'h1'], ['## Findings', 'h2'], ['### Detail', 'h3'], ['- Item', 'ul:not([data-type]) li'], ['1. First', 'ol li'], ['- [ ] Task', 'ul[data-type=taskList] li'], ['> Quoted words', 'blockquote'], ['```js\nconst value = 2;', 'pre code'], ['---', 'hr'], ['**bold**', 'strong'], ['*italic*', 'em'], ['`code`', 'code'], ['[Source](https://example.com)', 'a[href="https://example.com"]'], ['$x^2$', '[data-type=inlineMath] .katex'], ['$$x^2+y^2=z^2$$', '[data-type=blockMath] .katex-display'],
   ]) {
@@ -289,13 +291,13 @@ try {
   assert.deepEqual((await board()).cards.find(c => c.id === 'mathsdoc').props.doc, mathsDoc.props.doc);
   // Old compact pills have no body preview, so opening must also perform the migration.
   await page.evaluate(doc => aegis.apply([{ op: 'create', type: 'doc', newId: 'oldpill', text: 'Maths notebook', x: 950, y: 100, h: 56, props: { doc, body: 'Maths notebook\nKeep the working.' } }]), legacy);
-  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.js'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
+  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.ts'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
   await saved();
   assert.equal((await board()).cards.find(c => c.id === 'oldpill').props.doc.content[0].type, 'paragraph');
   assert.equal(await page.locator('.docs-prose h1').count(), 0);
-  await page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.js'); currentDocument().editor.commands.setContent('<h1>Maths notebook</h1><p>A deliberate section after migration.</p>'); });
+  await page.evaluate(async () => { const { currentDocument } = await import('/src/platform/document-test.ts'); currentDocument().editor.commands.setContent('<h1>Maths notebook</h1><p>A deliberate section after migration.</p>'); });
   await saved(); await page.keyboard.press('Escape');
-  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.js'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
+  await page.evaluate(async () => { const { openDocument } = await import('/src/platform/document-test.ts'); openDocument(aegis.canvas.board.cards.find(c => c.id === 'oldpill'), aegisCtx, { keyboard: true }); });
   assert.equal(await page.locator('.docs-prose h1').textContent(), 'Maths notebook', 'Migration runs once, preserving later deliberate headings');
   await page.keyboard.press('Escape');
   console.log('PASS canvas maths survives reload and the open migration runs once for legacy pills');

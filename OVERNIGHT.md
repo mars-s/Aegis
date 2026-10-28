@@ -95,3 +95,14 @@ fragile. "Jarvis's table, built by Apple."
   which needs a build with `AEGIS_TEST_FACADE=1`. The check now builds that
   itself instead of depending on a manual step.
 - `checks/ui/genui.mjs` passes, Chromium and WebKit. Next: docs, agent-edges.
+
+### 2026-10-29, tick at 1:05am
+
+- Fixed the docs suite, the third of the four.
+- Cause: from the browser, `import('/src/platform/document-test.js')` loads a
+  different module copy than the app's own `/src/platform/document-test.ts`
+  graph. The check registered its rewrite hook into the copy nobody reads, so
+  the editor fell back to the host and the expected text never appeared.
+- Import the real `.ts` path, and set the facade flag in the check so a
+  standalone run matches `run.mjs`.
+- `checks/ui/docs.mjs` passes with 17 sections. Next: agent-edges.
