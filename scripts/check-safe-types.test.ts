@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { checkLegacyLimits, inspectSource } from "./check-safe-types.js";
+import { inspectRepository, inspectSource } from "./check-safe-types.js";
 import type { Rule } from "./check-safe-types.js";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 interface Fixture {
   readonly name: string;
@@ -10,6 +14,8 @@ interface Fixture {
 }
 
 const fixtures: readonly Fixture[] = [
+  { name: "authored JavaScript", file: "app/src/input.js", source: "export const value = 1;", rule: "authored-javascript" },
+  { name: "authored module JavaScript", file: "checks/ui/input.mjs", source: "export const value = 1;", rule: "authored-javascript" },
   { name: "explicit any", file: "scripts/input.ts", source: "let value: any;", rule: "explicit-any" },
   { name: "nested any", file: "scripts/input.ts", source: "type X = Promise<Array<any>>;", rule: "explicit-any" },
   { name: "as cast", file: "scripts/input.ts", source: "const x = value as string;", rule: "type-assertion" },
@@ -86,36 +92,19 @@ describe("safe TypeScript and import ownership", () => {
   });
 });
 
-describe("legacy finding limits", () => {
-  const file = "app/src/legacy.ts";
-  const findings = inspectSource(file, "let value: any;");
-  const manifest = { [file]: { "explicit-any": 1 } };
-
-  it("accepts the recorded count and permits a lower count", () => {
-    expect(checkLegacyLimits(findings, manifest)).toEqual([]);
-    expect(checkLegacyLimits(findings, manifest, { [file]: { "explicit-any": 2 } })).toEqual([]);
-  });
-  it("rejects a raised finding count", () => {
-    expect(checkLegacyLimits([...findings, ...findings], manifest)).not.toEqual([]);
-  });
-  it("rejects a new file containing a finding", () => {
-    expect(checkLegacyLimits(inspectSource("app/src/new.ts", "let value: any;"), manifest)).not.toEqual([]);
-  });
-  it("rejects removal of an entry while findings remain", () => {
-    expect(checkLegacyLimits(findings, {})).not.toEqual([]);
-  });
-  it("requires lowering the manifest when findings decrease", () => {
-    expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } })).not.toEqual([]);
-  });
-  it("rejects increasing or adding a manifest allowance", () => {
-    expect(checkLegacyLimits(findings, { [file]: { "explicit-any": 2 } }, manifest)).not.toEqual([]);
-    expect(checkLegacyLimits(findings, manifest, {})).not.toEqual([]);
-  });
-  it("requires removing deleted and fully ported files", () => {
-    expect(checkLegacyLimits([], manifest)).not.toEqual([]);
-    expect(checkLegacyLimits([], {}, manifest)).toEqual([]);
-  });
-  it("does not let one rule consume another rule's allowance", () => {
-    expect(checkLegacyLimits(inspectSource(file, "value!.run();"), manifest)).not.toEqual([]);
+describe("strict repository gate", () => {
+  it("reports findings even when an old allowance file claims to permit them", () => {
+    const root = mkdtempSync(join(tmpdir(), "aegis-strict-gate-"));
+    try {
+      execFileSync("git", ["init", "--quiet", root]);
+      mkdirSync(join(root, "scripts"));
+      writeFileSync(join(root, "scripts/input.ts"), "const value: any = 1;");
+      writeFileSync(join(root, "scripts/safe-types-legacy.json"), JSON.stringify({ "scripts/input.ts": { "explicit-any": 100 } }));
+      expect(inspectRepository(root).map(finding => finding.rule)).toEqual(["explicit-any"]);
+      writeFileSync(join(root, "scripts/input.ts"), "const value: number = 1;");
+      expect(inspectRepository(root)).toEqual([]);
+      writeFileSync(join(root, "scripts/untyped.mjs"), "export const value = 1;");
+      expect(inspectRepository(root).map(finding => finding.rule)).toEqual(["authored-javascript"]);
+    } finally { rmSync(root, { recursive: true, force: true }); }
   });
 });

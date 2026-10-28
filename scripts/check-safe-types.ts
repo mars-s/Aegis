@@ -1,12 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { z } from "zod/v4";
 import { builtinModules } from "node:module";
 import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSync, Visitor } from "oxc-parser";
 
 export type Rule =
+  | "authored-javascript"
   | "parse"
   | "explicit-any"
   | "type-assertion"
@@ -60,6 +60,10 @@ export function inspectSource(file: string, source: string): readonly Finding[] 
       message,
     });
   };
+
+  if (/^(?:app|packages|agent|checks|scripts)\//.test(location) && /\.[cm]?js$/.test(location)) {
+    add("authored-javascript", "Authored source must be TypeScript. Generated JavaScript stays in ignored build output.");
+  }
 
   const imported = (name: string, typeOnly: boolean, start: number): void => {
     if (effectImport(name) && sourceOwner !== "agent" && sourceOwner !== "host-client") {
@@ -189,77 +193,13 @@ export function inspectSource(file: string, source: string): readonly Finding[] 
 
 export function inspectRepository(root: string): readonly Finding[] {
   const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z"], { cwd: root, encoding: "utf8" });
-  return [...new Set(files.split("\0"))].filter(file => /\.(?:[cm]?ts|tsx)$/.test(file) && existsSync(resolve(root, file))).sort().flatMap(file => inspectSource(file, readFileSync(resolve(root, file), "utf8")));
-}
-
-const RuleSchema = z.enum([
-  "parse", "explicit-any", "type-assertion", "non-null", "suppression", "node-import",
-  "effect-owner", "package-owner", "relative-owner", "private-import", "dynamic-import", "frame-owner",
-]);
-const LegacyManifestSchema = z.record(z.string(), z.partialRecord(RuleSchema, z.int().positive()));
-export type LegacyManifest = z.output<typeof LegacyManifestSchema>;
-
-export function checkLegacyLimits(
-  findings: readonly Finding[],
-  manifest: LegacyManifest,
-  previous: LegacyManifest = manifest,
-): readonly string[] {
-  const errors: string[] = [];
-  const actual = new Map<string, Map<Rule, number>>();
-  for (const finding of findings) {
-    const counts = actual.get(finding.file) ?? new Map<Rule, number>();
-    counts.set(finding.rule, (counts.get(finding.rule) ?? 0) + 1);
-    actual.set(finding.file, counts);
-  }
-  for (const [file, counts] of actual) {
-    for (const [rule, count] of counts) {
-      const limit = manifest[file]?.[rule] ?? 0;
-      if (count > limit) errors.push(`${file} [${rule}]: ${count} findings exceeds legacy limit ${limit}.`);
-    }
-  }
-  for (const [file, counts] of Object.entries(manifest)) {
-    if (!actual.has(file)) errors.push(`${file}: remove the legacy entry for this deleted or clean file.`);
-    if (Object.keys(counts).length === 0) errors.push(`${file}: empty legacy entries must be removed.`);
-    for (const [rule, limit] of Object.entries(counts)) {
-      const parsedRule = RuleSchema.parse(rule);
-      const count = actual.get(file)?.get(parsedRule) ?? 0;
-      if (limit > count) errors.push(`${file} [${rule}]: lower the legacy limit from ${limit} to ${count}, or remove this rule.`);
-      const prior = previous[file]?.[parsedRule] ?? 0;
-      if (limit > prior) errors.push(`${file} [${rule}]: legacy limit cannot rise from ${prior} to ${limit}.`);
-    }
-  }
-  return errors;
-}
-
-function readCommittedManifest(root: string): LegacyManifest {
-  const path = "scripts/safe-types-legacy.json";
-  const present = execFileSync("git", ["ls-tree", "HEAD", "--", path], { cwd: root, encoding: "utf8" });
-  // The first manifest is seeded once from the recorded foundation blocker.
-  if (!present.trim()) {
-    const baseline: unknown = JSON.parse(readFileSync(resolve(root, "react-port-gate-blocker.json"), "utf8"));
-    const recorded = z.object({ findings: z.array(z.object({ file: z.string(), rule: z.string() })) }).parse(baseline);
-    const seeded: Record<string, Record<string, number>> = {};
-    for (const finding of recorded.findings) {
-      const counts = seeded[finding.file] ?? {};
-      counts[finding.rule] = (counts[finding.rule] ?? 0) + 1;
-      seeded[finding.file] = counts;
-    }
-    return LegacyManifestSchema.parse(seeded);
-  }
-  const source = execFileSync("git", ["show", `HEAD:${path}`], { cwd: root, encoding: "utf8" });
-  const parsed: unknown = JSON.parse(source);
-  return LegacyManifestSchema.parse(parsed);
+  return [...new Set(files.split("\0"))].filter(file => /\.(?:[cm]?[jt]s|tsx)$/.test(file) && existsSync(resolve(root, file))).sort().flatMap(file => inspectSource(file, readFileSync(resolve(root, file), "utf8")));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = fileURLToPath(new URL("..", import.meta.url));
   const findings = inspectRepository(root);
-  const raw: unknown = JSON.parse(readFileSync(resolve(root, "scripts/safe-types-legacy.json"), "utf8"));
-  const manifest = LegacyManifestSchema.parse(raw);
-  const errors = checkLegacyLimits(findings, manifest, readCommittedManifest(root));
-  for (const error of errors) process.stderr.write(`${error}\n`);
-  if (errors.length) {
-    for (const finding of findings) process.stderr.write(`${finding.file}:${finding.line}:${finding.column} [${finding.rule}] ${finding.message}\n`);
-    process.exitCode = 1;
-  } else process.stdout.write(`Safe-type and import ownership gates passed. ${findings.length} recorded legacy findings.\n`);
+  for (const finding of findings) process.stderr.write(`${finding.file}:${finding.line}:${finding.column} [${finding.rule}] ${finding.message}\n`);
+  if (findings.length) process.exitCode = 1;
+  else process.stdout.write("Safe-type and import ownership gates passed. Zero findings.\n");
 }
