@@ -1,0 +1,22 @@
+.mcp-presence {
+  position: fixed; left: 20px; bottom: 20px; z-index: 40;
+  display: flex; align-items: center; gap: 8px;
+  min-height: 30px; padding: 5px 12px;
+  border: 1px solid var(--line-strong, #2c3035); border-radius: 999px;
+  background: var(--card, #111316); color: var(--muted, #b5b5bd);
+  font: 400 12px/1 var(--font, Inter, sans-serif);
+  cursor: pointer;
+  animation: mcp-presence-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.mcp-presence:hover { border-color: #7c828c; color: var(--text, #eeeeef); }
+.mcp-presence:focus-visible { outline: 2px solid var(--color-ring, #3f8dfd); outline-offset: 2px; }
+.mcp-presence-name { color: var(--text, #eeeeef); }
+.mcp-presence-dot { width: 6px; height: 6px; border-radius: 50%; background: #3f8dfd; flex: none; }
+.mcp-presence[data-fresh='true'] .mcp-presence-dot { animation: mcp-presence-pulse 1.2s ease-in-out infinite; }
+@keyframes mcp-presence-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes mcp-presence-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .mcp-presence, .mcp-presence[data-fresh='true'] .mcp-presence-dot { animation: none; }
+}
+body.motion-off .mcp-presence,
+body.motion-off .mcp-presence[data-fresh='true'] .mcp-presence-dot { animation: none; }

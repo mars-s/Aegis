@@ -21,6 +21,8 @@ import { createPreferenceStore } from '../settings/preferences-store.js';
 import { Onboarding, Shortcuts } from '../onboarding/Onboarding.js';
 import { shortcutReferences } from '../onboarding/shortcuts.js';
 import { agentName, shortTitle } from './results.js';
+import { Presence } from './Presence.js';
+import type { PresenceActivity } from './Presence.js';
 
 export interface AgentShellControls {
   readonly runtime: AgentRuntime;
@@ -55,6 +57,7 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
   const [tour, setTour] = useState(() => !localStorage.getItem('aegis:onboarded'));
   const [help, setHelp] = useState(false);
   const [scene, setScene] = useState<AgentScene | null>(null);
+  const [presence, setPresence] = useState<PresenceActivity | null>(null);
   const ui = useSyncExternalStore(context.workspace.ui.subscribe, context.workspace.ui.getSnapshot);
   const runtime = useMemo(() => createAgentRuntime({ workspace: context.workspace, service, requireSignIn: () => setSettings({ tab: 'accounts' }) }), [context.workspace, service]);
   const preferences = useMemo(createPreferenceStore, []);
@@ -86,6 +89,7 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
         const index = [...(id ?? name)].reduce((sum, character) => sum + character.charCodeAt(0), 0) % 3;
         const styles: readonly AgentLineStyle[] = ['solid', 'dashed', 'dotted'];
         scene.result(id, event.touched, `${name}: ${agent ? shortTitle(agent) : 'changed the board'}`, styles[index] ?? 'solid');
+        if (event.author.kind === 'mcp') setPresence({ name, ids: event.touched, at: Date.now() });
       }
     });
   }, [context.workspace, runtime, scene]);
@@ -112,6 +116,7 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
   if (!scene) return null;
   return <>
     <Agents runtime={runtime} scene={scene} attached={receiveComposer} activityOpen={ui.rightPanel && !activityInChrome} closeActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: false })} openActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: true })} />
+    <Presence activity={presence} onShow={ids => context.engine()?.ring(ids, 'var(--data)', 4000, `${presence?.name ?? 'Agent'}: changed the board`, undefined, 'solid')} />
     <FirstMinute context={context} agents={runtime} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} importCsv={importCsv} />
     <Settings open={!!settings} initialTab={settings?.tab ?? 'general'} close={() => setSettings(null)} preferences={preferences} agents={runtime} service={settingsService} replayTour={() => setTour(true)} showShortcuts={() => setHelp(true)} {...(settingsSlots ? { slots: settingsSlots } : {})} />
     <Onboarding open={tour} close={() => setTour(false)} context={context} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} openAsk={() => composer.current?.open(true)} />
