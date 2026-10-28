@@ -10,3 +10,5 @@ packages/*/dist/
 .scratch/
 runtime/
 agent/dist/
+
+checks/native/dist/

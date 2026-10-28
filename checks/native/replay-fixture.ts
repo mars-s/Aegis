@@ -1,3 +1,4 @@
+import { BoardSchema } from '@aegis/domain';
 export const BOARD_ID = 'native-perf';
 
 // Owned synthetic content only. No remote media, sandbox or provider requests.
@@ -27,11 +28,13 @@ export function mixedBoard() {
       default: throw new Error('Unknown fixture kind');
     }
   });
-  return { id: BOARD_ID, name: 'Disposable native React replay', rev: 0, cards, links: [], view: { x: -60, y: 25, z: 0.28 } };
+  return BoardSchema.parse({ id: BOARD_ID, name: 'Disposable native React replay', rev: 0, cards, links: [], view: { x: -60, y: 25, z: 0.28 } });
 }
 
-export function replayPlan() {
-  const pan = Array.from({ length: 240 }, (_, index) => ({ phase: 'pan', dx: 3 * Math.cos(2 * Math.PI * index / 240), dy: 2 * Math.sin(2 * Math.PI * index / 240), zoom: false }));
-  const zoom = (phase, from, to) => Array.from({ length: 180 }, () => ({ phase, dx: 0, dy: -Math.log(to / from) / 1.8, zoom: true }));
+export interface ReplayStep { readonly phase: "pan" | "zoom-out" | "zoom-in"; readonly dx: number; readonly dy: number; readonly zoom: boolean }
+
+export function replayPlan(): readonly ReplayStep[] {
+  const pan = Array.from({ length: 240 }, (_, index): ReplayStep => ({ phase: 'pan', dx: 3 * Math.cos(2 * Math.PI * index / 240), dy: 2 * Math.sin(2 * Math.PI * index / 240), zoom: false }));
+  const zoom = (phase: "zoom-out" | "zoom-in", from: number, to: number) => Array.from({ length: 180 }, (): ReplayStep => ({ phase, dx: 0, dy: -Math.log(to / from) / 1.8, zoom: true }));
   return [...pan, ...zoom('zoom-out', 0.28, 0.18), ...zoom('zoom-in', 0.18, 0.42)];
 }

@@ -4,11 +4,15 @@ import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import { copyFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { cp, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { z } from 'zod';
+import { FailureSchema, ProbeReportSchema } from './schemas.ts';
+import type { ProbeReport } from './schemas.ts';
+import { buildNativePages, browserOutput } from './build-pages.ts';
 
 const { values } = parseArgs({ options: {
   app: { type: 'string' },
@@ -21,7 +25,7 @@ const { values } = parseArgs({ options: {
   screenshot: { type: 'boolean', default: false },
 } });
 assert(values.app, 'Pass --app /absolute/path/to/Aegis.app/Contents/MacOS/aegis or a cargo build binary');
-const integer = (value, name, minimum) => {
+const integer = (value: string | undefined, name: string, minimum: number) => {
   const number = Number(value);
   assert(Number.isSafeInteger(number) && number >= minimum, `Invalid ${name}`);
   return number;
@@ -35,7 +39,8 @@ assert(collectorPort <= 65535, 'Invalid collector-port');
 const source = dirname(fileURLToPath(import.meta.url));
 const out = values.out ? resolve(values.out) : await mkdtemp(join(tmpdir(), 'aegis-fps-evidence-'));
 await mkdir(out, { recursive: true });
-const reports = [];
+const reports: (ProbeReport & { run: number })[] = [];
+await buildNativePages();
 
 for (let run = 1; run <= runs; run++) {
   const data = await mkdtemp(join(tmpdir(), 'aegis-fps-data-'));
@@ -43,11 +48,10 @@ for (let run = 1; run <= runs; run++) {
   const ui = join(data, 'ui', 'current');
   await mkdir(ui, { recursive: true });
   await copyFile(join(source, 'fps.html'), join(ui, 'index.html'));
-  await copyFile(join(source, 'fps.page.mjs'), join(ui, 'fps.page.mjs'));
-  await copyFile(join(source, 'frame-stats.mjs'), join(ui, 'frame-stats.mjs'));
+  await cp(browserOutput, ui, { recursive: true });
   const nonce = `/${randomUUID()}`;
-  let accept;
-  const reportPromise = new Promise(resolve => { accept = resolve; });
+  let accept: ((value: unknown) => void) | undefined;
+  const reportPromise = new Promise<unknown>(resolve => { accept = resolve; });
   const server = createServer(async (request, response) => {
     response.setHeader('Access-Control-Allow-Origin', '*');
     if (request.method !== 'POST' || request.url !== nonce) {
@@ -60,18 +64,23 @@ for (let run = 1; run <= runs; run++) {
         body += chunk;
         if (body.length > 16384) throw new Error('Oversized probe response');
       }
-      const report = JSON.parse(body);
+      const report: unknown = JSON.parse(body);
       response.writeHead(200).end('ok');
+      if (!accept) throw new Error("Collector is not ready");
       accept(report);
     } catch {
       response.writeHead(400).end();
     }
   });
-  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(collectorPort, '127.0.0.1', resolve); });
-  await writeFile(join(ui, 'fps.config.mjs'), `export default ${JSON.stringify({
-    frames, warmupMs, collector: `http://127.0.0.1:${server.address().port}${nonce}`,
-  })};\n`);
-  const env = { ...process.env, AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_UI: ui };
+  await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(collectorPort, '127.0.0.1', resolve); });
+  const address = server.address();
+  assert(address && typeof address === 'object', 'Missing native collector address');
+  const config = JSON.stringify({
+    frames, warmupMs, collector: `http://127.0.0.1:${address.port}${nonce}`,
+  });
+  const html = await (await import('node:fs/promises')).readFile(join(ui, 'index.html'), 'utf8');
+  await writeFile(join(ui, 'index.html'), html.replace('<head>', `<head><script type="application/json" id="native-config">${config}</script>`));
+  const env: NodeJS.ProcessEnv = { ...process.env, AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_UI: ui };
   delete env.AEGIS_SAFE;
   delete env.AEGIS_PRINT_TOKEN;
   const child = spawn(resolve(values.app), [], {
@@ -86,21 +95,21 @@ for (let run = 1; run <= runs; run++) {
     child.once('exit', (code, signal) => resolve({ code, signal }));
     child.once('error', error => resolve({ error: error.message }));
   });
-  let timer;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    const report = await Promise.race([
+    const report = z.union([ProbeReportSchema, FailureSchema]).parse(await Promise.race([
       reportPromise,
       exited.then(exit => { throw new Error(`App exited before reporting: ${JSON.stringify(exit)}`); }),
       new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Probe timed out')), 45000); }),
-    ]);
-    assert(!report.error, report.error);
-    for (const key of ['fps', 'p50', 'p95', 'max']) assert(Number.isFinite(report[key]) && report[key] > 0, `Invalid ${key}`);
+    ]));
+    if ('error' in report) throw new Error(String(report.error));
+    for (const key of ['fps', 'p50', 'p95', 'max'] as const) assert(Number.isFinite(report[key]) && report[key] > 0, `Invalid ${key}`);
     assert.equal(report.frames, frames);
     assert.equal(report.hidden, false, 'Webview became hidden during the measurement');
     assert.equal(report.hostConnected, true);
     assert.equal(report.tauri, true, 'Result must come from the Tauri webview');
     reports.push({ run, ...report });
-    console.log(JSON.stringify({ run, ...report }));
+    log(JSON.stringify({ run, ...report }));
     await writeFile(join(out, `run-${run}.json`), JSON.stringify(report, null, 2));
     if (values.screenshot) {
       const windowId = execFileSync('/usr/bin/osascript', ['-l', 'JavaScript', '-e', `
@@ -117,17 +126,19 @@ for (let run = 1; run <= runs; run++) {
     clearTimeout(timer);
     // This PID is the executable spawned above. Its host exits when the parent pipe closes.
     if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-    let quitTimer;
+    let quitTimer: ReturnType<typeof setTimeout> | undefined;
     const quit = await Promise.race([
       exited.then(() => true),
       new Promise(resolve => { quitTimer = setTimeout(() => resolve(false), 4000); }),
     ]);
     clearTimeout(quitTimer);
     if (!quit) { child.kill('SIGKILL'); await exited; }
-    await new Promise(resolve => server.close(resolve));
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     // Tokens are generated only for this temporary data folder. Never retain them in evidence.
-    const redact = text => text.replace(/([?&]token=|"token"\s*:\s*")[^&"\s]+/g, '$1<REDACTED>');
+    const redact = (text: string) => text.replace(/([?&]token=|"token"\s*:\s*")[^&"\s]+/g, '$1<REDACTED>');
     await writeFile(join(out, `run-${run}.log`), redact(stdout + stderr));
+    await rm(data, { recursive: true, force: true });
+    await rm(cache, { recursive: true, force: true });
   }
 }
 
@@ -135,5 +146,7 @@ await writeFile(join(out, 'summary.json'), JSON.stringify({
   app: resolve(values.app), runs: reports, minFps,
   macOS: execFileSync('/usr/bin/sw_vers', ['-productVersion'], { encoding: 'utf8' }).trim(),
 }, null, 2));
-console.log(`Evidence: ${out}`);
+log(`Evidence: ${out}`);
 assert(reports.every(report => report.fps >= minFps), `Expected at least ${minFps} fps in every run`);
+
+function log(value: string): void { process.stdout.write(value + '\n'); }

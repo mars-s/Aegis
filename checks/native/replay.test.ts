@@ -1,32 +1,34 @@
+import type { FrameParticipant } from '@aegis/scene';
+import type { ReplayStep } from './replay-fixture.ts';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { frameStats, replayPasses } from './frame-stats.mjs';
-import { mixedBoard, replayPlan } from './replay-fixture.mjs';
-import { replayScene } from './replay-driver.mjs';
-import { artifactIdentity, uiIdentity } from './build-identity.mjs';
+import { frameStats, replayPasses } from './frame-stats.ts';
+import { mixedBoard, replayPlan } from './replay-fixture.ts';
+import { replayScene } from './replay-driver.ts';
+import { artifactIdentity, uiIdentity } from './build-identity.ts';
 
 test('120 Hz passes, 60 Hz fails, missed display slots remain in the result', () => {
-  const fast = frameStats(Array(600).fill(1000 / 120));
+  const fast = frameStats(Array<number>(600).fill(1000 / 120));
   assert.equal(replayPasses(fast), true);
   assert.equal(fast.within12_5MsPercent, 100);
   assert.equal(fast.droppedPercent, 0);
-  const slow = frameStats(Array(600).fill(1000 / 60));
+  const slow = frameStats(Array<number>(600).fill(1000 / 60));
   assert.equal(replayPasses(slow), false);
   assert.equal(slow.within12_5MsPercent, 0);
   assert.equal(slow.droppedPercent, 50);
-  const stalled = frameStats([...Array(599).fill(1000 / 120), 1000]);
+  const stalled = frameStats([...Array<number>(599).fill(1000 / 120), 1000]);
   assert.equal(stalled.max, 1000);
   assert.equal(stalled.droppedFrames, 119);
   assert.throws(() => frameStats([0, 8]));
 });
 
 test('the 95 percent and 9 ms gates reject a good median with too many slow frames', () => {
-  assert.equal(replayPasses(frameStats([...Array(570).fill(8), ...Array(30).fill(17)])), true);
-  assert.equal(replayPasses(frameStats([...Array(569).fill(8), ...Array(31).fill(17)])), false);
-  assert.equal(replayPasses(frameStats(Array(600).fill(9.01))), false);
+  assert.equal(replayPasses(frameStats([...Array<number>(570).fill(8), ...Array<number>(30).fill(17)])), true);
+  assert.equal(replayPasses(frameStats([...Array<number>(569).fill(8), ...Array<number>(31).fill(17)])), false);
+  assert.equal(replayPasses(frameStats(Array<number>(600).fill(9.01))), false);
   const edge = frameStats([8, 8, 9, 12.5]);
   assert.equal(edge.p50, 8);
   assert.equal(edge.p95, 12.5);
@@ -37,7 +39,7 @@ test('the owned fixture contains 50 real payloads of each of six kinds', () => {
   const board = mixedBoard();
   assert.equal(board.cards.length, 300);
   assert.equal(new Set(board.cards.map(card => card.id)).size, 300);
-  const kinds = {};
+  const kinds: Record<string, number> = {};
   for (const card of board.cards) {
     const kind = card.type === 'object' ? `object:${card.kind}` : card.type;
     kinds[kind] = (kinds[kind] ?? 0) + 1;
@@ -55,9 +57,10 @@ test('the owned fixture contains 50 real payloads of each of six kinds', () => {
 
 // This checks driver ordering only. It is not native performance evidence.
 function sceneDouble({ stall = false } = {}) {
-  let participant, active = false, removed = false, scheduled = false, frames = 0, camera = { x: 0, y: 0, zoom: 0.28 };
-  const samples = [];
-  const inputs = [];
+  let participant: FrameParticipant | undefined;
+  let active = false, removed = false, scheduled = false, frames = 0, camera = { x: 0, y: 0, zoom: 0.28 };
+  const samples: { interval: number; cpu: number }[] = [];
+  const inputs: ReplayStep[] = [];
   const schedule = () => {
     if (stall || scheduled) return;
     scheduled = true;
@@ -67,17 +70,17 @@ function sceneDouble({ stall = false } = {}) {
         if (input.zoom) camera.zoom *= Math.exp(-input.dy * 0.01);
         else { camera.x -= input.dx; camera.y -= input.dy; }
       }
-      participant?.write();
+      participant?.write?.();
       samples.push({ interval: frames++ ? 1000 / 120 : 0, cpu: 1 });
     });
   };
   return {
     engine: {
-      recordMetrics(enabled) { active = enabled; },
-      registerFrameParticipant(value) { participant = value; schedule(); return () => { participant = undefined; removed = true; }; },
+      recordMetrics(enabled: boolean) { active = enabled; },
+      registerFrameParticipant(value: FrameParticipant) { participant = value; schedule(); return () => { participant = undefined; removed = true; }; },
       camera: () => ({ ...camera }), samples: () => [...samples],
     },
-    dispatch(input) { assert(active); inputs.push(input); schedule(); },
+    dispatch(input: ReplayStep) { assert(active); inputs.push(input); schedule(); },
     clean: () => removed && !active,
   };
 }
@@ -88,7 +91,9 @@ test('the scene participant includes every gesture frame and excludes only its b
   assert.equal(result.samples.length, 600);
   assert(result.samples.every(sample => sample.interval > 0));
   assert.deepEqual(result.samples.map(sample => sample.phase), plan.map(step => step.phase));
-  assert(Math.abs(result.cameras.at(-1).zoom - 0.42) < 1e-10);
+  const finalCamera = result.cameras.at(-1);
+  assert(finalCamera);
+  assert(Math.abs(finalCamera.zoom - 0.42) < 1e-10);
   assert.equal(scene.clean(), true);
 });
 
