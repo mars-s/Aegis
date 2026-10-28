@@ -5,26 +5,34 @@ import type { FeatureWorkspace } from '../../composition.js';
 import { butter, centerline, colour, pathD, shapePoints } from './art.js';
 import type { InkPoint, VectorPoint } from './art.js';
 import type { DrawSettings } from './Inspector.js';
-import { fitPoints } from './vector-geometry.js';
+import { fitPoints, inkHit } from './vector-geometry.js';
 import { toolExit } from '../../platform/tool-lifetime.js';
 
 const id = (): CardId => CardIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
 const previewColour = (value: string): PreviewColour => { const hex = colour(value); return hex.startsWith('#') ? { kind: 'hex', value: hex } : { kind: 'theme', token: 'text' }; };
 const stroke = (value = 'ink', width = 1.5) => ({ colour: previewColour(value), width, dash: [] });
-export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, kind: 'ink' | 'shape' | 'path' | 'stamp', settings: () => DrawSettings, finished: () => void): SceneTool {
+export function drawingTool(engine: Pick<CanvasEngine, 'afterInput' | 'tool' | 'toolName' | 'camera' | 'preview' | 'commitTool'>, workspace: FeatureWorkspace, kind: 'ink' | 'shape' | 'path' | 'stamp', settings: () => DrawSettings, finished: () => void): SceneTool {
   const name = kind === 'ink' ? 'draw-ink' : kind === 'path' ? 'vector' : `draw-${kind}`;
   const release = toolExit(engine, name, finished);
   let active = true;
   const exit = () => { active = false; release(); };
   let start: ToolPointer | null = null, samples: InkPoint[] = [], points: VectorPoint[] = [], erased = new Set<CardId>();
   let lastTap: ToolPointer | null = null;
-  function clear(): void { start = null; samples = []; points = []; erased = new Set(); engine.preview(null); }
+  let lastErase: ToolPointer["world"] | null = null;
+  function clear(): void { lastErase = null; start = null; samples = []; points = []; erased = new Set(); engine.preview(null); }
   function commit(commands: readonly Command[], selection: readonly CardId[]): void { engine.commitTool({ commands, selection }); }
   function paint(point: ToolPointer): void {
     const prefs = settings(), size = prefs.sizes[prefs.pen], primitives: ToolPrimitive[] = [];
     if (kind === 'ink' && prefs.pen === 'eraser') {
-      for (const card of workspace.scene.snapshot().cards) if (card.type === 'ink' && point.world.x >= card.x - size / 2 && point.world.x <= card.x + card.w + size / 2 && point.world.y >= card.y - size / 2 && point.world.y <= card.y + card.h + size / 2) erased.add(card.id);
-      primitives.push({ kind: 'circle', opacity: 1, space: 'world', centre: point.world, radius: size / 2, fill: null, stroke: stroke() });
+      const radius = size / 2 / engine.camera().zoom;
+      const from = lastErase ?? point.world;
+      const steps = Math.max(1, Math.ceil(Math.hypot(point.world.x - from.x, point.world.y - from.y) / Math.max(1, radius / 2)));
+      for (let step = 1; step <= steps; step++) {
+        const at = { x: from.x + (point.world.x - from.x) * step / steps, y: from.y + (point.world.y - from.y) * step / steps };
+        for (const card of workspace.scene.snapshot().cards) if (card.type === 'ink' && !erased.has(card.id) && inkHit(card, at, radius)) erased.add(card.id);
+      }
+      lastErase = point.world;
+      primitives.push({ kind: 'circle', opacity: 1, space: 'world', centre: point.world, radius, fill: null, stroke: stroke() });
     } else if (kind === 'ink' && start) {
       samples.push([point.world.x, point.world.y, point.time]);
       primitives.push({ kind: 'path', opacity: prefs.pen === 'hi' ? .38 : 1, space: 'world', d: prefs.pen === 'pen' ? butter(samples, false, size) : centerline(samples), fill: prefs.pen === 'pen' ? previewColour(prefs.ink) : null, stroke: prefs.pen === 'pen' ? null : stroke(prefs.ink, size * engine.camera().zoom) });
@@ -64,7 +72,7 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
       if (!active || !start) return;
       if (kind === 'path') { start = null; return; }
       const prefs = settings(), newId = id();
-      if (kind === 'ink' && prefs.pen === 'eraser') { if (erased.size) commit([{ op: 'delete', ids: [...erased] }], []); }
+      if (kind === 'ink' && prefs.pen === 'eraser') { paint(point); if (erased.size) commit([{ op: 'delete', ids: [...erased] }], []); }
       else if (kind === 'ink') {
         samples.push([point.world.x, point.world.y, point.time]); const pad = prefs.sizes[prefs.pen] / 2;
         const x = Math.min(...samples.map(sample => sample[0])) - pad, y = Math.min(...samples.map(sample => sample[1])) - pad;

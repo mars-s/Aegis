@@ -1,5 +1,7 @@
 import type { Card } from '@aegis/domain';
+import { InkProps } from './art.js';
 import type { VectorPoint } from './art.js';
+import type { Point } from '@aegis/scene';
 
 export function shiftPoint(point: VectorPoint, dx: number, dy: number): VectorPoint {
   return { ...point, x: point.x + dx, y: point.y + dy, ...(point.ix === undefined ? {} : { ix: point.ix + dx, iy: (point.iy ?? point.y) + dy }), ...(point.ox === undefined ? {} : { ox: point.ox + dx, oy: (point.oy ?? point.y) + dy }) };
@@ -38,4 +40,36 @@ export function splitSegment(points: readonly VectorPoint[], index: number, t: n
   const point: VectorPoint = mix(abc, bcd);
   if (a.ox !== undefined || b.ix !== undefined) { a.ox = ab.x; a.oy = ab.y; b.ix = cd.x; b.iy = cd.y; Object.assign(point, { ix: abc.x, iy: abc.y, ox: bcd.x, oy: bcd.y }); }
   result.splice(index + 1, 0, point); return result;
+}
+
+type DrawingGeometry = Pick<Card, 'x' | 'y' | 'w' | 'h' | 'rot' | 'props'>;
+const IntrinsicSize = InkProps.pick({ ow: true, oh: true });
+function atWorld(card: DrawingGeometry, point: Point, ow: number, oh: number): Point {
+  const x = point.x * card.w / ow - card.w / 2, y = point.y * card.h / oh - card.h / 2;
+  const angle = (card.rot ?? 0) * Math.PI / 180;
+  return { x: card.x + card.w / 2 + x * Math.cos(angle) - y * Math.sin(angle), y: card.y + card.h / 2 + x * Math.sin(angle) + y * Math.cos(angle) };
+}
+export function localToWorld(card: DrawingGeometry, point: Point): Point {
+  const size = IntrinsicSize.parse(card.props ?? {});
+  return atWorld(card, point, size.ow ?? card.w, size.oh ?? card.h);
+}
+export function worldToLocal(card: DrawingGeometry, point: Point): Point {
+  const size = IntrinsicSize.parse(card.props ?? {});
+  const x = point.x - card.x - card.w / 2, y = point.y - card.y - card.h / 2, angle = -(card.rot ?? 0) * Math.PI / 180;
+  return { x: (x * Math.cos(angle) - y * Math.sin(angle) + card.w / 2) * (size.ow ?? card.w) / card.w, y: (x * Math.sin(angle) + y * Math.cos(angle) + card.h / 2) * (size.oh ?? card.h) / card.h };
+}
+export function inkHit(card: DrawingGeometry, at: Point, radius: number): boolean {
+  const props = InkProps.parse(card.props ?? {}), ow = props.ow ?? card.w, oh = props.oh ?? card.h;
+  const reach = radius + props.size / 2 * Math.max(card.w / ow, card.h / oh);
+  let previous: Point | undefined;
+  for (const point of props.points) {
+    const current = atWorld(card, { x: point[0], y: point[1] }, ow, oh);
+    if (previous) {
+      const dx = current.x - previous.x, dy = current.y - previous.y;
+      const t = Math.max(0, Math.min(1, ((at.x - previous.x) * dx + (at.y - previous.y) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(at.x - previous.x - t * dx, at.y - previous.y - t * dy) <= reach) return true;
+    } else if (Math.hypot(at.x - current.x, at.y - current.y) <= reach) return true;
+    previous = current;
+  }
+  return false;
 }
