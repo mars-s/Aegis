@@ -289,3 +289,10 @@ fragile. "Jarvis's table, built by Apple."
 - Not applied: the queue says "if the owner wants it". One line in
   `packages/domain/src/commands.ts` (the `doc` default) plus the importer's 560
   if you want them the same.
+
+### 2026-10-29, morning
+
+- Owner decided: the presence chip stays at the bottom-left. Accepted trade-off
+  is that an open Library panel covers it; no code change.
+- Still open: the document default width (480 vs the comp's 748) and the orb
+  click that grants dictation permission.
