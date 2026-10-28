@@ -4,12 +4,12 @@ import type { FeatureContext } from '../../composition.js';
 import { ColourPicker } from '../colours/ColourEditor.js';
 import { DrawingProps, SHAPES, StampProps, colour } from './art.js';
 import { EMOJI, PEN_RANGE, pickEmoji, readPreferences, savePreferences } from './preferences.js';
-import type { DrawPreferences } from './preferences.js';
+import type { DrawSettings } from './preferences.js';
+export type { DrawSettings } from './preferences.js';
 import './draw.css';
 import { beginPointEdit, editPointCorners } from './point-editor.js';
 export type DrawTarget = { readonly kind: 'tool'; readonly tool: 'ink' | 'shape' | 'path' | 'stamp' } | { readonly kind: 'card'; readonly id: CardId } | { readonly kind: 'link'; readonly id: LinkId };
 export type DrawRequest = { readonly kind: 'ink' | 'shape' | 'path' | 'stamp' } | { readonly kind: 'edit-points'; readonly id: CardId };
-export interface DrawSettings extends DrawPreferences { readonly shape: keyof typeof SHAPES; readonly fill: string; readonly stroke: string; readonly sw: number; readonly sdash: 'solid' | 'dash' | 'dot' | 'none'; readonly dl: number; readonly dg: number; readonly emoji: string }
 export function DrawingInspector({ context, target, onArm, onSettings, onFinish }: { readonly context: FeatureContext; readonly target: DrawTarget; readonly onArm: (request: DrawRequest, settings: DrawSettings) => void; readonly onSettings: (settings: DrawSettings) => void; readonly onFinish: () => void }) {
   const { workspace } = context, subscribe = useCallback((listener: () => void) => workspace.scene.subscribe(() => listener()), [workspace]);
   const board = useSyncExternalStore(subscribe, workspace.scene.snapshot), card = target.kind === 'card' ? board.cards.find(card => card.id === target.id) : undefined, link = target.kind === 'link' ? board.links.find(link => link.id === target.id) : undefined;

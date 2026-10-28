@@ -1,3 +1,4 @@
+import { CardIdSchema } from '@aegis/domain';
 import { expect, it } from 'vitest';
 import type { CanvasEngine, ToolCommit, ToolPointer } from '@aegis/scene';
 import { drawingTool } from '../../../app/src/features/draw/tool.ts';
@@ -11,13 +12,13 @@ function erase(points: readonly { x: number; y: number }[], zoom = 1) {
     afterInput: run => run(), tool: () => {}, toolName: () => 'draw-ink',
     camera: () => ({ x: 0, y: 0, zoom }), preview: () => {}, commitTool: value => { commits.push(value); },
   };
-  const workspace = createWorkspace({ board: boardWith([{ op: 'create', newId: 'rotatedink', type: 'ink', x: 20, y: 20, w: 200, h: 100, rot: 90, props: { points: [[0, 50, 0], [100, 50, 1]], ow: 100, oh: 100, size: 4 } }]) });
+  const workspace = createWorkspace({ board: boardWith([{ op: 'create', newId: CardIdSchema.parse('rotatedink'), type: 'ink', x: 20, y: 20, w: 200, h: 100, rot: 90, props: { points: [[0, 50, 0], [100, 50, 1]], ow: 100, oh: 100, size: 4 } }]) });
   const tool = drawingTool(engine, workspace, 'ink', () => ({ ...readPreferences(), pen: 'eraser', shape: 'rect', fill: 'none', stroke: 'ink', sw: 2, sdash: 'solid', dl: 8, dg: 6, emoji: '⭐' }), () => {});
   const event = (world: { x: number; y: number }): ToolPointer => ({ pointerId: 1, pointerType: 'mouse', world, screen: world, pressure: 0.5, time: 1, button: 0, buttons: 1, shift: false, alt: false, bypass: false });
   const first = points[0], last = points.at(-1);
   if (!first || !last) throw new Error('Missing eraser gesture');
-  tool.down?.(event(first));
-  tool.up?.(event(last));
+  tool.down(event(first), null);
+  tool.up(event(last));
   workspace.dispose();
   return commits.flatMap(commit => commit.commands);
 }
