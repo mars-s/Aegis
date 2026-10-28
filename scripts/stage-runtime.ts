@@ -1,4 +1,4 @@
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod/v4";
@@ -50,9 +50,13 @@ export function stageRuntime(args: { readonly root: string; readonly destination
       copyTree(join(source, "dist"), join(target, "dist"));
     }
     if (existsSync(join(source, "node_modules"))) copyTree(join(source, "node_modules"), join(target, "node_modules"));
-    const link = join(destination, "node_modules", metadata.name);
-    mkdirSync(dirname(link), { recursive: true });
-    symlinkSync(relative(dirname(link), target), link, "dir");
+    // The Tauri bundler drops symlinks when it copies resources, so the installed app would lose
+    // its own packages. Copy each library package to where Node resolves it instead.
+    if (workspace !== "agent") {
+      const installedPackage = join(destination, "node_modules", metadata.name);
+      mkdirSync(dirname(installedPackage), { recursive: true });
+      copyTree(target, installedPackage);
+    }
     // Nested workspace installs can share production dependencies with the root.
     for (const dependency of Object.keys(metadata.dependencies ?? {})) {
       if (dependency.startsWith("@aegis/")) continue;
