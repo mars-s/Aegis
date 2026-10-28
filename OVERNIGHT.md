@@ -155,8 +155,7 @@ fragile. "Jarvis's table, built by Apple."
 
 ## Next
 
-1. `checks/ui/editing.mjs` still imports `/src/features/editing/board-export.js`.
-   Unblocked now that the sidebar branch merged. The real path is `.tsx`.
+1. `checks/ui/editing.mjs` path fixed on 2026-10-29 after the sidebar merge.
 2. Run the whole UI suite once (`node checks/ui/run.mjs`) and triage anything
    else that is red. It takes about an hour, so give it its own tick.
 3. Document card typography against the comp, if the owner wants it tighter.
@@ -301,3 +300,12 @@ fragile. "Jarvis's table, built by Apple."
   `fd65952`. The branch was left in place for the other worktree.
 - Rebuilt, installed and relaunched the app. Healthy, Demo assignment intact at
   revision 29, and the binary embeds `index-DExjER3_.js`.
+
+### 2026-10-29, tick at 9:55am
+
+- Took the last code item, now unblocked by the merge: `editing.mjs` imported
+  `/src/features/editing/board-export.js`, a second copy of a `.tsx` module.
+  Switched it to the real path.
+- `checks/ui/editing.mjs` passes. Full check green.
+- That closes every code item the loop ever opened. What remains is owner
+  decisions: document default width, and the orb click for dictation.
