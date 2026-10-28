@@ -13,7 +13,7 @@
   "scripts": {
     "dev": "npm run build:shared && npx --yes @tauri-apps/cli@2.12.4 dev",
     "build": "npm run stage:runtime && npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
-    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check",
+    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm run check:runtime && npm --workspace @aegis/agent run check",
     "check:safe-types": "node scripts/check-safe-types.ts",
     "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json && tsc --noEmit -p checks/host/tsconfig.json",
     "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit checks/host checks/mcp checks/perf agent/src app/src vitest.config.ts",

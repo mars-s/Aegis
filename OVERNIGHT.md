@@ -42,11 +42,11 @@ fragile. "Jarvis's table, built by Apple."
    - `checks/ui/wireframe.mjs`: NaN attribute at line 262.
    - `checks/ui/genui.mjs`: `$RefreshSig$` not defined in the Vite dev path.
    - `checks/ui/agent-edges.mjs`: assertion at line 125.
-3. **Bundled runtime start test.** The test already exists at
-   `scripts/check-staged-runtime.ts` and runs as `npm run check:runtime`. It
-   copies the staged runtime to a temp folder and waits for `{"aegis":"ready"}`.
-   It is not part of `npm run check`. Wire it in so the symlink crash cannot
-   ship again, and prove it fails against a symlinked stage.
+3. **Bundled runtime start test.** Done 2026-10-29. `check:runtime` now runs
+   inside `npm run check`. Proof it catches the shipped crash: deleting a staged
+   `@aegis/domain` makes it exit 1 with `ERR_MODULE_NOT_FOUND`. A symlinked
+   stage alone does not fail, because relocation keeps relative links valid; the
+   real failure was the bundler dropping the entry entirely.
 4. **Native frame rate.** Re-measure pan and zoom FPS in the installed app.
 5. **UX polish** against `.scratch/aegis-redesign/comps/6-zen-dark-LOCKED.png`,
    avoiding the files the sidebar session owns.
@@ -119,3 +119,14 @@ fragile. "Jarvis's table, built by Apple."
 - Importing `/src/lib/ui/dropdown.ts` and `/src/lib/ui/menu.ts` fixes it.
 - All four suites now pass. Next: wire `npm run check:runtime` into
   `npm run check`.
+
+### 2026-10-29, tick at 1:45am
+
+- Added `npm run check:runtime` to `npm run check`, so a staged runtime that
+  cannot start now fails the normal gate.
+- Proved the gate works: removing `node_modules/@aegis/domain` from a copy of
+  the staged runtime makes the check exit 1 with `ERR_MODULE_NOT_FOUND`, which is
+  exactly the crash that shipped before `f5b1f04`.
+- Learned that a symlinked stage still passes after relocation, so copying with
+  verbatimSymlinks hides the old layout. Missing entries are the real signal.
+- Next: native frame rate re-measure.
