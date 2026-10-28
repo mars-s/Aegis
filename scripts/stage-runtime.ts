@@ -67,7 +67,7 @@ export function stageRuntime(args: { readonly root: string; readonly destination
   for (const file of readdirSync(root)) {
     if (file.startsWith("LICENSE") && lstatSync(join(root, file)).isFile()) copyTree(join(root, file), join(destination, file));
   }
-  assertContainedLinks(destination);
+  assertContainedLinks(realpathSync(destination));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
