@@ -40,7 +40,10 @@ try {
   const { createServer } = await import(require.resolve('vite'));
   vite = await createServer({
     root: repo + '/app', configFile: repo + '/app/vite.config.ts',
-    server: { port: vitePort, strictPort: true, host: '127.0.0.1', fs: { allow: [repo + '/app', realpathSync(repo + '/app/node_modules')] } },
+    // Fast refresh injects an inline module into index.html, which the app's own
+    // "script-src 'self'" policy must block. Turn it off so this run tests the
+    // packaged policy instead of the dev server's preamble.
+    server: { port: vitePort, strictPort: true, host: '127.0.0.1', hmr: false, fs: { allow: [repo + '/app', realpathSync(repo + '/app/node_modules')] } },
     plugins: [{
       name: 'item-12-parent-csp-check',
       enforce: 'pre',
@@ -1010,6 +1013,11 @@ try {
   assert.deepEqual(errors, []);
   writeFileSync(out(`genui-results-${stamp}.json`), JSON.stringify({ kinds: Object.keys(samples), openChecked: [...checkedOpen], screenshots: [1440, 1586, 390], outgoingSandboxRequests: outgoing, errors }, null, 2));
   console.log('pass genui: screenshots of every kind at 1440, 1586 and 390; no page errors');
+  // The lifecycle step drives the shipped bundle, which only exposes window.aegis
+  // when it was built with the facade. Build it here so the check is self-contained.
+  process.env.AEGIS_TEST_FACADE = '1';
+  const { build } = await import(require.resolve('vite'));
+  await build({ root: repo + '/app', configFile: repo + '/app/vite.config.ts', logLevel: 'silent' });
   await verifySandboxLifecycle();
 } catch (error) {
   console.error('FAIL genui:', error.stack);

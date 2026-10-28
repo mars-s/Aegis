@@ -84,3 +84,14 @@ fragile. "Jarvis's table, built by Apple."
   suite asserts on a clean console.
 - The editor now starts from black when its value is not a hex.
 - `checks/ui/wireframe.mjs` passes. Next: docs, genui, agent-edges.
+
+### 2026-10-29, tick at 12:47am
+
+- Fixed the genui suite. Vite's fast refresh injects an inline module into the
+  page, and this check applies the app's real `script-src 'self'` policy, so the
+  inline module can never run and React's refresh helpers went undefined.
+  `server.hmr: false` removes it for this run only.
+- That uncovered the next gap: the lifecycle step drives the shipped bundle,
+  which needs a build with `AEGIS_TEST_FACADE=1`. The check now builds that
+  itself instead of depending on a manual step.
+- `checks/ui/genui.mjs` passes, Chromium and WebKit. Next: docs, agent-edges.
