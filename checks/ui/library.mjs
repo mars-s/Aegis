@@ -54,20 +54,22 @@ try {
   await page.locator('#boardName').click();
   await page.locator('#side').waitFor({ state: 'visible' });
   // Round 3 hierarchy: active windows get the available space, reference stays folded.
-  const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]'), keys = page.locator('#side [data-panel="keys"]');
+  const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]');
   const tools = page.locator('#side > [data-panel="tools"]'), toolsToggle = tools.getByRole('button', { name: 'Toggle Tools', exact: true });
+  const keysTile = tools.locator('.tile[data-tool="keys"]');
   assert.deepEqual(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel)), ['layers', 'library', 'tools']);
   assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'occasional tools start behind one quiet disclosure');
-  assert.deepEqual((await tools.locator('.tools-panels > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel))).sort(), ['board-colours', 'draw', 'keys', 'media-devices', 'unsorted', 'wireframe']);
+  assert.deepEqual((await tools.locator('.tile[data-tool]').evaluateAll(tiles => tiles.map(el => el.dataset.tool))).sort(), ['board-colours', 'draw', 'keys', 'media-devices', 'unsorted', 'wireframe']);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
   assert.match(await windows.locator('.phead').textContent(), /^Windows/);
   assert.ok((await windows.boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
   assert.ok((await library.boundingBox()).height >= 240);
-  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
-  assert.equal(await keys.locator('.pbody').isVisible(), false, 'Shortcuts starts collapsed');
+  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false');
+  assert.equal(await page.locator('#side [data-panel="keys"]').count(), 0, 'a closed tile has no body');
   assert.equal(await windows.getByRole('searchbox', { name: 'Filter windows' }).isVisible(), false, 'small Windows lists need no filter');
   const navFolders = [];
-  for (let i = 0; i < 12; i++) navFolders.push((await api('/library', { op: 'create', kind: 'folder', name: `Navigation folder ${i + 1}` })).created);
+  // Enough folders that the more compact 30px rows still overflow the Library pane.
+  for (let i = 0; i < 24; i++) navFolders.push((await api('/library', { op: 'create', kind: 'folder', name: `Navigation folder ${i + 1}` })).created);
   await row(navFolders.at(-1)).waitFor();
   await page.evaluate(() => new Promise(resolve => aegisCtx.apply(Array.from({ length: 25 }, (_, i) => ({ op: 'create', type: 'note', newId: `navwindow${i}`, text: `Window ${i + 1}`, x: (i % 5) * 280, y: Math.floor(i / 5) * 180 })), resolve)));
   await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 25);
@@ -82,8 +84,8 @@ try {
   await filter.fill('No such window'); await windows.getByRole('status').waitFor();
   assert.equal(await windows.locator('.layer-row').count(), 0);
   await filter.press('Escape');
-  await windows.locator('.fold').click(); assert.equal(await filter.isVisible(), false, 'a folded Windows section hides its filter');
-  await windows.locator('.fold').click(); await filter.waitFor();
+  await windows.locator('.ptoggle').click(); assert.equal(await filter.isVisible(), false, 'a folded Windows section hides its filter');
+  await windows.locator('.ptoggle').click(); await filter.waitFor();
   check('Windows filter appears for long lists, matches names live, shows an empty result, clears with Escape and follows its disclosure');
   // PM5.5: filtering borrows only the space it needs, without saving a new panel size.
   const resizeWindows = windows.locator('.resize-handle'), resizeBox = await resizeWindows.boundingBox();
@@ -140,14 +142,15 @@ try {
   await toolsToggle.click();
   await page.waitForTimeout(220);
   await page.screenshot({ path: out(`r4-tools-expanded-${Date.now()}.png`) });
-  await keys.locator('.fold').press('Enter');
-  await keys.locator('.pbody').hover(); await page.mouse.wheel(0, 320);
+  await keysTile.press('Enter');
+  const keysBody = page.locator('#side [data-panel="keys"] .pbody');
+  await keysBody.hover(); await page.mouse.wheel(0, 320);
   await page.waitForFunction(() => document.querySelector('[data-panel="keys"] .pbody').scrollTop > 0);
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'true', 'an explicit expansion survives reload');
+  assert.equal(await keysTile.getAttribute('aria-expanded'), 'true', 'an explicit expansion survives reload');
   assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'true', 'Tools disclosure remembers pointer expansion');
-  await keys.locator('.fold').press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false', 'an explicit collapse survives reload');
+  await keysTile.press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
+  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false', 'an explicit collapse survives reload');
   await toolsToggle.press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'Tools disclosure remembers keyboard collapse');
   await page.screenshot({ path: out(`r4-tools-collapsed-${Date.now()}.png`) });
@@ -155,7 +158,7 @@ try {
   await page.evaluate(() => { const state = JSON.parse(localStorage.getItem('aegis:panels')); state.columns.left = ['library', 'layers', 'keys']; state.folded = {}; localStorage.setItem('aegis:panels', JSON.stringify(state)); });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
-  assert.equal(await keys.locator('.fold').getAttribute('aria-expanded'), 'false');
+  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#mobileHub').getByRole('button', { name: 'Windows', exact: true }).click();
   assert.equal(await page.locator('#mobileTitle').textContent(), 'Windows');
@@ -166,7 +169,8 @@ try {
   for (const id of navFolders) await api('/library', { op: 'delete', id, recursive: true });
   await page.waitForFunction(() => document.querySelectorAll('.layer-row').length === 0);
   check('Windows stays below 45% at 1440/1586 and Library keeps at least 240px; each section scrolls independently; Shortcuts remembers changes; phone says Windows');
-  await page.locator('[data-add="project"]').click();
+  await page.getByRole('button', { name: 'New in library' }).click();
+  await page.getByRole('menuitem', { name: 'New project' }).click();
   await page.waitForFunction(() => document.querySelector('.tree-row.project'));
   let lib = await read(), project = lib.nodes.find(n => n.kind === 'project').id;
   await rename(project, 'Research');
@@ -180,7 +184,8 @@ try {
   check('library names use at least 60% of each row; one 28px More button opens from the keyboard and Escape restores focus');
   await page.screenshot({ path: out(`r2-library-rows-${Date.now()}.png`) });
 
-  await page.locator('[data-add="folder"]').click();
+  await page.getByRole('button', { name: 'New in library' }).click();
+  await page.getByRole('menuitem', { name: 'New folder' }).click();
   await page.waitForFunction(() => document.querySelector('.tree-row.folder'));
   lib = await read(); const folder = lib.nodes.find(n => n.kind === 'folder').id;
   await rename(folder, 'Interviews'); await rename(folder, 'Cancelled rename', true);
@@ -188,7 +193,8 @@ try {
   const otherProject = (await api('/library', { op: 'create', kind: 'project', name: 'Other project' })).created;
   const looseFolder = (await api('/library', { op: 'create', kind: 'folder', name: 'Loose folder' })).created;
   await row(otherProject).waitFor();
-  await page.locator('[data-add="board"]').click();
+  await page.getByRole('button', { name: 'New in library' }).click();
+  await page.getByRole('menuitem', { name: 'New board' }).click();
   await page.waitForFunction(id => aegis.canvas.board.id !== id, original);
   const parent = await board(); assert.equal((await read()).boards.find(b => b.id === parent).parent, folder);
   await page.waitForFunction(() => document.querySelectorAll('.tree-row.project').length === 1);

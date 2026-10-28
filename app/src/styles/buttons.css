@@ -25,8 +25,8 @@
 :is(.aegis-button, #side button, #sideRight button, #settings button, .aegis-dialog button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):disabled { opacity: .45; cursor: default; }
 /* Compact chrome uses quiet variants of the same button. */
 .selection-bar { --button-height: 32px; --button-padding: 0 8px; --button-bg: transparent; --button-edge: transparent; --button-shadow: none; --button-font-size: 12px; }
-:is(#side, #sideRight) :is(.layer-action, .twisty, .fold, .tree-delete), .settings-tabs button { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; --button-height: 32px; --button-padding: 4px 6px; }
-:is(#side, #sideRight) :is(.twisty, .fold) { min-width: 28px; }
+:is(#side, #sideRight) :is(.layer-action, .twisty, .tree-delete), .settings-tabs button { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; --button-height: 32px; --button-padding: 4px 6px; }
+:is(#side, #sideRight) .twisty { min-width: 28px; }
 :is(#side, #sideRight) .layer-action { --button-font-size: 11px; }
 .settings-tabs button[aria-selected=true] { --button-bg: var(--press); --button-ink: var(--text); }
 @media (hover: hover) and (pointer: fine) {

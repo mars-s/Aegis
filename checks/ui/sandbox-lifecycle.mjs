@@ -44,7 +44,10 @@ try {
       if(departureAction==='close')document.querySelector('.side-editor [data-close]').click();
       else if(departureAction==='width')document.querySelector('.side-editor [aria-label="Full width"]').click();
       else if(departureAction==='other')dispatchEvent(new CustomEvent('aegis:open-card',{detail:{id:'snapshotsecond',keyboard:true}}));
-      else if(departureAction==='board')document.querySelector('[data-add="board"]').click();
+      else if(departureAction==='board'){
+        document.querySelector('#side [aria-label="New in library"]')?.click();
+        [...document.querySelectorAll('[role=menuitem]')].find(el=>el.textContent==='New board')?.click();
+      }
       departureRetention.push({before,after:!!document.querySelector('.side-editor')});
      }
     });

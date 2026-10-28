@@ -27,7 +27,7 @@ const paths = {
   left: 'm10 4-4 4 4 4',
   right: 'm6 4 4 4-4 4',
   close: 'm4 4 8 8M12 4l-8 8',
-  fold: 'M3 8h10M8 3v10',
+  plus: 'M3 8h10M8 3v10',
   window: 'M3.75 2.75h8.5a2 2 0 0 1 2 2v6.5a2 2 0 0 1-2 2h-8.5a2 2 0 0 1-2-2v-6.5a2 2 0 0 1 2-2M6 3v10',
   lock: 'M4 7h8v6H4zM5 7V5a3 3 0 0 1 6 0v2',
   hidden: 'm2 2 12 12M6 4c4-1 7 2 8 4l-2 3M9 12c-4 1-6-2-7-4l2-3',

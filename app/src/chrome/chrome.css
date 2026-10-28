@@ -153,6 +153,7 @@
   pointer-events: auto;
   background: var(--color-surface);
 }
+/* One opaque plate, split into bands by full-bleed hairlines. No boxes, no fills. */
 .aegis-chrome .side {
   position: absolute;
   top: 48px;
@@ -161,10 +162,37 @@
   z-index: 35;
   display: flex;
   flex-direction: column;
+  padding: 0;
   border-radius: 10px;
-  background: var(--color-surface);
+  background: var(--side-plate);
+  box-shadow: var(--side-edge);
   overflow: hidden;
-  border: 1px solid var(--color-border-strong);
+}
+/* Bare glyphs, not filled chips: the plate is the only surface. */
+.aegis-chrome .side :is(.side-close, .pactions .icon-btn, .subhead .icon-btn) {
+  --button-bg: transparent;
+  --button-edge: transparent;
+  --button-shadow: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .side :is(.side-close, .pactions .icon-btn, .subhead .icon-btn):hover {
+    --button-bg: var(--hover);
+  }
+}
+.aegis-chrome .side .side-close {
+  --button-height: 28px;
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  color: var(--faint);
+}
+.aegis-chrome #side > .pbox:first-of-type > .phead {
+  padding-right: 38px;
 }
 .aegis-chrome .side-right {
   left: auto;
@@ -184,46 +212,193 @@
   color: var(--color-muted);
 }
 .aegis-chrome .pbox {
+  --mark: var(--mark-tools);
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex-shrink: 0;
+  position: relative;
+  border-top: 1px solid var(--side-rule);
+}
+.aegis-chrome .side > .pbox:first-of-type {
+  border-top: 0;
+}
+.aegis-chrome .side > .pbox:last-of-type {
+  border-bottom: 1px solid var(--side-rule);
+}
+.aegis-chrome .pbox[data-family="windows"] {
+  --mark: var(--mark-windows);
+}
+.aegis-chrome .pbox[data-family="library"] {
+  --mark: var(--mark-library);
+}
+/* The index tab: a 2px primary segment on the band's top rule, only while the band is open. */
+.aegis-chrome .side > .pbox:not(.folded, .nested)::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 14px;
+  width: 16px;
+  height: 2px;
+  background: var(--mark);
+}
+.aegis-chrome .side > .pbox:first-of-type:not(.folded)::before {
+  top: 0;
 }
 .aegis-chrome .phead {
-  height: 36px;
-  padding: 2px 8px 2px 12px;
+  height: 40px;
+  padding: 0 8px 0 0;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 2px;
   flex-shrink: 0;
-  font-weight: 500;
+  color: var(--muted);
+  font-weight: 400;
 }
-.aegis-chrome .phead > span {
+/* One flat toggle: mark, label, count, then a chevron that only appears on hover. */
+.aegis-chrome .ptoggle {
+  --button-height: 40px;
+  --button-padding: 0 0 0 16px;
+  --button-bg: transparent;
+  --button-edge: transparent;
+  --button-shadow: none;
+  --button-ink: var(--muted);
+  --button-radius: 0;
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  height: 100%;
+  padding: 0 0 0 16px;
+  border-radius: 0;
+  color: var(--muted);
+  text-align: left;
+  cursor: grab;
 }
-.aegis-chrome .pcount {
-  font-weight: 400;
-  color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
+.aegis-chrome :is([data-panel="library"], [data-panel="tools"]) > .phead > .ptoggle {
+  cursor: pointer;
 }
-.aegis-chrome .fold {
+.aegis-chrome .pmark {
+  width: 12px;
+  height: 12px;
+  flex: none;
   display: grid;
   place-items: center;
-  padding: 8px;
-  width: 32px;
-  height: 32px;
+  margin-right: 12px;
+}
+.aegis-chrome .pmark::before {
+  content: "";
+  display: block;
+  box-sizing: border-box;
+}
+.aegis-chrome .pbox[data-family="windows"] .pmark::before {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.aegis-chrome .pbox[data-family="library"] .pmark::before {
+  width: 8px;
+  height: 8px;
+}
+.aegis-chrome .pbox[data-family="tools"] .pmark::before {
+  width: 10px;
+  height: 9px;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.aegis-chrome .pbox.folded .pmark::before {
+  border: 1.25px solid var(--side-hollow);
+}
+/* A stroked triangle mask keeps the hollow mark as even as the circle and square. */
+.aegis-chrome .pbox.folded[data-family="tools"] .pmark::before {
+  border: 0;
+  background: var(--side-hollow);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2010%209'%3E%3Cpath%20d='M5%201.4%208.7%207.7H1.3Z'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2010%209'%3E%3Cpath%20d='M5%201.4%208.7%207.7H1.3Z'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.aegis-chrome .pbox:not(.folded) .pmark::before {
+  background: var(--mark);
+}
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .ptoggle:hover .pmark::before {
+    border-color: var(--mark);
+  }
+  .aegis-chrome .pbox.folded[data-family="tools"] .ptoggle:hover .pmark::before {
+    background: var(--mark);
+  }
+}
+.aegis-chrome .ptoggle .plabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.aegis-chrome .pbox:not(.folded) .plabel,
+.aegis-chrome .ptoggle:hover .plabel {
+  color: var(--text);
+}
+.aegis-chrome .pcount {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.aegis-chrome .pchev {
+  margin-left: 4px;
+  width: 12px;
+  height: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  opacity: 0;
+  transition: rotate 160ms var(--ease-out), opacity 120ms;
+}
+.aegis-chrome .pchev > svg {
+  width: 12px;
+  height: 12px;
+}
+.aegis-chrome .pbox:not(.folded) .pchev {
+  rotate: 90deg;
+}
+.aegis-chrome .phead:hover .pchev,
+.aegis-chrome .ptoggle:focus-visible .pchev {
+  opacity: 1;
+}
+.aegis-chrome .pactions {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+.aegis-chrome .pactions:empty {
+  display: none;
+}
+.aegis-chrome .pactions .icon-btn {
+  --button-height: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  color: var(--faint);
 }
 .aegis-chrome .folded > .pbody {
   display: none;
 }
 .aegis-chrome .pbody {
   min-height: 0;
+  padding: 0 0 10px;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-strong) transparent;
+  scrollbar-color: var(--side-rule-strong) transparent;
+}
+.aegis-chrome .pbody > :is(p, .chrome-empty, .layer-empty),
+.aegis-chrome .pbody .unsorted-list > p {
+  margin: 0;
+  padding: 4px 16px 8px;
+  color: var(--faint);
 }
 .aegis-chrome [data-panel="layers"] {
   max-height: 45%;
@@ -246,14 +421,11 @@
   flex-direction: column;
 }
 .aegis-chrome [data-panel="tools"] > .pbody {
-  max-height: 30vh;
+  max-height: 42vh;
 }
 .aegis-chrome .capture-reveal > .pbox.folded {
   flex: none;
   min-height: 0;
-}
-.aegis-chrome .capture-reveal [data-panel="library"].folded > .library-footer {
-  display: none;
 }
 .aegis-chrome .capture-reveal [data-panel="tools"] > .pbody {
   max-height: none;
@@ -262,19 +434,150 @@
   min-height: 260px;
   flex-shrink: 0;
 }
-.aegis-chrome .tools-panels {
-  padding-bottom: 8px;
+/* Tools is a module grid, drawn as a Bauhaus table: cells share 1px rules, no rounded cards. */
+.aegis-chrome .tool-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0 10px;
+  border: 1px solid var(--side-rule);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--side-rule);
+}
+.aegis-chrome #side .tile {
+  --button-bg: var(--side-plate);
+  --button-edge: transparent;
+  --button-shadow: none;
+  --button-ink: var(--muted);
+  --button-hover-ink: var(--text);
+  --button-height: 58px;
+  --button-padding: 10px 10px 9px 12px;
+  position: relative;
+  height: 58px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 10px 10px 9px 12px;
+  border: 0;
+  border-radius: 0;
+  background: var(--button-bg);
+  color: var(--muted);
+  font: 500 12px/1 var(--font);
+  text-align: left;
+  cursor: pointer;
+}
+.aegis-chrome .tile svg {
+  color: var(--faint);
+}
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome #side .tile:hover {
+    --button-bg: color-mix(in srgb, var(--side-plate), var(--text) 4%);
+    --button-ink: var(--text);
+  }
+}
+.aegis-chrome #side .tile[aria-expanded="true"] {
+  --button-bg: color-mix(in srgb, var(--side-plate), var(--text) 6%);
+  --button-ink: var(--text);
+}
+.aegis-chrome .tile[aria-expanded="true"] svg {
+  color: var(--text);
+}
+.aegis-chrome .tile[aria-expanded="true"]::after {
+  content: "";
+  position: absolute;
+  top: 11px;
+  right: 10px;
+  width: 9px;
+  height: 8px;
+  background: var(--mark-tools);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.aegis-chrome #side .tile.filler {
+  background: var(--side-plate);
+  pointer-events: none;
+}
+/* The open tool body sits under its own 32px subhead, not inside the grid. */
+.aegis-chrome .pbox.nested {
+  margin: 10px 10px 0;
+  border-top: 0;
+}
+.aegis-chrome .pbox.nested:last-of-type {
+  border-bottom: 0;
+}
+.aegis-chrome .phead.subhead {
+  height: 32px;
+  padding: 0 2px;
+  gap: 8px;
+}
+.aegis-chrome .subhead .tri {
+  width: 8px;
+  height: 7px;
+  flex: none;
+  background: var(--mark-tools);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.aegis-chrome .subhead .plabel {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text);
+}
+.aegis-chrome .subhead .icon-btn {
+  --button-height: 24px;
+  width: 24px;
+  height: 24px;
+  padding: 6px;
+  color: var(--faint);
+}
+.aegis-chrome .subhead .icon-btn svg {
+  width: 12px;
+  height: 12px;
+  rotate: -90deg;
+}
+.aegis-chrome .pbox.nested > .pbody {
+  padding: 2px 2px 4px;
+}
+.aegis-chrome .pbox.nested[data-panel="keys"] > .pbody {
+  max-height: 180px;
+}
+/* Tool bodies borrow the plate language: quiet captions and hairline buttons. */
+.aegis-chrome .pbox.nested .board-colours small {
+  display: block;
+  margin: 8px 0 6px;
+  color: var(--faint);
+  font-size: 12px;
+}
+.aegis-chrome .pbox.nested .board-colours .colour-actions button {
+  --button-bg: transparent;
+  --button-edge: var(--side-rule-strong);
+  --button-shadow: none;
+  --button-height: 28px;
+  --button-padding: 0 10px;
+  --button-font-size: 12px;
 }
 .aegis-chrome [data-panel="keys"] > .pbody {
   max-height: 180px;
 }
 .aegis-chrome .resize-handle {
+  position: relative;
   height: 6px;
   flex-shrink: 0;
   cursor: ns-resize;
 }
-.aegis-chrome .resize-handle:hover {
-  background: var(--color-fill-hover);
+.aegis-chrome .resize-handle:is(:hover, :focus-visible)::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  width: 32px;
+  height: 2px;
+  margin-left: -16px;
+  border-radius: 1px;
+  background: var(--color-border-strong);
 }
 .aegis-chrome .layer-filter {
   margin: 4px 8px;
@@ -282,7 +585,7 @@
 }
 .aegis-chrome .layer-list,
 .aegis-chrome .tree {
-  padding: 2px 4px;
+  padding: 2px 0;
 }
 .aegis-chrome .layer-row,
 .aegis-chrome .tree-row {
@@ -353,11 +656,9 @@
   min-height: 0;
   flex: 1;
 }
-.aegis-chrome .tree-row > .twisty {
-  width: 10px;
-}
-.aegis-chrome .tree-row > svg {
+.aegis-chrome :is(.tree-row, .layer-row) > .glyph svg {
   width: 14px;
+  height: 14px;
 }
 .aegis-chrome .tree-row > .row-more {
   width: 32px;
@@ -365,19 +666,11 @@
 .aegis-chrome .tree-row .name {
   margin-left: 0;
 }
-.aegis-chrome .library-footer {
-  padding: 8px;
+.aegis-chrome .library-actions {
   display: flex;
-  gap: 4px;
-  flex-shrink: 0;
-}
-.aegis-chrome .library-footer button {
-  flex: 1;
-  padding: 6px;
-}
-.aegis-chrome .library-home-button {
-  text-align: left;
-  margin: 0 8px 4px;
+  justify-content: flex-end;
+  gap: 2px;
+  padding: 0 2px 4px;
 }
 /* The dock is one quiet capsule of line icons, the same family as the old Svelte rail. */
 .aegis-chrome #tools {
@@ -782,14 +1075,20 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
 @media (max-width: 700px), (pointer: coarse) {
   .react-stage .window-actions button { min-width: 44px; min-height: 44px; }
   .aegis-chrome #tools button,
-  .aegis-chrome :is(.row-more, .icon-btn, .fold, .adds button) {
+  .aegis-chrome :is(.row-more, .icon-btn, .ptoggle) {
     min-height: 44px;
     min-width: 44px;
     opacity: 1;
   }
   .aegis-chrome .phead,
   .aegis-chrome .side-head {
-    min-height: 48px;
+    min-height: 44px;
+  }
+  .aegis-chrome .tile {
+    height: 64px;
+  }
+  .aegis-chrome .pchev {
+    opacity: 1;
   }
   .aegis-chrome .row-more {
     flex-basis: 44px;
@@ -849,21 +1148,25 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
   display: flex !important;
   border-color: var(--color-muted);
 }
+/* A dragged panel is a raised header; a drop target is a 2px insertion line. */
 .aegis-chrome .panel-slot {
-  min-height: 28px;
-  margin: 4px 8px;
-  border: 1px dashed var(--color-border-strong);
-  border-radius: 6px;
+  min-height: 0;
+  height: 2px;
+  margin: 3px 4px;
+  border: 0;
+  border-radius: 1px;
+  background: var(--color-border-strong);
   flex-shrink: 0;
 }
 .aegis-chrome .panel-slot.on {
-  background: var(--color-fill-hover);
-  border-color: var(--color-muted);
+  background: var(--text);
+  opacity: 0.5;
 }
 .panel-lifted {
-  opacity: 0.9;
-  border-radius: 10px;
+  background: var(--raised);
+  border-radius: 8px;
   box-shadow: var(--shadow-float);
+  opacity: 0.95;
 }
 .aegis-chrome .bar-right:has([data-save-state="blocked"]),
 body.left-open .aegis-chrome .bar-left {
@@ -876,15 +1179,6 @@ body.left-open .aegis-chrome .bar-left {
   top: 8px;
   translate: -50% 0;
 }
-.aegis-chrome .side > .pbox {
-  margin: 0 8px 8px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-}
-.aegis-chrome .phead {
-  color: var(--color-muted);
-  font-weight: 400;
-}
 .aegis-chrome [data-panel="layers"] > .pbody {
   height: auto;
 }
@@ -893,7 +1187,7 @@ body.left-open .aegis-chrome .bar-left {
 }
 .aegis-chrome .side-resize {
   position: absolute;
-  top: 40px;
+  top: 0;
   right: 0;
   bottom: 0;
   width: 5px;
@@ -905,7 +1199,7 @@ body.left-open .aegis-chrome .bar-left {
   left: 0;
 }
 .aegis-chrome .side-resize:hover {
-  background: var(--color-fill-hover);
+  background: linear-gradient(to left, var(--line-strong) 2px, transparent 2px);
 }
 .aegis-chrome .selection-bar {
   width: max-content;
@@ -932,8 +1226,8 @@ body.left-open .aegis-chrome .bar-left {
 }
 @media (hover: hover) and (pointer: fine) {
   .aegis-chrome .side :is(.tree-row, .layer-row) {
-    height: 36px;
-    min-height: 36px;
+    height: 30px;
+    min-height: 30px;
   }
   .aegis-chrome .side :is(.tree-row, .layer-row) .row-more {
     --button-height: 32px;
@@ -946,11 +1240,12 @@ body.left-open .aegis-chrome .bar-left {
     padding: 8px;
   }
   .aegis-chrome .side .layer-row .layer-fold {
-    height: 32px;
+    height: 28px;
   }
-  .aegis-chrome .side .tree-row .twisty {
+  .aegis-chrome #side .tree-row .twisty {
     position: static;
-    width: 10px;
+    width: 12px;
+    min-width: 12px;
     min-height: 28px;
     height: 28px;
   }
@@ -994,9 +1289,6 @@ body[data-tool-size="large"] .aegis-chrome #tools > :is([data-tool], #toolsFold)
 #world > .card.editor-source { outline: 1px solid color-mix(in srgb, var(--data) 45%, transparent); outline-offset: 0; }
 #world > .card.editor-source .resize { display: none !important; }
 #stage.editor-source-selected .window-actions { visibility: hidden; pointer-events: none; }
-
-.aegis-chrome .adds button { --button-height: 32px; --button-padding: 5px 9px; }
-
 
 /* One selection ring: a bright hairline on the window's own edge, never a second frame around it. */
 #world > .card.selected:not(.editor-source, .coll, .template-group) { outline: 1px solid rgb(255 255 255 / .62); outline-offset: -1px; }

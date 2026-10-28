@@ -114,7 +114,7 @@ try {
         await page.keyboard.press('Tab'); await rowMore.focus();
         const focusRing = await rowMore.evaluate(el => ({ width: getComputedStyle(el).outlineWidth, style: getComputedStyle(el).outlineStyle, visible: el.matches(':focus-visible'), side: !!el.closest('#side'), markup: el.outerHTML }));
         assert.equal(focusRing.width, '2px', JSON.stringify(focusRing));
-        await page.locator('.library-home-button').click(); await shot('library'); await page.getByRole('button', { name: 'Back to board', exact: true }).click();
+        await page.getByRole('button', { name: 'Home', exact: true }).click(); await shot('library'); await page.getByRole('button', { name: 'Back to board', exact: true }).click();
         await page.evaluate(() => aegisCtx.toast('Saved changes')); await shot('toast'); assert.equal((await rect(page.locator('.toast'))).radius, '10px');
         assert.deepEqual(await page.locator('select').evaluateAll(nodes => nodes.filter(el => el.getClientRects().length).map(el => el.id)), [], 'no visible native selects');
         assert.equal(await page.locator('input[type=color]').count(), 0);

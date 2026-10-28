@@ -43,7 +43,10 @@ export function createAvailableArea() {
         if (next.x !== previous.x || next.y !== previous.y || next.width !== previous.width || next.height !== previous.height) source.set(next);
       },
       write() {
-        const area = source.getSnapshot(), x = area.x + area.width / 2, width = Math.max(280, area.width - 24);
+        // The island rides the window's centre, never the free-area centre: opening a panel must not slide it.
+        const area = source.getSnapshot(), x = engine.viewport().width / 2;
+        const half = Math.min(x - area.x, area.x + area.width - x);
+        const width = Math.max(280, Math.min(area.width - 24, half * 2 - 24));
         if (x !== dockX) { document.documentElement.style.setProperty('--dock-x', `${x}px`); dockX = x; }
         if (width !== dockWidth) { document.documentElement.style.setProperty('--composer-max-width', `${width}px`); dockWidth = width; }
       },

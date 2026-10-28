@@ -46,7 +46,7 @@ try {
   await page.locator('#boardName').click();
   const palette = page.locator('[data-panel="board-colours"]');
   await page.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
-  await palette.locator('.fold').click();
+  await page.locator('#side .tile', { hasText: 'Board colours' }).click();
   await palette.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByLabel('Colour name', { exact: true }).fill('Saved sky'); await page.getByLabel('Colour name', { exact: true }).press('Tab');
   await page.getByRole('button', { name: 'Done', exact: true }).click();
@@ -299,7 +299,7 @@ try {
   await page.evaluate(async id => aegis.canvas.setBoard(await aegis.host.get('/boards/' + id)), beforeSwitch.boardId);
   log('Switching boards stopped capture and saved audio into the original board');
   // Device choices survive a page reload.
-  await page.locator('[data-panel="media-devices"] .fold').click();
+  await page.locator('#side .tile', { hasText: 'Media devices' }).click();
   const microphone = page.locator('[data-panel="media-devices"] .aegis-dropdown[aria-label="Microphone"]');
   await choose(microphone, { index: 1 });
   const deviceId = await microphone.evaluate(el => el.value); assert.ok(deviceId);

@@ -27,6 +27,8 @@ import { deleteCards, duplicateCards, groupCards, submit, undoDeletedCards } fro
 import type { Notice, Notify } from "./actions.js";
 import { MenuButton, PopupButton } from "./controls.js";
 import { Icon, isIconName } from "./icons.js";
+import type { IconName } from "./icons.js";
+import { beginPanelDrag } from "./panel-drag.js";
 import { Layers } from "./Windows.js";
 import { Library } from "./LibraryView.js";
 import type { LibraryService } from "./library-model.js";
@@ -81,6 +83,15 @@ export interface ChromeProps {
   readonly rightContent?: ReactNode;
   readonly wireframeSheet?: (close: () => void) => ReactNode;
 }
+
+const toolIcons: Record<string, IconName> = {
+  wireframe: "wireframe",
+  "board-colours": "swatch",
+  "media-devices": "video",
+  draw: "vector",
+  unsorted: "coll",
+  keys: "command",
+};
 
 export function Chrome({
   context,
@@ -162,7 +173,10 @@ export function Chrome({
     paletteTrigger = useRef<HTMLButtonElement>(null);
   const dock = useRef<HTMLElement>(null),
     leftBar = useRef<HTMLDivElement>(null),
-    rightBar = useRef<HTMLDivElement>(null);
+    rightBar = useRef<HTMLDivElement>(null),
+    tileLifted = useRef(0),
+    dragCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => dragCleanup.current?.(), []);
   const previousRightOpen = useRef(ui.rightPanel);
   const arrows = useRef<{
     left: HTMLButtonElement | null;
@@ -548,7 +562,7 @@ export function Chrome({
         title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
         onClick={() => { action.run(context); refreshChrome.current(); }}
       >
-        <Icon name={isIconName(id) ? id : "fold"} />
+        <Icon name={isIconName(id) ? id : "plus"} />
         {labelled ? <span className="tools-label">{action.label}</span> : null}
         {labelled && action.shortcut ? <kbd>{action.shortcut.toUpperCase()}</kbd> : null}
       </button>
@@ -806,42 +820,70 @@ export function Chrome({
             )}
           </Panel>
         );
-      if (id === "tools")
+      if (id === "tools") {
+        const nested = composition.panels.filter(
+          (panel) =>
+            panel.side === "left" &&
+            !layout.columns.left.includes(panel.id) &&
+            !layout.columns.right.includes(panel.id),
+        );
+        const tiles: { readonly id: string; readonly label: string; readonly icon: IconName; readonly body: ReactNode }[] = [
+          ...nested.map((panel) => ({
+            id: panel.id,
+            label: panel.label ?? panel.id,
+            icon: toolIcons[panel.id] ?? "canvas",
+            body: <panel.Body context={context} />,
+          })),
+          ...(!layout.columns.left.includes("keys") &&
+          !layout.columns.right.includes("keys")
+            ? [{ id: "keys", label: "Shortcuts", icon: "command" as const, body: <ShortcutReference /> }]
+            : []),
+        ];
+        const isFolded = (tile: string): boolean =>
+          panelLayout.folded[tile] ?? true;
         return (
-          <Panel key={id} id={id} label="Tools" layout={panelLayout} change={change}>
-            <div className="tools-panels">
-              {composition.panels
-                .filter(
-                  (panel) =>
-                    panel.side === "left" &&
-                    !layout.columns.left.includes(panel.id) &&
-                    !layout.columns.right.includes(panel.id),
-                )
-                .map((panel) => (
-                  <Panel
-                    key={panel.id}
-                    id={panel.id}
-                    label={panel.label ?? panel.id}
-                    layout={panelLayout}
-                    change={change}
-                  >
-                    <panel.Body context={context} />
-                  </Panel>
-                ))}
-              {!layout.columns.left.includes("keys") &&
-              !layout.columns.right.includes("keys") ? (
-                <Panel
-                  id="keys"
-                  label="Shortcuts"
-                  layout={layout}
-                  change={change}
+          <Panel key={id} id={id} label="Tools" layout={panelLayout} change={change} count={String(tiles.length)}>
+            <div className="tool-tiles" role="group" aria-label="Tools">
+              {tiles.map((tile) => (
+                <button
+                  key={tile.id}
+                  className="tile"
+                  type="button"
+                  data-tool={tile.id}
+                  aria-expanded={!isFolded(tile.id)}
+                  aria-controls={`tool-${tile.id}`}
+                  onPointerDown={(event) => {
+                    dragCleanup.current?.();
+                    dragCleanup.current = beginPanelDrag({
+                      event: event.nativeEvent,
+                      element: event.currentTarget,
+                      id: tile.id,
+                      layout: panelLayout,
+                      change,
+                      onLift: () => {
+                        tileLifted.current = performance.now();
+                      },
+                    });
+                  }}
+                  onClick={() => {
+                    if (performance.now() - tileLifted.current < 250) return;
+                    change({ ...panelLayout, folded: { ...panelLayout.folded, [tile.id]: !isFolded(tile.id) } });
+                  }}
                 >
-                  <ShortcutReference />
-                </Panel>
-              ) : null}
+                  <Icon name={tile.icon} />
+                  <span>{tile.label}</span>
+                </button>
+              ))}
+              {tiles.length % 2 ? <span className="tile filler" aria-hidden="true" /> : null}
             </div>
+            {tiles.filter((tile) => !isFolded(tile.id)).map((tile) => (
+              <Panel nested key={tile.id} id={tile.id} label={tile.label} layout={panelLayout} change={change}>
+                {tile.body}
+              </Panel>
+            ))}
           </Panel>
         );
+      }
       const registered = composition.panels.find((panel) => panel.id === id);
       return registered ? (
         <Panel
@@ -1024,20 +1066,17 @@ export function Chrome({
           }
         }}
       >
-        <div className="side-head">
-          <span>Workspace</span>
-          <button
-            id="closeSide"
-            className="icon-btn"
-            aria-label="Close Library and Windows"
-            onClick={() => {
-              setOpen("left", false);
-              arrows.current.left?.focus();
-            }}
-          >
-            <Icon name="close" />
-          </button>
-        </div>
+        <button
+          id="closeSide"
+          className="icon-btn side-close"
+          aria-label="Close Library and Windows"
+          onClick={() => {
+            setOpen("left", false);
+            arrows.current.left?.focus();
+          }}
+        >
+          <Icon name="close" />
+        </button>
         {panels("left")}
         <SideResize side="left" layout={layout} change={change} />
       </aside>

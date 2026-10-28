@@ -52,7 +52,7 @@ export function Library({
   const tree = useRef<HTMLDivElement>(null),
     file = useRef<HTMLInputElement>(null),
     coverFor = useRef<string | null>(null);
-  const [footer, setFooter] = useState<Element | null>(null);
+  const [actions, setActions] = useState<Element | null>(null);
   const currentPath = useRef("");
   const contextMenu = useRef<ReturnType<typeof createMenu> | null>(null);
   useEffect(() => () => contextMenu.current?.destroy(), []);
@@ -63,10 +63,10 @@ export function Library({
   }, [editing, home]);
   const chain = useMemo(() => ancestors(data, current), [data, current]);
   useEffect(() => {
-    setFooter(
+    setActions(
       tree.current
         ?.closest("[data-panel=library]")
-        ?.querySelector(".library-footer") ?? null,
+        ?.querySelector("[data-actions=library]") ?? null,
     );
   }, []);
   useEffect(() => {
@@ -319,6 +319,42 @@ export function Library({
       </span>
     );
   }
+  const parentOf = (item: LibraryItem): string | null =>
+    item.item === "board" ? (item.boardParent ?? item.parent) : item.parent;
+  const withChildren = new Set(items.map(parentOf).filter((id): id is string => !!id));
+  function create(kind: "board" | "folder" | "project"): void {
+    void run(async () => {
+      const id = await service.create(kind, kind === "project" ? null : target);
+      if (kind !== "board") {
+        setTarget(id);
+        setExpanded((previous) => new Set([...previous, id]));
+      }
+    });
+  }
+  const actionControls = (
+    <>
+      <button
+        ref={homeButton}
+        type="button"
+        className="icon-btn"
+        aria-label="Home"
+        title="All projects"
+        onClick={() => setHome({ at: null })}
+      >
+        <Icon name="templates" />
+      </button>
+      <MenuButton
+        className="icon-btn"
+        label="New in library"
+        items={(["board", "folder", "project"] as const).map((kind) => ({
+          title: `New ${kind}`,
+          run: () => create(kind),
+        }))}
+      >
+        <Icon name="plus" />
+      </MenuButton>
+    </>
+  );
   return (
     <>
       <input
@@ -364,13 +400,7 @@ export function Library({
           });
         }}
       />
-      <button
-        ref={homeButton}
-        className="library-home-button"
-        onClick={() => setHome({ at: null })}
-      >
-        Home
-      </button>
+      {actions ? createPortal(actionControls, actions) : <div className="library-actions">{actionControls}</div>}
       <div ref={tree} className="tree" role="tree" aria-label="Library">
         {rows.map(({ item, depth }) => (
           <div
@@ -383,11 +413,11 @@ export function Library({
             tabIndex={0}
             {...(item.item === "board"
               ? { "data-board": item.id }
-              : {
-                  "data-node": item.id,
-                  "aria-expanded": expanded.has(item.id),
-                })}
-            style={{ paddingLeft: depth * 14 + 6 }}
+              : { "data-node": item.id })}
+            {...(withChildren.has(item.id)
+              ? { "aria-expanded": expanded.has(item.id) }
+              : {})}
+            style={{ paddingLeft: depth * 16 + 10 }}
             draggable={editing !== item.id}
             onClick={(event) => {
               if (
@@ -452,7 +482,7 @@ export function Library({
             >
               <Icon name="right" />
             </button>
-            <Icon name="window" />
+            <span className="glyph"><Icon name="window" /><i aria-hidden="true" /></span>
             {title(item)}
             <MenuButton
               className="row-more icon-btn"
@@ -465,34 +495,6 @@ export function Library({
           </div>
         ))}
       </div>
-      {footer
-        ? createPortal(
-            <>
-              {(["board", "folder", "project"] as const).map((kind) => (
-                <button
-                  key={kind}
-                  data-add={kind}
-                  onClick={() => {
-                    void run(async () => {
-                      const id = await service.create(
-                        kind,
-                        kind === "project" ? null : target,
-                      );
-                      if (kind !== "board") {
-                        setTarget(id);
-                        setExpanded((previous) => new Set([...previous, id]));
-                      }
-                    });
-                  }}
-                >
-                  {kind[0]?.toUpperCase()}
-                  {kind.slice(1)}
-                </button>
-              ))}
-            </>,
-            footer,
-          )
-        : null}
       {(
         <dialog
           ref={dialog}

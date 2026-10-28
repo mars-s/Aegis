@@ -179,8 +179,9 @@ try {
     await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
     const toolsPanel = page.locator('#side > [data-panel=tools]');
     if (await toolsPanel.getByRole('button', { name: 'Toggle Tools', exact: true }).getAttribute('aria-expanded') === 'false') await toolsPanel.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
+    const paletteTile = toolsPanel.locator('.tile', { hasText: 'Board colours' });
+    if (await paletteTile.getAttribute('aria-expanded') === 'false') await paletteTile.click();
     const palette = page.locator('[data-panel=board-colours]');
-    if (await palette.locator('.fold').getAttribute('aria-expanded') === 'false') await palette.locator('.fold').click();
     await palette.getByRole('button', { name: 'Add colour', exact: true }).click();
     const colourEditor = page.getByRole('dialog', { name: 'Colour editor', exact: true });
     await shot('colour-editor', colourEditor);
@@ -194,7 +195,7 @@ try {
     await iconPicker.getByRole('textbox', { name: 'Search icons', exact: true }).fill('settings'); await shot('icon-picker', iconPicker); await dismiss();
     const rowMore = boardRow.locator('.row-more'); await rowMore.focus(); await page.waitForTimeout(30); await shot('row-tooltip');
     if (theme === 'dark') await page.evaluate(() => aegis.host.post('/library', { op: 'create', kind: 'project', name: 'Design system' }));
-    await page.locator('.library-home-button').click();
+    await page.getByRole('button', { name: 'Home', exact: true }).click();
     await shot('projects', page.getByRole('dialog', { name: 'All projects', exact: true }));
     const cover = page.getByRole('button', { name: 'Cover for Design system', exact: true }); await cover.click();
     await shot('project-cover', await popupFor(cover)); await dismiss(); await page.getByRole('button', { name: 'Back to board', exact: true }).click();

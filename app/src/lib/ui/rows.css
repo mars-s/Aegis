@@ -1,7 +1,22 @@
 /* round2-sidebar: keep row names wide and secondary actions quiet. */
-.side :is(.tree-row, .layer-row), .mobile-content :is(.tree-row, .layer-row) { position: relative; gap: 4px; height: 44px; min-height: 44px; padding: 0 0 0 calc(4px + min(var(--d, 0), 2) * 4px); }
+.side :is(.tree-row, .layer-row), .mobile-content :is(.tree-row, .layer-row) { position: relative; gap: 8px; height: 44px; min-height: 44px; margin: 0 6px; padding: 0 6px 0 10px; border-radius: 6px; color: var(--ink-2); }
 :is(.tree-row, .layer-row) .name { white-space: nowrap; }
-:is(.tree-row, .layer-row) .row-more { flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 12px; opacity: 0; color: var(--muted); border: 0; background: transparent; box-shadow: none; }
+/* Rows carry the weight; state comes from aria, so the chevron turns with the group. */
+:is(.tree-row, .layer-row) > svg,
+:is(.tree-row, .layer-row) .glyph svg { color: var(--faint); }
+:is(.tree-row, .layer-row).on { color: var(--text); font-weight: 500; }
+[data-panel="layers"] .layer-row.on { background: var(--data-soft); }
+[data-panel="library"] .tree-row.on { background: var(--side-current); }
+/* The glyph slot swaps the row icon for the family mark when this row is "where you are". */
+:is(.tree-row, .layer-row) .glyph { width: 16px; height: 16px; display: grid; place-items: center; flex: none; }
+:is(.tree-row, .layer-row) .glyph i { display: none; }
+:is(.tree-row, .layer-row).on .glyph svg { display: none; }
+:is(.tree-row, .layer-row).on .glyph i { display: block; }
+[data-panel="layers"] .layer-row.on .glyph i { width: 7px; height: 7px; border-radius: 50%; background: var(--mark-windows); }
+[data-panel="library"] .tree-row.on .glyph i { width: 7px; height: 7px; background: var(--mark-library); }
+:is(.tree-row, .layer-row) :is(.twisty, .layer-fold) svg { width: 12px; height: 12px; color: var(--faint); transition: rotate 160ms var(--ease-out); }
+:is(.tree-row, .layer-row)[aria-expanded="true"] > :is(.twisty, .layer-fold) svg { rotate: 90deg; }
+:is(.tree-row, .layer-row) .row-more { flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 12px; opacity: 0; color: var(--faint); border: 0; background: transparent; box-shadow: none; }
 :is(.tree-row, .layer-row):hover .row-more, :is(.tree-row, .layer-row):focus-within .row-more, :is(.tree-row, .layer-row) .row-more[aria-expanded=true] { opacity: 1; }
 :is(.tree-row, .layer-row) .row-more:focus-visible { outline: 1.5px solid var(--text); outline-offset: -3px; }
 :is(.tree-row, .layer-row) .row-more:hover { color: var(--text); background: var(--hover); }
@@ -11,16 +26,15 @@
 .side .layer-row .layer-fold { flex: 0 0 16px; width: 16px; min-width: 16px; height: 44px; padding: 0; background: none; border: 0; box-shadow: none; color: var(--muted); }
 .layer-row input { flex: 1; width: 0; min-width: 0; }
 /* PM4.5: the Windows filter is part of the open section, never canvas chrome. */
-.layer-filter { box-sizing: border-box; flex: none; width: calc(100% - 16px); min-height: 32px; margin: 4px 8px 8px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--inset); color: var(--text); font: 12px var(--font); }
-.layer-filter:focus-visible { outline: 1px solid var(--text); outline-offset: 2px; }
+.layer-filter { box-sizing: border-box; flex: none; width: calc(100% - 4px); min-height: 28px; margin: 2px 2px 4px; padding: 4px 8px; border: 1px solid transparent; border-radius: 6px; background: var(--hover); color: var(--text); font: 12px var(--font); }
+.layer-filter:focus-visible { outline: none; border-color: var(--focus); }
 @media (pointer: coarse) { .layer-filter { min-height: 44px; } }
-.side .tree-row .twisty { position: absolute; left: 0; width: 20px; height: 44px; margin: 0; }
-.side .tree-row:has(.twisty) > svg { visibility: hidden; }
+.side .tree-row .twisty { position: static; width: 20px; min-width: 20px; height: 44px; margin: 0; }
 .side .tree-row .meta { position: absolute; right: 4px; pointer-events: none; }
 .side .tree-row:has(.row-more:hover) .meta, .side .tree-row:focus-within .meta, .side .tree-row:hover .meta { visibility: hidden; }
 /* Round 3 navigation: independent scrollers, with room reserved for this board's windows. */
 .side { overflow-y: hidden; }
-.side > .pbox { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 38px; }
+.side > .pbox { display: flex; flex-direction: column; flex: 0 1 auto; min-height: 32px; }
 .side > .pbox > .phead { flex: none; }
 .side > .pbox > .pbody { min-height: 0; overscroll-behavior: contain; scroll-behavior: smooth; }
 .side > .pbox[data-panel=layers]:not(.folded) { flex: 1 1 0; min-height: 140px; }
@@ -36,14 +50,8 @@
 .side > .pbox[data-panel=library] { flex: 0 1 auto; }
 .side > .pbox[data-panel=library]:not(.folded) .pbody:not([style*="height"]) { height: 144px; max-height: 24vh; }
 .side > .pbox[data-panel=keys] > .pbody { max-height: 24vh; }
-/* R4 sidebar: occasional panels share one quiet heading and a bounded scroller. */
-.side > .pbox[data-panel=tools] { background: transparent; border-color: transparent; box-shadow: none; flex: 0 1 auto; }
-.side > .pbox[data-panel=tools] > .phead { cursor: pointer; }
-.side > .pbox[data-panel=tools] > .tools-panels { max-height: 36vh; padding: 0; }
-.tools-panels > .pbox { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
-.tools-panels > .pbox > .phead { color: var(--muted); }
-.tools-panels > .pbox > .pbody { max-height: 24vh; }
-.side .tools-panels .pbox.folded > .pbody { display: none; }
+/* R4 sidebar: the tools band keeps its own scroller. */
+.side > .pbox[data-panel=tools] { flex: 0 1 auto; }
 .side .pbox.folded { flex: none; }
 .side .tree { overscroll-behavior: contain; scroll-behavior: smooth; }
 @media (hover: none), (pointer: coarse) { :is(.tree-row, .layer-row) .row-more { opacity: 1; } .tree-row .meta { display: none; } }

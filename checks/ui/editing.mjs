@@ -69,9 +69,9 @@ try {
   await select(['noteaa']); await key('Mod+c'); await pause(); assert.ok(await page.evaluate(() => localStorage.getItem('aegis:clip')));
   await key('Mod+v'); await pause(); assert.equal((await saved()).cards.filter(c => c.text === 'First idea').length, 2); console.log('OS clipboard paste');
   const original = await board();
-  await page.evaluate(() => { document.querySelector('#side [data-panel="layers"] .fold')?.click(); });
+  await page.evaluate(() => { document.querySelector('#side [data-panel="layers"] .ptoggle')?.click(); });
   // Expand Layers if it was folded.
-  if (!(await page.locator('.layer-list').isVisible())) await page.locator('[data-panel="layers"] .fold').click();
+  if (!(await page.locator('.layer-list').isVisible())) await page.locator('[data-panel="layers"] .ptoggle').click();
   await page.locator('.layer-row[data-id="notedd"] .row-more').click(); await page.getByRole('menuitem', { name: 'Hide', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'notedd').props.hidden, true); assert.equal(await page.locator('#world [data-id="notedd"]').count(), 0);
   await page.locator('.layer-row[data-id="notedd"] .row-more').click(); await page.getByRole('menuitem', { name: 'Show', exact: true }).click(); await page.locator('.layer-row[data-id="noteaa"] .row-more').click(); await page.getByRole('menuitem', { name: 'Lock', exact: true }).click(); await pause(); assert.equal((await saved()).cards.find(c => c.id === 'noteaa').props.locked, true);
   await page.locator('.layer-row[data-id="noteaa"] .row-more').click(); await page.getByRole('menuitem', { name: 'Unlock', exact: true }).click(); console.log('layer hide, lock saved');
@@ -95,14 +95,14 @@ try {
   await page.keyboard.down('Alt'); await page.mouse.move(r.x+30,r.y+r.height-20); await page.mouse.down(); await page.mouse.move(r.x+90,r.y+r.height+20,{steps:8}); await page.mouse.up(); await page.keyboard.up('Alt'); await pause();
   const cloned=await saved(); assert.equal(cloned.cards.length,countBefore+1); assert.equal(cloned.cards.find(c=>c.id==='notedd').x,originalOutside.x); assert.ok(cloned.cards.some(c=>c.id!=='notedd'&&c.text==='Outside focus'&&c.x===originalOutside.x+60)); console.log('Option drag keeps original and saves clone');
   await select(['noteaa','notebb']); await key('Mod+c'); await pause(); const copied=await page.evaluate(()=>JSON.parse(localStorage.getItem('aegis:clip'))); assert.equal(copied.links.length,1); assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),copied.text);
-  const oldBoardId=(await board()).id; await page.locator('[data-add="board"]').click(); await page.waitForFunction(old=>aegis.canvas.board.id!==old,oldBoardId); await pause();
+  const oldBoardId=(await board()).id; await page.getByRole('button', { name: 'New in library' }).click(); await page.getByRole('menuitem', { name: 'New board' }).click(); await page.waitForFunction(old=>aegis.canvas.board.id!==old,oldBoardId); await pause();
   assert.equal(await page.evaluate(()=>aegis.editing.history.status.undo),false); await select([]); const centre=await page.evaluate(()=>aegis.canvas.centre()); await key('Mod+v'); await pause(); const other=await saved();
   assert.equal(other.cards.length,2); assert.equal(other.links.length,1); assert.ok(other.links.every(l=>other.cards.some(c=>c.id===l.a)&&other.cards.some(c=>c.id===l.b)));
   assert.equal(other.cards.some(c=>c.id==='noteaa'),false); const bx=Math.min(...other.cards.map(c=>c.x)), br=Math.max(...other.cards.map(c=>c.x+c.w)); assert.ok(Math.abs((bx+br)/2-centre.x)<1); console.log('cross-board paste centred and links remapped');
   await select(other.cards.map(c=>c.id)); await key('Mod+x'); await pause(); assert.equal((await saved()).cards.length,0); assert.equal((await saved()).links.length,0); await key('Mod+z'); await pause(); assert.equal((await saved()).cards.length,2); console.log('cut, attached links and undo saved');
-  const panel=page.locator('[data-panel="layers"]'); await panel.locator('.fold').click(); const folded=await panel.evaluate(el=>el.classList.contains('folded')); assert.equal(folded,true);
+  const panel=page.locator('[data-panel="layers"]'); await panel.locator('.ptoggle').click(); const folded=await panel.evaluate(el=>el.classList.contains('folded')); assert.equal(folded,true);
   await page.reload(); await page.waitForFunction(()=>window.aegis?.canvas?.board); assert.equal(await page.locator('[data-panel="layers"]').evaluate(el=>el.classList.contains('folded')),true); assert.equal(await page.locator('[data-tool="readme"]').isVisible(),false); assert.equal((await board()).cards.length,2); assert.equal(await page.evaluate(()=>aegis.editing.history.status.undo),false);
-  await page.locator('[data-panel="layers"] .fold').click(); await page.screenshot({path:out('editing-cross-board.png')}); console.log('board state and panel preferences survive reload, history resets');
+  await page.locator('[data-panel="layers"] .ptoggle').click(); await page.screenshot({path:out('editing-cross-board.png')}); console.log('board state and panel preferences survive reload, history resets');
   // Selection gestures, native text undo and the tray use the same persisted command path.
   await select([]); await page.evaluate(()=>aegis.canvas.setView({x:700,y:350,z:1})); await pause();
   const ids=(await board()).cards.map(c=>c.id); await select([ids[0]]); const targetCard=(await board()).cards.find(c=>c.id===ids[1]); const p=await page.evaluate(c=>aegis.canvas.worldToScreen(c.x,c.y),targetCard);
@@ -112,7 +112,12 @@ try {
   const corner=await page.getByRole('button',{name:'Resize selection',exact:true}).boundingBox(); await page.mouse.move(corner.x+corner.width/2,corner.y+corner.height/2); await page.mouse.down(); await page.mouse.move(corner.x+350,corner.y+40,{steps:6}); await page.mouse.up(); await pause(); assert.ok((await saved()).cards.find(c=>c.id===parent.id).props.cols>=2); console.log('collection resize updates columns and child layout');
   // Fold other panels with their own controls so Unsorted is available for an ordinary pointer drop.
   if (await page.getByRole('button', { name: 'Toggle Tools', exact: true }).getAttribute('aria-expanded') !== 'true') await page.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
-  for(const id of ['library','layers','keys','wireframe','draw']) { const panel=page.locator(`[data-panel="${id}"]`); if(await panel.count() && !(await panel.evaluate(el=>el.classList.contains('folded')))) await panel.locator('.fold').click(); }
+  for(const id of ['library','layers','keys','wireframe','draw']) {
+    const panel=page.locator(`[data-panel="${id}"]`);
+    if(!(await panel.count()) || await panel.evaluate(el=>el.classList.contains('folded'))) continue;
+    const fold=panel.locator('.ptoggle, .subhead .icon-btn').first();
+    if(await fold.count()) await fold.click();
+  }
   await select([parent.id]); await page.evaluate(id=>aegis.canvas.frameIds([id],1),parent.id); await pause(); const beforeTray=await board();
   const tray=page.locator('[data-panel="unsorted"]'); const tr=await tray.boundingBox(), co=await page.locator(`#world [data-id="${parent.id}"]`).boundingBox();
   await page.mouse.move(co.x+20,co.y+20); await page.mouse.down(); await page.mouse.move(tr.x+tr.width/2,tr.y+20,{steps:12}); await page.mouse.up(); await pause(); const inTray=await saved(); assert.equal(inTray.cards.length,0); assert.equal(inTray.links.length,0); assert.equal(inTray.tray.length,1);
@@ -132,7 +137,7 @@ try {
   await select(['columns']); await clickControl('Hide header'); await pause(); let col=(await saved()).cards.find(c=>c.id==='columns'); assert.equal(col.props.head,false); assert.equal(await page.locator('#world [data-id="columns"] .collection-head').isVisible(),false); const headerlessY=(await board()).cards.find(c=>c.id==='droptwo').y;
   await select(['columns']); await clickControl('Show header'); await pause(); assert.equal((await saved()).cards.find(c=>c.id==='droptwo').y,headerlessY+60);
   // Layer reading order is independent of the stack order, and retains chosen columns.
-  const layersPanel=page.locator('[data-panel="layers"]'); if(await layersPanel.evaluate(el=>el.classList.contains('folded'))) await layersPanel.locator('.fold').click();
+  const layersPanel=page.locator('[data-panel="layers"]'); if(await layersPanel.evaluate(el=>el.classList.contains('folded'))) await layersPanel.locator('.ptoggle').click();
   const layerRow=id=>page.locator(`.layer-row[data-id="${id}"]`);
   const rowOrder=()=>page.locator('.layer-row[data-parent="columns"]').evaluateAll(rows=>rows.map(r=>r.dataset.id));
   assert.deepEqual(await rowOrder(),['droptwo','dropone']);
