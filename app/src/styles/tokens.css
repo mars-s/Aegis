@@ -32,7 +32,7 @@
   /* Mapped onto the Aegis dark theme in app.css so ported object components share its surfaces. */
   --color-text: #ffffff; --color-muted: rgb(255 255 255 / 0.74); --color-faint: #959ba4;
   --color-label-secondary: #d8dbe0; --color-lit: #ffffff;
-  --color-surface: #141618; --color-float: #24272b;
+  --color-surface: #0d0e0f; --color-float: #1d2024;
   --color-fill: rgb(255 255 255 / 0.05); --color-fill-hover: rgb(255 255 255 / 0.08);
   --color-border: rgb(255 255 255 / 0.07); --color-border-strong: rgb(255 255 255 / 0.13);
   --color-ring: #3f8dfd; --color-tint-graphite: #8e939b;

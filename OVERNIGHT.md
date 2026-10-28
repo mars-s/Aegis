@@ -210,3 +210,16 @@ fragile. "Jarvis's table, built by Apple."
   tick; anything red becomes the queue.
 - No code changed in this tick, so the gate was not re-run. The last full check
   was green minutes ago.
+
+### 2026-10-29, tick at 4:15am (sweep result)
+
+- Full UI sweep finished: 43 of 44 suites pass. Only `data-trust` failed.
+- Cause was my own surface change. The settings "Panels" colour default was
+  still `#141618`, and four ported CSS surfaces still carried the old ramp, so
+  the check saw a button value that no longer matched the `--card` token.
+- Aligned the panel default, `react-agents.css` strip and inset,
+  `tokens.css` surface and float, and the dormant `scene.css` card literal
+  (now `var(--card)`).
+- `data-trust` passes again, 18 checks on Chromium and WebKit. Full check green.
+- Lesson: a token change is only done when nothing else hardcodes the old value.
+  The sweep is what caught the leftovers.

@@ -7,7 +7,7 @@
   color: var(--text); font: 13px var(--font); accent-color: var(--data); caret-color: var(--data);
 }
 :root[data-theme='dark'] .aegis-feature {
-  --pill: #0b0c0d; --strip: #1a1d20; --inset: #1d2023;
+  --pill: #0b0c0d; --strip: #131416; --inset: #16191c;
   --ink-2: rgb(255 255 255 / .74); --muted: #abb2bf;
   --line: rgb(255 255 255 / .09); --line-strong: rgb(255 255 255 / .16); --edge-top: rgb(255 255 255 / .14);
 }

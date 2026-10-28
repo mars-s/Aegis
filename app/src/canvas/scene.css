@@ -45,7 +45,7 @@ body.motion-off .react-stage .card.glow::after { animation: none; opacity: .8; }
   --menu-width: 220px; --menu-padding: 5px; --menu-row-height: 34px; --r-menu: 12px;
 }
 .react-stage { background: #000; }
-.react-stage .card.scene-card { background: #141618; border-color: rgb(255 255 255 / .09); border-radius: 8px; }
+.react-stage .card.scene-card { background: var(--card, #0d0e0f); border-color: rgb(255 255 255 / .09); border-radius: 8px; }
 .react-stage .card.note { font-size: 15px; line-height: 1.45; }
 .react-stage .card.note .scene-body { padding: 12px 14px; }
 .react-stage .card.note .body { padding: 0; line-height: inherit; }
