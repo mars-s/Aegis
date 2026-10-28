@@ -90,9 +90,10 @@ it, and Follow mode glides the camera to what it just made. (Observed)
 **Local MCP clients.** Claude Code, Codex, or any MCP client on the same Mac,
 connected over an authenticated loopback connection. They list boards, read card
 text and layout, read attached PDFs and slide images, search the board, and write
-back through the same commands. A batch that lands leaves a named chip on the
-canvas with the number of cards it changed, and clicking it redraws the line to
-those cards. They can read and change every board in that data folder, but they
+back through the same commands. A batch that lands leaves a chip on the canvas
+named after the client that sent it, with the number of cards it changed, and
+clicking it redraws the line to those cards. The bridge reads the client's name
+once at connect, so the app can attribute the work. They can read and change every board in that data folder, but they
 cannot run shell commands or read arbitrary paths. (Observed, added 2026-10-28)
 
 The shared command vocabulary is create, update, revise, object_set, move,
@@ -110,7 +111,9 @@ a name on it, that the person can take back.
   `.scratch/aegis-redesign/comps/6-zen-dark-LOCKED.png` is the whole app. The
   quiet Zen look is the default and only look, not a mode.
 - Brain dump by typing into the Ask pill at the bottom. `⌘K` or `/` opens it.
-  Voice capture is still open.
+- Dictation: click the orb on the Ask pill and Apple's on-device recogniser
+  streams words into the box. Audio never leaves the Mac. (Observed, added
+  2026-10-29)
 - Keyboard first: single-key tools, `/` for the composer, `A` for agents, `F`
   for follow, `\` for the side bar.
 - Charts, sheets and documents are built from the same object kinds the person
@@ -130,6 +133,10 @@ a name on it, that the person can take back.
   adds no Aegis cloud service. (Confirmed)
 - **Own models.** The person brings their own ChatGPT or Claude subscription.
   The app runs on-device models too where a task allows. (Observed)
+- **Dictation on device.** The Ask orb starts Apple's Speech framework with
+  on-device recognition and streams partial text into the composer. It needs
+  microphone and speech recognition permission; refusing still leaves typing.
+  (Observed, added 2026-10-29)
 - **Rich imports without a server.** PDF text and page rendering happen in the
   web view with bundled resources, no CDN. Limits: 64 MB per source file, 100
   PDF pages, 200 deck slides. No OCR, so scanned files keep images but may have
@@ -180,7 +187,6 @@ a name on it, that the person can take back.
 
 ## Open Questions
 
-- Voice capture.
 - Browser tab cards.
 - A lanes view.
 - Export.

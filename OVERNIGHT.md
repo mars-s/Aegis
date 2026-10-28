@@ -223,3 +223,13 @@ fragile. "Jarvis's table, built by Apple."
 - `data-trust` passes again, 18 checks on Chromium and WebKit. Full check green.
 - Lesson: a token change is only done when nothing else hardcodes the old value.
   The sweep is what caught the leftovers.
+
+### 2026-10-29, tick at 4:35am
+
+- Queue is clear, so closed a documentation gap instead. PRODUCT.md now records
+  dictation (on-device Apple speech from the Ask orb) and the named MCP client,
+  and voice capture is no longer listed as an open question.
+- Started a second full UI sweep to prove the surface alignment did not shift
+  any other suite. Result is triaged next tick.
+- No code changed, so the gate was skipped; the last full check was green after
+  the alignment commit.
