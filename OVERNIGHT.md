@@ -160,8 +160,19 @@ fragile. "Jarvis's table, built by Apple."
 
 ## Next
 
-1. MCP presence: pass the real client name through the bridge instead of the
-   hardcoded "Local MCP".
-2. Pre-empt the module-copy trap: switch the remaining `/src/...js` imports in
+1. Pre-empt the module-copy trap: switch the remaining `/src/...js` imports in
    `checks/ui/deck.mjs`, `editors.mjs` and `media.mjs` to `.ts`.
-3. Document card typography against the comp, if the owner wants it tighter.
+2. Document card typography against the comp, if the owner wants it tighter.
+
+### 2026-10-29, tick at 2:55am
+
+- The presence chip now names the client. The stdio bridge reads
+  `clientInfo.name` from the initialize message and sends it as
+  `x-aegis-client`; the host uses it as the board author, falling back to
+  "Local MCP" when a client never names itself.
+- Added a host test: a stdio client called `aegis-stdio-check` edits a board and
+  the board event carries that name. 157 host tests.
+- Built, installed and relaunched. A probe tagged "Claude Code" produced a chip
+  reading "Claude Code changed 1 card", then deleted its own card.
+- Gotcha: the host runs compiled JS, so a source edit is invisible to
+  `node --test checks/host` until `npm run build:shared`.

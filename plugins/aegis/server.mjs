@@ -8,6 +8,10 @@ const data = process.env.AEGIS_DATA || join(homedir(), 'Library', 'Application S
 const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });
 const pending = new Set();
 const send = value => process.stdout.write(JSON.stringify(value) + '\n');
+// The client names itself once, in initialize. Remember it so the app can say
+// who changed the board instead of a generic label.
+let clientName = '';
+const label = value => typeof value === 'string' ? value.replace(/[^\x20-\x7e]/g, '').trim().slice(0, 40) : '';
 
 async function forward(line) {
   let request;
@@ -19,12 +23,13 @@ async function forward(line) {
   if (!request || Array.isArray(request) || request.jsonrpc !== '2.0' || typeof request.method !== 'string') {
     send({ jsonrpc: '2.0', id: request?.id ?? null, error: { code: -32600, message: 'Invalid MCP request' } }); return;
   }
+  if (request.method === 'initialize' && request.params && typeof request.params === 'object') clientName = label(request.params.clientInfo?.name) || clientName;
   try {
     // Discover for every call so an app restart can rotate its port and token.
     const connection = JSON.parse(await readFile(join(data, 'mcp-connection.json'), 'utf8'));
     if (!Number.isInteger(connection.port) || connection.port < 1 || connection.port > 65535 || typeof connection.token !== 'string' || !connection.token) throw new Error('Invalid local connection file');
     const response = await fetch(`http://127.0.0.1:${connection.port}/mcp`, {
-      method: 'POST', headers: { authorization: `Bearer ${connection.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      method: 'POST', headers: { authorization: `Bearer ${connection.token}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(clientName ? { 'x-aegis-client': clientName } : {}) },
       body: JSON.stringify(request), signal: AbortSignal.timeout(30000),
     });
     if (response.status === 202 || response.status === 204) return;

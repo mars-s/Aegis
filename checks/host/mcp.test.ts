@@ -194,3 +194,38 @@ test('an existing stdio session rediscovers the app after its port changes', asy
   const saved = await call('board_read', { boardId: b.id }, BoardSummarySchema, stdioClient);
   assert.equal(saved.name, b.name);
 });
+
+const EventSchema = z.object({ type: z.literal('board'), boardId: z.string(), author: z.object({ kind: z.string(), name: z.string().optional() }) });
+
+test('a stdio client names itself on the board events it causes', async () => {
+  const created = await board(stdioClient);
+  const stream = await fetch(`${base}/events?token=${token}`, { signal: AbortSignal.timeout(15000) });
+  const body = stream.body;
+  if (!body) throw new Error('The host did not open an event stream.');
+  const reader = body.getReader(), decoder = new TextDecoder();
+  let buffer = '';
+  const next = async (): Promise<z.output<typeof EventSchema>> => {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) throw new Error('The event stream ended before the board event.');
+      buffer += decoder.decode(chunk.value);
+      for (;;) {
+        const index = buffer.indexOf('\n');
+        if (index < 0) break;
+        const line = buffer.slice(0, index).trim();
+        buffer = buffer.slice(index + 1);
+        if (!line.startsWith('data:')) continue;
+        let value: unknown;
+        try { value = JSON.parse(line.slice(5)); } catch { continue; }
+        const parsed = EventSchema.safeParse(value);
+        if (parsed.success && parsed.data.boardId === created.id) return parsed.data;
+      }
+    }
+  };
+  const pending = next();
+  await call('board_apply', { boardId: created.id, commands: [{ op: 'create', type: 'note', text: 'Named client' }] }, AppliedSchema, stdioClient);
+  const event = await pending;
+  assert.equal(event.author.kind, 'mcp');
+  assert.equal(event.author.name, 'aegis-stdio-check');
+  await reader.cancel();
+});
