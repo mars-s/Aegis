@@ -259,6 +259,13 @@ export function replaceSelect(source: HTMLSelectElement): Dropdown {
 }
 
 let installed = false;
+// A modal marked data-over-popup (such as the colour editor) opens on top of a popup and owns its own input.
+// The popup stays open beneath it. Other modals, such as Settings, still dismiss the popup.
+const insideForeignModal = (target: Node | null): boolean => {
+  const modal = target instanceof Element ? target.closest('dialog[data-over-popup]') : null;
+  return !!active && modal instanceof HTMLDialogElement && modal.open && !active.menu.contains(modal);
+};
+
 export function mountDropdowns(): void {
   if (installed) return; installed = true; mountInteraction(); mountDialogs();
   // The island's hidden data selects stay native: its menu reads their .options and draws its own themed choices.
@@ -281,6 +288,7 @@ export function mountDropdowns(): void {
   addEventListener('pointerdown', event => {
     keyboardInput = false;
     const target = event.target instanceof Node ? event.target : null;
+    if (insideForeignModal(target)) return;
     while (active && !(target && active.menu.contains(target)) && !(target && active.trigger?.contains(target))) active.close();
   }, true);
   addEventListener('keydown', event => {
@@ -291,6 +299,7 @@ export function mountDropdowns(): void {
     if (isDropdown(dropdown) && active?.trigger !== dropdown && !event.metaKey && !event.ctrlKey && !['Tab', 'Escape'].includes(event.key)) {
       event.stopImmediatePropagation(); dropdown.dropdownKey(event); return;
     }
+    if (insideForeignModal(target)) return;
     if (active && (['Escape', 'Tab'].includes(event.key) || target && (active.menu.contains(target) || active.trigger?.contains(target)))) {
       if (target?.matches('input, textarea, [contenteditable]') && !['Escape', 'Tab'].includes(event.key)) return;
       if (active.menu.getAttribute('role') === 'dialog' && !['Escape', 'Tab'].includes(event.key) && !target?.closest('[role=menu]')) return;
@@ -299,6 +308,7 @@ export function mountDropdowns(): void {
   }, true);
   addEventListener('focusin', event => {
     const target = event.target instanceof Node ? event.target : null;
+    if (insideForeignModal(target)) return;
     if (active?.menu.getAttribute('role') === 'dialog' && !(target && active.menu.contains(target)) && !(target && active.trigger?.contains(target))) active.close();
   });
   addEventListener('blur', () => { while (active) active.close(); });
