@@ -1,5 +1,6 @@
 // Ported from Mochiboard (MIT, copyright 2026 Jessa Wolfe). See LICENSE.mochiboard.
 import { z } from 'zod/v4';
+import type { SHAPES } from './art.js';
 export const EMOJI = ['⭐', '❤️', '👍', '🎉', '🌱', '💡', '🔥', '✅', '😀', '😂', '🥹', '😍', '🤔', '😎', '😴', '👀', '👋', '👏', '🙌', '💪', '🧠', '✨', '💯', '❓', '❗', '🚀', '🎯', '🏆', '🎨', '📌', '📚', '☕', '🍎', '🍓', '🌈', '☀️', '🌙', '🌻', '🌳', '🍀', '🐈', '🐕', '🦊', '🐝', '🦋', '🐢', '🐙', '🦉', '🎵', '🎸', '⚽', '🏀', '🎲', '🎁', '🛠️', '🔑', '💎', '💬', '📍', '🏠', '🌏', '✈️', '🚲', '🧩'];
 export const PEN_RANGE = { pen: [2, 48], marker: [2, 40], hi: [8, 72], eraser: [10, 90] } as const;
 const PenSchema = z.enum(['pen', 'marker', 'hi', 'eraser']);
@@ -10,6 +11,7 @@ export const PreferencesSchema = z.object({
   favourites: emojis.catch(EMOJI.slice(0, 8)).transform(values => values.slice(0, 8)), recent: emojis.catch([]).transform(values => values.slice(0, 12)),
 });
 export type DrawPreferences = z.output<typeof PreferencesSchema>;
+export interface DrawSettings extends DrawPreferences { readonly shape: keyof typeof SHAPES; readonly fill: string; readonly stroke: string; readonly sw: number; readonly sdash: 'solid' | 'dash' | 'dot' | 'none'; readonly dl: number; readonly dg: number; readonly emoji: string }
 export function readPreferences(): DrawPreferences {
   try { const boundary: unknown = JSON.parse(localStorage.getItem('aegis:draw') || '{}'); const parsed = PreferencesSchema.parse(boundary); if (typeof boundary === 'object' && boundary !== null && !('favourites' in boundary)) parsed.favourites = EMOJI.slice(0, 8); return parsed; }
   catch { return PreferencesSchema.parse({ favourites: EMOJI.slice(0, 8) }); }

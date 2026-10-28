@@ -1,10 +1,10 @@
 import { CardIdSchema, CommandSchema } from '@aegis/domain/schema';
 import type { CardId, Command } from '@aegis/domain/schema';
 import type { CanvasEngine, PreviewColour, SceneTool, ToolPointer, ToolPrimitive } from '@aegis/scene';
-import type { FeatureWorkspace } from '../../composition.js';
+import type { FeatureWorkspace } from '../../workspace/types.js';
 import { butter, centerline, colour, pathD, shapePoints } from './art.js';
 import type { InkPoint, VectorPoint } from './art.js';
-import type { DrawSettings } from './Inspector.js';
+import type { DrawSettings } from './preferences.js';
 import { fitPoints, inkHit } from './vector-geometry.js';
 import { toolExit } from '../../platform/tool-lifetime.js';
 

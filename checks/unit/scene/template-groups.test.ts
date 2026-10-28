@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { BoardSchema } from '@aegis/domain';
+import { BoardSchema, CardSchema } from '@aegis/domain';
 import { wireframePolicies } from '../../../app/src/canvas/wireframe-policies.ts';
 
 const board = () => BoardSchema.parse({ id: 'template-test', name: 'Template groups', rev: 0, links: [], view: { x: 0, y: 0, z: 1 }, cards: [
@@ -20,5 +20,5 @@ it('the composed drop policy reparents notes, retains a moving group and detache
   const policies = wireframePolicies(() => value);
   expect(policies.dropCommands?.({ cards: [note], kind: 'move' })).toEqual([{ op: 'update', id: note.id, set: { parent: 'groupbbb' } }]);
   expect(policies.dropCommands?.({ cards: [group, note], kind: 'move' })).toEqual([]);
-  expect(policies.dropCommands?.({ cards: [{ ...note, x: 900 }], kind: 'move' })).toEqual([{ op: 'update', id: note.id, set: { parent: '' } }]);
+  expect(policies.dropCommands?.({ cards: [CardSchema.parse({ ...note, x: 900 })], kind: 'move' })).toEqual([{ op: 'update', id: note.id, set: { parent: '' } }]);
 });
