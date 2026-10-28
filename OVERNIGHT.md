@@ -47,7 +47,10 @@ fragile. "Jarvis's table, built by Apple."
    `@aegis/domain` makes it exit 1 with `ERR_MODULE_NOT_FOUND`. A symlinked
    stage alone does not fail, because relocation keeps relative links valid; the
    real failure was the bundler dropping the entry entirely.
-4. **Native frame rate.** Re-measure pan and zoom FPS in the installed app.
+4. **Native frame rate.** Measured 2026-10-29 in headless Chromium: 5000 cards,
+   240 frames of pan then zoom, interval p50 8.3 ms, p95 10.1 ms, max 16.7 ms,
+   callback CPU p95 2.9 ms. That is roughly one 120 Hz frame at the median.
+   Native presentation is still unverified; headless timing cannot certify it.
 5. **UX polish** against `.scratch/aegis-redesign/comps/6-zen-dark-LOCKED.png`,
    avoiding the files the sidebar session owns.
 
@@ -130,3 +133,16 @@ fragile. "Jarvis's table, built by Apple."
 - Learned that a symlinked stage still passes after relocation, so copying with
   verbatimSymlinks hides the old layout. Missing entries are the real signal.
 - Next: native frame rate re-measure.
+
+### 2026-10-29, tick at 2:05am
+
+- Re-measured pan and zoom after the React cutover. 5000 cards, 150 pan wheel
+  events then 90 zoom events: interval p50 8.3 ms, p95 10.1 ms, p99 and max
+  16.7 ms, callback CPU p95 2.9 ms, 255 cards mounted near and 257 far.
+- Compared with the recorded baseline (p50 9.3 ms, p95 21.3 ms, max 13800 ms),
+  the current build is well ahead, and the 13.8 second outlier is gone.
+- This is headless Chromium. The interval is time between produced frames, not
+  display pacing, so it says the work fits a 120 Hz budget at the median and
+  misses it on roughly one frame in twenty. It cannot certify the native window.
+- No code changed, so the gate was re-run as a formality.
+- Next: UX polish against the locked comp, avoiding the sidebar files.
