@@ -13,10 +13,10 @@
   "scripts": {
     "dev": "npm run build:shared && npx --yes @tauri-apps/cli@2.12.4 dev",
     "build": "npm run stage:runtime && npx --yes @tauri-apps/cli@2.12.4 build --bundles app",
-    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check && npm --workspace @aegis/app run check",
+    "check": "npm run check:dependencies && npm run check:safe-types && npm run check:types && npm run check:lint && npm run check:unit && npm --workspace @aegis/agent run check",
     "check:safe-types": "node scripts/check-safe-types.ts",
-    "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.react.json && tsc --noEmit -p checks/host/tsconfig.json",
-    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit app/src/workspace app/src/platform app/src/cards app/src/main.tsx app/src/App.tsx app/src/composition.tsx app/src/canvas/Canvas.tsx app/src/canvas/CardPortals.tsx app/src/canvas/benchmark.ts app/src/canvas/copy-drag.ts app/src/canvas/wireframe-policies.ts vitest.config.ts app/src/charts app/src/editors/sheet app/src/editors/dataset app/src/features/data/*.ts app/src/features/data/*.tsx agent/src checks/host checks/mcp app/src/chrome/*.ts app/src/chrome/*.tsx app/src/editors/document app/src/editors/deck app/src/editors/object app/src/features/agents/*.ts app/src/features/agents/*.tsx app/src/features/settings/*.ts app/src/features/settings/*.tsx app/src/features/first-minute/*.tsx app/src/features/onboarding/*.tsx app/src/features/mobile/*.tsx app/src/features/editing/*.ts app/src/features/editing/*.tsx app/src/lib/native-files.ts",
+    "check:types": "npm run build:shared && tsc --noEmit -p tsconfig.json && tsc --noEmit -p app/tsconfig.json && tsc --noEmit -p checks/host/tsconfig.json && tsc --noEmit -p checks/native/tsconfig.json",
+    "check:lint": "oxlint --deny-warnings scripts packages checks/support checks/unit checks/native checks/host checks/mcp app/src vitest.config.ts",
     "check:unit": "vitest run",
     "ui": "npm --prefix app run dev",
     "check:ui": "node checks/ui/run.mjs",

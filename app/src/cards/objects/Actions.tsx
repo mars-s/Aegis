@@ -1,4 +1,3 @@
-import "./shared-ui.js";
 import { useEffect, useRef } from "react";
 import { createMenu } from "../../lib/ui/menu.js";
 export interface ObjectAction {
