@@ -38,6 +38,9 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
   let epoch = 0;
   let disposed = false;
   let pending: readonly PendingBatch[] = [];
+  // Saved local batches whose host revision is ahead of the confirmed chain. Agent events for the
+  // revisions in between still arrive in order, so they keep their provenance and motion.
+  let acknowledged: readonly { readonly commands: readonly Command[]; readonly rev: number }[] = [];
   let blocked: Extract<SaveState, { readonly kind: 'blocked' }> | null = null;
   const sceneListeners = new Set<(change: SceneChange) => void>();
   const contentSources = new Map<CardId, WritableSource<CardContent | null>>();
@@ -97,7 +100,12 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
   }
 
   function rebase(origin: SceneChange['origin'] = 'sync'): void {
+    acknowledged = acknowledged.filter(entry => entry.rev > confirmed.rev);
     let next = confirmed;
+    for (const entry of acknowledged) {
+      const result = applyBatch(next, { commands: [...entry.commands] });
+      if (result.ok) next = result.board;
+    }
     for (const entry of pending) {
       const result = applyBatch(next, { commands: [...entry.commands] });
       if (!result.ok) {
@@ -204,10 +212,14 @@ export function createWorkspace(args: { readonly board: Board; readonly id?: () 
           publishReplication();
           return;
         }
-        const applied = applyBatch(confirmed, { commands: [...head.commands] });
-        if (applied.ok) {
-          confirmed = Object.assign({}, applied.board);
-          confirmed.rev = RevisionSchema.parse(response.rev);
+        if (acknowledged.length === 0 && response.rev === confirmed.rev + 1) {
+          const applied = applyBatch(confirmed, { commands: [...head.commands] });
+          if (applied.ok) {
+            confirmed = Object.assign({}, applied.board);
+            confirmed.rev = RevisionSchema.parse(response.rev);
+          }
+        } else if (response.rev > confirmed.rev) {
+          acknowledged = [...acknowledged, { commands: head.commands, rev: response.rev }];
         }
         pending = pending.slice(1);
         blocked = null;

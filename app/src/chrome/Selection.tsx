@@ -86,6 +86,7 @@ function positionSelection(
   const editor = context.workspace.ui.getSnapshot().editor;
   const ids = context.workspace.selection.getSnapshot();
   if (!box || engine.busy() || editor?.view === "full" || editor && ids.length === 1 && ids[0] === editor.id) {
+    bar.classList.remove("selection-enter");
     bar.hidden = true;
     outline.hidden = true;
     return;
@@ -105,7 +106,8 @@ function positionSelection(
     innerWidth <= 700
       ? Math.max(8, size.hubTop - size.height - 10)
       : Math.max(
-          8,
+          // Stay clear of the title bar when the selection is above the view.
+          52,
           Math.min(
             innerHeight - size.height - 12,
             top - size.height - 40 >= 8 ? top - size.height - 40 : bottom + 12,
@@ -113,6 +115,8 @@ function positionSelection(
         );
   // A transformed ancestor would turn the shared fixed-position popups into local
   // coordinates in WebKit. Position this small toolbar without a containing block.
+  if (bar.dataset.input === "keyboard") bar.classList.remove("selection-enter");
+  else if (bar.hidden) bar.classList.add("selection-enter");
   bar.hidden = false;
   bar.style.maxWidth = `${Math.max(1, area.width - 24)}px`;
   bar.style.left = `${x}px`;
@@ -203,6 +207,10 @@ export function Selection({
       write: () =>
         positionSelection(context, engine, element, edges, size, box),
     });
+    const input = (event: Event): void => { element.dataset.input = event.type === "keydown" ? "keyboard" : "pointer"; };
+    // The scene selects on a window capture listener, so read the input kind one step earlier.
+    document.addEventListener("keydown", input, true);
+    document.addEventListener("pointerdown", input, true);
     const dimensions = new ResizeObserver(resized);
     dimensions.observe(element);
     const offSelection = context.workspace.selection.subscribe(invalidate),
@@ -217,6 +225,8 @@ export function Selection({
       offScene();
       offUi();
       window.removeEventListener("resize", resized);
+      document.removeEventListener("keydown", input, true);
+      document.removeEventListener("pointerdown", input, true);
     };
   }, [context, engine]);
   useEffect(() => {
@@ -307,6 +317,7 @@ export function Selection({
           {ask ? (
             <button
               className="selection-ai"
+              title="Ask AI (⌘K)"
               aria-label={
                 cards.length === 1
                   ? "Ask AI about this window"
@@ -314,11 +325,13 @@ export function Selection({
               }
               onClick={() => ask(ids)}
             >
-              <span dangerouslySetInnerHTML={{ __html: OrbMark() }} />
+              <span className="selection-ai-mark" dangerouslySetInnerHTML={{ __html: OrbMark() }} />
             </button>
           ) : null}
           {isLocked ? (
             <button
+              className="selection-text"
+              title="Unlock"
               onClick={() =>
                 submit(
                   context,
@@ -331,7 +344,8 @@ export function Selection({
                 )
               }
             >
-              Unlock
+              <Icon name="unlock" />
+              <span>Unlock</span>
             </button>
           ) : (
             <>
@@ -339,6 +353,7 @@ export function Selection({
                 <>
                   <button
                     aria-label="Bold"
+                    title="Bold (⌘B)"
                     aria-pressed={textCards.every(
                       (card) => card.props?.["bold"] === true,
                     )}
@@ -351,10 +366,11 @@ export function Selection({
                       )
                     }
                   >
-                    <b>B</b>
+                    <Icon name="bold" />
                   </button>
                   <button
                     aria-label="Italic"
+                    title="Italic (⌘I)"
                     aria-pressed={textCards.every(
                       (card) => card.props?.["italic"] === true,
                     )}
@@ -367,7 +383,7 @@ export function Selection({
                       )
                     }
                   >
-                    <i>I</i>
+                    <Icon name="italic" />
                   </button>
                   <span className="inline-size">
                     <Stepper
@@ -419,17 +435,20 @@ export function Selection({
                 </>
               ) : cards.length === 1 && !media && first && canOpen(first) ? (
                 <button
+                  className="selection-text"
                   aria-label="Open"
+                  title="Open"
                   onClick={() => {
                     if (first) context.openEditor(first.id);
                   }}
                 >
-                  Open
+                  <Icon name="open" />
+                  <span>Open</span>
                 </button>
               ) : null}
               {cards.length > 1 ? (
                 <>
-                  <PopupButton label="Align and distribute">
+                  <PopupButton label="Align and distribute" caption={<Icon name="arrange" />}>
                     {(
                       [
                         "left",
@@ -458,9 +477,10 @@ export function Selection({
                   </PopupButton>
                   <button
                     aria-label="Group"
+                    title="Group (⌘G)"
                     onClick={() => groupCards(context, ids, false, notify)}
                   >
-                    Group
+                    <Icon name="group" />
                   </button>
                 </>
               ) : null}
@@ -472,8 +492,9 @@ export function Selection({
                       replaceTarget.current = { id: media.id, board: board.id };
                       replacement.current?.click();
                     }}
+                    title="Replace"
                   >
-                    Replace
+                    <Icon name="replace" />
                   </button>
                   <button
                     aria-label="Download"
@@ -504,8 +525,9 @@ export function Selection({
                         }
                       })();
                     }}
+                    title="Download"
                   >
-                    Download
+                    <Icon name="download" />
                   </button>
                 </>
               ) : null}
@@ -513,17 +535,20 @@ export function Selection({
                 <>
                   <button
                     aria-label="Duplicate"
+                    title="Duplicate (⌘D)"
                     onClick={() => duplicateCards(context, ids, notify)}
                   >
-                    Duplicate
+                    <Icon name="duplicate" />
                   </button>
                   <button
                     aria-label="Delete"
+                    title="Delete (⌫)"
+                    className="selection-danger"
                     onClick={() => {
                       void deleteCards(context, ids, notify);
                     }}
                   >
-                    Delete
+                    <Icon name="delete" />
                   </button>
                 </>
               ) : null}

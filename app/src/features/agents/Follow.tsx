@@ -46,5 +46,5 @@ export function FollowControls({ context, runtime, scene }: { readonly context: 
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
   }, [toggle]);
-  return <><span className="status" id="status" aria-live="polite">{running ? `${running} agent${running > 1 ? 's' : ''} working` : ''}</span><button type="button" id="followBtn" role="switch" aria-label="Follow agents" aria-checked={follow} onClick={event => toggle(event.detail === 0)}>Follow</button><button type="button" id="showChip" hidden={!pending} aria-description={pending?.description} onClick={event => reveal(event.detail === 0)}>Show changes</button></>;
+  return <><span className="status" id="status" aria-live="polite">{running ? `${running} agent${running > 1 ? 's' : ''} working` : ''}</span><button type="button" id="followBtn" className="follow" role="switch" aria-label="Follow agents" title="Follow agents (⇧F): the camera glides to what they make" aria-checked={follow} onClick={event => toggle(event.detail === 0)}><span className="knob" aria-hidden="true" />Follow</button><button type="button" id="showChip" className="chip" hidden={!pending} aria-description={pending?.description} onClick={event => reveal(event.detail === 0)}>Show changes</button></>;
 }

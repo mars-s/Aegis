@@ -6,17 +6,20 @@ import { frameworks, starters, templateCommands } from "./templates.js";
 import type { LibraryService } from "./library-model.js";
 import { submit } from "./actions.js";
 import type { Notify } from "./actions.js";
+import { Icon } from "./icons.js";
 
 export function Templates({
   context,
   library,
   notify,
   hidden = false,
+  labelled = false,
 }: {
   readonly context: FeatureContext;
   readonly library: LibraryService;
   readonly notify: Notify;
   readonly hidden?: boolean;
+  readonly labelled?: boolean;
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -105,9 +108,11 @@ export function Templates({
       type="button"
       data-tool="templates"
       title="Templates"
+      aria-label="Templates"
       hidden={hidden}
     >
-      Templates
+      <Icon name="templates" />
+      {labelled ? <span className="tools-label">Templates</span> : null}
     </button>
   );
 }

@@ -78,6 +78,65 @@ describe('ordered workspace connection', () => {
     } finally { connection.dispose(); workspace.dispose(); }
   });
 
+  it('keeps an agent change animated when a local save lands while its event is still in flight', async () => {
+    const initial = boardWith([{ op: 'create', newId: noteId, text: 'Start' }]);
+    const host = memoryHost(initial);
+    const workspace = createWorkspace({ board: initial });
+    const connection = connectWorkspace({ client: host.client, workspace, reconnectMs: 1 });
+    const created: { readonly origin: string; readonly id: string }[] = [];
+    try {
+      await connection.settled();
+      const known = new Set(workspace.scene.snapshot().cards.map(card => card.id));
+      workspace.scene.subscribe(change => { for (const card of change.upserted) if (!known.has(card.id)) { known.add(card.id); created.push({ origin: change.origin, id: card.id }); } });
+      // The agent commits first, but its event has not reached this client yet.
+      const before = host.board(), agentBoard = change(before, [{ op: 'create', newId: otherId, text: 'Agent result' }]);
+      host.setBoard(agentBoard);
+      // A measured height commits on top of the agent's revision before the event arrives.
+      workspace.submit([{ op: 'move', id: noteId, x: 40, y: 40 }]);
+      await expect.poll(() => host.attempts.length).toBe(1);
+      host.emit(event(before, agentBoard));
+      await connection.settled();
+      expect(created).toEqual([{ origin: 'agent', id: otherId }]);
+      expect(workspace.scene.snapshot().rev).toBe(host.board().rev);
+      expect(workspace.record(noteId).getSnapshot()).toMatchObject({ x: 40, y: 40 });
+    } finally { connection.dispose(); workspace.dispose(); }
+  });
+
+  it('reads a snapshot when an earlier author event never arrives', async () => {
+    const initial = boardWith([{ op: 'create', newId: noteId, text: 'Start' }]);
+    const host = memoryHost(initial);
+    const workspace = createWorkspace({ board: initial });
+    const connection = connectWorkspace({ client: host.client, workspace, reconnectMs: 1 });
+    try {
+      await connection.settled();
+      host.setBoard(change(host.board(), [{ op: 'create', newId: otherId, text: 'Lost event' }]));
+      workspace.submit([{ op: 'move', id: noteId, x: 40, y: 40 }]);
+      await expect.poll(() => workspace.card(otherId).getSnapshot()?.text, { timeout: 2000 }).toBe('Lost event');
+      expect(workspace.scene.snapshot().rev).toBe(host.board().rev);
+    } finally { connection.dispose(); workspace.dispose(); }
+  });
+
+  it('does not carry a pending revision check into the next board', async () => {
+    const initial = boardWith([{ op: 'create', newId: noteId, text: 'Start' }]);
+    const host = memoryHost(initial);
+    const workspace = createWorkspace({ board: initial });
+    const connection = connectWorkspace({ client: host.client, workspace, reconnectMs: 1 });
+    try {
+      await connection.settled();
+      // Another author's revision makes this save land two ahead, which arms the late snapshot check.
+      host.setBoard(change(host.board(), [{ op: 'create', newId: otherId, text: 'Elsewhere' }]));
+      host.setBoard(change(host.board(), [{ op: 'update', id: otherId, set: { text: 'Elsewhere again' } }]));
+      workspace.submit([{ op: 'move', id: noteId, x: 40, y: 40 }]);
+      await expect.poll(() => host.attempts.length).toBe(1);
+      const next = BoardSchema.parse({ ...boardWith(), id: otherBoardId, name: 'Next board' });
+      host.setBoard(next);
+      expect(workspace.replaceBoard(next)).toBe(true);
+      await new Promise(resolve => setTimeout(resolve, 450));
+      workspace.submit([{ op: 'create', newId: noteId, text: 'On the next board' }]);
+      await expect.poll(() => workspace.saving.getSnapshot().kind, { timeout: 2000 }).toBe('saved');
+    } finally { connection.dispose(); workspace.dispose(); }
+  });
+
   it('reconciles a revision gap before applying later queued patches', async () => {
     const initial = boardWith([{ op: 'create', newId: noteId, text: 'Initial' }]);
     const host = memoryHost(initial);

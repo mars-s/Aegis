@@ -3,7 +3,9 @@ import type { Point } from './geometry.js';
 import type { SceneNode } from './graph.js';
 import type { AgentLineStyle } from './types.js';
 
-const geometry = (node: SceneNode): string => `${node.card.x},${node.card.y},${node.card.w},${node.card.h},${node.rotation}`;
+// The line touches each window's top edge, so only the edge's position matters. A height that
+// settles after the content is measured keeps the line; a move by a person removes it.
+const geometry = (node: SceneNode): string => `${node.card.x},${node.card.y},${node.card.w},${node.rotation}`;
 
 /** A bounded, transient cue. The world transform carries it through camera frames. */
 export class AgentLine {
@@ -39,7 +41,7 @@ export class AgentLine {
     const path = (d: string, length: number, className = ''): void => {
       const element = add('path', { d, class: className, fill: 'none', stroke: '#3f8dfd', 'stroke-width': 1.5, 'stroke-linejoin': 'round', 'vector-effect': 'non-scaling-stroke' });
       element.style.strokeLinecap = 'round';
-      element.style.strokeDasharray = style === 'dashed' ? '6 5' : style === 'dotted' ? '1 5' : 'none';
+      element.style.strokeDasharray = style === 'dashed' ? '6 4' : style === 'dotted' ? '1.5 4' : 'none';
       if (reduced) return;
       const delay = this.animations.size ? 360 + this.animations.size * 60 : 0;
       if (style === 'solid') element.style.strokeDasharray = String(length);
@@ -49,7 +51,7 @@ export class AgentLine {
     };
     add('circle', { class: 'origin', cx: origin?.x ?? start, cy: origin?.y ?? top - 24, r: 3.5, fill: '#3f8dfd' });
     if (origin) path(`M${origin.x} ${origin.y}V${top - 24}H${start}`, Math.abs(origin.y - top + 24) + Math.abs(origin.x - start));
-    const title = add('text', { x: start + 10, y: top - 20, fill: '#a6abb4', stroke: '#000', 'stroke-width': 5, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
+    const title = add('text', { x: start + 10, y: top - 20, fill: '#c3c8d0', stroke: '#000', 'stroke-width': 5, 'stroke-linejoin': 'round', 'paint-order': 'stroke' });
     title.style.font = '12px var(--font, Inter, sans-serif)'; title.textContent = label;
     path(`M${start} ${top - 24}V${top - 12}L${start + 12} ${top}H${Math.max(...stations)}`, 12 + Math.hypot(12, 12) + Math.abs(Math.max(...stations) - start - 12), 'trunk');
     cards.forEach((node, index) => {

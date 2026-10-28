@@ -12,6 +12,7 @@ interface Pending {
   readonly after: Card | null;
   readonly exit: HTMLElement | null;
   readonly index: number;
+  readonly at: number;
   presentation: Presentation | null;
 }
 interface Running { readonly animation: Animation; readonly element: HTMLElement; readonly exit: boolean }
@@ -40,7 +41,9 @@ export class AgentMotion {
       const before = nodes.get(id)?.card ?? null, after = change.upserted.find(card => card.id === id) ?? null;
       if (before && after && geometry(before) === geometry(after)) continue;
       const element = this.pool.element(id);
-      if (!element && (!after || !visible(after))) continue;
+      // A new window may be off screen while Follow glides towards it. It waits briefly for its
+      // lease so it still arrives with motion; moved and removed windows need a live element.
+      if (!element && (!after || !visible(after) && (before !== null || index >= 6))) continue;
       if (index >= 12) { this.cancel(id); continue; }
       const snapshot = !after && element ? element.cloneNode(true) : null;
       const exit = snapshot instanceof HTMLElement ? snapshot : null;
@@ -51,7 +54,7 @@ export class AgentMotion {
         for (const frame of exit.querySelectorAll('iframe')) frame.remove();
         for (const descendant of exit.querySelectorAll('[id]')) descendant.removeAttribute('id');
       }
-      this.pending.set(id, { id, before, after, exit, index: index++, presentation: null });
+      this.pending.set(id, { id, before, after, exit, index: index++, at: this.view.performance.now(), presentation: null });
     }
   }
 
@@ -63,9 +66,10 @@ export class AgentMotion {
   }
 
   write(): void {
+    const now = this.view.performance.now();
     for (const [id, entry] of this.pending) {
       const element = entry.exit ?? this.pool.element(id);
-      if (!element) continue;
+      if (!element) { if (now - entry.at > 1600) this.pending.delete(id); continue; }
       const target = element.style.transform;
       const before = entry.presentation;
       const frames = entry.exit ? [{ transform: before?.transform ?? target, opacity: before?.opacity ?? '1' }, { transform: before?.transform ?? target, opacity: 0 }]

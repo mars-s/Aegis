@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Icon } from '../../chrome/icons.js';
 import { createPortal } from 'react-dom';
 import { useWorkspaceMetadata } from '../../workspace/index.js';
 import type { FeatureContext } from '../../composition.js';
@@ -14,7 +15,7 @@ function focusCanvas(): void {
 }
 
 export function CaptureButton() {
-  return <button type="button" id="quickCapture" title={shortcutTitle("quickCapture")} aria-keyshortcuts="Meta+Shift+K Control+Shift+K">Idea</button>;
+  return <button type="button" id="quickCapture" className="icon-btn" aria-label="Capture an idea" title={shortcutTitle("quickCapture")} aria-keyshortcuts="Meta+Shift+K Control+Shift+K"><Icon name="idea" /></button>;
 }
 
 function CaptureDialog({ entry, capture, close, error }: {

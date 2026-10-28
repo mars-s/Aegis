@@ -69,7 +69,9 @@ export class CanvasPainter {
         }
         ctx.restore();
       }
-      if (selected.has(rep.id)) {
+      // A mounted window draws its own selection ring in CSS. Painting a second one around it
+      // produced a doubled white frame.
+      if (selected.has(rep.id) && !(rep.kind === 'detail' && mounted(rep.id))) {
         ctx.save(); ctx.translate(r.x + r.width / 2, r.y + r.height / 2); ctx.rotate(rep.rotation * Math.PI / 180);
         ctx.strokeStyle = '#c6c6ce'; ctx.lineWidth = 1.5; ctx.strokeRect(-r.width / 2 - 3, -r.height / 2 - 3, r.width + 6, r.height + 6); ctx.restore();
       }

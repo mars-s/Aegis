@@ -75,6 +75,36 @@ export async function checkChrome(browser, url) {
     await page.evaluate(() => document.body.classList.remove('motion-off'));
     console.log('PASS idle chrome is transparent and not hit-testable; 48px edges, Tab, Shift+T, focus, menus and active tools reveal it; 1200ms grace and both reduced-motion routes work');
 
+    // Visual geometry: the dock is an icon rail and the selection bar is one row.
+    await page.mouse.move(40, 480); await revealed('#tools');
+    const dock = await page.evaluate(() => [...document.querySelectorAll('#tools > button')].filter(el => el.getClientRects().length).map(el => {
+      const r = el.getBoundingClientRect(), icon = el.querySelector(':scope > svg')?.getBoundingClientRect();
+      return { name: el.getAttribute('aria-label'), text: el.innerText.trim(), w: r.width, h: r.height, icon: icon ? [icon.width, icon.height] : null };
+    }));
+    assert.ok(dock.length >= 9, JSON.stringify(dock));
+    for (const button of dock) {
+      assert.equal(button.text, '', `${button.name} shows an icon, not a squeezed text label`);
+      assert.ok(button.name, 'every dock icon has an accessible name');
+      assert.deepEqual(button.icon, [16, 16].map(n => button.name === 'Undo' || button.name === 'Redo' ? 14 : n), `${button.name} has one 16px line icon`);
+      assert.ok(button.w <= 34 && Math.abs(button.w - button.h) <= 6, `${button.name} is a round dock target: ${button.w}x${button.h}`);
+    }
+    await page.evaluate(() => { aegis.apply([{ op: 'create', type: 'note', newId: 'chromegeometry', text: 'FIT3155 Q2 r', x: 0, y: 0, w: 300, h: 120 }]); aegis.canvas.setView({ x: 300, y: 360, z: 1 }); aegis.canvas.select(['chromegeometry']); });
+    await page.waitForFunction(() => { const r = document.getElementById('selectionBar').getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const bar = await page.evaluate(() => {
+      const box = document.getElementById('selectionBar').getBoundingClientRect();
+      const controls = [...document.querySelectorAll('#selectionBar .selection-inline > *')].filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect());
+      const ask = document.querySelector('#selectionBar .selection-ai');
+      return { height: box.height, rows: new Set(controls.map(r => Math.round(r.top + r.height / 2))).size, ask: !!ask, orbs: document.querySelectorAll('#selectionBar .orb-mark').length, ai: ask ? getComputedStyle(ask, '::before').content : 'none' };
+    });
+    assert.ok(bar.height <= 48, `selection bar is one row: ${JSON.stringify(bar)}`);
+    assert.equal(bar.rows, 1, `selection controls share one row: ${JSON.stringify(bar)}`);
+    assert.equal(bar.orbs, bar.ask ? 1 : 0, 'the ask control draws one orb');
+    assert.ok(bar.ai === 'none' || bar.ai === 'normal', `the ask control has no second painted orb: ${bar.ai}`);
+    await shot('selection-geometry');
+    await page.evaluate(() => { aegis.canvas.select([]); aegis.apply([{ op: 'delete', id: 'chromegeometry' }]); }); await idle();
+    console.log('PASS dock buttons are labelled 16px icons and the selection bar is one row with one orb');
+
     await page.evaluate(() => {
       aegis.apply([{ op: 'create', type: 'doc', newId: 'chromedoc', text: 'Working notes', x: 0, y: 0, w: 440, h: 370, props: { body: 'Keep the work in focus.' } },
         { op: 'create', type: 'object', kind: 'reply', newId: 'chromeobject', text: 'A focused view', x: 600, y: 0, w: 440, h: 300, data: { headline: 'A focused view', text: 'A quiet source stays on the board.' } }]);

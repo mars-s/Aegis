@@ -35,6 +35,7 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
   let scheduled = false;
   let disposed = false;
   let waiters: (() => void)[] = [];
+  let gapTimer: ReturnType<typeof setTimeout> | null = null;
 
   function isCurrent(expected: number): boolean {
     return !disposed && expected === port.state.getSnapshot().epoch;
@@ -76,6 +77,16 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
       const current = port.state.getSnapshot();
       const expected = current.epoch;
       const signal = AbortSignal.any([lifetime.signal, boardLifetime.signal]);
+      // An event that continues the confirmed chain keeps its author. Reading the snapshot first
+      // would fold an agent's change into a plain sync and drop its motion and attribution.
+      const next = events[0];
+      if (next?.event.type === 'board' && next.event.baseRev === current.confirmedRevision) {
+        const result = port.accept(expected, next.event);
+        if (result === 'gap') requestSnapshot(next.event.rev);
+        events.shift();
+        queuedBytes -= next.bytes;
+        continue;
+      }
       if (snapshotVersion !== reconciledVersion) {
         const version = snapshotVersion;
         const loaded = await options.client.board(current.boardId, signal);
@@ -105,7 +116,21 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
           continue;
         }
         port.acknowledge(expected, entry.id, saved.value);
-        if (saved.value.ok) requestSnapshot(saved.value.rev);
+        if (saved.value.ok) {
+          const revision = saved.value.rev;
+          // Other authors' revisions before this save are still on their way as events. Give them a
+          // moment so they keep their provenance, then read a snapshot only if one never arrived.
+          if (port.state.getSnapshot().confirmedRevision >= revision - 1 && !events.length) requestSnapshot(revision);
+          else {
+            if (gapTimer) clearTimeout(gapTimer);
+            gapTimer = setTimeout(() => {
+              gapTimer = null;
+              // The revision belongs to this board epoch. After a board switch it would hold the next
+              // board's snapshot to an unreachable revision and stall every save.
+              if (isCurrent(expected) && port.state.getSnapshot().confirmedRevision < revision) requestSnapshot(revision);
+            }, 400);
+          }
+        }
         continue;
       }
       const queued = events[0];
@@ -124,6 +149,7 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
     const current = port.state.getSnapshot();
     if (epoch !== current.epoch) {
       epoch = current.epoch;
+      if (gapTimer) { clearTimeout(gapTimer); gapTimer = null; }
       boardLifetime.abort();
       boardLifetime = new AbortController();
       events = [];
@@ -138,6 +164,7 @@ export function connectWorkspace(options: ConnectionOptions): WorkspaceConnectio
   function dispose(): void {
     if (disposed) return;
     disposed = true;
+    if (gapTimer) clearTimeout(gapTimer);
     lifetime.abort();
     boardLifetime.abort();
     subscription.abort();

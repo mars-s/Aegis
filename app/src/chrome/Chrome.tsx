@@ -25,7 +25,8 @@ import { createMenu } from "../lib/ui/menu.js";
 import { mountDropdowns } from "../lib/ui/dropdown.js";
 import { deleteCards, duplicateCards, groupCards, submit, undoDeletedCards } from "./actions.js";
 import type { Notice, Notify } from "./actions.js";
-import { Icon, MenuButton, PopupButton } from "./controls.js";
+import { MenuButton, PopupButton } from "./controls.js";
+import { Icon, isIconName } from "./icons.js";
 import { Layers } from "./Windows.js";
 import { Library } from "./LibraryView.js";
 import type { LibraryService } from "./library-model.js";
@@ -509,7 +510,7 @@ export function Chrome({
   useLayoutEffect(() => {
     for (const button of dock.current?.querySelectorAll<HTMLElement>('[data-tool]') ?? []) button.hidden = toolbar.hidden.includes(button.dataset.tool ?? '');
   }, [toolbar.hidden, toolbarIdentity]);
-  const toolButton = (id: string) => {
+  const toolButton = (id: string, labelled = false) => {
     if (id === "templates" && library)
       return (
         <Templates
@@ -517,6 +518,7 @@ export function Chrome({
           context={context}
           library={library}
           notify={notify}
+          labelled={labelled}
         />
       );
     if (id === "select")
@@ -525,12 +527,15 @@ export function Chrome({
           key={id}
           type="button"
           data-tool={id}
+          aria-label="Select"
+          title="Select (V)"
           onClick={() => {
             engine.tool(null);
             context.workspace.act({ kind: "select", ids: [] });
           }}
         >
-          Select
+          <Icon name="select" />
+          {labelled ? <span className="tools-label">Select</span> : null}
         </button>
       );
     const action = actions.find((item) => item.id === id);
@@ -539,10 +544,13 @@ export function Chrome({
         key={id}
         type="button"
         data-tool={id}
+        aria-label={action.label}
         title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
         onClick={() => { action.run(context); refreshChrome.current(); }}
       >
-        {action.label}
+        <Icon name={isIconName(id) ? id : "fold"} />
+        {labelled ? <span className="tools-label">{action.label}</span> : null}
+        {labelled && action.shortcut ? <kbd>{action.shortcut.toUpperCase()}</kbd> : null}
       </button>
     ) : null;
   };
@@ -923,6 +931,7 @@ export function Chrome({
             label="Zoom"
             triggerLabel="Zoom menu"
             menuClass="editing-zoom-menu"
+            className="icon-btn"
             items={[
               { title: "Zoom in", shortcut: "+", run: () => zoom(1.25) },
               { title: "Zoom out", shortcut: "−", run: () => zoom(0.8) },
@@ -944,28 +953,35 @@ export function Chrome({
               })),
             ]}
           >
-            <span aria-label="Zoom menu">Zoom</span>
+            <Icon name="zoom" />
           </MenuButton>
           <button
             ref={paletteTrigger}
+            type="button"
+            className="icon-btn"
             aria-label="Commands"
+            title="Commands (⌘P)"
             onClick={() => {
               setQuery("");
               setPalette(true);
             }}
           >
-            Commands
+            <Icon name="command" />
           </button>
           <button
             id="agentsBtn"
+            type="button"
+            className="icon-btn"
+            aria-label="Agents"
+            title="Agents (A)"
             aria-pressed={ui.rightPanel}
             onClick={() => setOpen("right", !ui.rightPanel)}
           >
-            Agents
+            <Icon name="agents" />
           </button>
           {settings ? (
-            <button id="settingsBtn" onClick={settings}>
-              Settings
+            <button id="settingsBtn" type="button" className="icon-btn" aria-label="Settings" title="Settings" onClick={settings}>
+              <Icon name="settings" />
             </button>
           ) : null}
         </div>
@@ -1068,37 +1084,53 @@ export function Chrome({
           ))}
       </aside>
       <nav ref={dock} id="tools" aria-label="Canvas tools">
-        {dockIds.slice(0, 7).map(toolButton)}
+        {dockIds.slice(0, 7).map(id => toolButton(id))}
         <PopupButton
           label="More tools"
           triggerId="toolsFold"
           menuId="toolsPopover"
           closeOnResize
           className="tools-popover"
+          caption={<Icon name="more" />}
+          placement="right"
         >
-          <div className="tools-grid">{dockIds.slice(7).filter(id => toolbar.order.length || !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+          <section>
+            <h3>Create</h3>
+            <div className="tools-grid">{dockIds.slice(7).filter(id => toolbar.order.length || !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(id => toolButton(id, true))}</div>
+          </section>
           {!toolbar.order.length && dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
             <h3>Media</h3>
-            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(toolButton)}</div>
+            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(id => toolButton(id, true))}</div>
           </section> : null}
-          <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}>Add as notes</button>
-          {customiseToolbar ? (
-            <button aria-label="Customise toolbar" onClick={customiseToolbar}>
-              Customise toolbar
-            </button>
-          ) : null}
+          <footer className="tools-footer">
+            <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}><Icon name="note" /><span className="tools-label">Add as notes</span></button>
+            {customiseToolbar ? (
+              <button type="button" className="tools-customise" aria-label="Customise toolbar" data-popup-close onClick={customiseToolbar}>
+                <Icon name="settings" /><span className="tools-label">Customise toolbar</span>
+              </button>
+            ) : null}
+          </footer>
         </PopupButton>
+        <span className="tools-sep" aria-hidden="true" />
         <button
+          type="button"
+          className="tools-history"
+          aria-label="Undo"
+          title="Undo (⌘Z)"
           disabled={!history.undo}
           onClick={() => context.workspace.undo()}
         >
-          Undo
+          <Icon name="undo" />
         </button>
         <button
+          type="button"
+          className="tools-history"
+          aria-label="Redo"
+          title="Redo (⇧⌘Z)"
           disabled={!history.redo}
           onClick={() => context.workspace.redo()}
         >
-          Redo
+          <Icon name="redo" />
         </button>
       </nav>
       <KeyboardHints />

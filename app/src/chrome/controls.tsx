@@ -92,43 +92,7 @@ export function ValuePicker({
   return <span ref={host} className="chrome-value-picker" />;
 }
 
-export function Icon({
-  name,
-}: {
-  readonly name:
-    | "more"
-    | "left"
-    | "right"
-    | "close"
-    | "fold"
-    | "window"
-    | "lock"
-    | "hidden"
-    | "rotate"
-    | "align"
-    | "colour"
-    | "ai";
-}) {
-  const path = {
-    more: "M3 8h.01M8 8h.01M13 8h.01",
-    left: "m10 4-4 4 4 4",
-    right: "m6 4 4 4-4 4",
-    close: "m4 4 8 8M12 4l-8 8",
-    fold: "M3 8h10M8 3v10",
-    window: "M3 3h10v10H3zM3 6h10",
-    lock: "M4 7h8v6H4zM5 7V5a3 3 0 0 1 6 0v2",
-    hidden: "m2 2 12 12M6 4c4-1 7 2 8 4l-2 3M9 12c-4 1-6-2-7-4l2-3",
-    rotate: "M12.5 6a5 5 0 1 0 .5 4M9 6h4V2",
-    align: "M3 4h10M3 8h6M3 12h10",
-    colour: "M8 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12M8 2v12",
-    ai: "m8 2 1.5 4.5L14 8l-4.5 1.5L8 14l-1.5-4.5L2 8l4.5-1.5Z",
-  }[name];
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d={path} />
-    </svg>
-  );
-}
+export { Icon } from './icons.js';
 
 export function MenuButton({
   label,
@@ -188,6 +152,7 @@ export function MenuButton({
       type="button"
       className={className}
       aria-label={triggerLabel ?? label}
+      title={label}
       disabled={disabled}
       tabIndex={tabIndex}
       data-project-cover={dataProjectCover}
@@ -205,6 +170,7 @@ export function PopupButton({
   triggerId,
   menuId,
   closeOnResize = false,
+  placement = "bottom",
 }: {
   readonly label: string;
   readonly children: ReactNode;
@@ -213,6 +179,7 @@ export function PopupButton({
   readonly triggerId?: string;
   readonly menuId?: string;
   readonly closeOnResize?: boolean;
+  readonly placement?: "bottom" | "right";
 }) {
   const button = useRef<HTMLButtonElement>(null),
     content = useRef<HTMLDivElement>(null);
@@ -224,6 +191,7 @@ export function PopupButton({
       menu: content.current,
       role: "dialog",
       duration: 160,
+      placement,
       onToggle: (opened) => {
         if (opened) button.current?.focus({ preventScroll: true });
       },
@@ -232,10 +200,10 @@ export function PopupButton({
     const resized = () => { if (closeOnResize) popup.close(false, true); };
     window.addEventListener("resize", resized);
     return () => { window.removeEventListener("resize", resized); popup.destroy(); controller.current = null; };
-  }, [label, closeOnResize]);
+  }, [label, closeOnResize, placement]);
   return (
     <>
-      <button ref={button} id={triggerId} type="button" aria-label={label}>
+      <button ref={button} id={triggerId} type="button" aria-label={label} title={caption ? label : undefined}>
         {caption ?? label}
       </button>
       <div

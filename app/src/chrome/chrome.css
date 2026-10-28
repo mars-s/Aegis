@@ -379,46 +379,112 @@
   text-align: left;
   margin: 0 8px 4px;
 }
+/* The dock is one quiet capsule of line icons, the same family as the old Svelte rail. */
 .aegis-chrome #tools {
   position: absolute;
   top: 56px;
   left: calc(var(--side-w, 0px) + 12px);
   display: flex;
   flex-direction: column;
-  width: 48px;
-  gap: 3px;
+  align-items: center;
+  width: 44px;
+  gap: 2px;
   padding: 4px;
   z-index: 34;
-  border-radius: 10px;
-  background: var(--color-surface);
+  border-radius: 22px;
+  background: var(--pill);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--edge-top);
 }
-.aegis-chrome #tools button {
-  width: 40px;
-  padding: 6px 2px;
-  min-height: 36px;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.aegis-chrome #tools > button,
+.aegis-chrome #tools > :is(#toolsFold) {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 17px;
+  color: var(--muted);
+  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out);
 }
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome #tools > button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+}
+.aegis-chrome #tools > button[aria-pressed="true"],
+.aegis-chrome #tools > #toolsFold[aria-expanded="true"] { color: var(--text); background: var(--press); }
+.aegis-chrome #tools > button[data-tool="select"][aria-pressed="true"] { color: var(--canvas); background: var(--text); }
+.aegis-chrome #tools > button:disabled { opacity: .32; }
+.aegis-chrome #tools svg { width: 16px; height: 16px; stroke-width: 1.4; }
+.aegis-chrome #tools .tools-sep { flex: none; width: 18px; height: 1px; margin: 3px 0; background: var(--line-strong); }
+.aegis-chrome #tools > .tools-history { width: 30px; height: 28px; min-height: 28px; }
+.aegis-chrome #tools > .tools-history svg { width: 14px; height: 14px; }
+/* The selection bar is one row: ask, format or open, then object actions and More. */
 .aegis-chrome .selection-bar {
   position: absolute;
   left: 0;
   top: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-height: 38px;
+  min-height: 40px;
   padding: 3px;
-  border-radius: 10px;
-  background: var(--color-float);
+  border-radius: 12px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  box-shadow: inset 0 1px 0 var(--edge-top), 0 12px 32px rgb(0 0 0 / .45);
   z-index: 42;
   max-width: calc(100vw - 24px);
-  box-shadow: var(--shadow-float);
+  color: var(--ink-2);
+  font-size: 12px;
+  transform-origin: 50% 100%;
 }
-.aegis-chrome .selection-bar button,
-.aegis-chrome .selection-bar summary {
-  padding: 6px 8px;
+/* Pointer selection eases the bar in; keyboard selection shows it at once. */
+.aegis-chrome .selection-bar.selection-enter { animation: selection-bar-in 160ms var(--ease-out); }
+@keyframes selection-bar-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; }
+.aegis-chrome .selection-inline {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 2px;
+  width: max-content;
+  max-width: 100%;
 }
+.aegis-chrome .selection-inline > * { flex: none; }
+.aegis-chrome .selection-bar :is(button, summary) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 8px;
+  color: inherit;
+  white-space: nowrap;
+}
+.aegis-chrome .selection-bar :is(button, summary):not(.selection-text) { padding: 0; width: 32px; }
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .selection-bar :is(button, summary):hover:not(:disabled) { background: var(--hover); color: var(--text); }
+  .aegis-chrome .selection-bar .selection-danger:hover:not(:disabled) { color: var(--ui-danger); }
+}
+.aegis-chrome .selection-bar :is(button[aria-pressed="true"], button[aria-expanded="true"], details[open] > summary) { background: var(--press); color: var(--text); }
+.aegis-chrome .selection-bar svg { width: 16px; height: 16px; stroke-width: 1.4; }
+.aegis-chrome .selection-count { padding: 0 8px 0 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.aegis-chrome .selection-bar .selection-ai { width: 32px; padding: 0; }
+.aegis-chrome .selection-bar .selection-ai-mark { display: grid; place-items: center; width: 18px; height: 18px; }
+.aegis-chrome .selection-bar .selection-ai .orb-mark { width: 18px; height: 18px; }
+.aegis-chrome .selection-bar .selection-ai + :is(button, span, details)::before,
+.aegis-chrome .selection-bar .selection-count + .selection-ai::after { content: none; }
+.aegis-chrome .selection-bar .selection-ai { margin-right: 3px; position: relative; }
+.aegis-chrome .selection-bar .selection-ai::after { content: ''; position: absolute; right: -3px; top: 8px; bottom: 8px; width: 1px; background: var(--line-strong); }
+.aegis-chrome .selection-bar .inline-size .selection-row { display: flex; height: 32px; min-height: 32px; gap: 0; }
+.aegis-chrome .selection-bar .inline-size .selection-row > span:first-child { display: none; }
+.aegis-chrome .selection-bar .inline-size .aegis-stepper.aegis-stepper { grid-template-columns: 26px 34px 26px; width: 86px; min-width: 86px; height: 32px; }
+.aegis-chrome .selection-bar .inline-size .aegis-stepper.aegis-stepper > button { width: 26px; min-width: 26px; color: var(--muted); }
+.aegis-chrome .selection-bar .inline-size .aegis-stepper.aegis-stepper > input { width: 34px; min-width: 34px; height: 26px; min-height: 26px; border-color: transparent; background: transparent; color: var(--text); }
+.aegis-chrome .selection-bar .inline-size .aegis-stepper.aegis-stepper > input:is(:hover, :focus) { background: var(--inset); border-color: var(--line); }
 .aegis-chrome .selection-more {
   display: inline-block;
 }
@@ -541,24 +607,41 @@
 }
 .aegis-chrome .rotation-handle {
   position: absolute;
-  left: calc(50% - 16px);
+  left: calc(50% - 12px);
   top: -32px;
   pointer-events: auto;
-  width: 32px;
-  height: 32px;
-  padding: 8px;
-  background: var(--color-float);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 12px;
+  color: var(--muted);
+  background: var(--raised);
+  border: 1px solid var(--line-strong);
   cursor: grab;
 }
+.aegis-chrome .rotation-handle::before { content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: 8px; background: var(--line-strong); }
+.aegis-chrome .rotation-handle svg { width: 12px; height: 12px; }
+.aegis-chrome .rotation-handle:hover { color: var(--text); background: var(--raised); }
+.aegis-chrome .rotation-handle:active { cursor: grabbing; }
 .aegis-chrome .selection-resize {
   position: absolute;
-  right: -32px;
-  bottom: -32px;
+  right: -5px;
+  bottom: -5px;
   pointer-events: auto;
-  width: 32px;
-  height: 32px;
+  width: 10px;
+  height: 10px;
+  min-height: 10px;
+  padding: 0;
+  border-radius: 3px;
+  background: var(--text);
+  border: 1.5px solid var(--canvas);
   cursor: nwse-resize;
 }
+.aegis-chrome .selection-resize::after { content: ''; position: absolute; inset: -8px; }
+.aegis-chrome .selection-resize:hover { background: var(--text); transform: scale(1.2); }
 .aegis-chrome .toast {
   position: absolute;
   bottom: 96px;
@@ -723,11 +806,45 @@
     border-color: var(--color-muted);
   }
 }
-.aegis-chrome .tools-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(72px, 1fr));
-  gap: 4px;
+/* More tools: a palette of icon tiles with names, grouped like the dock. */
+.aegis-chrome .tools-popover { width: min(380px, calc(100vw - 80px)); max-height: calc(100dvh - 96px); overflow: auto; padding: 6px; }
+.aegis-chrome .tools-popover section { padding: 6px 2px; }
+.aegis-chrome .tools-popover section + section { border-top: 1px solid var(--line); }
+.aegis-chrome .tools-popover h3 { margin: 2px 8px 6px; color: var(--faint); font-size: 11px; font-weight: 500; letter-spacing: .01em; }
+.aegis-chrome .tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
+.aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  text-align: left;
+  color: var(--ink-2);
 }
+.aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button > svg {
+  box-sizing: content-box;
+  width: 14px;
+  height: 14px;
+  padding: 6px;
+  border-radius: 7px;
+  background: var(--inset);
+  box-shadow: inset 0 0 0 1px var(--line);
+  stroke-width: 1.4;
+  transition: color 120ms var(--ease-out), box-shadow 120ms var(--ease-out);
+}
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button:hover { color: var(--text); background: var(--hover); }
+  .aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button:hover > svg { box-shadow: inset 0 0 0 1px var(--line-strong); }
+}
+.aegis-chrome .tools-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.aegis-chrome .tools-grid kbd { position: absolute; right: 8px; top: 50%; translate: 0 -50%; padding: 1px 5px; background: var(--raised); border: 1px solid var(--line); border-radius: 4px; color: var(--faint); font-size: 10px; line-height: 1.4; opacity: 0; transition: opacity 120ms var(--ease-out); }
+.aegis-chrome .tools-grid button:is(:hover, :focus-visible) kbd { opacity: 1; }
+.aegis-chrome .tools-footer { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 6px 2px 2px; border-top: 1px solid var(--line); }
+.aegis-chrome .tools-footer .tools-customise { color: var(--muted); }
+.aegis-chrome .tools-footer .tools-customise > svg { background: transparent; box-shadow: none; }
 .aegis-chrome .side.panel-drop {
   display: flex !important;
   border-color: var(--color-muted);
@@ -771,17 +888,8 @@ body.left-open .aegis-chrome .bar-left {
 .aegis-chrome [data-panel="layers"] > .pbody {
   height: auto;
 }
-.aegis-chrome .selection-bar .inline-size .selection-row {
-  height: 32px;
-}
 .aegis-chrome .selection-bar .inline-size .selection-row > span:first-child {
   display: none;
-}
-.aegis-chrome .selection-bar .inline-size .aegis-stepper button {
-  width: 24px;
-}
-.aegis-chrome .selection-bar .inline-size .aegis-stepper {
-  width: 80px;
 }
 .aegis-chrome .side-resize {
   position: absolute;
@@ -864,22 +972,10 @@ body.left-open .aegis-chrome .bar-left {
   font-weight: 500;
   color: var(--color-muted);
 }
-body[data-tool-size="small"] .aegis-chrome #tools {
-  width: 40px;
-}
-body[data-tool-size="small"] .aegis-chrome #tools [data-tool] {
-  width: 32px;
-  min-height: 32px;
-  height: 32px;
-}
-body[data-tool-size="large"] .aegis-chrome #tools {
-  width: 52px;
-}
-body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
-  width: 44px;
-  min-height: 44px;
-  height: 44px;
-}
+body[data-tool-size="small"] .aegis-chrome #tools { width: 38px; border-radius: 19px; }
+body[data-tool-size="small"] .aegis-chrome #tools > :is([data-tool], #toolsFold) { width: 28px; min-height: 28px; height: 28px; }
+body[data-tool-size="large"] .aegis-chrome #tools { width: 50px; border-radius: 25px; }
+body[data-tool-size="large"] .aegis-chrome #tools > :is([data-tool], #toolsFold) { width: 40px; min-height: 40px; height: 40px; border-radius: 20px; }
 
 .aegis-chrome .selection-menu-action { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .aegis-chrome .selection-value { flex: 0 1 96px; max-width: 96px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--font); }
@@ -902,7 +998,8 @@ body[data-tool-size="large"] .aegis-chrome #tools [data-tool] {
 .aegis-chrome .adds button { --button-height: 32px; --button-padding: 5px 9px; }
 
 
-#world > .card.selected:not(.editor-source, .coll, .template-group) { outline: 1px solid var(--muted); outline-offset: 0; }
+/* One selection ring: a bright hairline on the window's own edge, never a second frame around it. */
+#world > .card.selected:not(.editor-source, .coll, .template-group) { outline: 1px solid rgb(255 255 255 / .62); outline-offset: -1px; }
 
 #toast[hidden]:not(.toast-leaving) { display: none !important; }
 .react-stage .card :is(.win-strip, .deck-title-strip) { height: 36px; min-height: 36px; padding: 0 4px 0 16px; gap: 4px; background: var(--strip); box-shadow: none; border-bottom: 1px solid var(--line); font: 400 13px/20px var(--font); letter-spacing: 0; }
@@ -920,4 +1017,30 @@ body.left-open .aegis-chrome .editing-hints { visibility: hidden; }
 @media (max-height: 650px) { .aegis-chrome .editing-hints { display: none; } }
 @media (hover: none) { .aegis-chrome .editing-hints { opacity: .65; } }
 
-.aegis-chrome .tools-add-notes { min-height: 44px; }
+
+/* Top bar: quiet round icon buttons, a small Follow switch and a muted save state. */
+.aegis-chrome .bar-right { gap: 2px; }
+.aegis-chrome .bar :is(.icon-btn, #followBtn, #showChip, #retrySave) { border-radius: 16px; color: var(--muted); transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out); }
+.aegis-chrome .bar .icon-btn svg { width: 16px; height: 16px; stroke-width: 1.4; }
+@media (hover: hover) and (pointer: fine) {
+  .aegis-chrome .bar :is(.icon-btn, #followBtn):hover { color: var(--text); background: var(--hover); }
+}
+.aegis-chrome .bar .icon-btn[aria-pressed="true"],
+.aegis-chrome .bar .icon-btn[aria-expanded="true"] { color: var(--text); background: var(--press); }
+.aegis-chrome .bar [data-saved] { padding: 0 8px; color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+.aegis-chrome .bar [data-save-state="saving"] { color: var(--muted); }
+.aegis-chrome .bar #status:empty { display: none; }
+.aegis-chrome .bar #status { padding: 0 6px; color: var(--data); font-size: 12px; white-space: nowrap; }
+.aegis-chrome #followBtn { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 10px 0 7px; font-size: 12px; }
+.aegis-chrome #followBtn .knob { position: relative; width: 24px; height: 14px; border-radius: 7px; background: var(--line-strong); transition: background-color 180ms var(--ease-out); }
+.aegis-chrome #followBtn .knob::after { content: ''; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: transform 180ms var(--ease-out), background-color 180ms var(--ease-out); }
+.aegis-chrome #followBtn[aria-checked="true"] { color: var(--text); }
+.aegis-chrome #followBtn[aria-checked="true"] .knob { background: var(--data); }
+.aegis-chrome #followBtn[aria-checked="true"] .knob::after { transform: translateX(10px); background: #fff; }
+.aegis-chrome #showChip { height: 28px; min-height: 28px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--data) 45%, transparent); color: var(--text); font-size: 12px; background: var(--data-soft); }
+.aegis-chrome #showChip:hover { background: color-mix(in srgb, var(--data) 26%, transparent); }
+.aegis-chrome #sideBtn { color: var(--muted); }
+/* The edge arrows are small round handles, not slabs of surface. */
+.aegis-chrome .reveal-arrow { display: grid; place-items: center; width: 44px; padding: 0; background: transparent !important; }
+.aegis-chrome .reveal-arrow svg { box-sizing: content-box; width: 14px; height: 14px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--raised); color: var(--text); }
+.aegis-chrome .reveal-arrow:hover svg { border-color: var(--muted); }
