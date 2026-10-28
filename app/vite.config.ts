@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { z } from 'zod';
 import react from '@vitejs/plugin-react';
 import { browserTestEntries } from '../scripts/browser-test-entries.ts';
 import { productionBrowser } from '../scripts/production-browser.ts';
@@ -9,8 +10,11 @@ import { fileURLToPath } from 'node:url';
 import { pdfResources } from '../scripts/pdf-resources.ts';
 
 // The native app's version, shown in Settings > About. A copied UI without the Tauri folder says 'dev'.
-function nativeVersion() {
-  try { return JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8')).version; } catch { return 'dev'; }
+function nativeVersion(): string {
+  try {
+    const value: unknown = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+    return z.object({ version: z.string() }).parse(value).version;
+  } catch { return 'dev'; }
 }
 
 const implementation = uiImplementation(process.env.AEGIS_UI_IMPL);

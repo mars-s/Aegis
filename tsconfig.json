@@ -3,7 +3,8 @@
   "compilerOptions": {
     "noEmit": true,
     "types": [
-      "node"
+      "node",
+      "vite/client"
     ],
     "lib": [
       "ES2023",
@@ -18,6 +19,7 @@
     "vitest.config.ts",
     "checks/unit/domain/**/*.ts",
     "checks/support/**/*.ts",
-    "checks/unit/**/*.ts"
+    "checks/unit/**/*.ts",
+    "app/vite.config.ts"
   ]
 }
