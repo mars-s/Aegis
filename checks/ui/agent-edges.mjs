@@ -92,8 +92,8 @@ try {
   // Exercise both public shared menu factories while their anchor moves through layout.
   await page.setViewportSize({ width: 1440, height: 720 });
   await page.evaluate(async () => {
-    const { createMenu } = await import('/src/lib/ui/menu.js');
-    const { createDropdown } = await import('/src/lib/ui/dropdown.js');
+    const { createMenu } = await import('/src/lib/ui/menu.ts');
+    const { createDropdown } = await import('/src/lib/ui/dropdown.ts');
     const root = document.createElement('div'); root.id = 'r6MenuFixture';
     Object.assign(root.style, { position: 'fixed', top: '10px', right: '10px', width: '260px', zIndex: '100' });
     const spacer = document.createElement('div'); spacer.id = 'r6MenuSpacer'; root.append(spacer);

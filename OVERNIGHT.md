@@ -26,6 +26,9 @@ fragile. "Jarvis's table, built by Apple."
   `~/Library/Application Support/Aegis` except the live MCP connection file.
 - No Docker restarts, no builds that fill the disk. Check free space first.
 - Plain Australian English, no em dashes, no AI tells.
+- Browser-side `import('/src/...')` inside a check must use the real `.ts`
+  path. With `.js` the dev server serves a second copy of the module, so state
+  set by the check never reaches the app. This broke docs and agent-edges.
 - Verify in the running app or the built UI, not only in unit tests.
 
 ## Queue
@@ -33,8 +36,8 @@ fragile. "Jarvis's table, built by Apple."
 1. **MCP presence.** Done 2026-10-28: a lasting "Local MCP changed N cards"
    chip on the canvas, plus the existing agent line. Follow-up: pass the real
    client name through the bridge instead of the hardcoded "Local MCP".
-2. **Pre-existing UI suite failures.** These four fail at the base commit
-   `ee8384c` and are unrelated to recent work. Fix one per tick.
+2. **Pre-existing UI suite failures.** These four failed at the base commit
+   `ee8384c`. All four are fixed as of 2026-10-29; the list stays as history.
    - `checks/ui/docs.mjs`: `waitForFunction` timeout.
    - `checks/ui/wireframe.mjs`: NaN attribute at line 262.
    - `checks/ui/genui.mjs`: `$RefreshSig$` not defined in the Vite dev path.
@@ -106,3 +109,13 @@ fragile. "Jarvis's table, built by Apple."
 - Import the real `.ts` path, and set the facade flag in the check so a
   standalone run matches `run.mjs`.
 - `checks/ui/docs.mjs` passes with 17 sections. Next: agent-edges.
+
+### 2026-10-29, tick at 1:25am
+
+- Fixed the last of the four UI suites: agent-edges. Same trap as docs. The
+  fixture imported `/src/lib/ui/dropdown.js`, which is a second copy of the
+  dropdown module, so its shared popup registry was empty and End did not move
+  focus to the last option.
+- Importing `/src/lib/ui/dropdown.ts` and `/src/lib/ui/menu.ts` fixes it.
+- All four suites now pass. Next: wire `npm run check:runtime` into
+  `npm run check`.
