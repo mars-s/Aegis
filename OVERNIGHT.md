@@ -15,13 +15,8 @@ fragile. "Jarvis's table, built by Apple."
 - Work on `main` in `/Users/avi/Documents/ChatGPT/aegis`. Small commits.
 - `npm run check` must pass before every commit. If it fails, fix or revert,
   never commit red.
-- Another session owns the sidebar redesign on branch
-  `claude/sidebar-cursor-redesign-97b378`. Do not touch:
-  `app/src/chrome/*`, `app/src/lib/ui/rows.css`,
-  `app/src/platform/available-area.ts`, `app/src/styles/buttons.css`,
-  `checks/ui/canvas-chrome.mjs`, `checks/ui/library.mjs`,
-  `checks/ui/controls-polish.mjs`, `checks/ui/design-system.mjs`,
-  `checks/ui/editing.mjs`, `checks/ui/sandbox-lifecycle.mjs`.
+- The sidebar redesign merged on 2026-10-29 as PR #27 (`fd65952`), so the old
+  ownership list is lifted. Those files are normal to edit now.
 - Tests use a temporary `AEGIS_DATA`. Never read or write
   `~/Library/Application Support/Aegis` except the live MCP connection file.
 - No Docker restarts, no builds that fill the disk. Check free space first.
@@ -161,8 +156,7 @@ fragile. "Jarvis's table, built by Apple."
 ## Next
 
 1. `checks/ui/editing.mjs` still imports `/src/features/editing/board-export.js`.
-   It is on the sidebar session's list, so it waits until that branch lands.
-   The real path is `.tsx`.
+   Unblocked now that the sidebar branch merged. The real path is `.tsx`.
 2. Run the whole UI suite once (`node checks/ui/run.mjs`) and triage anything
    else that is red. It takes about an hour, so give it its own tick.
 3. Document card typography against the comp, if the owner wants it tighter.
@@ -296,3 +290,14 @@ fragile. "Jarvis's table, built by Apple."
   is that an open Library panel covers it; no code change.
 - Still open: the document default width (480 vs the comp's 748) and the orb
   click that grants dictation permission.
+
+### 2026-10-29, merge of PR #27
+
+- Merged the sidebar redesign. Dry-run found no conflicts; merged locally and
+  ran the gate (45 test files, 157 host tests) plus the eight browser suites it
+  touches: canvas-chrome, library, controls-polish, design-system, editing,
+  media, sandbox-lifecycle, data-trust. All green.
+- Merged on GitHub pinned to the tested head commit, then pulled. Main is at
+  `fd65952`. The branch was left in place for the other worktree.
+- Rebuilt, installed and relaunched the app. Healthy, Demo assignment intact at
+  revision 29, and the binary embeds `index-DExjER3_.js`.
