@@ -9,15 +9,10 @@ const OkSchema = z.object({ ok: z.literal(true) });
 // Item 9 uses the real durable host and board tools, with a prompt-sensitive local model.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import { mkdtemp } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { hostFixture } from './fixture.ts';
 import { conversationFromView, displayBrief } from '../../agent/dist/status.js';
 
-let child: ChildProcessWithoutNullStreams, base = '';
-const token = 'island-chat-' + process.pid;
+let host: Awaited<ReturnType<typeof hostFixture>>, base = '', token = '';
 const answer = 'I grouped your existing cards by topic and kept every card. '.repeat(18);
 const fixture = `
 import assert from 'node:assert/strict';
@@ -57,15 +52,10 @@ const step = async ctx => { try { return await respond(ctx); } catch (e) { conso
 fake.setResponses([step]);
 `;
 before(async () => {
-  child = spawn(process.execPath, ['--no-warnings', '--input-type=module', '-e', fixture], {
-    cwd: new URL('../../agent/', import.meta.url).pathname,
-    env: { ...process.env, AEGIS_DATA: await mkdtemp(join(tmpdir(), 'aegis-island-chat-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
-  });
-  child.stderr.on('data', d => process.stderr.write(d));
-  const port = await new Promise<string>((ok, no) => { child.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m?.[1]) ok(required(m[1])); }); child.on('exit', c => no(Error('host exited ' + c))); });
-  base = `http://127.0.0.1:${port}`;
+  host = await hostFixture({ args: ['--input-type=module', '-e', fixture] });
+  base = host.base; token = host.token;
 });
-after(() => child?.kill());
+after(async () => { await host?.close(); });
 async function call<S extends z.ZodType>(path: string, body: unknown, schema: S): Promise<z.output<S>> {
   const r = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
   assert.equal(r.status, 200); const value: unknown = await r.json(); return schema.parse(value);

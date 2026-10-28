@@ -3,6 +3,7 @@ import type { CallToolRequest } from '../../agent/node_modules/@modelcontextprot
 import { z } from 'zod/v4';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { BoardSchema } from '@aegis/domain/schema';
+import { reserveHostPort } from './ports.ts';
 import { required } from './required.ts';
 const ReadySchema = z.object({ aegis: z.literal('ready'), port: z.number() });
 const BoardSummarySchema = z.object({ id: z.string(), name: z.string(), rev: z.number() });
@@ -33,9 +34,11 @@ const root = new URL('../..', import.meta.url).pathname;
 const token = `mcp-check-${process.pid}`;
 let data = '', base = '';
 let child: ChildProcessWithoutNullStreams, httpClient: Client, stdioClient: Client;
+let hostLease: Awaited<ReturnType<typeof reserveHostPort>> | undefined;
 async function startHost() {
+  hostLease ??= await reserveHostPort();
   child = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
-    cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
+    cwd: root + '/agent', env: { ...process.env, AEGIS_DATA: data, AEGIS_PORT: String(hostLease.port), AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   let errors = '';
@@ -75,6 +78,7 @@ before(async () => {
 after(async () => {
   await Promise.allSettled([httpClient?.close(), stdioClient?.close()]);
   if (child?.exitCode === null) await stopHost();
+  await hostLease?.release();
   await rm(data, { recursive: true, force: true });
 });
 

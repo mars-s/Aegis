@@ -1,6 +1,7 @@
 import { z } from 'zod/v4';
 import { BoardSchema } from '@aegis/domain/schema';
 import { HostEventSchema } from '@aegis/protocol/http';
+import { hostFixture } from './fixture.ts';
 import { required } from './required.ts';
 const ModelSchema = z.object({ provider: z.string(), modelId: z.string() });
 const AgentSchema = z.object({ id: z.string(), statusModel: ModelSchema, status: z.string(), running: z.boolean(), revision: z.number() });
@@ -52,13 +53,9 @@ test('Pi Durable activity includes current tool arguments and streamed partial t
 });
 
 test('the real host broadcasts fake status while running, retains the model choice and stops', async () => {
-  const { spawn } = await import('node:child_process'); const { mkdtemp } = await import('node:fs/promises'); const { tmpdir } = await import('node:os'); const { join } = await import('node:path');
-  const token = 'status-check-' + process.pid;
-  const child = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], { cwd: new URL('../../agent/', import.meta.url).pathname, env: { ...process.env, AEGIS_DATA: await mkdtemp(join(tmpdir(), 'aegis-status-')), AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_FAKE_DELAY_MS: '1200' }, stdio: ['ignore', 'pipe', 'pipe'] });
-  const abort = new AbortController();
+  const host = await hostFixture({ extra: { AEGIS_FAKE_DELAY_MS: '1200' } });
+  const token = host.token, base = host.base, abort = new AbortController();
   try {
-    const port = await new Promise<string>((resolve, reject) => { child.stdout.on('data', d => { const m = /"port":(\d+)/.exec(String(d)); if (m?.[1]) resolve(m[1]); }); child.on('exit', code => reject(Error('Host exited ' + code))); });
-    const base = `http://127.0.0.1:${port}`;
     const call = async <S extends z.ZodType>(path: string, body: unknown, schema: S): Promise<z.output<S>> => {
       const response = await fetch(base + path, { method: body ? 'POST' : 'GET', headers: { authorization: `Bearer ${token}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
       const value: unknown = await response.json(); return schema.parse(value);
@@ -83,5 +80,5 @@ test('the real host broadcasts fake status while running, retains the model choi
     let stopped: z.output<typeof AgentSchema> | undefined; for (let i = 0; i < 50; i++) { [stopped] = await call('/agents?board=' + board.id, undefined, z.array(AgentSchema)); if (!required(stopped).running) break; await new Promise(r => setTimeout(r, 50)); }
     assert.equal(required(stopped).running, false); assert.equal(required(stopped).status, 'Stopped');
     assert.ok(required(stopped).revision > agent.revision);
-  } finally { abort.abort(); child.kill(); }
+  } finally { abort.abort(); await host.close(); }
 });

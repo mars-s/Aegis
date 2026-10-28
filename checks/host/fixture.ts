@@ -7,16 +7,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod/v4';
+import { reserveHostPort } from './ports.ts';
 
 const ReadySchema = z.object({ aegis: z.literal('ready'), port: z.number().int().positive() });
-export async function hostFixture(options: { record?: (value: unknown) => void; prepare?: (data: string) => Promise<void>; ui?: string; extra?: Readonly<Record<string, string>> | ((data: string) => Readonly<Record<string, string>>) } = {}) {
+export async function hostFixture(options: { args?: readonly string[]; record?: (value: unknown) => void; prepare?: (data: string) => Promise<void>; ui?: string; extra?: Readonly<Record<string, string>> | ((data: string) => Readonly<Record<string, string>>) } = {}) {
   const data = await mkdtemp(join(tmpdir(), 'aegis-ts-host-')), cache = await mkdtemp(join(tmpdir(), 'aegis-ts-cache-')), token = randomUUID();
   let child: ChildProcessWithoutNullStreams | undefined, base = '';
+  let lease: Awaited<ReturnType<typeof reserveHostPort>> | undefined;
   async function start(): Promise<void> {
+    lease ??= await reserveHostPort();
     let diagnostics = '', output = '';
-    const processHost = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
+    const processHost = spawn(process.execPath, ['--no-warnings', ...(options.args ?? ['dist/main.js'])], {
       cwd: new URL('../../agent/', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4600', AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(options.ui ? { AEGIS_UI: options.ui } : {}), ...(typeof options.extra === 'function' ? options.extra(data) : options.extra) },
+      env: { ...process.env, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4600', AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT: String(lease.port), AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(options.ui ? { AEGIS_UI: options.ui } : {}), ...(typeof options.extra === 'function' ? options.extra(data) : options.extra) },
     });
     child = processHost;
     processHost.stderr.on('data', bytes => { diagnostics = (diagnostics + String(bytes)).slice(-8000); });
@@ -52,8 +55,8 @@ export async function hostFixture(options: { record?: (value: unknown) => void; 
     assert.equal(result.status, 200, JSON.stringify(decoded)); return decoded;
   }
   try { await options.prepare?.(data); await start(); }
-  catch (error) { await stop(); await rm(data, { recursive: true, force: true }); await rm(cache, { recursive: true, force: true }); throw error; }
+  catch (error) { await stop(); await rm(data, { recursive: true, force: true }); await rm(cache, { recursive: true, force: true }); await lease?.release(); throw error; }
   return { data, token, get base() { return base; }, json, response, start, stop,
-    async close(): Promise<void> { await stop(); await Promise.all([rm(data, { recursive: true, force: true }), rm(cache, { recursive: true, force: true })]); },
+    async close(): Promise<void> { await stop(); await lease?.release(); await Promise.all([rm(data, { recursive: true, force: true }), rm(cache, { recursive: true, force: true })]); },
   };
 }
