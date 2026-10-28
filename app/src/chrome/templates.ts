@@ -1,6 +1,6 @@
 // Ported from Mochiboard, MIT. See LICENSE.mochiboard.
 import { CardIdSchema, LinkIdSchema } from "@aegis/domain";
-import type { Board, CardId, Command } from "@aegis/domain";
+import type { Board, Card, CardId, Command } from "@aegis/domain";
 
 type Positioned = {
   readonly x: number;
@@ -355,4 +355,26 @@ export function templateCommands(
     commands.push({ op: "board_set", set: { tray } });
   }
   return commands;
+}
+
+export function expandTemplateDrag(cards: readonly Card[], board: Pick<Board, "cards">): Card[] {
+  const ids = new Set(cards.map(card => card.id));
+  for (const parent of cards) {
+    if (parent.type !== "template-group") continue;
+    for (const child of board.cards) if (child.parent === parent.id) ids.add(child.id);
+  }
+  return board.cards.filter(card => ids.has(card.id));
+}
+
+export function templateDropCommands(cards: readonly Card[], board: Pick<Board, "cards">, kind: "move" | "resize"): Command[] {
+  if (kind !== "move") return [];
+  return cards.filter(card => card.type === "note").flatMap((card): Command[] => {
+    if (cards.some(parent => parent.id === card.parent && parent.type === "template-group")) return [];
+    const centre = { x: card.x + card.w / 2, y: card.y + card.h / 2 };
+    const group = [...board.cards].reverse().find(parent => parent.type === "template-group" && centre.x > parent.x && centre.x < parent.x + parent.w && centre.y > parent.y && centre.y < parent.y + parent.h);
+    const previous = board.cards.find(parent => parent.id === card.parent);
+    if (!group && previous?.type !== "template-group") return [];
+    if ((card.parent ?? "") === (group?.id ?? "")) return [];
+    return [{ op: "update", id: card.id, set: { parent: group?.id ?? "" } }];
+  });
 }
