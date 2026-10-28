@@ -1,34 +1,71 @@
+import './register.ts';
 import { z } from 'zod/v4';
-import { CardSchema, CommandSchema, LinkSchema, CardIdSchema, PropsSchema, JsonSchema } from '@aegis/domain/schema';
+import { CardIdSchema, CardTypeSchema, preserve } from '@aegis/domain/schema';
 import type { Board } from '@aegis/domain/schema';
-import { legacyModule } from './module.ts';
-const model = await legacyModule(new URL('../../../app/src/features/editing/model.js', import.meta.url).href);
-const layers = await legacyModule(new URL('../../../app/src/features/editing/layer-model.js', import.meta.url).href);
-const commands = z.array(CommandSchema);
-const clip = z.object({ from: z.string(), cards: z.array(CardSchema), links: z.array(LinkSchema), text: z.string() });
-export function makeClip(board: unknown, ids: string[]) { return clip.parse(model.call('makeClip', board, ids)); }
+import { fixtureBoard, fixtureCard } from './inputs.ts';
+const model = await import('../../../app/src/features/editing/operations.ts');
+const collections = await import('../../../app/src/features/editing/collection-operations.ts');
+const layers = await import('../../../app/src/features/editing/layers.ts');
+const ids = z.array(CardIdSchema);
+export function makeClip(board: unknown, selected: string[]) { return model.makeClip(fixtureBoard(board), ids.parse(selected)); }
 export function cloneCommands(clip: unknown, board: unknown, centre: { x: number; y: number }, offset?: number) {
-  return z.object({ commands }).parse(model.call('cloneCommands', clip, board, centre, offset));
+  return model.cloneCommands(preserve(model.ClipSchema, clip), fixtureBoard(board), centre, offset);
 }
-export function arrange(board: unknown, ids: string[], how: string) { return commands.parse(model.call('arrange', board, ids, how)); }
-export function stackCommands(board: unknown, ids: string[], direction: string) { return commands.parse(model.call('stackCommands', board, ids, direction)); }
-const layoutUpdate = z.object({ op: z.literal('update'), id: CardIdSchema, set: z.object({ x: z.number().optional(), y: z.number().optional(), w: z.number().optional(), h: z.number().optional(), props: PropsSchema.optional() }).catchall(JsonSchema) });
-export function collectionLayout(board: unknown, card: unknown, kids?: unknown, width?: number) { return z.array(z.discriminatedUnion('op', [layoutUpdate, z.object({ op: z.literal('order'), ids: z.array(CardIdSchema), to: z.number() })])).parse(model.call('collectionLayout', board, card, kids, width)); }
-export function collectionDrop(board: unknown, cards: unknown, at: { x: number; y: number }) { return commands.parse(model.call('collectionDrop', board, cards, at)); }
-export function effectiveFlag(board: unknown, card: unknown, flag: string) { return z.boolean().parse(model.call('effectiveFlag', board, card, flag)); }
-export function snapRotation(degrees: number, shift = false, single = false) { return z.number().parse(model.call('snapRotation', degrees, shift, single)); }
-export function lineHeightDefault(type: string) { return z.number().parse(model.call('lineHeightDefault', type)); }
-export function toolbarOrder(defaults: string[], saved?: string[]) { return z.array(z.string()).parse(model.call('toolbarOrder', defaults, saved)); }
+const arrangement = z.enum(['left', 'centre', 'right', 'top', 'middle', 'bottom', 'distribute-x', 'distribute-y']);
+export function arrange(board: unknown, selected: string[], how: string) { return model.arrange(fixtureBoard(board), ids.parse(selected), arrangement.parse(how)); }
+export function stackCommands(board: unknown, selected: string[], direction: string) {
+  return model.stackCommands(fixtureBoard(board), ids.parse(selected), z.enum(['front', 'back', 'forward', 'backward']).parse(direction));
+}
+const layoutUpdate = z.object({ op: z.literal('update'), id: CardIdSchema, set: z.object({ x: z.number().optional(), y: z.number().optional(), w: z.number().optional(), h: z.number().optional() }).loose() });
+const layoutResult = z.array(z.union([layoutUpdate, z.object({ op: z.literal('order'), ids: z.array(CardIdSchema), to: z.number() })]));
+export function collectionLayout(board: unknown, card: unknown, kids?: unknown, width?: number) {
+  return layoutResult.parse(collections.collectionLayout(fixtureBoard(board), fixtureCard(card), kids === undefined ? undefined : ids.parse(kids), width));
+}
+export function collectionDrop(board: unknown, cards: unknown, at: { x: number; y: number }) {
+  return collections.collectionDrop(fixtureBoard(board), z.array(z.unknown()).parse(cards).map(fixtureCard), at);
+}
+export function effectiveFlag(board: unknown, card: unknown, flag: string) { return model.effectiveFlag(fixtureBoard(board), fixtureCard(card), z.enum(['hidden', 'locked']).parse(flag)); }
+export const snapRotation = model.snapRotation;
+export function lineHeightDefault(type: string) { return model.lineHeightDefault(CardTypeSchema.parse(type)); }
+export const toolbarOrder = model.toolbarOrder;
+const { createWorkspace } = await import('../../../app/src/workspace/store.ts');
+const { historyCommands } = await import('../../../app/src/workspace/projection.ts');
+// Translate observed host snapshots into real workspace transactions. History,
+// branching and the capacity limit are owned exclusively by the workspace.
 export function createHistory(options: { read: () => Board; apply: (commands: unknown[]) => void; busy?: () => boolean; delay?: number }) {
-  const raw = model.call('createHistory', options);
-  const methods = z.object({
-    observe: z.function({ input: [z.unknown()], output: z.unknown() }),
-    flush: z.function({ input: [], output: z.unknown() }),
-    travel: z.function({ input: [z.number()], output: z.boolean() }),
-  }).parse(raw);
-  if (raw === null || typeof raw !== 'object') throw new Error('Missing history fixture');
-  return { ...methods, get status() { return z.object({ length: z.number() }).parse(Reflect.get(raw, 'status')); } };
+  let workspace = createWorkspace({ board: options.read() });
+  function observe(next: Board): void {
+    const current = workspace.scene.snapshot();
+    if (next.id !== current.id) { workspace.dispose(); workspace = createWorkspace({ board: next }); return; }
+    if (options.busy?.() || JSON.stringify(historyCommands(next)) === JSON.stringify(historyCommands(current))) return;
+    const result = workspace.submit(historyCommands(next));
+    if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+  }
+  function depth(): number {
+    let count = 0;
+    while (workspace.history.getSnapshot().undo) {
+      const result = workspace.undo();
+      if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+      count++;
+    }
+    for (let index = 0; index < count; index++) {
+      const result = workspace.redo();
+      if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+    }
+    return count + 1;
+  }
+  return {
+    observe,
+    flush: () => observe(options.read()),
+    travel(direction: number): boolean {
+      observe(options.read());
+      const result = direction < 0 ? workspace.undo() : workspace.redo();
+      if (result.kind === 'rejected') return false;
+      options.apply([...historyCommands(workspace.scene.snapshot())]);
+      return true;
+    },
+    get status() { return { length: depth() }; },
+  };
 }
-const layerEntry = z.object({ id: CardIdSchema });
-export function layerParents(board: unknown) { return z.map(z.string(), z.string()).parse(layers.call('layerParents', board)); }
-export function layerDescendants(board: unknown, ids: string[]) { return z.array(layerEntry).parse(layers.call('layerDescendants', board, ids)); }
+export function layerParents(board: unknown) { return new Map<string, string>(layers.layerParents(fixtureBoard(board))); }
+export function layerDescendants(board: unknown, selected: string[]) { return layers.layerDescendants(fixtureBoard(board), ids.parse(selected)); }

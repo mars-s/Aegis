@@ -58,11 +58,11 @@ test('rounded corners and Bezier handles survive real geometry changes', () => {
     assert.ok(Math.hypot(expected.x - actual.x, expected.y - actual.y) < 1e-8);
   }
 });
-test('eraser finds the painted stroke between samples after resizing and rotation', () => {
+test('eraser finds the painted stroke between samples after resizing and rotation', async () => {
   const c = { x: 20, y: 20, w: 200, h: 100, rot: 90, props: { points: [[0, 50, 0], [100, 50, 1]], ow: 100, oh: 100, size: 4 } };
-  assert.equal(inkHit(c, localToWorld(c, { x: 50, y: 50 }), 8), true);
-  assert.equal(inkHit(c, { x: 800, y: 800 }, 8), false);
-  assert.deepEqual(worldToLocal(c, localToWorld(c, { x: 50, y: 25 })), { x: 50, y: 25 });
+  assert.equal(await inkHit(c, localToWorld(c, { x: 50, y: 50 }), 8), true);
+  assert.equal(await inkHit(c, { x: 800, y: 800 }, 8), false);
+  assert.deepEqual(await worldToLocal(c, localToWorld(c, { x: 50, y: 25 })), { x: 50, y: 25 });
 });
 test('shapes, flat paths and squiggles have finite usable bounds and geometry', () => {
   assert.deepEqual([fitPoints([{ x: 10, y: 20 }, { x: 200, y: 20 }]).w, fitPoints([[10, 20, 0]]).h], [206, 24]);

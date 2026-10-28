@@ -112,6 +112,9 @@ test('recording uploads report measured progress and wait for host confirmation'
     body: unknown;
     status = 0;
     response: unknown;
+    statusText = '';
+    get responseText(): string { return JSON.stringify(this.response); }
+    abort(): void {}
     onload?: () => void;
     constructor() { requests.push(this); }
     open(method: string, url: string) { this.method = method; this.url = url; }
@@ -123,7 +126,7 @@ test('recording uploads report measured progress and wait for host confirmation'
   try {
     const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
     let complete = false;
-    const saving = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
+    const saving = uploadRecording({ base: 'http://127.0.0.1:12345', token: 'test-only-token' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
     const request = required(requests[0]);
     assert.equal(request.method, 'POST'); assert.equal(request.url, 'http://127.0.0.1:12345/assets'); assert.equal(request.body, file);
     assert.equal(request.headers.authorization, 'Bearer test-only-token');
@@ -131,13 +134,13 @@ test('recording uploads report measured progress and wait for host confirmation'
     required(request.upload.onprogress)({ lengthComputable: false, loaded: 1, total: 0 });
     required(request.upload.onprogress)({ lengthComputable: true, loaded: 100, total: 100 });
     await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
-    request.status = 200; request.response = { url: 'asset:clip.webm' }; required(request.onload)();
+    request.status = 200; request.response = { url: 'asset:clip.webm', type: file.type, size: file.size }; required(request.onload)();
     assert.equal((await saving).url, 'asset:clip.webm'); assert.equal(complete, true);
-    const failed = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, () => {});
+    const failed = uploadRecording({ base: 'http://127.0.0.1:12345', token: 'test-only-token' }, file, () => {});
     const failedRequest = required(requests[1]);
     failedRequest.status = 500; failedRequest.response = { error: 'Disk full' }; required(failedRequest.onload)();
     await assert.rejects(failed, /Disk full/);
-    await assert.rejects(uploadRecording({ base: 'https://other.example' }, file, () => {}), /Reconnect/);
+    await assert.rejects(uploadRecording({ base: 'https://other.example', token: 'test-only-token' }, file, () => {}), /Reconnect/);
   } finally {
     if (originalStorage === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage'); else Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
     if (originalRequest === undefined) Reflect.deleteProperty(globalThis, 'XMLHttpRequest'); else Object.defineProperty(globalThis, 'XMLHttpRequest', originalRequest);

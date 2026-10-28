@@ -1,8 +1,8 @@
 import { z } from 'zod/v4';
 import { ChartPointSchema, JsonSchema } from '@aegis/domain/schema';
-import { legacyModule } from './module.ts';
+import { productionModule } from './module.ts';
 // Preserve the incomplete historic summary inputs instead of inventing missing content.
-const summary = await legacyModule('@aegis/domain/summary');
+const summary = await productionModule('@aegis/domain/summary');
 const plotPreview = z.object({
   type: z.literal('plot'), kind: z.string().optional(), value: z.string(), label: z.string(), seriesCount: z.number(),
   series: z.array(z.object({ name: z.string(), value: z.string(), points: z.array(ChartPointSchema) })),

@@ -10,18 +10,18 @@ test('every kind keeps its world rectangle through every camera scale', () => {
   }
 });
 
-test('Fit frames actual bounds, including rotation and fixed-size agent chrome', () => {
+test('Fit frames actual bounds, including rotation and fixed-size agent chrome', async () => {
   const area = { x: 24, y: 68, w: 1200, h: 700 };
   const cards = [cardBounds({ x: -200, y: -100, w: 800, h: 500 }, 30), { x: 1000, y: 600, w: 640, h: 420 }, { x: 1800, y: 600, screenSize: { w: 340, h: 300 } }];
-  const view = fitView(cards, area);
+  const view = await fitView(cards, area);
   assert.ok(view.z >= .05 && view.z <= 1);
   for (const c of cards) {
-    const r = c.screenSize ? { x: c.x * view.z + view.x, y: c.y * view.z + view.y, ...c.screenSize } : projectCard(c, view);
+    const r = 'screenSize' in c ? { x: c.x * view.z + view.x, y: c.y * view.z + view.y, ...c.screenSize } : projectCard(c, view);
     assert.ok(r.x >= area.x - 1e-8 && r.y >= area.y - 1e-8 && r.x + r.w <= area.x + area.w + 1e-8 && r.y + r.h <= area.y + area.h + 1e-8);
   }
-  assert.equal(fitView([{ x: 0, y: 0, w: 1e6, h: 1e6 }], area).z, .05);
-  assert.equal(fitView([{ x: 0, y: 0, w: 1, h: 1 }], area, 20).z, 4);
-  assert.equal(fitView([{ x: 0, y: 0, w: 1, h: 1 }], area, .75).z, .75);
+  assert.equal((await fitView([{ x: 0, y: 0, w: 1e6, h: 1e6 }], area)).z, .05);
+  assert.equal((await fitView([{ x: 0, y: 0, w: 1, h: 1 }], area, 20)).z, 4);
+  assert.equal((await fitView([{ x: 0, y: 0, w: 1, h: 1 }], area, .75)).z, .75);
 });
 
 test('an ungrouped board retains its name and a heading or document supplies its content cue', () => {

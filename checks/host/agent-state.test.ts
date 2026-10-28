@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAgentState } from './adapters/agent-state.ts';
+import { agentSnapshot, createAgentState } from './adapters/agent-state.ts';
 
-const working = { id: 'one', revision: 2, running: true, text: '', turns: [], history: [] };
-const completed = { ...working, revision: 3, running: false, text: 'Answer', turns: [{ role: 'assistant', text: 'Answer' }], history: [{ finished: 100 }] };
+const working = agentSnapshot({ id: 'one', revision: 2, running: true, text: '', turns: [], history: [] });
+const completed = agentSnapshot({ ...working, revision: 3, running: false, text: 'Answer', turns: [{ id: 'answer', role: 'assistant', text: 'Answer' }], history: [{ id: 'request', brief: '', started: 0, finished: 100, elapsedMs: 100, summary: 'Answer', changes: [], undone: false, undoBlockedReason: null, canUndo: true }] });
 
 test('older or duplicate snapshots and events cannot replace newer per-agent state', () => {
   const state = createAgentState(), read = state.beginRead();

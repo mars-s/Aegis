@@ -146,7 +146,7 @@ test('host actions replace the final deleted board and serialise concurrent crea
 
 test('all frameworks and starters produce valid, editable board commands with distinct card ids', () => {
   for (const key of [...Object.keys(frameworks), ...Object.keys(starters)]) {
-    const board = emptyBoard('testboard'), commands = templateCommands(key, board, ids());
+    const board = emptyBoard('testboard'), commands = templateCommands(key, board);
     const result = applyBatch(board, { commands });
     assert.equal(result.ok, true, `${key}: ${JSON.stringify(result.errors)}`);
     assert.ok(result.board.cards.length >= 2);
@@ -159,7 +159,7 @@ test('all frameworks and starters produce valid, editable board commands with di
 
 test('frameworks are placed beside existing content, rather than covering it', () => {
   const board = emptyBoard('testboard'); board.cards.push(card({ type: 'note', id: 'existing', x: 500, y: -100, w: 300, h: 200 }));
-  const commands = templateCommands('affinity', board, ids());
+  const commands = templateCommands('affinity', board);
   assert.ok(commands.filter(c => c.op === 'create').every(c => (c.x ?? 0) >= 1000));
 });
 
@@ -202,7 +202,7 @@ test('project covers can be saved and cleared without changing other library dat
 
 test('Brain dump starts with two board cards and five separate Unsorted notes', () => {
   for (const key of Object.keys(starters)) {
-    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
+    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard')) });
     assert.equal(result.ok, true);
     if (key === 'Brain dump') {
       assert.equal(result.board.cards.length, 2);
@@ -215,7 +215,7 @@ test('Brain dump starts with two board cards and five separate Unsorted notes', 
 
 test('framework groups are ordinary collections with laid-out members in reading order', () => {
   for (const [key, framework] of Object.entries(frameworks)) {
-    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
+    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard')) });
     assert.equal(result.ok, true);
     assert.equal(result.board.cards.some(c => c.type === 'template-group'), false);
     const collections = result.board.cards.filter(c => c.type === 'coll');
