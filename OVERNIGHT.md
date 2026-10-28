@@ -240,3 +240,13 @@ fragile. "Jarvis's table, built by Apple."
   nothing else, so the whole browser suite is green for the first time tonight.
 - Remaining queue: editing.mjs path (waits for the sidebar branch) and the
   document typography call (owner's).
+
+### 2026-10-29, tick at 5:35am
+
+- Queue still blocked, so I tested last night's presence chip at phone width,
+  something nobody had looked at. At 390 px it sat at y 794 behind the board
+  hub and was completely invisible.
+- Moved it to the top-left under the board name below 700 px, matching the
+  hub's own breakpoint. Verified: the chip is now at (12, 44) and on top at
+  390x844, and unchanged at desktop width.
+- Full check green.

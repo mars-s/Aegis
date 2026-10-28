@@ -20,3 +20,8 @@
 }
 body.motion-off .mcp-presence,
 body.motion-off .mcp-presence[data-fresh='true'] .mcp-presence-dot { animation: none; }
+
+/* On phones the board hub owns the bottom strip, so sit under the board name instead. */
+@media (max-width: 700px) {
+  .mcp-presence { top: 44px; bottom: auto; left: 12px; max-width: calc(100vw - 24px); }
+}
