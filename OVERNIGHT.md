@@ -258,3 +258,13 @@ fragile. "Jarvis's table, built by Apple."
 - Gave it `min-height: 44px` below 700 px. Verified at 390x844: 208 by 44,
   text centred, still clear of the title and the dock.
 - Full check green.
+
+### 2026-10-29, tick at 6:45am
+
+- Queue still blocked: the sidebar branch is at `39aebe7`, unmerged. Nothing
+  else is actionable without a decision from the owner.
+- The installed app was one build behind main, missing the colour alignment and
+  both phone chip fixes. Rebuilt, installed and relaunched. The binary embeds
+  `index-BMEaTG_8.js`, so it is the current UI.
+- Host healthy, Demo assignment board intact at revision 25. Old install is in
+  Trash as `Aegis-0.3.0-2026-10-29-0645.app`.
