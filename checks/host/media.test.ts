@@ -1,4 +1,4 @@
-import { assertionGroup } from './assertion-group.ts';
+import { createHostClient } from '@aegis/host-client';
 import { required } from './required.ts';
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -101,7 +101,6 @@ test('real host requires authentication for previews and accepts playable audio 
 });
 
 test('recording uploads report measured progress and wait for host confirmation', async () => {
-  const assertions = assertionGroup();
   const originalRequest = Object.getOwnPropertyDescriptor(globalThis, 'XMLHttpRequest');
   const progress: number[] = [];
   const requests: RecordingRequest[] = [];
@@ -124,10 +123,11 @@ test('recording uploads report measured progress and wait for host confirmation'
     send(body: unknown) { this.body = body; }
   }
   Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: RecordingRequest });
+  const client = createHostClient({ baseUrl: 'http://127.0.0.1:12345', token: 'test-only-token' });
   try {
     const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
     let complete = false;
-    const saving = uploadRecording({ base: 'http://127.0.0.1:12345', token: 'test-only-token' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
+    const saving = uploadRecording(client, file, value => progress.push(value)).then(value => { complete = true; return value; });
     const request = required(requests[0]);
     assert.equal(request.method, 'POST'); assert.equal(request.url, 'http://127.0.0.1:12345/assets'); assert.equal(request.body, file);
     assert.equal(request.headers.authorization, 'Bearer test-only-token');
@@ -135,15 +135,18 @@ test('recording uploads report measured progress and wait for host confirmation'
     required(request.upload.onprogress)({ lengthComputable: false, loaded: 1, total: 0 });
     required(request.upload.onprogress)({ lengthComputable: true, loaded: 100, total: 100 });
     await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
-    request.status = 200; request.response = { url: 'asset:clip.webm', type: file.type, size: file.size }; required(request.onload)();
-    await assertions.checkAsync(async () => { assert.equal((await saving).url, 'asset:clip.webm'); }); assertions.check(() => { assert.equal(complete, true); });
-    const failed = uploadRecording({ base: 'http://127.0.0.1:12345', token: 'test-only-token' }, file, () => {});
+    request.status = 200; request.response = { url: 'asset:0123456789abcdef0123456789abcdef.webm', type: file.type, size: file.size }; required(request.onload)();
+    assert.equal((await saving).url, 'asset:0123456789abcdef0123456789abcdef.webm'); assert.equal(complete, true);
+    const failed = uploadRecording(client, file, () => {});
     const failedRequest = required(requests[1]);
     failedRequest.status = 500; failedRequest.response = { error: 'Disk full' }; required(failedRequest.onload)();
     await assert.rejects(failed, /Disk full/);
-    await assertions.checkAsync(async () => { await assert.rejects(uploadRecording({ base: 'https://other.example', token: 'test-only-token' }, file, () => {}), /Reconnect/); });
-    assertions.finish();
+    const requestsBeforeDisposal = requests.length;
+    client.dispose();
+    await assert.rejects(uploadRecording(client, file, () => {}), { message: 'The host request was cancelled' });
+    assert.equal(requests.length, requestsBeforeDisposal);
   } finally {
+    client.dispose();
     if (originalRequest === undefined) Reflect.deleteProperty(globalThis, 'XMLHttpRequest'); else Object.defineProperty(globalThis, 'XMLHttpRequest', originalRequest);
   }
 });

@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { parseSync, Visitor } from 'oxc-parser';
 
 const base = '200a207774d1720856a3ccecdb1d41c610dc5059';
+const uploadCase = 'recording uploads report measured progress and wait for host confirmation';
 const historyCase = 'undo and redo restore saved card, link and tray state, branch history and reset on board switch';
 interface Assertion { readonly caseName: string | null; readonly method: string; readonly actual: string; readonly expected: string }
 interface Scope { readonly name: string; readonly start: number; readonly end: number }
@@ -34,6 +35,10 @@ const authorisedChanges = [
     actualBefore: 'html', actualAfter: 'html', before: '/contenteditable="plaintext-only"/', after: '/contentEditable="plaintext-only"/' },
   { file: 'checks/host/editing.test.ts', caseName: historyCase, method: 'equal',
     actualBefore: 'history.status.length', actualAfter: 'historyStateCount(workspace)', before: '80', after: '81' },
+  { file: 'checks/host/media.test.ts', caseName: uploadCase, method: 'equal', actualBefore: '(await saving).url', actualAfter: '(await saving).url',
+    before: "'asset:clip.webm'", after: "'asset:0123456789abcdef0123456789abcdef.webm'" },
+  { file: 'checks/host/media.test.ts', caseName: uploadCase, method: 'rejects', actualBefore: "uploadRecording({ base: 'https://other.example' }, file, () => {})", actualAfter: 'uploadRecording(client, file, () => {})',
+    before: '/Reconnect/', after: "{ message: 'The host request was cancelled' }" },
 ];
 const authorisedAdditions = [
   { file: 'checks/host/editing.test.ts', caseName: historyCase, method: 'equal', actual: "separate.submit([{ op: 'create', type: 'note', newId: id, text: 'One' }]).kind", expected: "'applied'", count: 1 },
@@ -42,6 +47,7 @@ const authorisedAdditions = [
   { file: 'checks/host/editing.test.ts', caseName: historyCase, method: 'equal', actual: 'separate.undo().kind', expected: "'applied'", count: 2 },
   { file: 'checks/host/editing.test.ts', caseName: historyCase, method: 'equal', actual: 'required(separate.scene.snapshot().cards[0]).text', expected: "'One'", count: 1 },
   { file: 'checks/host/editing.test.ts', caseName: historyCase, method: 'equal', actual: 'separate.scene.snapshot().cards.length', expected: '0', count: 1 },
+  { file: 'checks/host/media.test.ts', caseName: uploadCase, method: 'equal', actual: 'requests.length', expected: 'requestsBeforeDisposal', count: 1 },
 ];
 const changesSeen = new Map<number, number>(), additionsSeen = new Map<number, number>();
 let assertionCount = 0, originalAssertions = 0, declarationCount = 0;

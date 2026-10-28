@@ -1,6 +1,7 @@
 import './register.ts';
 import { z } from 'zod/v4';
-import { createHostClient, failureMessage } from '@aegis/host-client';
+import type { HostClient } from '@aegis/host-client';
+import { failureMessage } from '@aegis/host-client';
 import type { Crop } from '../../../app/src/features/media/image-utils.ts';
 import { fixtureBoard } from './inputs.ts';
 const colours = await import('../../../app/src/features/colours/model.ts');
@@ -14,11 +15,8 @@ export function cropBox(box: Crop, handle: string, dx: number, dy: number) {
   return images.cropBox(box, z.enum(['move', 'nw', 'ne', 'sw', 'se']).parse(handle), dx, dy);
 }
 export const { spotifyOf, normaliseLink } = links;
-export async function uploadRecording(host: { base: string; token: string }, file: File, progress: (value: number) => void) {
-  const client = createHostClient({ baseUrl: host.base, token: host.token });
-  try {
-    const result = await client.upload(file, AbortSignal.timeout(2000), progress);
-    if (result.kind === 'error') throw new Error(failureMessage(result.error));
-    return result.value;
-  } finally { client.dispose(); }
+export async function uploadRecording(client: Pick<HostClient, 'upload'>, file: File, progress: (value: number) => void) {
+  const result = await client.upload(file, undefined, progress);
+  if (result.kind === 'error') throw new Error(failureMessage(result.error));
+  return result.value;
 }

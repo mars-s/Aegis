@@ -1,4 +1,3 @@
-import { assertionGroup } from './assertion-group.ts';
 import { z } from 'zod/v4';
 import { BoardIdSchema, CardSchema, LinkSchema } from '@aegis/domain/schema';
 import type { LegacyBoard } from '@aegis/domain/schema';
@@ -166,17 +165,15 @@ test('frameworks are placed beside existing content, rather than covering it', (
 
 import { expandTemplateDrag, templateDropCommands } from './templates.ts';
 test('template groups carry their notes, and notes can be moved between groups or out', () => {
-  const assertions = assertionGroup();
   const a = { id: 'groupaaa', type: 'template-group', x: 0, y: 0, w: 288, h: 200 };
   const b = { id: 'groupbbb', type: 'template-group', x: 330, y: 0, w: 288, h: 200 };
   const n = { id: 'notecard', type: 'note', parent: a.id, x: 350, y: 50, w: 200, h: 100 };
   const board = { cards: [a, b, n] };
   assert.deepEqual(expandTemplateDrag([a], board).map(c => c.id), [a.id, n.id]);
-  assertions.check(() => { assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, b.id); });
+  assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, b.id);
   assert.deepEqual(templateDropCommands([a, n], board, 'move'), []);
   n.x = 900;
-  assertions.check(() => { assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, ''); });
-  assertions.finish();
+  assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, '');
 });
 
 test('new library items use distinct names within their scope', () => {
