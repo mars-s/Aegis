@@ -1,6 +1,7 @@
 import type { Board } from '@aegis/domain/schema';
 import type { CanvasAttachment } from '@aegis/scene';
 import { selectForDrag, expandDrag, snapDrag, dropCommands } from '../features/wireframe/commands.js';
+import { expandTemplateDrag, templateDropCommands } from '../chrome/templates.js';
 
 type Policies = Pick<CanvasAttachment, 'selectForDrag' | 'expandDrag' | 'snapDrag' | 'dropCommands'>;
 export function wireframePolicies(board: () => Board): Policies {
@@ -8,7 +9,8 @@ export function wireframePolicies(board: () => Board): Policies {
     selectForDrag: (ids, hit, modifiers) => selectForDrag(ids, hit, board(), { shiftKey: modifiers.shift, metaKey: modifiers.bypass }),
     expandDrag: (ids, modifiers) => {
       const current = board();
-      return expandDrag(current.cards.filter(card => ids.includes(card.id)), current, { shiftKey: modifiers.shift, metaKey: modifiers.bypass }).map(card => card.id);
+      const wire = expandDrag(current.cards.filter(card => ids.includes(card.id)), current, { shiftKey: modifiers.shift, metaKey: modifiers.bypass });
+      return expandTemplateDrag(wire, current).map(card => card.id);
     },
     snapDrag: request => {
       const result = snapDrag(request.start.map(entry => ({ c: entry.card, x: entry.bounds.x, y: entry.bounds.y })), request.delta.x, request.delta.y, board(), { z: request.zoom }, { grid: localStorage.getItem('aegis:wireframe-grid') === 'on', disabled: request.bypass });
@@ -20,7 +22,8 @@ export function wireframePolicies(board: () => Board): Policies {
     },
     dropCommands: request => {
       const moved = new Map(request.cards.map(card => [card.id, card]));
-      return dropCommands(request.cards, { cards: board().cards.map(card => moved.get(card.id) ?? card) }, request.kind);
+      const after = { cards: board().cards.map(card => moved.get(card.id) ?? card) };
+      return [...dropCommands(request.cards, after, request.kind), ...templateDropCommands(request.cards, after, request.kind)];
     },
   };
 }

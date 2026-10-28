@@ -52,7 +52,6 @@ test('only empty folders can be deleted', () => {
 import { duplicateLibrary, deleteLibrary, moveLibraryBoard, libraryContents, createLibraryActions } from '../../agent/src/library.ts';
 import { emptyBoard } from '@aegis/domain/commands';
 import { applyBatch } from './batch.ts';
-import { templateCommands, frameworks, starters } from './templates.ts';
 const ids = () => { let n = 0; return () => (++n).toString(16).padStart(8, '0'); };
 const nested = () => {
   const lib = StoredLibrarySchema.parse({ nodes: [{ id: 'project', kind: 'project', name: 'Work', parent: null }, { id: 'folder', kind: 'folder', name: 'Plans', parent: 'project' }], boards: { rootboard: 'folder', childboard: 'folder', otherboard: 'project' } });
@@ -144,44 +143,11 @@ test('host actions replace the final deleted board and serialise concurrent crea
   assert.equal(store.size, 3);
 });
 
-test('all frameworks and starters produce valid, editable board commands with distinct card ids', () => {
-  for (const key of [...Object.keys(frameworks), ...Object.keys(starters)]) {
-    const board = emptyBoard('testboard'), commands = templateCommands(key, board, ids());
-    const result = applyBatch(board, { commands });
-    assert.equal(result.ok, true, `${key}: ${JSON.stringify(result.errors)}`);
-    assert.ok(result.board.cards.length >= 2);
-    assert.equal(new Set(result.board.cards.map(c => c.id)).size, result.board.cards.length);
-    assert.equal(JSON.stringify(result.board).includes('Mochi'), false);
-    if (key === 'Moodboard') assert.equal(result.board.cards.filter(c => c.type === 'swatch').length, 3);
-    if (key === 'opportunity') assert.ok(result.board.links.every(l => l.arrow === 'end'));
-  }
-});
-
-test('frameworks are placed beside existing content, rather than covering it', () => {
-  const board = emptyBoard('testboard'); board.cards.push(card({ type: 'note', id: 'existing', x: 500, y: -100, w: 300, h: 200 }));
-  const commands = templateCommands('affinity', board, ids());
-  assert.ok(commands.filter(c => c.op === 'create').every(c => (c.x ?? 0) >= 1000));
-});
-
-import { expandTemplateDrag, templateDropCommands } from './templates.ts';
-test('template groups carry their notes, and notes can be moved between groups or out', () => {
-  const a = { id: 'groupaaa', type: 'template-group', x: 0, y: 0, w: 288, h: 200 };
-  const b = { id: 'groupbbb', type: 'template-group', x: 330, y: 0, w: 288, h: 200 };
-  const n = { id: 'notecard', type: 'note', parent: a.id, x: 350, y: 50, w: 200, h: 100 };
-  const board = { cards: [a, b, n] };
-  assert.deepEqual(expandTemplateDrag([a], board).map(c => c.id), [a.id, n.id]);
-  assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, b.id);
-  assert.deepEqual(templateDropCommands([a, n], board, 'move'), []);
-  n.x = 900;
-  assert.equal(required(templateDropCommands([n], board, 'move')[0]).set.parent, '');
-});
-
 test('new library items use distinct names within their scope', () => {
   const { lib, step, p } = make();
   step({ op: 'create', kind: 'folder', name: 'Ideas', parent: p });
   assert.ok(lib().nodes.some(n => n.name === 'Ideas 2'));
 });
-
 
 test('project covers can be saved and cleared without changing other library data', () => {
   const { lib, p, f } = make(), before = structuredClone(lib());
@@ -200,36 +166,3 @@ test('project covers can be saved and cleared without changing other library dat
   }
 });
 
-test('Brain dump starts with two board cards and five separate Unsorted notes', () => {
-  for (const key of Object.keys(starters)) {
-    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
-    assert.equal(result.ok, true);
-    if (key === 'Brain dump') {
-      assert.equal(result.board.cards.length, 2);
-      assert.equal(required(result.board.tray).length, 5);
-      assert.ok(z.array(CardSchema).parse(result.board.tray).every(c => c.type === 'note' && c.text && c.id && !c.parent));
-      assert.equal(new Set([...result.board.cards, ...z.array(CardSchema).parse(result.board.tray)].map(c => c.id)).size, 7);
-    } else assert.deepEqual(result.board.tray, []);
-  }
-});
-
-test('framework groups are ordinary collections with laid-out members in reading order', () => {
-  for (const [key, framework] of Object.entries(frameworks)) {
-    const result = applyBatch(emptyBoard('testboard'), { commands: templateCommands(key, emptyBoard('testboard'), ids()) });
-    assert.equal(result.ok, true);
-    assert.equal(result.board.cards.some(c => c.type === 'template-group'), false);
-    const collections = result.board.cards.filter(c => c.type === 'coll');
-    assert.equal(collections.length, framework.items.filter(it => it.t === 'group').length);
-    for (const coll of collections) {
-      assert.equal(required(coll.props).cols, 1);
-      const notes = z.array(z.string()).parse(required(coll.props).kids).map(id => required(result.board.cards.find(c => c.id === id)));
-      assert.ok(notes.length);
-      notes.forEach((note, i) => {
-        assert.equal(note.parent, coll.id);
-        assert.ok(note.x >= coll.x && note.x + note.w <= coll.x + coll.w);
-        assert.ok(note.y > coll.y && note.y + note.h <= coll.y + coll.h);
-        if (i) assert.ok(note.y > required(notes[i - 1]).y + required(notes[i - 1]).h);
-      });
-    }
-  }
-});

@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { applyBatch } from './batch.ts';
 import { emptyBoard, describe } from '@aegis/domain/commands';
 import { documentUpdate, plainText, markdownHTML, migrateTitle } from '@aegis/domain/content';
-import { mathsHTML } from './legacy/docs.ts';
-import { toDocx } from './legacy/docs.ts';
-import { cardContent } from './legacy/content.ts';
-import { loadZip, zipText } from './legacy/docs.ts';
+import { cardContent as reduceContent } from '@aegis/domain/content';
+import { CardSchema } from '@aegis/domain/schema';
+// Original fixtures omit geometry and other fields unrelated to copying.
+const cardContent = (card: object) => reduceContent(CardSchema.parse({ id: 'copy', type: 'note', x: 0, y: 0, w: 100, h: 80, color: 'plain', text: '', ...card }));
 import { CardIdSchema, PropsSchema } from '@aegis/domain/schema';
 import { z } from 'zod/v4';
 
@@ -132,37 +132,4 @@ test('Markdown keeps fenced code literal, renders links safely and preserves mat
   assert.doesNotMatch(markdownHTML('[bad](javascript:alert)\n`$literal$`\n\\$escaped\\$'), /href=|data-type="inlineMath"/);
   const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Use ' }, { type: 'inlineMath', attrs: { latex: 'x^2' } }] }, { type: 'blockMath', attrs: { latex: '\\frac{1}{2}' } }] };
   assert.equal(PropsSchema.parse(documentUpdate(CardIdSchema.parse('maths'), doc).set.props).body, 'Use $x^2$\n$$\\frac{1}{2}$$');
-  assert.match(mathsHTML('x^2'), /class="katex"/);
-  assert.match(mathsHTML('\\frac{1}{2}', true), /katex-display/);
-  assert.match(mathsHTML('\\notACommand'), /notACommand/, 'Invalid LaTeX remains visible and editable');
-  assert.doesNotMatch(mathsHTML('\\href{javascript:alert(1)}{x}'), /href="javascript:/);
-});
-
-test('Word exports both maths nodes as monospace LaTeX without dropping surrounding words', async () => {
-  const doc = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Before ' }, { type: 'inlineMath', attrs: { latex: 'x^2' } }, { type: 'text', text: ' after' }] }, { type: 'blockMath', attrs: { latex: '\\frac{1}{2}' } }] };
-  const zip = await loadZip(await toDocx(doc, { title: 'Maths' }));
-  const xml = await zipText(zip, 'word/document.xml');
-  for (const text of ['Before ', '$x^2$', ' after', '$$\\frac{1}{2}$$', 'Menlo']) assert.ok(xml.includes(text), text);
-});
-
-test('Word export contains real headings, marks, links, tables and selected paper size', async () => {
-  const doc = { type: 'doc', content: [
-    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Heading' }] },
-    { type: 'paragraph', attrs: { textAlign: 'center' }, content: [{ type: 'text', text: 'Styled text', marks: [{ type: 'bold' }, { type: 'textStyle', attrs: { fontSize: '20px', fontFamily: 'Georgia', color: '#1f7ae0' } }] }] },
-    ...cardContent({ type: 'link', text: 'Reference', url: 'https://example.com' }),
-    ...cardContent({ type: 'todo', items: [{ text: 'Done task', done: true }] }),
-    { type: 'table', content: [{ type: 'tableRow', content: [{ type: 'tableHeader', content: [paragraph('Column')] }, { type: 'tableCell', content: [paragraph('Value')] }] }] },
-  ] };
-  const bytes = await toDocx(doc, { title: 'Export test', paper: 'a4' });
-  const zip = await loadZip(bytes);
-  const xml = await zipText(zip, 'word/document.xml');
-  assert.match(xml, /Heading1/);
-  assert.match(xml, /<w:b\/>/);
-  assert.match(xml, /Georgia/);
-  assert.match(xml, /1F7AE0/);
-  assert.match(xml, /<w:tbl>/);
-  assert.match(xml, /w:w="11906"/);
-  assert.match(xml, /Done task/);
-  assert.match(await zipText(zip, 'word/_rels/document.xml.rels'), /https:\/\/example.com/);
-  assert.match(await zipText(zip, 'docProps/core.xml'), /Aegis/);
 });

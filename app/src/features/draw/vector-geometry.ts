@@ -1,5 +1,37 @@
 import type { Card } from '@aegis/domain';
+import { InkProps } from './art.js';
 import type { VectorPoint } from './art.js';
+
+interface Point { readonly x: number; readonly y: number }
+
+/** Local drawing coordinates (in the card's original ow/oh space) to world coordinates, following resize and rotation. */
+export function localToWorld(card: Pick<Card, 'x' | 'y' | 'w' | 'h' | 'rot' | 'props'>, point: Point): Point {
+  const props = InkProps.parse(card.props ?? {}), ow = props.ow ?? card.w, oh = props.oh ?? card.h;
+  const x = point.x * card.w / ow - card.w / 2, y = point.y * card.h / oh - card.h / 2, t = (card.rot ?? 0) * Math.PI / 180;
+  return { x: card.x + card.w / 2 + x * Math.cos(t) - y * Math.sin(t), y: card.y + card.h / 2 + x * Math.sin(t) + y * Math.cos(t) };
+}
+
+export function worldToLocal(card: Pick<Card, 'x' | 'y' | 'w' | 'h' | 'rot' | 'props'>, point: Point): Point {
+  const props = InkProps.parse(card.props ?? {}), ow = props.ow ?? card.w, oh = props.oh ?? card.h;
+  const x = point.x - card.x - card.w / 2, y = point.y - card.y - card.h / 2, t = -(card.rot ?? 0) * Math.PI / 180;
+  return { x: (x * Math.cos(t) - y * Math.sin(t) + card.w / 2) * ow / card.w, y: (x * Math.sin(t) + y * Math.cos(t) + card.h / 2) * oh / card.h };
+}
+
+function distanceToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x, dy = b.y - a.y, t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+}
+
+/** Whether an eraser of this radius touches the painted stroke itself, including between samples, after resize and rotation. */
+export function inkHit(card: Pick<Card, 'x' | 'y' | 'w' | 'h' | 'rot' | 'props'>, at: Point, radius: number): boolean {
+  const props = InkProps.parse(card.props ?? {});
+  const points = props.points.map(([x, y]) => localToWorld(card, { x, y }));
+  const reach = radius + props.size / 2 * Math.max(card.w / (props.ow ?? card.w), card.h / (props.oh ?? card.h));
+  return points.some((point, index) => {
+    const previous = points[index - 1];
+    return previous ? distanceToSegment(at, previous, point) <= reach : Math.hypot(at.x - point.x, at.y - point.y) <= reach;
+  });
+}
 
 export function shiftPoint(point: VectorPoint, dx: number, dy: number): VectorPoint {
   return { ...point, x: point.x + dx, y: point.y + dy, ...(point.ix === undefined ? {} : { ix: point.ix + dx, iy: (point.iy ?? point.y) + dy }), ...(point.ox === undefined ? {} : { ox: point.ox + dx, oy: (point.oy ?? point.y) + dy }) };

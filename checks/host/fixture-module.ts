@@ -1,8 +1,8 @@
 import { z } from 'zod/v4';
 
-// Fixture-only boundary for helpers whose legacy owners have not ported their public API.
-// Keep their original inputs and implementations, and validate every result used by a test.
-export async function legacyModule(specifier: string) {
+// Calls a public domain export with deliberately incomplete historic fixture inputs, validating every result.
+
+export async function fixtureModule(specifier: string) {
   const exports = z.record(z.string(), z.unknown()).parse(await import(specifier));
   return {
     value: (name: string): unknown => exports[name],

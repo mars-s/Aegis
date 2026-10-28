@@ -5,7 +5,7 @@ import type { FeatureWorkspace } from '../../composition.js';
 import { butter, centerline, colour, pathD, shapePoints } from './art.js';
 import type { InkPoint, VectorPoint } from './art.js';
 import type { DrawSettings } from './Inspector.js';
-import { fitPoints } from './vector-geometry.js';
+import { fitPoints, inkHit } from './vector-geometry.js';
 import { toolExit } from '../../platform/tool-lifetime.js';
 
 const id = (): CardId => CardIdSchema.parse(crypto.randomUUID().replaceAll('-', '').slice(0, 16));
@@ -23,7 +23,7 @@ export function drawingTool(engine: CanvasEngine, workspace: FeatureWorkspace, k
   function paint(point: ToolPointer): void {
     const prefs = settings(), size = prefs.sizes[prefs.pen], primitives: ToolPrimitive[] = [];
     if (kind === 'ink' && prefs.pen === 'eraser') {
-      for (const card of workspace.scene.snapshot().cards) if (card.type === 'ink' && point.world.x >= card.x - size / 2 && point.world.x <= card.x + card.w + size / 2 && point.world.y >= card.y - size / 2 && point.world.y <= card.y + card.h + size / 2) erased.add(card.id);
+      for (const card of workspace.scene.snapshot().cards) if (card.type === 'ink' && inkHit(card, point.world, size / 2)) erased.add(card.id);
       primitives.push({ kind: 'circle', opacity: 1, space: 'world', centre: point.world, radius: size / 2, fill: null, stroke: stroke() });
     } else if (kind === 'ink' && start) {
       samples.push([point.world.x, point.world.y, point.time]);

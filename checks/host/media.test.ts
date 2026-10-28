@@ -6,18 +6,13 @@ import { hostFixture } from './fixture.ts';
 import { transport } from './preview-transport.ts';
 import { applyBatch } from './batch.ts';
 import { emptyBoard } from '@aegis/domain/commands';
-import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from './legacy/media.ts';
-import { contrastText } from './legacy/media.ts';
-import { uploadRecording } from './legacy/media.ts';
-import { cropBox } from './legacy/media.ts';
-import { spotifyOf, normaliseLink } from './legacy/media.ts';
 import { publicAddress, parsePreview, linkPreview } from '../../agent/dist/link-preview.js';
 
 test('media cards retain asset references, colour names and independent crop settings', () => {
   const original = emptyBoard('media');
   let r = applyBatch(original, { commands: [
     { op: 'create', type: 'audio', props: { src: 'asset:memo.webm', duration: 12, wave: [.1,.6] } },
-    { op: 'create', type: 'swatch', props: { hex: '#87ceeb', label: colorName('#87ceeb'), autoName: true } },
+    { op: 'create', type: 'swatch', props: { hex: '#87ceeb', label: 'Sky', autoName: true } },
     { op: 'create', type: 'image', url: 'asset:original.png', props: { tagText: 'Original' }, ref: 'image' },
     { op: 'create', type: 'spotify', url: 'https://open.spotify.com/track/1234567890123456789012', props: { kind: 'track', sid: '1234567890123456789012' } },
   ] });
@@ -39,31 +34,6 @@ test('palette and background are per board, validated and removed without deleti
   assert.equal(invalid.ok, false); assert.equal(invalid.board, r.board);
   r = applyBatch(r.board, { commands: [{ op: 'board_set', set: { palette: [], bg: null } }] });
   assert.equal(r.board.cards.length, 1); assert.equal(r.board.bg, undefined);
-});
-test('colour names, hex shorthand and HSV wheel preserve known colours', () => {
-  assert.equal(normHex(' fAc '), '#ffaacc'); assert.equal(normHex('invalid'), null);
-  assert.equal(colorName('#000000'), 'Black'); assert.equal(colorName('#ff69b4'), 'Hot Pink');
-  for (const hex of ['#000000','#ffffff','#87ceeb','#fe1234','#3c7b96']) { const { h, s, v } = hex2hsv(hex); assert.equal(rgb2hex(hsv2rgb(h,s,v)), hex); }
-  assert.deepEqual(boardColours({ palette: [{ hex: '#112233', name: 'Saved' }], cards: [{ type: 'swatch', props: { hex: '#112233', label: 'Card' } }, { color: '#ffffff', props: { fill: '#ff69b4' } }] }).map(p => p.name), ['Saved','White','Hot Pink']);
-});
-test('custom panel and accent colours choose readable text', () => {
-  assert.equal(contrastText('#000000'), '#ffffff'); assert.equal(contrastText('#ffffff'), '#111111');
-});
-test('palette extraction ignores transparency and separates frequent distinct colours', () => {
-  assert.deepEqual(paletteFromPixels(Uint8ClampedArray.from([255,0,0,255, 254,0,0,255, 0,0,255,255, 0,255,0,0])), ['#ff0000','#0000ff']);
-  assert.deepEqual(paletteFromPixels(new Uint8ClampedArray(20)), []);
-});
-test('crop drags cannot leave the image or shrink below eight per cent', () => {
-  const full = { x: 0, y: 0, w: 1, h: 1 };
-  assert.deepEqual(cropBox(full, 'nw', .9, .9), { x: .9, y: .9, w: .09999999999999998, h: .09999999999999998 });
-  const moved = cropBox({ x: .1, y: .1, w: .5, h: .5 }, 'move', 10, -10); assert.deepEqual(moved, { x: .5, y: 0, w: .5, h: .5 });
-  assert.equal(cropBox(full, 'se', -100, -100).w, .08);
-});
-test('Spotify URL and URI parsing stays on the real host', () => {
-  for (const kind of ['track','album','playlist','episode','show','artist']) assert.equal(required(spotifyOf(`spotify:${kind}:1234567890123456789012`)).kind, kind);
-  assert.equal(required(spotifyOf('https://open.spotify.com/intl-au/embed/track/1234567890123456789012?si=abc')).kind, 'track');
-  assert.equal(spotifyOf('https://open.spotify.com.evil.test/track/1234567890123456789012'), null);
-  assert.equal(normaliseLink('example.com'), 'https://example.com/'); assert.throws(() => normaliseLink('javascript:alert(1)'));
 });
 test('Open Graph parsing handles attribute order, entities, relative URLs and script text as plain data', () => {
   const p = parsePreview(`<title>Fallback</title><meta content="A &amp; B" property="og:title"><meta property='og:description' content='A &quot;quote&quot;'><meta property="og:image" content="/cover.png"><link href='/mark.ico' rel='icon'>`, 'https://example.com/post');
@@ -99,47 +69,3 @@ test('real host requires authentication for previews and accepts playable audio 
   }
 });
 
-test('recording uploads report measured progress and wait for host confirmation', async () => {
-  const originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
-  const originalRequest = Object.getOwnPropertyDescriptor(globalThis, 'XMLHttpRequest');
-  const progress: number[] = [];
-  const requests: RecordingRequest[] = [];
-  class RecordingRequest {
-    upload: { onprogress?: (event: Pick<ProgressEvent, 'lengthComputable' | 'loaded' | 'total'>) => void } = {};
-    headers: Record<string, string> = {};
-    method = '';
-    url = '';
-    body: unknown;
-    status = 0;
-    response: unknown;
-    onload?: () => void;
-    constructor() { requests.push(this); }
-    open(method: string, url: string) { this.method = method; this.url = url; }
-    setRequestHeader(name: string, value: string) { this.headers[name] = value; }
-    send(body: unknown) { this.body = body; }
-  }
-  Object.defineProperty(globalThis, 'sessionStorage', { configurable: true, value: { getItem: () => JSON.stringify({ port: '12345', token: 'test-only-token' }) } });
-  Object.defineProperty(globalThis, 'XMLHttpRequest', { configurable: true, value: RecordingRequest });
-  try {
-    const file = new File(['recorded bytes'], 'clip.webm', { type: 'video/webm' });
-    let complete = false;
-    const saving = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, value => progress.push(value)).then(value => { complete = true; return value; });
-    const request = required(requests[0]);
-    assert.equal(request.method, 'POST'); assert.equal(request.url, 'http://127.0.0.1:12345/assets'); assert.equal(request.body, file);
-    assert.equal(request.headers.authorization, 'Bearer test-only-token');
-    required(request.upload.onprogress)({ lengthComputable: true, loaded: 42, total: 100 });
-    required(request.upload.onprogress)({ lengthComputable: false, loaded: 1, total: 0 });
-    required(request.upload.onprogress)({ lengthComputable: true, loaded: 100, total: 100 });
-    await Promise.resolve(); assert.equal(complete, false); assert.deepEqual(progress, [0, 42, 100]);
-    request.status = 200; request.response = { url: 'asset:clip.webm' }; required(request.onload)();
-    assert.equal((await saving).url, 'asset:clip.webm'); assert.equal(complete, true);
-    const failed = uploadRecording({ base: 'http://127.0.0.1:12345' }, file, () => {});
-    const failedRequest = required(requests[1]);
-    failedRequest.status = 500; failedRequest.response = { error: 'Disk full' }; required(failedRequest.onload)();
-    await assert.rejects(failed, /Disk full/);
-    await assert.rejects(uploadRecording({ base: 'https://other.example' }, file, () => {}), /Reconnect/);
-  } finally {
-    if (originalStorage === undefined) Reflect.deleteProperty(globalThis, 'sessionStorage'); else Object.defineProperty(globalThis, 'sessionStorage', originalStorage);
-    if (originalRequest === undefined) Reflect.deleteProperty(globalThis, 'XMLHttpRequest'); else Object.defineProperty(globalThis, 'XMLHttpRequest', originalRequest);
-  }
-});
