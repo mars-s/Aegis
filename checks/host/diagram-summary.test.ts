@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diagramSummary } from './legacy/summary.ts';
+import { diagramSummary } from './adapters/summary.ts';
 
 test('domain diagram summaries retain shuffled nodes and real edges for agents and Library', () => {
   const nodes = ['Decide', 'Collect', 'Share', 'Try it'].map(name => ({ id: name, name }));

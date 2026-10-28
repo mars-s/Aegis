@@ -6,11 +6,11 @@ import { hostFixture } from './fixture.ts';
 import { transport } from './preview-transport.ts';
 import { applyBatch } from './batch.ts';
 import { emptyBoard } from '@aegis/domain/commands';
-import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from './legacy/media.ts';
-import { contrastText } from './legacy/media.ts';
-import { uploadRecording } from './legacy/media.ts';
-import { cropBox } from './legacy/media.ts';
-import { spotifyOf, normaliseLink } from './legacy/media.ts';
+import { colorName, normHex, hex2hsv, hsv2rgb, rgb2hex, paletteFromPixels, boardColours } from './adapters/media.ts';
+import { contrastText } from './adapters/media.ts';
+import { uploadRecording } from './adapters/media.ts';
+import { cropBox } from './adapters/media.ts';
+import { spotifyOf, normaliseLink } from './adapters/media.ts';
 import { publicAddress, parsePreview, linkPreview } from '../../agent/dist/link-preview.js';
 
 test('media cards retain asset references, colour names and independent crop settings', () => {

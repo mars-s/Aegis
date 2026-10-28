@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { projectCard, cardBounds, fitView } from './legacy/geometry.ts';
-import { boardSubtitle } from './legacy/summary.ts';
+import { projectCard, cardBounds, fitView } from './adapters/geometry.ts';
+import { boardSubtitle } from './adapters/summary.ts';
 const card = (id: string, type: string, text: string, x: number, props = {}) => ({ id, type, text, x, y: 0, w: 100, h: 80, props });
 
 test('every kind keeps its world rectangle through every camera scale', () => {

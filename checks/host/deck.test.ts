@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 // Match the host's import, so a missing registration import fails this check.
 import { applyBatch } from './batch.ts';
 import { emptyBoard, describe, cardTypeGuide } from '@aegis/domain/commands';
-import { chartTicks, lineChart, slideHTML, newSlide } from './legacy/deck.ts';
+import { chartTicks, lineChart, slideHTML, newSlide } from './adapters/deck.ts';
 
 test('the host accepts deck creates and updates, and describes slides for agents', () => {
   const original = emptyBoard('decks', 'Decks');
@@ -31,7 +31,7 @@ test('slide HTML escapes text and charts handle zero targets, constant and singl
   const html = slideHTML({ id: '"><script>', layout: 'title', title: '<img src=x onerror=alert(1)>', sub: 'A & B' }, true);
   assert.doesNotMatch(html, /<script>|<img/);
   assert.match(html, /&lt;img/);
-  assert.match(html, /contenteditable="plaintext-only"/);
+  assert.match(html, /contentEditable="plaintext-only"/);
   for (const values of [[0], [2, 2, 2], [-3, 0, 4]]) {
     const chart = lineChart({ values, target: 0, label: '<unsafe>' });
     assert.doesNotMatch(chart, /NaN|Infinity|<unsafe>/);

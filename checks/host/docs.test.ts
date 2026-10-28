@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { applyBatch } from './batch.ts';
 import { emptyBoard, describe } from '@aegis/domain/commands';
 import { documentUpdate, plainText, markdownHTML, migrateTitle } from '@aegis/domain/content';
-import { mathsHTML } from './legacy/docs.ts';
-import { toDocx } from './legacy/docs.ts';
-import { cardContent } from './legacy/content.ts';
-import { loadZip, zipText } from './legacy/docs.ts';
+import { mathsHTML } from './adapters/docs.ts';
+import { toDocx } from './adapters/docs.ts';
+import { cardContent } from './adapters/content.ts';
+import { loadZip, zipText } from './adapters/docs.ts';
 import { CardIdSchema, PropsSchema } from '@aegis/domain/schema';
 import { z } from 'zod/v4';
 

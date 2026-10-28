@@ -5,8 +5,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyBatch } from './batch.ts';
 import { emptyBoard, describe } from '@aegis/domain/commands';
-import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from './legacy/draw.ts';
-import { linkGeometry } from './legacy/draw.ts';
+import { pathD, inkHit, fitPoints, shapePoints, splitSegment, pointOnSegment, localToWorld, worldToLocal, squigPath, outlineAttrs } from './adapters/draw.ts';
+import { linkGeometry } from './adapters/draw.ts';
 const run = (b: Board, commands: unknown[]) => applyBatch(b, { commands });
 function linked() {
   return run(emptyBoard('drawing'), [
@@ -81,7 +81,7 @@ test('connector geometry tracks bend, pins, card moves and rotation', () => {
 });
 
 test('shape-to-path conversion preserves card identity, stacking and styled connectors atomically', async () => {
-  const { shapePathCommands } = await import('./legacy/draw.ts');
+  const { shapePathCommands } = await import('./adapters/draw.ts');
   const b = run(linked(), [{ op: 'create', type: 'shape', newId: 'shapeaa', props: { shape: 'star' } }, { op: 'connect', a: 'aaaaaa', b: 'shapeaa', newId: 'linkcc' }, { op: 'link_update', id: 'linkcc', set: { label: 'Star', bend: -40, dash: true, arrow: 'end', colour: '#ff00ff', pb: { u: 0, v: .5 } } }]).board;
   const shape = required(b.cards.at(-1)), converted = { ...shape, props: { ...shape.props, points: shapePoints('star'), closed: true, ow: 100, oh: 100 } };
   const result = run(b, shapePathCommands(b, converted));

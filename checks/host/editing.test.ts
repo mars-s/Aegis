@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyBoard } from '@aegis/domain/commands';
 import { applyBatch } from './batch.ts';
-import { makeClip, cloneCommands, createHistory, arrange, collectionLayout, effectiveFlag, stackCommands } from './legacy/editing.ts';
+import { makeClip, cloneCommands, createHistory, arrange, collectionLayout, effectiveFlag, stackCommands } from './adapters/editing.ts';
 const batch = (board: Board, commands: unknown[]) => { const result = applyBatch(board, { commands }); assert.equal(result.ok, true, JSON.stringify(result.errors)); return result.board; };
 const seed = () => batch(emptyBoard('board-a'), [
   { op: 'create', type: 'note', newId: 'aaaaaa', text: 'First', x: 0, y: 0, group: 'group-a' },
@@ -93,7 +93,7 @@ test('history waits until a drag has settled before recording a snapshot', async
 });
 
 test('collections retain drop columns, insert by drop height, add side columns and detach cleanly', async () => {
-  const { collectionDrop } = await import('./legacy/editing.ts');
+  const { collectionDrop } = await import('./adapters/editing.ts');
   let board = seed();
   board = batch(board, [{ op: 'create', type: 'coll', newId: 'collaa', x: 0, y: 0, w: 530, props: { kids: [] } }]);
   const card = (id: string) => required(board.cards.find(c => c.id === id));
@@ -125,7 +125,7 @@ test('collection layout uses shortest unassigned column, preserves image ratio a
   assert.equal(required(command.set.w) / required(command.set.h), 2);
 });
 test('layer parents use the smallest section, preserve collection ownership and carry geometric descendants', async () => {
-  const { layerParents, layerDescendants } = await import('./legacy/editing.ts');
+  const { layerParents, layerDescendants } = await import('./adapters/editing.ts');
   const board = { cards: [
     { id: 'outer', type: 'section', x: 0, y: 0, w: 1000, h: 1000 },
     { id: 'inner', type: 'section', x: 100, y: 100, w: 400, h: 400 },
@@ -138,12 +138,12 @@ test('layer parents use the smallest section, preserve collection ownership and 
   required(board.cards[2]).x = 700; assert.equal(layerParents(board).get('note'), 'outer');
 });
 test('near-angle rotation snaps without Shift and Shift snaps farther angles', async () => {
-  const { snapRotation, lineHeightDefault } = await import('./legacy/editing.ts');
+  const { snapRotation, lineHeightDefault } = await import('./adapters/editing.ts');
   assert.equal(snapRotation(14), 15); assert.equal(snapRotation(12, false, true), 15); assert.equal(snapRotation(12), 12); assert.equal(snapRotation(22, true), 15); assert.equal(snapRotation(359), 0); assert.equal(snapRotation(-29), -30);
   assert.equal(lineHeightDefault('title'), 1); assert.equal(lineHeightDefault('note'), 1.45); assert.equal(lineHeightDefault('todo'), 1.35);
 });
 test('new toolbar tools enter at default positions without losing custom order or resurrecting old tools', async () => {
-  const { toolbarOrder } = await import('./legacy/editing.ts');
+  const { toolbarOrder } = await import('./adapters/editing.ts');
   assert.deepEqual(toolbarOrder(['pointer', 'note', 'coll', 'image', 'draw'], ['draw', 'note', 'pointer', 'image', 'removed']), ['draw', 'note', 'coll', 'pointer', 'image']);
   assert.deepEqual(toolbarOrder(['pointer', 'note', 'image']), ['pointer', 'note', 'image']);
 });

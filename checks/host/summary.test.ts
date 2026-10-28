@@ -4,7 +4,7 @@ import { required } from './required.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { columnLabel, cellText } from '@aegis/domain/summary';
-import { cardSummary, plotSummary, diagramSummary, sheetSummary } from './legacy/summary.ts';
+import { cardSummary, plotSummary, diagramSummary, sheetSummary } from './adapters/summary.ts';
 import type { JsonRecord } from '@aegis/domain/schema';
 import { formatValue } from '@aegis/domain/charts';
 

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyBatch } from './batch.ts';
 import { emptyBoard, describe } from '@aegis/domain/commands';
-import { DEVICES, PIECES, wireCard, screenCommand, pieceCommands, sectionCommands, selectForDrag, expandDrag, snapDrag, dropCommands, alignmentCommands } from './legacy/wireframe.ts';
+import { DEVICES, PIECES, wireCard, screenCommand, pieceCommands, sectionCommands, selectForDrag, expandDrag, snapDrag, dropCommands, alignmentCommands } from './adapters/wireframe.ts';
 
 const apply = (board: Board, commands: unknown[]) => { const result = applyBatch(board, { commands }); assert.equal(result.ok, true, JSON.stringify(result.errors)); return result.board; };
 const fresh = () => emptyBoard('wireframe', 'Wireframe test');
