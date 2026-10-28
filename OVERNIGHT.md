@@ -75,3 +75,12 @@ fragile. "Jarvis's table, built by Apple."
   privacy strings.
 - Not verified by ear: nobody has clicked the orb, so the two permission prompts
   and the transcript itself are still unseen.
+
+### 2026-10-29, tick at 12:18am
+
+- Fixed the first of the four broken UI suites: wireframe. Root cause was the
+  colour editor. A box set to "No fill" carries the string `none`, which the
+  editor turned into NaN slider values; React logged that as an error and the
+  suite asserts on a clean console.
+- The editor now starts from black when its value is not a hex.
+- `checks/ui/wireframe.mjs` passes. Next: docs, genui, agent-edges.

@@ -18,7 +18,10 @@ interface EditorProps {
 // The editor is a modal portal. Key events stop here so React does not bubble them to the window that opened it.
 export function ColourEditor({ value, board, onChange, onClose, onSave, name = true, swatch }: EditorProps) {
   const dialog = useRef<HTMLDialogElement>(null), wheel = useRef<HTMLCanvasElement>(null);
-  const [draft, setDraft] = useState(value), [hsv, setHsv] = useState(() => hex2hsv(value.hex));
+  // A card can carry a non-hex value such as "none" for no fill. The sliders cannot
+  // show that, so start from black instead of NaN and let a real choice replace it.
+  const start = normHex(value.hex) ?? '#000000';
+  const [draft, setDraft] = useState(() => ({ ...value, hex: start })), [hsv, setHsv] = useState(() => hex2hsv(start));
   const [all, setAll] = useState(false);
   const help = useId(), latest = useRef(value), committed = useRef(value);
   function commit(next = latest.current) { if (next.hex === committed.current.hex && next.label === committed.current.label && next.autoName === committed.current.autoName) return; committed.current = next; onChange(next); }
