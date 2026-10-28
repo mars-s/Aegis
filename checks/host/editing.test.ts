@@ -1,5 +1,4 @@
-import { assertionGroup } from './assertion-group.ts';
-import { CardIdSchema, BoardSchema } from '@aegis/domain/schema';
+import { CardIdSchema, BoardSchema, CommandSchema } from '@aegis/domain/schema';
 import type { Board } from '@aegis/domain/schema';
 import { required } from './required.ts';
 // Ported from Mochiboard (github.com/jessawolfe-ux/mochiboard, MIT, (c) 2026 Jessa Wolfe). See LICENSE.mochiboard.
@@ -7,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { emptyBoard } from '@aegis/domain/commands';
 import { applyBatch } from './batch.ts';
-import { makeClip, cloneCommands, createHistory, arrange, collectionLayout, effectiveFlag, stackCommands } from './adapters/editing.ts';
+import { makeClip, cloneCommands, createHistory, createWorkspace, historyStateCount, arrange, collectionLayout, effectiveFlag, stackCommands } from './adapters/editing.ts';
 const batch = (board: Board, commands: unknown[]) => { const result = applyBatch(board, { commands }); assert.equal(result.ok, true, JSON.stringify(result.errors)); return result.board; };
 const seed = () => batch(emptyBoard('board-a'), [
   { op: 'create', type: 'note', newId: 'aaaaaa', text: 'First', x: 0, y: 0, group: 'group-a' },
@@ -28,22 +27,38 @@ test('copy expands groups and remaps links, groups and nested collection members
   const same = batch(board, cloneCommands(makeClip(board, ['cccccc']), board, { x: 0, y: 0 }, 60).commands);
   assert.equal(required(same.cards.at(-1)).x, 860); assert.equal(required(same.cards.at(-1)).y, 260);
 });
-test('undo and redo restore saved card, link and tray state, branch history and reset on board switch', async () => {
-  const assertions = assertionGroup();
-  let board = emptyBoard('history-a'); const apply = (commands: unknown[]) => { board = batch(board, commands); history.observe(board); };
-  const history = createHistory({ read: () => board, apply, delay: 10 }); history.observe(board);
-  apply([{ op: 'create', type: 'note', newId: 'aaaaaa', text: 'One' }]);
-  apply([{ op: 'update', id: 'aaaaaa', set: { text: 'Two' } }]);
-  await new Promise(r => setTimeout(r, 25)); assertions.check(() => { assert.equal(history.status.length, 2); });
-  apply([{ op: 'board_set', set: { tray: [{ id: 'tray01', text: 'Idea' }] } }]); history.flush();
-  assert.equal(history.travel(-1), true); assert.deepEqual(board.tray, []); assert.equal(required(board.cards[0]).text, 'Two');
-  assert.equal(history.travel(-1), true); assertions.check(() => { assert.equal(board.cards.length, 0); });
-  assert.equal(history.travel(1), true); assert.equal(required(board.cards[0]).text, 'Two');
-  apply([{ op: 'update', id: 'aaaaaa', set: { text: 'New branch' } }]); history.flush(); assert.equal(history.travel(1), false);
-  for (let i = 0; i < 90; i++) { apply([{ op: 'update', id: 'aaaaaa', set: { text: String(i) } }]); history.flush(); }
-  assertions.check(() => { assert.equal(history.status.length, 80); });
-  board = emptyBoard('history-b'); history.observe(board); assert.equal(history.travel(-1), false); assert.equal(history.status.length, 1);
-  assertions.finish();
+test('undo and redo restore saved card, link and tray state, branch history and reset on board switch', () => {
+  let workspace = createWorkspace({ board: emptyBoard('history-a') });
+  const board = () => workspace.scene.snapshot();
+  const apply = (commands: unknown[]) => {
+    const result = workspace.submit(CommandSchema.array().parse(commands));
+    if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+  };
+  try {
+    // Creating and naming the note is one authored action and one Undo transaction.
+    apply([{ op: 'create', type: 'note', newId: 'aaaaaa', text: 'One' }, { op: 'update', id: 'aaaaaa', set: { text: 'Two' } }]);
+    assert.equal(historyStateCount(workspace), 2);
+    apply([{ op: 'board_set', set: { tray: [{ id: 'tray01', text: 'Idea' }] } }]);
+    assert.equal(workspace.undo().kind === 'applied', true); assert.deepEqual(board().tray, []); assert.equal(required(board().cards[0]).text, 'Two');
+    assert.equal(workspace.undo().kind === 'applied', true); assert.equal(board().cards.length, 0);
+    assert.equal(workspace.redo().kind === 'applied', true); assert.equal(required(board().cards[0]).text, 'Two');
+    apply([{ op: 'update', id: 'aaaaaa', set: { text: 'New branch' } }]); assert.equal(workspace.redo().kind === 'applied', false);
+    for (let i = 0; i < 90; i++) apply([{ op: 'update', id: 'aaaaaa', set: { text: String(i) } }]);
+    assert.equal(historyStateCount(workspace), 81);
+    workspace.dispose(); workspace = createWorkspace({ board: emptyBoard('history-b') });
+    assert.equal(workspace.undo().kind === 'applied', false); assert.equal(historyStateCount(workspace), 1);
+
+    const separate = createWorkspace({ board: emptyBoard('separate-actions') }), id = CardIdSchema.parse('separatenote');
+    try {
+      assert.equal(separate.submit([{ op: 'create', type: 'note', newId: id, text: 'One' }]).kind, 'applied');
+      assert.equal(separate.submit([{ op: 'update', id, set: { text: 'Two' } }]).kind, 'applied');
+      assert.equal(required(separate.scene.snapshot().cards[0]).text, 'Two');
+      assert.equal(separate.undo().kind, 'applied');
+      assert.equal(required(separate.scene.snapshot().cards[0]).text, 'One');
+      assert.equal(separate.undo().kind, 'applied');
+      assert.equal(separate.scene.snapshot().cards.length, 0);
+    } finally { separate.dispose(); }
+  } finally { workspace.dispose(); }
 });
 test('delete removes attached links and restore returns them through the command path', () => {
   const board = seed(), removed = batch(board, [{ op: 'delete', ids: ['aaaaaa'] }]); assert.equal(removed.links.length, 0);
@@ -88,7 +103,7 @@ test('undo and redo include palette changes without changing the camera or backg
 });
 test('history waits until a drag has settled before recording a snapshot', async () => {
   let board = seed(), dragging = false;
-  const history = createHistory({ read: () => board, apply: commands => { board = batch(board, commands); }, busy: () => dragging, delay: 10 }); history.observe(board);
+  const history = createHistory({ read: () => board, apply: commands => { board = batch(board, commands); }, busy: () => dragging }); history.observe(board);
   dragging = true; board = batch(board, [{ op: 'move', id: 'aaaaaa', x: 80, y: 50 }]); history.observe(board);
   await new Promise(r => setTimeout(r, 25)); assert.equal(history.status.length, 1);
   board = batch(board, [{ op: 'move', id: 'aaaaaa', x: 120, y: 100 }]); dragging = false; history.observe(board);

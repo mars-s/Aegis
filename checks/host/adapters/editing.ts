@@ -29,10 +29,11 @@ export const snapRotation = model.snapRotation;
 export function lineHeightDefault(type: string) { return model.lineHeightDefault(CardTypeSchema.parse(type)); }
 export const toolbarOrder = model.toolbarOrder;
 const { createWorkspace } = await import('../../../app/src/workspace/store.ts');
+export { createWorkspace };
 const { historyCommands } = await import('../../../app/src/workspace/projection.ts');
 // Translate observed host snapshots into real workspace transactions. History,
 // branching and the capacity limit are owned exclusively by the workspace.
-export function createHistory(options: { read: () => Board; apply: (commands: unknown[]) => void; busy?: () => boolean; delay?: number }) {
+export function createHistory(options: { read: () => Board; apply: (commands: unknown[]) => void; busy?: () => boolean }) {
   let workspace = createWorkspace({ board: options.read() });
   function observe(next: Board): void {
     const current = workspace.scene.snapshot();
@@ -40,19 +41,6 @@ export function createHistory(options: { read: () => Board; apply: (commands: un
     if (options.busy?.() || JSON.stringify(historyCommands(next)) === JSON.stringify(historyCommands(current))) return;
     const result = workspace.submit(historyCommands(next));
     if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
-  }
-  function depth(): number {
-    let count = 0;
-    while (workspace.history.getSnapshot().undo) {
-      const result = workspace.undo();
-      if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
-      count++;
-    }
-    for (let index = 0; index < count; index++) {
-      const result = workspace.redo();
-      if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
-    }
-    return count + 1;
   }
   return {
     observe,
@@ -64,8 +52,22 @@ export function createHistory(options: { read: () => Board; apply: (commands: un
       options.apply([...historyCommands(workspace.scene.snapshot())]);
       return true;
     },
-    get status() { return { length: depth() }; },
+    get status() { return { length: historyStateCount(workspace) }; },
   };
 }
 export function layerParents(board: unknown) { return new Map<string, string>(layers.layerParents(fixtureBoard(board))); }
 export function layerDescendants(board: unknown, selected: string[]) { return layers.layerDescendants(fixtureBoard(board), ids.parse(selected)); }
+
+export function historyStateCount(workspace: ReturnType<typeof createWorkspace>): number {
+  let count = 0;
+  while (workspace.history.getSnapshot().undo) {
+    const result = workspace.undo();
+    if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+    count++;
+  }
+  for (let index = 0; index < count; index++) {
+    const result = workspace.redo();
+    if (result.kind === 'rejected') throw new Error(JSON.stringify(result.errors));
+  }
+  return count + 1;
+}
