@@ -122,8 +122,9 @@ export class SceneOverlays {
     const editorId = editorSource instanceof HTMLElement ? [...nodes.keys()].find(id => id === editorSource.dataset.id) : null;
     const id = editorId || (this.strip.contains(focus) ? this.actionId : this.hoveredWindow || focusedCard || [...selected].at(-1));
     const rep = representations.find(item => item.id === id && item.kind === 'detail');
-    const shell = id ? [...this.world.children].find(element => element instanceof HTMLElement && element.dataset.id === id) : null;
-    this.actions = shell ? [...shell.querySelectorAll('button.win-open,button.deck-open,button.canvas-open')].filter(source => source instanceof HTMLButtonElement).map(source => ({ source, text: source.textContent?.trim() || 'Open', label: source.getAttribute('aria-label') || source.textContent?.trim() || 'Open', disabled: source.disabled })) : [];
+    // The card already shows its own Open button in its header, so mirroring it
+    // here only produced a second, floating copy of the same control.
+    this.actions = [];
     this.visible = !!rep && this.actions.length > 0 && !this.stage.classList.contains('connecting') && !this.stage.classList.contains('placing');
     this.actionId = id ?? null; this.stripBox = null;
     if (rep && this.visible) {

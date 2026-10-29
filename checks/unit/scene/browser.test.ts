@@ -54,26 +54,6 @@ beforeAll(async () => {
 afterAll(async () => { await browser?.close(); await server?.close(); rmSync(data, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }); });
 
 describe('real scene attachment', () => {
-  test.each(['chromium', 'webkit'] as const)('window actions avoid individual agent arrows in %s', async engine => {
-    const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
-    try {
-      const p = await page(false, false, alternate ?? browser);
-      await p.locator('[data-id="note-2"]').hover(); await idle(p);
-      const action = p.locator('.window-actions button'), box = await action.boundingBox();
-      if (!box) throw new Error('Missing actual floating Open action');
-      await p.evaluate(box => {
-        const host = document.createElement('div'), arrow = document.createElement('button');
-        host.className = 'aegis-agents'; arrow.className = 'agent-edge'; arrow.textContent = 'Agent';
-        Object.assign(arrow.style, { position: 'fixed', left: `${box.x}px`, top: `${box.y}px`, width: '44px', height: '44px', zIndex: '50' });
-        host.append(arrow); document.body.append(host); window.sceneHarness.engine.invalidate();
-      }, box); await idle(p);
-      const actionBox = await action.boundingBox(), arrowBox = await p.locator('.agent-edge').boundingBox();
-      if (!actionBox || !arrowBox) throw new Error('Missing pointer target');
-      expect(actionBox.x < arrowBox.x + arrowBox.width && actionBox.x + actionBox.width > arrowBox.x && actionBox.y < arrowBox.y + arrowBox.height && actionBox.y + actionBox.height > arrowBox.y).toBe(false);
-      await action.click(); expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(1); await p.close();
-    } finally { await alternate?.close(); }
-  });
-
   test.each(['chromium', 'webkit'] as const)('preferences draw real grid shapes and retain saved modes in %s', async engine => {
     const alternate = engine === 'webkit' ? await webkit.launch({ headless: true }) : null;
     try {
@@ -1264,22 +1244,6 @@ describe('real scene attachment', () => {
     await client.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 990, y: 610, id: 3 }] });
     await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); await idle(p);
     expect(await p.evaluate(() => window.sceneHarness.engine.camera())).toEqual({ ...camera, x: camera.x + 40, y: camera.y + 30 });
-    await p.close();
-  });
-
-  test('screen-sized Open action keeps focus through source updates and scales its anchor only', async () => {
-    const p = await page();
-    await p.locator('[data-id="note-2"] .win-open').hover();
-    const action = p.locator('.window-actions button'); await action.waitFor();
-    await action.focus();
-    await p.evaluate(() => { const card = window.sceneHarness.board().cards.find(card => card.id === 'note-2'); if (card) window.sceneHarness.update({ ...card, text: 'Updated source' }); }); await idle(p);
-    expect(await action.evaluate(el => el === document.activeElement)).toBe(true);
-    const before = await action.boundingBox();
-    await p.evaluate(() => window.sceneHarness.engine.navigate({ kind: 'restore', camera: { x: 100, y: 100, zoom: .5 }, motion: 'instant' })); await idle(p);
-    const after = await action.boundingBox();
-    expect(after?.width).toBe(before?.width); expect(after?.height).toBe(before?.height);
-    expect(after?.x).not.toBe(before?.x);
-    await action.click(); expect(await p.evaluate(() => window.sceneHarness.opened())).toBe(1);
     await p.close();
   });
 

@@ -100,15 +100,13 @@ try {
       const geometry = await page.evaluate(() => {
         const r = el => el.getBoundingClientRect().toJSON();
         const visible = el => el && !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden';
-        return { window: r(document.querySelector('.card[data-id="decision"]')), bar: r(document.getElementById('selectionBar')), actions: r(document.querySelector('.window-actions')), resize: visible(document.querySelector('.selection-resize')), rotate: visible(document.querySelector('.rotation-handle')) };
+        return { window: r(document.querySelector('.card[data-id="decision"]')), bar: r(document.getElementById('selectionBar')), resize: visible(document.querySelector('.selection-resize')), rotate: visible(document.querySelector('.rotation-handle')) };
       });
       assert.equal(geometry.resize, true); assert.equal(geometry.rotate, true);
       assert.ok(geometry.bar.bottom <= geometry.window.top - 23.9, JSON.stringify(geometry));
-      assert.ok(geometry.actions.bottom <= geometry.window.top - 7.9, JSON.stringify(geometry));
-      assert.ok(geometry.actions.right <= geometry.window.right + 1, JSON.stringify(geometry));
       await shot(`${engineName}-summary-controls`);
       await page.evaluate(() => { aegis.canvas.setView({ x: 300, y: 250, z: .05 }); document.getElementById('stage').focus(); }); await page.waitForTimeout(150);
-      assert.ok(await page.locator('#selectionBar, .window-actions, .editing-outline').evaluateAll(els => els.every(el => !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden')));
+      assert.ok(await page.locator('#selectionBar, .editing-outline').evaluateAll(els => els.every(el => !el.hidden && getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden')));
       assert.equal(await page.locator('.overview-back, .overview-cluster').count(), 0);
       assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), ['decision']);
       await shot(`${engineName}-selected-cluster`);
