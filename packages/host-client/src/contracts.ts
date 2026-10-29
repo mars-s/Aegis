@@ -73,6 +73,7 @@ export interface HostClient extends BoardClient {
   readonly answer: (provider: Provider, answer: string, signal?: AbortSignal) => Promise<HostResult<void>>;
   readonly mcp: (signal?: AbortSignal) => Promise<HostResult<McpSetup>>;
   readonly rewrite: (request: RewriteRequest, signal?: AbortSignal) => Promise<HostResult<string>>;
+  readonly rewriteStream: (request: RewriteRequest, onDelta: (delta: string) => void, signal?: AbortSignal) => Promise<HostResult<string>>;
   readonly linkPreview: (url: string, signal: AbortSignal) => Promise<HostResult<LinkPreview>>;
   readonly registerSandbox: (request: SandboxRequest, signal: AbortSignal) => Promise<HostResult<{ readonly url: string }>>;
   readonly library: {

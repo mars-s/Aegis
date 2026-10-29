@@ -8,7 +8,8 @@ import {
 import { createPortal } from "react-dom";
 import { BubbleMenuPlugin } from "@tiptap/extension-bubble-menu";
 import { Editor } from "@tiptap/core";
-import { AllSelection } from "@tiptap/pm/state";
+import { AllSelection, Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { z } from "zod/v4";
 import {
   BoardIdSchema,
@@ -53,6 +54,28 @@ const PAPER_OPTIONS = [
   ["a4", "A4"],
   ["letter", "Letter"],
 ] as const;
+
+interface WritingRange { readonly from: number; readonly to: number }
+const writingKey = new PluginKey<DecorationSet>("ai-writing");
+const isWritingRange = (value: unknown): value is WritingRange =>
+  typeof value === "object" && value !== null && "from" in value && "to" in value &&
+  typeof value.from === "number" && typeof value.to === "number";
+/** Marks the passage being rewritten so CSS can sweep an underline under it. */
+function writingDecorations(): Plugin<DecorationSet> {
+  return new Plugin<DecorationSet>({
+    key: writingKey,
+    state: {
+      init: () => DecorationSet.empty,
+      apply(tr, old, _previous, next) {
+        const meta: unknown = tr.getMeta(writingKey);
+        if (meta === null) return DecorationSet.empty;
+        if (isWritingRange(meta)) return DecorationSet.create(next.doc, [Decoration.inline(meta.from, meta.to, { class: "ai-writing" })]);
+        return old.map(tr.mapping, tr.doc);
+      },
+    },
+    props: { decorations(state) { return writingKey.getState(state) ?? DecorationSet.empty; } },
+  });
+}
 
 function useSnapshot<T>(source: Source<T>): T {
   return useSyncExternalStore(source.subscribe, source.getSnapshot);
@@ -118,6 +141,7 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
     bubble.className = "docs-bubble";
     bubble.setAttribute("role", "toolbar");
     bubble.setAttribute("aria-label", "Selection formatting");
+    editor.registerPlugin(writingDecorations());
     editor.registerPlugin(
       BubbleMenuPlugin({
         pluginKey: "document-bubble",
@@ -353,11 +377,22 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
       return;
     }
     const snapshot = editor.state.doc;
+    const original = snapshot.textBetween(from, to, "\n");
+    let written = "", applied = "", last = 0;
+    const paint = (text: string): void => {
+      if (editor.isDestroyed) return;
+      const end = applied ? from + applied.length : to;
+      if (end > editor.state.doc.content.size) return;
+      editor.view.dispatch(editor.state.tr.insertText(text, from, end));
+      applied = text;
+      editor.view.dispatch(editor.state.tr.setMeta(writingKey, { from, to: from + text.length }));
+    };
     setBusy(true);
+    editor.view.dispatch(editor.state.tr.setMeta(writingKey, { from, to }));
     try {
       const text = await services.rewrite(
         {
-          text: snapshot.textBetween(from, to, "\n"),
+          text: original,
           how,
           title: session.title(),
           around: snapshot.textBetween(
@@ -369,25 +404,28 @@ export function DocumentEditor({ cardId, workspace, engine }: CardBodyProps) {
           cardId,
         },
         signal,
+        delta => {
+          written += delta;
+          const now = performance.now();
+          if (now - last < 60) return;
+          last = now;
+          paint(written);
+        },
       );
       if (signal.aborted || editor.isDestroyed) return;
-      if (!editor.state.doc.eq(snapshot)) {
+      if (!applied && !editor.state.doc.eq(snapshot)) {
         setMessage("The document changed. Select the words and try again");
         return;
       }
       if (!text.trim()) throw new Error("The agent returned no text");
-      editor
-        .chain()
-        .focus()
-        .insertContentAt({ from, to }, { type: "text", text })
-        .setTextSelection({ from, to: from + text.length })
-        .run();
+      paint(text);
+      editor.chain().focus().setTextSelection({ from, to: from + text.length }).run();
     } catch (error) {
-      if (!signal.aborted)
-        setMessage(
-          error instanceof Error ? error.message : "Could not rewrite",
-        );
+      if (signal.aborted) {
+        if (applied && !editor.isDestroyed) paint(original);
+      } else setMessage(error instanceof Error ? error.message : "Could not rewrite");
     } finally {
+      if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(writingKey, null));
       if (!signal.aborted) setBusy(false);
     }
   }

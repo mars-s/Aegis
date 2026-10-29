@@ -309,3 +309,17 @@ fragile. "Jarvis's table, built by Apple."
 - `checks/ui/editing.mjs` passes. Full check green.
 - That closes every code item the loop ever opened. What remains is owner
   decisions: document default width, and the orb click for dictation.
+
+### 2026-10-29, morning: rewrite streaming and the duplicate Open
+
+- Removed the floating copy of each card's Open button. The canvas overlay
+  mirrored whatever win-open, deck-open or canvas-open button the card already
+  shows, so a hovered card showed the same Open twice.
+- Rewrites now stream. The host exposes a `stream` mode on `/rewrite` using the
+  model layer's `streamSimple`, one JSON object per line. The client reads it,
+  the editor paints each delta into the replaced range, and a decoration puts a
+  sweeping underline under the passage while it writes.
+- `AEGIS_FAKE_STREAM_DELAY` paces the fake model so the animation can be seen in
+  tests and demos. Photographed mid-flight at 420 ms per word: the underline is
+  present and the words grow in place.
+- Docs suite passes all 17 sections; full check green.

@@ -26,7 +26,7 @@ const CallsSchema = z.array(CallSchema);
 const ScriptSchema = z.array(z.union([CallSchema, CallsSchema]));
 export const ModelChoiceSchema = z.object({ provider: z.string(), modelId: z.string(), name: z.string().optional() });
 export type ModelChoice = z.output<typeof ModelChoiceSchema>;
-export const RewriteSchema = z.object({ text: z.unknown(), how: z.unknown().optional(), title: z.unknown().optional(), around: z.unknown().optional(), model: ModelChoiceSchema.optional() });
+export const RewriteSchema = z.object({ text: z.unknown(), how: z.unknown().optional(), title: z.unknown().optional(), around: z.unknown().optional(), model: ModelChoiceSchema.optional(), stream: z.unknown().optional() });
 type RewriteInput = z.output<typeof RewriteSchema>;
 interface Prompt { type: Exclude<AuthPrompt['type'], 'select'>; message: string; placeholder: string | undefined }
 interface SignIn { outcome: { kind: 'idle' | 'pending' | 'connected' } | { kind: 'failed'; error: string }; events: AuthEvent[]; prompt: Prompt | null; answer: ((answer: string) => void) | null; abort: AbortController; started: number; job: Promise<void> | null; cancelled: boolean }
@@ -178,7 +178,8 @@ function modelList() {
 }
 
 // ---------- one-shot text rewrite for the document editor (no board access, no tools) ----------
-async function rewriteText({ text: input, how, title, around, model }: RewriteInput) {
+const REWRITE_PROMPT = 'You rewrite a passage from the person\'s document. Return only the rewritten passage: no preamble, no quotes, no notes. Keep the meaning and the language. Australian English unless the passage is in another language. Never use em dashes.';
+async function prepareRewrite({ text: input, model }: RewriteInput) {
   if (typeof input !== 'string' || !input.trim()) throw Object.assign(new Error('nothing to rewrite'), { status: 400 });
   if (input.length > 12000) throw Object.assign(new Error('select fewer than 12,000 characters'), { status: 400 });
   const list = modelList();
@@ -186,21 +187,44 @@ async function rewriteText({ text: input, how, title, around, model }: RewriteIn
   for (const m of list) if (m.provider === 'fake' || (await credentials.read(m.provider))) ready.push(m);
   const choice = (model && ready.find(m => m.provider === model.provider && m.modelId === model.modelId)) || ready[0];
   if (!choice) throw Object.assign(new Error('Sign in to ChatGPT or Claude in Settings first'), { status: 400 });
-  if (choice.provider === 'fake') return { text: `${input} (rewritten)` };
+  return choice;
+}
+function rewriteMessages({ text: input, how, title, around }: RewriteInput) {
+  return [{ role: 'user' as const, timestamp: Date.now(), content: `Document: ${String(title || 'Untitled').slice(0, 200)}\nInstruction: ${String(how || 'Improve the writing').slice(0, 500)}\n\nText around it (context only, do not return it):\n${String(around || '').slice(0, 3000)}\n\nPassage to rewrite:\n${String(input)}` }];
+}
+async function rewriteText(input: RewriteInput) {
+  const choice = await prepareRewrite(input);
+  if (choice.provider === 'fake') return { text: `${String(input.text)} (rewritten)` };
   const target = models.getModel(choice.provider, choice.modelId);
   if (!target) throw new Error('The selected model is no longer available');
-  const reply = await models.completeSimple(target, {
-    systemPrompt: 'You rewrite a passage from the person\'s document. Return only the rewritten passage: no preamble, no quotes, no notes. Keep the meaning and the language. Australian English unless the passage is in another language. Never use em dashes.',
-    messages: [{ role: 'user', timestamp: Date.now(), content: `Document: ${String(title || 'Untitled').slice(0, 200)}\nInstruction: ${String(how || 'Improve the writing').slice(0, 500)}\n\nText around it (context only, do not return it):\n${String(around || '').slice(0, 3000)}\n\nPassage to rewrite:\n${input}` }],
-  });
+  const reply = await models.completeSimple(target, { systemPrompt: REWRITE_PROMPT, messages: rewriteMessages(input) });
   const out = (reply.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
+  if (!out) throw new Error(reply.errorMessage || 'the model returned nothing');
+  return { text: out, model: choice.modelId };
+}
+// Streams the rewrite so the editor can show the words arriving instead of a jump.
+async function rewriteTextStream(input: RewriteInput, onDelta: (delta: string) => void) {
+  const choice = await prepareRewrite(input);
+  if (choice.provider === 'fake') {
+    const out = `${String(input.text)} (rewritten)`;
+    const pace = Number(process.env.AEGIS_FAKE_STREAM_DELAY ?? 15);
+    for (const part of out.match(/\S+\s*/g) ?? [out]) { onDelta(part); await new Promise(done => setTimeout(done, pace)); }
+    return { text: out, model: 'fake' };
+  }
+  const target = models.getModel(choice.provider, choice.modelId);
+  if (!target) throw new Error('The selected model is no longer available');
+  const stream = models.streamSimple(target, { systemPrompt: REWRITE_PROMPT, messages: rewriteMessages(input) });
+  let text = '';
+  for await (const event of stream) if (event.type === 'text_delta' && event.delta) { text += event.delta; onDelta(event.delta); }
+  const reply = await stream.result();
+  const out = text.trim();
   if (!out) throw new Error(reply.errorMessage || 'the model returned nothing');
   return { text: out, model: choice.modelId };
 }
 
 
   lifetime.add(() => { for (const state of signIns.values()) state.abort.abort(); });
-  return { credentials, models, fake, modelList, signIn, cancelSignIn, authState, rewriteText,
+  return { credentials, models, fake, modelList, signIn, cancelSignIn, authState, rewriteText, rewriteTextStream,
     answer(provider: string, answer: string): void {
       const current = signIns.get(provider);
       if (!current?.answer || !answer.trim()) throw new Error('no sign-in is waiting for an answer');

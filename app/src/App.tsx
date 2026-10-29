@@ -234,10 +234,11 @@ function BoardView({ runtime }: { readonly runtime: Runtime }) {
   const selectedCard = selectedId ? workspace.record(selectedId).getSnapshot() : null;
   const drawTarget: DrawTarget | null = selectedCard && ['ink', 'shape', 'path', 'stamp'].includes(selectedCard.type) ? { kind: 'card', id: selectedCard.id } : creativeMode && creativeMode !== 'wireframe' ? creativeMode : null;
   const documentServices = useMemo<DocumentServices>(() => ({ context, assetUrl: client.assetUrl,
-    rewrite: async (request, signal) => {
+    rewrite: async (request, signal, onDelta) => {
       const test = __AEGIS_TEST_FACADE__ ? documentTestRewriter() : null; if (test) return test(request);
       const model = controls.current?.runtime.getSnapshot().model;
-      return hostValue(await client.rewrite({ text: request.text, how: request.how, title: request.title, around: request.around, ...(model ? { model } : {}) }, signal));
+      const payload = { text: request.text, how: request.how, title: request.title, around: request.around, ...(model ? { model } : {}) };
+      return hostValue(onDelta ? await client.rewriteStream(payload, onDelta, signal) : await client.rewrite(payload, signal));
     },
     printHtml, ...(runtime.connection.native ? { saveFile: async (blob: Blob, name: string) => { await saveFile(blob, name); } } : {}),
     openUrl: url => { void openUrl(url); },

@@ -1104,3 +1104,20 @@
   min-height: 32px;
   height: 32px;
 }
+
+/* While a rewrite streams in, a thin line sweeps under the words being replaced. */
+.docs-prose .ai-writing {
+  background-image: linear-gradient(90deg, transparent, var(--data), transparent);
+  background-repeat: no-repeat;
+  background-size: 45% 2px;
+  background-position: -45% 100%;
+  animation: ai-writing-sweep 1.1s linear infinite;
+}
+@keyframes ai-writing-sweep {
+  from { background-position: -45% 100%; }
+  to { background-position: 100% 100%; }
+}
+body.motion-off .docs-prose .ai-writing { animation: none; background-image: none; box-shadow: inset 0 -2px 0 var(--data); }
+@media (prefers-reduced-motion: reduce) {
+  .docs-prose .ai-writing { animation: none; background-image: none; box-shadow: inset 0 -2px 0 var(--data); }
+}

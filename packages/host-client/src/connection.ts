@@ -4,6 +4,7 @@ import { decodeStoredBoard } from '@aegis/protocol/storage';
 import { decodeAssetUpload, decodeBatchResponse, decodeBoardList, decodeHostEvent, decodeHostError, decodeOkResponse } from '@aegis/protocol/http';
 import { AgentModelSchema, AgentReceiptSchema, AgentSnapshotSchema } from '@aegis/protocol/agents';
 import { AccountsSchema, LibraryResultSchema, LibrarySnapshotSchema, LinkPreviewSchema, McpSetupSchema, RewriteResponseSchema, decodeSandbox } from '@aegis/protocol/services';
+import type { RewriteRequest } from '@aegis/protocol/services';
 import type { HostClient } from './contracts.js';
 import type { HostFailure, HostResult } from './result.js';
 import { readEventStream } from './sse.js';
@@ -89,6 +90,57 @@ export function createHostClient(options: HostOptions): HostClient {
     }));
   }
 
+  // The rewrite stream sends one JSON object per line: {delta} while the model
+  // writes, then {done, text}, or {error}.
+  const parseLine = (value: unknown) => {
+    if (typeof value !== 'object' || value === null) return null;
+    const field = (name: string): unknown => name in value ? Reflect.get(value, name) : undefined;
+    return {
+      delta: typeof field('delta') === 'string' ? String(field('delta')) : undefined,
+      done: field('done') === true,
+      text: typeof field('text') === 'string' ? String(field('text')) : undefined,
+      error: typeof field('error') === 'string' ? String(field('error')) : undefined,
+    };
+  };
+  async function rewriteStream(input: RewriteRequest, onDelta: (delta: string) => void, signal?: AbortSignal): Promise<HostResult<string>> {
+    if (lifetime.signal.aborted || signal?.aborted) return { kind: 'error', error: { kind: 'cancelled' } };
+    const joined = AbortSignal.any([lifetime.signal, ...(signal ? [signal] : [])]);
+    try {
+      const response = await fetchHost(base + '/rewrite', {
+        method: 'POST', signal: joined,
+        headers: { authorization: `Bearer ${options.token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ ...input, stream: true }),
+      });
+      if (response.status === 401) return { kind: 'error', error: { kind: 'unauthorised' } };
+      if (!response.ok || !response.body) return { kind: 'error', error: { kind: 'http', status: response.status, message: response.statusText } };
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      let buffer = '', text = '', problem = '';
+      for (;;) {
+        const chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        for (;;) {
+          const index = buffer.indexOf('\n');
+          if (index < 0) break;
+          const line = buffer.slice(0, index).trim();
+          buffer = buffer.slice(index + 1);
+          if (!line) continue;
+          let value: unknown;
+          try { value = JSON.parse(line); } catch { continue; }
+          const parsed = parseLine(value);
+          if (!parsed) continue;
+          if (parsed.error) problem = parsed.error;
+          else if (parsed.delta) { text += parsed.delta; onDelta(parsed.delta); }
+          if (parsed.done && parsed.text) text = parsed.text;
+        }
+      }
+      if (problem) return { kind: 'error', error: { kind: 'protocol', message: problem } };
+      return { kind: 'ok', value: text };
+    } catch (error) {
+      return { kind: 'error', error: joined.aborted ? { kind: 'cancelled' } : offline(error) };
+    }
+  }
+
   return {
     agents: {
       list: (boardId, signal) => request({ method: 'GET', path: boardId ? `/agents?board=${encodeURIComponent(boardId)}` : '/agents', decode: value => AgentSnapshotSchema.array().parse(value), signal }),
@@ -108,6 +160,7 @@ export function createHostClient(options: HostOptions): HostClient {
     answer: (provider, answer, signal) => request({ method: 'POST', path: '/auth/answer', body: { kind: 'json', value: { provider, answer } }, decode: decodeOkResponse, signal }),
     mcp: signal => request({ method: 'GET', path: '/integrations/mcp', decode: value => McpSetupSchema.parse(value), signal }),
     rewrite: (input, signal) => request({ method: 'POST', path: '/rewrite', body: { kind: 'json', value: input }, decode: value => RewriteResponseSchema.parse(value), signal }),
+    rewriteStream,
     linkPreview: (url, signal) => request({ method: 'GET', path: `/link-preview?url=${encodeURIComponent(url)}`, decode: value => LinkPreviewSchema.parse(value), signal }),
     registerSandbox: (input, signal) => request({ method: 'POST', path: '/sandbox', body: { kind: 'json', value: input }, decode: value => decodeSandbox(value, base), signal }),
     library: {

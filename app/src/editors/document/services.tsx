@@ -18,6 +18,7 @@ export interface DocumentServices {
   readonly rewrite?: (
     request: RewriteRequest,
     signal: AbortSignal,
+    onDelta?: (delta: string) => void,
   ) => Promise<string>;
   readonly printHtml?: (html: string) => Promise<boolean>;
   readonly saveFile?: (blob: Blob, name: string) => Promise<void>;

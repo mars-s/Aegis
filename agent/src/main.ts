@@ -133,7 +133,18 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
     if (p === '/models') return send(res, 200, providers.modelList());
-    if (p === '/rewrite' && m === 'POST') return send(res, 200, await providers.rewriteText(RewriteSchema.parse(await body(req))));
+    if (p === '/rewrite' && m === 'POST') {
+      const input = RewriteSchema.parse(await body(req));
+      if (!input.stream) return send(res, 200, await providers.rewriteText(input));
+      res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' });
+      try {
+        const result = await providers.rewriteTextStream(input, delta => res.write(JSON.stringify({ delta }) + '\n'));
+        res.end(JSON.stringify({ done: true, text: result.text }) + '\n');
+      } catch (error) {
+        res.end(JSON.stringify({ error: errorMessage(error) }) + '\n');
+      }
+      return;
+    }
     if (p === '/auth' && m === 'GET') return send(res, 200, await providers.authState());
     if (p === '/auth/start' && m === 'POST') { providers.signIn(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
     if (p === '/auth/cancel' && m === 'POST') { providers.cancelSignIn(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
