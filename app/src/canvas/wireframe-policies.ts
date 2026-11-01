@@ -1,7 +1,7 @@
 import type { Board } from '@aegis/domain/schema';
 import type { CanvasAttachment } from '@aegis/scene';
 import { selectForDrag, expandDrag, snapDrag, dropCommands } from '../features/wireframe/commands.js';
-import { expandTemplateDrag, templateDropCommands } from '../chrome/templates.js';
+import { expandTemplateDrag, templateDropCommands } from './legacy-groups.js';
 
 type Policies = Pick<CanvasAttachment, 'selectForDrag' | 'expandDrag' | 'snapDrag' | 'dropCommands'>;
 export function wireframePolicies(board: () => Board): Policies {

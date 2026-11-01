@@ -1,0 +1,31 @@
+import { afterEach, expect, test, vi } from 'vitest';
+import { createPreferenceStore } from './preferences-store.js';
+
+afterEach(() => vi.unstubAllGlobals());
+test('a fresh app follows the system while a saved theme takes precedence and can return to system', () => {
+  const storage = new Map<string, string>();
+  const document = { documentElement: { dataset: { theme: '' } }, body: { classList: { toggle() {} } } };
+  const changes = new EventTarget(), events = new EventTarget();
+  const media = { matches: false, addEventListener: changes.addEventListener.bind(changes), removeEventListener: changes.removeEventListener.bind(changes) };
+  vi.stubGlobal('localStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('matchMedia', () => media);
+  vi.stubGlobal('window', events);
+  vi.stubGlobal('addEventListener', events.addEventListener.bind(events));
+  vi.stubGlobal('removeEventListener', events.removeEventListener.bind(events));
+  const preferences = createPreferenceStore(), detach = preferences.attach();
+  expect(preferences.getSnapshot().theme).toBe('system');
+  expect(document.documentElement.dataset.theme).toBe('light');
+  media.matches = true; changes.dispatchEvent(new Event('change'));
+  expect(document.documentElement.dataset.theme).toBe('dark');
+  preferences.set('theme', 'light');
+  changes.dispatchEvent(new Event('change'));
+  expect(document.documentElement.dataset.theme).toBe('light');
+  expect(createPreferenceStore().getSnapshot().theme).toBe('light');
+  preferences.set('theme', 'dark');
+  media.matches = false; changes.dispatchEvent(new Event('change'));
+  expect(document.documentElement.dataset.theme).toBe('dark');
+  preferences.set('theme', 'system');
+  expect(document.documentElement.dataset.theme).toBe('light');
+  detach();
+});

@@ -24,7 +24,7 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript(() => { if (window.top === window) { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake'); } });
+  await page.addInitScript(() => { if (window.top === window) { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake'); } });
   await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && [...document.querySelectorAll('#model option')].some(o => o.value === 'fake|fake'));
   const transfer = await page.evaluateHandle(text => { const d = new DataTransfer(); d.items.add(new File([text], 'expenses.csv', { type: 'text/csv' })); return d; }, csv);

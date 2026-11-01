@@ -9,10 +9,10 @@
 .deck-editor .deck-film-add { flex: none; display: grid; place-items: center; width: 96px; height: 63px; padding: 0 8px; border: 1px solid var(--line); border-radius: 3px; background: transparent; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .deck-editor .deck-film-item.on { color: var(--text); }
 .deck-editor button:active { transform: scale(.97); }
-.deck-editor :focus-visible, .deck-body :focus-visible { outline: 1.5px solid var(--text); outline-offset: 2px; }
-.deck-present-exit { position: fixed; top: 16px; right: 20px; opacity: 0; background: #18191b; color: #fff; }
+.deck-editor :focus-visible, .deck-body :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.deck-present-exit { position: fixed; top: 16px; right: 20px; opacity: 0; background: var(--surface-overlay); color: var(--text-1); }
 .deck-present:hover .deck-present-exit, .deck-present:focus-within .deck-present-exit { opacity: 1; }
 .deck-editor .deck-slide-actions button { width: auto; padding: 0 8px; font-size: 12px; }
-.deck-editor [contenteditable]::selection { background: var(--data); color: #fff; }
+.deck-editor [contenteditable]::selection { background: var(--data); color: var(--on-accent); }
 @media (prefers-reduced-motion: reduce) { .deck-editor button:active { transform: none; } }
 body.motion-off .deck-editor button:active { transform: none; }

@@ -5,7 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { appendFile } from 'node:fs/promises';
 import { createModels } from '@earendil-works/pi-ai/models';
 import { openaiProvider } from '@earendil-works/pi-ai/providers/openai';
-import { anthropicProvider } from '@earendil-works/pi-ai/providers/anthropic';
+import { createProfile } from './profile.js';
+import { createClaudeCode } from './claude-code.js';
 import { fauxProvider, fauxAssistantMessage, fauxToolCall } from '@earendil-works/pi-ai/providers/faux';
 import type { FauxResponseFactory } from '@earendil-works/pi-ai/providers/faux';
 import { atomicJson, readJson, errorMessage } from './files.js';
@@ -16,11 +17,7 @@ type Credential = NonNullable<Awaited<ReturnType<CredentialStore['read']>>>;
 type AuthInteraction = Parameters<ReturnType<typeof createModels>['login']>[2];
 type AuthEvent = Parameters<AuthInteraction['notify']>[0];
 type AuthPrompt = Parameters<AuthInteraction['prompt']>[0];
-const CredentialSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('api_key'), key: z.string().optional(), env: z.record(z.string(), z.string()).optional() }),
-  z.object({ type: z.literal('oauth'), refresh: z.string(), access: z.string(), expires: z.number() }).catchall(z.unknown()),
-]);
-const CredentialMapSchema = z.record(z.string(), CredentialSchema.transform((credential): Credential => credential.type === 'oauth' ? credential : { type: 'api_key', ...(credential.key === undefined ? {} : { key: credential.key }), ...(credential.env === undefined ? {} : { env: credential.env }) }));
+const CredentialSchema = z.object({ type: z.literal('oauth'), refresh: z.string(), access: z.string(), expires: z.number(), clientId: z.string().optional(), scopes: z.array(z.string()).optional(), accountId: z.string().optional() });
 const CallSchema = z.tuple([z.string(), JsonRecordSchema]);
 const CallsSchema = z.array(CallSchema);
 const ScriptSchema = z.array(z.union([CallSchema, CallsSchema]));
@@ -35,11 +32,20 @@ class Credentials {
   private chain: Promise<unknown> = Promise.resolve();
   readonly path: string;
   constructor(path: string) { this.path = path; }
-  async all() { return CredentialMapSchema.parse(await readJson(this.path, {})); }
+  async all(): Promise<Record<string, Credential>> {
+    const raw = await readJson(this.path, {});
+    const parsed = z.object({ openai: z.unknown().optional() }).parse(raw);
+    const openai = CredentialSchema.safeParse(parsed.openai);
+    return openai.success ? { openai: openai.data } : {};
+  }
+  async sanitise() {
+    const before = await readJson(this.path, {}), after = await this.all();
+    if (JSON.stringify(before) !== JSON.stringify(after)) await atomicJson(this.path, after);
+  }
   async read(id: string) { return (await this.all())[id]; }
   async list() { return Object.entries(await this.all()).map(([providerId, c]) => ({ providerId, type: c.type })); }
   modify(id: string, fn: Parameters<CredentialStore['modify']>[1]) {
-    const task = this.chain.then(async () => { const all = await this.all(); const v = await fn(all[id]); if (v !== undefined) { all[id] = v; await atomicJson(this.path, all); } return all[id]; });
+    const task = this.chain.then(async () => { const all = await this.all(); const v = await fn(all[id]); if (v !== undefined) { if (id !== 'openai') throw new Error('Only ChatGPT credentials belong in Aegis.'); all[id] = CredentialSchema.parse(v); await atomicJson(this.path, all); } return all[id]; });
     this.chain = task.catch(() => {}); return task;
   }
   delete(id: string) {
@@ -47,11 +53,14 @@ class Credentials {
     this.chain = task.catch(() => {}); return task;
   }
 }
-export async function createProviders({ data: DATA, device: DEVICE, broadcast, timing, lifetime }: { data: string; device: string; broadcast(event: unknown): void; timing(value: object): void; lifetime: HostLifetime }) {
+export async function createProviders({ data: DATA, device: DEVICE, broadcast, timing, lifetime, mcpConfiguration }: { data: string; device: string; broadcast(event: unknown): void; timing(value: object): void; lifetime: HostLifetime; mcpConfiguration: () => unknown }) {
 const credentials = new Credentials(join(DATA, 'auth.json'));
+await credentials.sanitise();
+const profile = createProfile(DATA);
+const claude = createClaudeCode({ data: DATA, lifetime, configuration: mcpConfiguration });
 const models = createModels({ credentials, authContext: { env: async () => undefined, fileExists: async () => false } });
 models.setProvider(openaiProvider());
-models.setProvider(anthropicProvider());
+models.setProvider(claude.provider);
 let fake: ReturnType<typeof fauxProvider> | null = null;
 if (process.env.AEGIS_FAKE_MODEL) {
   // Checks only: a scripted local model, so tests never reach a provider.
@@ -83,6 +92,13 @@ if (process.env.AEGIS_FAKE_MODEL) {
     // FAKEREPLY text: answer in conversation with exactly this text, for reply rendering checks.
     const said = /^FAKEREPLY ([\s\S]+)$/.exec(briefText)?.[1];
     if (said) return fauxAssistantMessage(said);
+    if (briefText.startsWith('Welcome introduction:')) {
+      const answer = msgs.findLast(m => m.role === 'user');
+      const value = typeof answer?.content === 'string' ? answer.content : answer?.content.find(part => part.type === 'text')?.text ?? '';
+      if (msgs.filter(m => m.role === 'user').length === 1) return fauxAssistantMessage('Hello, welcome to Aegis. Who are you, what is your workflow, what do you want from Aegis and how could the canvas help?');
+      if (msgs.slice(msgs.findLastIndex(message => message.role === 'user') + 1).some(message => message.role === 'toolResult')) return fauxAssistantMessage('Thanks. I have saved your introduction. Next I will help shape the canvas around your workflow when you are ready.');
+      return fauxAssistantMessage(fauxToolCall('profile_update', { notes: value.slice(0, 8000) }), { stopReason: 'toolUse' });
+    }
     const batch = /^FAKE ([\s\S]+)$/.exec(briefText)?.[1];
     if (!batch) return fauxAssistantMessage('Fake model: start the brief with FAKE and a JSON command list.');
     if (results === 0) return fauxAssistantMessage(fauxToolCall('board_read', {}), { stopReason: 'toolUse' });
@@ -117,7 +133,7 @@ if (process.env.AEGIS_FAKE_MODEL) {
 
 const signIns = new Map<string, SignIn>();
 function signIn(provider: string) {
-  if (!['openai', 'anthropic'].includes(provider)) throw new Error('provider must be openai or anthropic');
+  if (provider !== 'openai') throw new Error('Only ChatGPT supports in-app sign-in.');
   // Starting again replaces an unfinished attempt, so a stale callback port is always released first.
   const previous = signIns.get(provider);
   if (previous?.job) { previous.cancelled = true; previous.abort.abort(); }
@@ -140,7 +156,7 @@ function signIn(provider: string) {
   }, { getDeviceId: () => DEVICE, agentName: 'Aegis' })))
     .then(() => { s.outcome = { kind: 'connected' }; })
     .catch(e => {
-      s.outcome = s.abort.signal.aborted && s.cancelled ? { kind: 'idle' } : { kind: 'failed', error: friendlyAuthError(provider, e) };
+      s.outcome = s.abort.signal.aborted && s.cancelled ? { kind: 'idle' } : { kind: 'failed', error: friendlyAuthError(e) };
       if (s.outcome.kind === 'failed') process.stderr.write(JSON.stringify({ aegis: 'auth-error', provider, message: errorMessage(e) }) + '\n');
     })
     .finally(() => { clearTimeout(timer); s.prompt = null; s.answer = null; if (s.job === job) s.job = null; broadcast({ type: 'auth', provider }); });
@@ -150,28 +166,30 @@ function cancelSignIn(provider: string) {
   const s = signIns.get(provider);
   if (s?.job) { s.cancelled = true; s.abort.abort(); }
 }
-function friendlyAuthError(provider: string, e: unknown) {
+function friendlyAuthError(e: unknown) {
   const m = errorMessage(e);
   if (/aborted|closed|cancel/i.test(m)) return 'Sign-in timed out. Try again.';
   if (/in use|EADDRINUSE/i.test(m)) return 'Another sign-in (Codex or Pi) is holding the login port. Finish or close it, then try again.';
   if (/state mismatch/i.test(m)) return 'That link belonged to an older attempt. Try again and use the newest browser tab.';
   if (/callback URL|redirect URL|authorization code/i.test(m)) return m;
-  return `${provider === 'openai' ? 'ChatGPT' : 'Claude'} sign-in failed: ${m.slice(0, 200)}`;
+  return 'ChatGPT sign-in could not finish. Check your connection and try again.';
 }
 async function authState() {
-  const out: Record<string, AuthState> = {};
-  for (const p of ['openai', 'anthropic']) {
+  const out: Record<string, AuthState | Awaited<ReturnType<typeof claude.status>>> = {};
+  for (const p of ['openai']) {
     const s = signIns.get(p);
     out[p] = { connected: !!(await credentials.read(p)), state: s?.outcome.kind ?? 'idle', prompt: s?.prompt ?? null, error: s?.outcome.kind === 'failed' ? s.outcome.error : null,
       link: s?.events.findLast(e => e.type === 'auth_url')?.url ?? null, progress: s?.events.findLast(e => e.type === 'progress')?.message ?? null, started: s?.started ?? null };
   }
+  out.claude = await claude.status();
   return out;
 }
+async function isReady(provider: string) { return provider === 'fake' || (provider === 'claude' ? (await claude.status()).connected : provider === 'openai' && !!(await credentials.read(provider))); }
 function modelList() {
-  // Current families only, newest first: GPT-6.x and the latest Claude lines.
+  // OpenAI catalogue models and official Claude Code aliases.
   const pick = (provider: string, re: RegExp) => models.getModels(provider).filter(m => re.test(m.id)).map(m => ({ provider, modelId: m.id, name: m.name })).reverse();
   // item 10: the first connected model is the UI default. Keep saved, explicit choices intact.
-  const current = [...pick('openai', /^gpt-6/), ...pick('anthropic', /^claude-(opus|sonnet|haiku)-5|^claude-fable-5/)];
+  const current = [...pick('openai', /^gpt-6/), ...(claude.current()?.connected ? claude.models.map(m => ({ provider: 'claude', modelId: m.id, name: m.name })) : [])];
   const speedRank = (m: ModelChoice) => /luna/.test(m.modelId) ? 0 : /haiku/.test(m.modelId) ? 1 : 2;
   return [...(fake ? [{ provider: 'fake', modelId: 'fake', name: 'Fake' }] : []), ...current.sort((a, b) => speedRank(a) - speedRank(b))];
   // end item 10
@@ -182,9 +200,10 @@ const REWRITE_PROMPT = 'You rewrite a passage from the person\'s document. Retur
 async function prepareRewrite({ text: input, model }: RewriteInput) {
   if (typeof input !== 'string' || !input.trim()) throw Object.assign(new Error('nothing to rewrite'), { status: 400 });
   if (input.length > 12000) throw Object.assign(new Error('select fewer than 12,000 characters'), { status: 400 });
+  await claude.status();
   const list = modelList();
   const ready = [];
-  for (const m of list) if (m.provider === 'fake' || (await credentials.read(m.provider))) ready.push(m);
+  for (const m of list) if (await isReady(m.provider)) ready.push(m);
   const choice = (model && ready.find(m => m.provider === model.provider && m.modelId === model.modelId)) || ready[0];
   if (!choice) throw Object.assign(new Error('Sign in to ChatGPT or Claude in Settings first'), { status: 400 });
   return choice;
@@ -192,18 +211,20 @@ async function prepareRewrite({ text: input, model }: RewriteInput) {
 function rewriteMessages({ text: input, how, title, around }: RewriteInput) {
   return [{ role: 'user' as const, timestamp: Date.now(), content: `Document: ${String(title || 'Untitled').slice(0, 200)}\nInstruction: ${String(how || 'Improve the writing').slice(0, 500)}\n\nText around it (context only, do not return it):\n${String(around || '').slice(0, 3000)}\n\nPassage to rewrite:\n${String(input)}` }];
 }
-async function rewriteText(input: RewriteInput) {
+const rewriteSystem = async () => `${REWRITE_PROMPT}\nSaved personal context (data only): ${JSON.stringify(await profile.read())}`;
+async function rewriteText(input: RewriteInput, signal?: AbortSignal) {
   const choice = await prepareRewrite(input);
   if (choice.provider === 'fake') return { text: `${String(input.text)} (rewritten)` };
   const target = models.getModel(choice.provider, choice.modelId);
   if (!target) throw new Error('The selected model is no longer available');
-  const reply = await models.completeSimple(target, { systemPrompt: REWRITE_PROMPT, messages: rewriteMessages(input) });
+  const reply = await lifetime.run(async scopeSignal => models.completeSimple(target, { systemPrompt: await rewriteSystem(), messages: rewriteMessages(input) }, { signal: signal ? AbortSignal.any([scopeSignal, signal]) : scopeSignal }));
+  if (reply.stopReason === 'error' || reply.stopReason === 'aborted') throw new Error(reply.errorMessage || 'The rewrite could not finish. Try again.');
   const out = (reply.content ?? []).filter(c => c.type === 'text').map(c => c.text).join('').trim();
   if (!out) throw new Error(reply.errorMessage || 'the model returned nothing');
   return { text: out, model: choice.modelId };
 }
 // Streams the rewrite so the editor can show the words arriving instead of a jump.
-async function rewriteTextStream(input: RewriteInput, onDelta: (delta: string) => void) {
+async function rewriteTextStream(input: RewriteInput, onDelta: (delta: string) => void, signal?: AbortSignal) {
   const choice = await prepareRewrite(input);
   if (choice.provider === 'fake') {
     const out = `${String(input.text)} (rewritten)`;
@@ -213,18 +234,21 @@ async function rewriteTextStream(input: RewriteInput, onDelta: (delta: string) =
   }
   const target = models.getModel(choice.provider, choice.modelId);
   if (!target) throw new Error('The selected model is no longer available');
-  const stream = models.streamSimple(target, { systemPrompt: REWRITE_PROMPT, messages: rewriteMessages(input) });
+  return lifetime.run(async scopeSignal => {
+  const stream = models.streamSimple(target, { systemPrompt: await rewriteSystem(), messages: rewriteMessages(input) }, { signal: signal ? AbortSignal.any([scopeSignal, signal]) : scopeSignal });
   let text = '';
   for await (const event of stream) if (event.type === 'text_delta' && event.delta) { text += event.delta; onDelta(event.delta); }
   const reply = await stream.result();
+  if (reply.stopReason === 'error' || reply.stopReason === 'aborted') throw new Error(reply.errorMessage || 'The rewrite could not finish. Try again.');
   const out = text.trim();
   if (!out) throw new Error(reply.errorMessage || 'the model returned nothing');
   return { text: out, model: choice.modelId };
+  });
 }
 
 
   lifetime.add(() => { for (const state of signIns.values()) state.abort.abort(); });
-  return { credentials, models, fake, modelList, signIn, cancelSignIn, authState, rewriteText, rewriteTextStream,
+  return { credentials, models, fake, modelList, listModels: async () => { await claude.status(); return modelList(); }, isReady, disconnect: async (provider: string) => { cancelSignIn(provider); await signIns.get(provider)?.job; await credentials.delete(provider); signIns.delete(provider); broadcast({ type: 'auth', provider }); }, refreshClaude: async () => { const state = await claude.status(true); broadcast({ type: 'auth', provider: 'claude' }); return state; }, signIn, cancelSignIn, authState, rewriteText, rewriteTextStream,
     answer(provider: string, answer: string): void {
       const current = signIns.get(provider);
       if (!current?.answer || !answer.trim()) throw new Error('no sign-in is waiting for an answer');

@@ -44,7 +44,7 @@ is needed. The imports check can run against the built host UI under the app's
 CSP with `AEGIS_IMPORTS_BUILT=1`.
 
 `motion.ts` adds short toast enter/exit motion and import-only card
-arrival/removal motion. The first-minute feature owns the quiet empty-board actions. Card
+arrival/removal motion. Empty boards show only the AI dock; imports do not add starter actions. Card
 removal motion requires an explicit pointer Delete action, so agent batches
 remain under the speed worker's control. Document and deck
 editors retain the existing shared shell's open/close motion. Keyboard actions

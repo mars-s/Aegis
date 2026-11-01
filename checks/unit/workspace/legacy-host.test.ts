@@ -23,7 +23,7 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
   const token = `workspace-synthetic-${process.pid}`;
   const host = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
     cwd: fileURLToPath(new URL('../../../agent/', import.meta.url)),
-    env: { ...process.env, AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4100', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1' },
+    env: { ...process.env, AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4100', AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_CLAUDE_BIN: join(data, 'missing-claude') },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let stderr = '';
@@ -63,7 +63,7 @@ it('saves, reloads, receives SSE and persists camera against the untouched legac
       const created = await client.createBoard('Real host workspace');
       if (created.kind !== 'ok') throw new Error(JSON.stringify(created.error));
       const signal = new AbortController().signal;
-      expect(value(await client.accounts(signal)).map(account => [account.provider, account.connected])).toEqual([['openai', false], ['anthropic', false]]);
+      expect(value(await client.accounts(signal)).map(account => [account.provider, account.connected])).toEqual([['openai', false], ['claude', false]]);
       expect(value(await client.agents.models(signal)).some(model => model.provider === 'fake')).toBe(true);
       expect(value(await client.agents.connected('fake', signal))).toBe(true);
       expect(value(await client.rewrite({ text: 'A local passage', how: 'Shorten', title: 'Synthetic', around: '' }, signal))).toBe('A local passage (rewritten)');

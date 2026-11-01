@@ -1,10 +1,13 @@
 # Wireframe tools
 
-W1 to W10 use Aegis card commands and independent editable cards. Open **Wireframe** in the tools, pick a screen, tool or piece, then click the canvas. Drag in either direction to draw a box. X places wireframe text; Shift+R draws a wireframe box. Mochiboard uses R, but Aegis already reserves R for Read-me notes in `controller.ts`, so the box shortcut keeps Shift+R. Command+G groups a selection and Shift+Command+G ungroups it. The floating design panel has selection properties, alignment, spacing, stacking and grouping controls.
+Wireframe card bodies, schemas and board commands remain available to agents
+and imports. The shipped Wireframe panel, catalogue and placement shortcuts
+have been removed. Selection, ownership, dragging and editable card text remain
+independent of chrome.
 
 - Device presets: iPhone, Android, iPad, Desktop and Watch. Manual dimensions mark a screen as Custom.
 - A screen owns content through `card.parent`. Dragging a screen or changing its X/Y carries its owned cards, including cards extending outside the screen. Dropping a card into or out of a screen assigns or clears its parent. Contents are lifted above their screen.
-- Sections use centre-based membership, including nested smaller sections and frames with their contents. An unselected section body starts marquee selection through the glass. A tap selects it. Its name or selected body drags it and its contents; Shift retains normal selection behaviour. Labels counter-scale below 100% zoom, capped at 4x, and keep their natural scale above 100%, as in the source. Remove section leaves all content in place. Create section uses Option+Command+G or the selection/context menu.
+- Sections use centre-based membership, including nested smaller sections and frames with their contents. An unselected section body starts marquee selection through the glass. A tap selects it. Its name or selected body drags it and its contents; Shift retains normal selection behaviour. Labels counter-scale below 100% zoom, capped at 4x, and keep their natural scale above 100%, as in the source. Remove section leaves all content in place. Sections can be created through board commands.
 - Pieces are source definitions for Nav bar, Tab bar, Button, Input, Search, Card, List row, Toggle, Checkbox, Avatar, Image and Heading. Their cards share `card.group`. Dragging any part moves the group. Command/Control dragging reaches a single part. Text can be edited directly. Ungroup releases every part.
 - Website templates: Header, Hero, Features, Stats, Testimonials, Pricing, Gallery, Logos, CTA and Footer. On loose canvas they create a 1200 px frame. Inside a screen they use its width and grow its height when needed. Narrow-screen layouts scale to fit. Template text, names, quotes and prices are sample content.
 - Snapping checks edges and centres against other visible card types within 6 screen pixels. Guides clear on release/cancellation. Holding Cmd (Ctrl) while dragging temporarily bypasses snapping; Option-drag copies, as in Mochiboard. Optional grid snapping uses 26 board units and keeps relative spacing.
@@ -31,10 +34,6 @@ The cancellable `aegis:wireframe-image-request` event remains available on `docu
 
 ## Verification
 
-Board and geometry checks: `app/src/features/wireframe/wireframe.test.ts`.
-
-Full app smoke: `checks/ui/wireframe.mjs`, Vite port 5184, fake-model host and a fresh temporary data folder. It creates and edits cards through the UI, drags containers and cards, searches/swaps icons, inspects guides, asserts the saved host board and reloads the app. It never uses the real Aegis data folder.
-
-## Gap regression checks
-
-`checks/ui/wireframe.mjs` now creates its Vite launcher itself on port 5184, with file watching disabled. It also asserts the R shortcut clash, both image-hook cancellation and the real local fallback, visible placeholder labels/pattern and saved state after reload, section body marquee versus selected-body/name dragging, label sizes at 50%, 100% and 200%, and hollow title rendering with editable outline width/colour and reload. `wireframe-gap-options.png` shows the glass section, local placeholder and hollow title together.
+`npm run check` includes `wireframe.test.ts` for board and geometry primitives.
+The former browser placement-tool suite is removed. Canvas and editing checks
+continue to exercise existing-card selection and ownership.

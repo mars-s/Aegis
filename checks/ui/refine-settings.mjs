@@ -6,7 +6,7 @@ export async function checkRefineSettings(browser, url) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
   const stamp = Date.now(), errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
+  await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
   try {
     await page.goto(url); await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
     await page.keyboard.press('Meta+k');

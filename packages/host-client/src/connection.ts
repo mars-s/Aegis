@@ -1,9 +1,10 @@
+import { ProfileSchema } from '@aegis/domain/profile';
 import { Effect } from 'effect';
 import type { Board } from '@aegis/domain/schema';
 import { decodeStoredBoard } from '@aegis/protocol/storage';
 import { decodeAssetUpload, decodeBatchResponse, decodeBoardList, decodeHostEvent, decodeHostError, decodeOkResponse } from '@aegis/protocol/http';
 import { AgentModelSchema, AgentReceiptSchema, AgentSnapshotSchema } from '@aegis/protocol/agents';
-import { AccountsSchema, LibraryResultSchema, LibrarySnapshotSchema, LinkPreviewSchema, McpSetupSchema, RewriteResponseSchema, decodeSandbox } from '@aegis/protocol/services';
+import { AccountsSchema, ClaudeAccountSchema, LibraryResultSchema, LibrarySnapshotSchema, LinkPreviewSchema, McpSetupSchema, RewriteResponseSchema, decodeSandbox } from '@aegis/protocol/services';
 import type { RewriteRequest } from '@aegis/protocol/services';
 import type { HostClient } from './contracts.js';
 import type { HostFailure, HostResult } from './result.js';
@@ -155,6 +156,9 @@ export function createHostClient(options: HostOptions): HostClient {
       stop: (id, signal) => request({ method: 'POST', path: `/agents/${encodeURIComponent(id)}/stop`, body: { kind: 'json', value: {} }, decode: decodeOkResponse, signal }),
       undoRequest: (id, requestId, signal) => request({ method: 'POST', path: `/agents/${encodeURIComponent(id)}/history/${encodeURIComponent(requestId)}/undo`, body: { kind: 'json', value: {} }, decode: decodeOkResponse, signal }),
     },
+    profile: signal => request({ method: 'GET', path: '/profile', decode: value => ProfileSchema.parse(value), signal }),
+    resetProfile: signal => request({ method: 'POST', path: '/profile/reset', body: { kind: 'json', value: {} }, decode: value => ProfileSchema.parse(value), signal }),
+    refreshClaude: signal => request({ method: 'POST', path: '/auth/claude/refresh', body: { kind: 'json', value: {} }, decode: value => { ClaudeAccountSchema.parse(value); }, signal }),
     accounts: signal => request({ method: 'GET', path: '/auth', decode: value => AccountsSchema.parse(value), signal }),
     authenticate: (provider, action, signal) => request({ method: 'POST', path: `/auth/${action}`, body: { kind: 'json', value: { provider } }, decode: value => AccountsSchema.parse(value), signal }),
     answer: (provider, answer, signal) => request({ method: 'POST', path: '/auth/answer', body: { kind: 'json', value: { provider, answer } }, decode: decodeOkResponse, signal }),

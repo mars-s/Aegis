@@ -121,7 +121,7 @@ try {
     for (const [width, height] of [[1440, 900], [1586, 992]]) for (const theme of ['dark', 'light']) {
       page = await browser.newPage({ viewport: { width, height }, colorScheme: theme }); page.setDefaultTimeout(15000);
       const errors = []; page.on('pageerror', error => errors.push(error.message));
-      await page.addInitScript(theme => { if (self !== top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:follow', 'off'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
+      await page.addInitScript(theme => { if (self !== top) return; localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:follow', 'off'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async () => aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Evidence fidelity' })));

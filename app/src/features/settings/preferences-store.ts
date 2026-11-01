@@ -3,16 +3,14 @@ import { gridShapes } from '@aegis/scene';
 import type { Source } from '@aegis/domain/schema';
 
 export const PreferencesSchema = z.object({
-  theme: z.enum(['system', 'light', 'dark']).default('dark'),
+  theme: z.enum(['system', 'light', 'dark']).default('system'),
   motion: z.enum(['on', 'off']).default('on'),
-  doubleClickNote: z.enum(['on', 'off']).default('on'),
-  noteColour: z.enum(['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple']).default('plain'),
   gridVisible: z.enum(['on', 'off']).default('on'),
   gridShape: z.enum(gridShapes.map(([shape]) => shape)).exclude(['none']).default('dots'),
   snap: z.enum(['on', 'off']).default('off'), tilt: z.enum(['on', 'off']).default('off'),
 });
 export type Preferences = z.output<typeof PreferencesSchema>;
-const keys = { theme: 'theme', motion: 'motion', doubleClickNote: 'double-click-note', noteColour: 'note-colour', gridVisible: 'grid-visible', gridShape: 'grid-shape', snap: 'snap', tilt: 'tilt' } as const satisfies Record<keyof Preferences, string>;
+const keys = { theme: 'theme', motion: 'motion', gridVisible: 'grid-visible', gridShape: 'grid-shape', snap: 'snap', tilt: 'tilt' } as const satisfies Record<keyof Preferences, string>;
 export interface PreferenceStore extends Source<Preferences> {
   readonly set: <K extends keyof Preferences>(key: K, value: Preferences[K]) => void;
   readonly attach: () => () => void;

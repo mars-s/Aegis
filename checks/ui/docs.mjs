@@ -20,7 +20,7 @@ process.env.AEGIS_TEST_FACADE = '1';
 const vite = spawn('npx', ['vite', '--port', String(5181 + PORT_OFFSET), '--strictPort'], { cwd: ui, stdio: 'pipe' });
 vite.stderr.on('data', d => appendFileSync(out('docs-vite.txt'), d));
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light', acceptDownloads: true }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'light', acceptDownloads: true }); await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
 page.on('response', async r => { if (r.status() >= 500) console.error('HTTP', r.url(), (await r.text()).slice(0, 3000)); });
 const errors = []; page.on('pageerror', e => errors.push(e.stack));
 page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -40,11 +40,9 @@ try {
   await new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.stderr.on('data', d => { if (/error/i.test(String(d))) reject(new Error(String(d))); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
   await page.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
-  await page.mouse.move(24, 480);
-  const documentTool = page.locator('#tools [data-tool=doc]');
-  if (!await documentTool.isVisible()) await page.locator('#toolsFold').click();
-  await documentTool.click();
-  await page.locator('#stage').click({ position: { x: 590, y: 260 } });
+  await page.evaluate(() => new Promise(resolve => aegisCtx.apply([{ op: 'create', type: 'doc', newId: 'initialdoc', text: '', props: { body: '' }, x: 0, y: 0 }], resolve)));
+  await page.evaluate(() => aegis.canvas.frameIds(['initialdoc'], 1));
+  await page.locator('.card[data-id=initialdoc]').dblclick();
   await page.getByLabel('Document title', { exact: true }).fill('Project brief');
   await page.getByLabel('Document title', { exact: true }).press('Enter');
   await page.keyboard.type('A clear plan for the next release.');
@@ -303,7 +301,7 @@ try {
   console.log('PASS canvas maths survives reload and the open migration runs once for legacy pills');
   // Simulate the native adapter's successful result without opening a real print sheet.
   const nativePage = await browser.newPage();
-  await nativePage.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await nativePage.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   await nativePage.route('**/src/lib/native-files*', route => route.fulfill({ contentType: 'text/javascript', body: 'export function installNativeDownloads() {} export async function saveFile() { throw new Error("Unexpected save in the print probe"); } export async function printHtml(html) { window.__nativePrintHTML = html; return true; }' }));
   await nativePage.goto(`http://localhost:${5181 + PORT_OFFSET}/?port=${port}&token=${token}`);
   const nativePrint = await nativePage.evaluate(async () => {

@@ -12,7 +12,7 @@ const port = await new Promise((ok, no) => { host.stdout.on('data', d => { const
 const vite = spawn('npx', ['vite', '--port', String(5188 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' });
 await new Promise((ok, no) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) ok(); }); vite.on('exit', no); });
 const browser = await chromium.launch(); const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
-await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
 const errors = []; page.on('pageerror', e => errors.push(e.message));
 const batch = [
   { op: 'create', type: 'frame', text: 'Login', x: 0, y: 0, w: 393, h: 852, props: { device: 'iPhone', radius: 44, fill: '#ffffff' }, ref: 'f' },

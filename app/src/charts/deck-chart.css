@@ -1,10 +1,10 @@
 
-  .deck-evidence { width: 100%; height: 100%; overflow: hidden; --color-text: #fff; --color-muted: #abb2bf; --color-label-secondary: #d8dbe0; --color-border: rgb(255 255 255 / .12); --color-border-strong: rgb(255 255 255 / .2); --color-fill: #18191b; --card: #08090a; --text-title: 20px; --text-caption: 12px; --text-label: 12px; }
+  .deck-evidence { width: 100%; height: 100%; overflow: hidden; --text-title: 20px; --text-caption: 12px; --text-label: 12px; }
   /* Scale the complete chart, including its label gutters, from the slide height. */
   .deck-chart-content { width: calc(100% / var(--deck-chart-scale, 1)); height: calc(100% / var(--deck-chart-scale, 1)); transform: scale(var(--deck-chart-scale, 1)); transform-origin: top left; }
   .deck-chart-content .plot-body.beside { justify-content: center; gap: 32px; }
   .deck-chart-content .chart-legend.list { flex: 0 1 auto; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
   .deck-chart-content .chart-legend.list li { display: flex; gap: 8px; }
-  .deck-axis-meaning { margin: 0 0 8px; color: #abb2bf; font: 400 12px/16px var(--font); }
+  .deck-axis-meaning { margin: 0 0 8px; color: var(--text-2); font: 400 12px/16px var(--font); }
   .miniature { pointer-events: none; }
-  .deck-chart-empty { color: #abb2bf; font-size: 12px; }
+  .deck-chart-empty { color: var(--text-2); font-size: 12px; }

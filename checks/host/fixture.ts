@@ -16,7 +16,7 @@ export async function hostFixture(options: { record?: (value: unknown) => void; 
     let diagnostics = '', output = '';
     const processHost = spawn(process.execPath, ['--no-warnings', 'dist/main.js'], {
       cwd: new URL('../../agent/', import.meta.url), stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4600', AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', ...(options.ui ? { AEGIS_UI: options.ui } : {}), ...(typeof options.extra === 'function' ? options.extra(data) : options.extra) },
+      env: { ...process.env, AEGIS_PORT_OFFSET: process.env.AEGIS_PORT_OFFSET ?? '4600', AEGIS_DATA: data, AEGIS_VITE_CACHE: cache, AEGIS_PORT: '0', AEGIS_TOKEN: token, AEGIS_FAKE_MODEL: '1', AEGIS_CLAUDE_BIN: join(data, 'no-claude'), ...(options.ui ? { AEGIS_UI: options.ui } : {}), ...(typeof options.extra === 'function' ? options.extra(data) : options.extra) },
     });
     child = processHost;
     processHost.stderr.on('data', bytes => { diagnostics = (diagnostics + String(bytes)).slice(-8000); });

@@ -19,6 +19,7 @@ import { createAssets } from './assets.js';
 import { createSandboxes, SANDBOX_LIMIT } from './sandbox.js';
 import { createUiFiles } from './ui-files.js';
 import { createProviders, RewriteSchema } from './providers.js';
+import { createProfile } from './profile.js';
 import { createRuns } from './runs.js';
 import { body, send } from './http.js';
 import { AgentCreationSchema, AnswerSchema, BoardCreationSchema, CameraSchema, InstallSchema, ItemSchema, MessageSchema, NameSchema, ProviderSchema } from './requests.js';
@@ -54,14 +55,15 @@ const libraryAction = createLibraryActions({ listBoards, loadBoard, withBoard, n
 });
 function changeLibrary(input: unknown) { const op = LibraryOperationSchema.parse(input); return libraryAction(op.op === 'delete' && op.recursive === true ? 'delete' : 'change', op); }
 const assets = createAssets(ASSETS), { saveAsset, sendAsset } = assets;
-const mcpHost = { loadBoard, listBoards, commit, library, changeLibrary, createBoard: (args: unknown) => libraryAction('createBoard', BoardCreationSchema.parse(args)), readAsset: assets.readAsset };
+const profile = createProfile(DATA);
+const mcpHost = { profile, loadBoard, listBoards, commit, library, changeLibrary, createBoard: (args: unknown) => libraryAction('createBoard', BoardCreationSchema.parse(args)), readAsset: assets.readAsset };
 const mcpConnectionPath = join(DATA, 'mcp-connection.json'), pluginDir = join(agentRoot, '..', 'plugins', 'aegis'), mcpBridge = join(DATA, 'integrations', 'mcp', 'server.mjs');
 await atomicFile(mcpBridge, await readFile(join(pluginDir, 'server.mjs')));
 const { uiRoot, sendUi } = createUiFiles(UI_DIRS);
 const ui = createUiUpdater({ data: DATA, appDir: process.env.AEGIS_APP_SRC || join(agentRoot, '..', 'app'), onChange: () => broadcast({ type: 'ui' }), lifetime });
-const providers = await createProviders({ data: DATA, device: DEVICE, broadcast, timing, lifetime });
+const providers = await createProviders({ data: DATA, device: DEVICE, broadcast, timing, lifetime, mcpConfiguration: () => mcpConfiguration({ data: DATA, bridge: mcpBridge, node: process.execPath, pluginDir, port: port() }).config });
 const { fake } = providers;
-const runs = await createRuns({ data: DATA, assets: ASSETS, agentRoot, boards, providers, broadcast, timing, lifetime });
+const runs = await createRuns({ data: DATA, assets: ASSETS, agentRoot, boards, providers, profile, broadcast, timing, lifetime });
 const { spawnAgent, agents, message, stop, undoRequest } = runs;
 const { registerSandbox, sendSandbox } = createSandboxes(port);
 function port(): number { const address = server.address(); if (address === null || typeof address === 'string') throw new Error('Host is not listening'); return address.port; }
@@ -132,24 +134,30 @@ const server = http.createServer(async (req, res) => {
       else { const value = MessageSchema.parse(await body(req)); await message(am[1], String(value.content ?? ''), value.selectedIds); }
       return send(res, 200, { ok: true });
     }
-    if (p === '/models') return send(res, 200, providers.modelList());
+    if (p === '/models') return send(res, 200, await providers.listModels());
     if (p === '/rewrite' && m === 'POST') {
       const input = RewriteSchema.parse(await body(req));
-      if (!input.stream) return send(res, 200, await providers.rewriteText(input));
+      const controller = new AbortController();
+      res.once('close', () => controller.abort());
+      if (!input.stream) return send(res, 200, await providers.rewriteText(input, controller.signal));
       res.writeHead(200, { 'content-type': 'application/x-ndjson', 'cache-control': 'no-store' });
       try {
-        const result = await providers.rewriteTextStream(input, delta => res.write(JSON.stringify({ delta }) + '\n'));
+        const result = await providers.rewriteTextStream(input, delta => res.write(JSON.stringify({ delta }) + '\n'), controller.signal);
         res.end(JSON.stringify({ done: true, text: result.text }) + '\n');
       } catch (error) {
         res.end(JSON.stringify({ error: errorMessage(error) }) + '\n');
       }
       return;
     }
+    if (p === '/profile' && m === 'GET') return send(res, 200, await profile.read());
+    if (p === '/profile' && m === 'POST') return send(res, 200, await profile.replace(await body(req)));
+    if (p === '/profile/reset' && m === 'POST') return send(res, 200, await profile.reset());
+    if (p === '/auth/claude/refresh' && m === 'POST') return send(res, 200, await providers.refreshClaude());
     if (p === '/auth' && m === 'GET') return send(res, 200, await providers.authState());
     if (p === '/auth/start' && m === 'POST') { providers.signIn(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
     if (p === '/auth/cancel' && m === 'POST') { providers.cancelSignIn(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
     if (p === '/auth/answer' && m === 'POST') { const { provider, answer } = AnswerSchema.parse(await body(req)); providers.answer(provider, answer); return send(res, 200, { ok: true }); }
-    if (p === '/auth/logout' && m === 'POST') { await providers.credentials.delete(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
+    if (p === '/auth/logout' && m === 'POST') { await providers.disconnect(ProviderSchema.parse(await body(req)).provider); return send(res, 200, await providers.authState()); }
     send(res, 404, { error: 'not found' });
   } catch (error) { if (!res.headersSent) send(res, errorStatus(error), { error: errorMessage(error) }); else res.destroy(); }
 });

@@ -2,13 +2,13 @@
 
 Typed DOM primitives for menus, value pickers, popovers, dialogs, confirmations and tooltips. React chrome wraps them in `chrome/controls.tsx` (`MenuButton`, `PopupButton`, `ValuePicker`, `Stepper`, `Disclosure`) and imports the modules directly, for example `lib/ui/menu.js`. Feature code owns content and layout. This library owns material, input, focus, positioning and motion.
 
-Inter is self-hosted through `@fontsource-variable/inter`, SIL OFL 1.1. Zephium-derived tokens retain their MPL-2.0 attribution in `styles/tokens.css`.
+System typography leads, with self-hosted Inter through `@fontsource-variable/inter` as a fallback, SIL OFL 1.1. Zephium-derived tokens retain their MPL-2.0 attribution in `styles/tokens.css`.
 
 ## Visual contract
 
 The black canvas and flat windows stay quiet. Floating chrome has a neutral surface, a hairline border and one inner top highlight. No floating control gets a heavy drop shadow. Blue means data, agents, selection or keyboard focus. Destructive text uses a contrast-safe red.
 
-`styles/tokens.css` defines spacing at 4, 8, 12, 16, 20 and 24 px, radii at 4, 6, 10 and 14 px, type at 11, 12, 13, 15 and 22 px, 32 px controls, 34 px desktop menu rows and 44 px settings rows. Touch rows remain at least 44 px. `styles/app.css` maps semantic material tokens for both themes. Use `--ui-surface`, `--ui-edge`, `--ui-highlight`, `--ui-shadow`, `--ui-danger` and `--focus`. Avoid feature-specific menu material rules.
+[DESIGN.md](../../../../DESIGN.md) documents the canonical token table, light and dark themes, grid, type, glass and motion rules. `styles/tokens.css` owns every semantic role and compatibility alias. Use `--ui-surface`, `--ui-edge`, `--ui-highlight`, `--ui-shadow`, `--ui-danger` and `--focus` for shared controls. Avoid feature-specific theme definitions.
 
 `dropdown.css` owns menu, listbox and non-modal popover appearance. `surface.css` owns native dialogs, tabs, switches and tooltips. `ribbon.css` owns the shared office ribbon. `styles/buttons.css` owns buttons. Feature CSS may set widths or content layout without redefining those materials.
 
@@ -68,7 +68,7 @@ Settings uses a 620px shell at y=48px, with height `min(760px, 100dvh - 96px)`. 
 
 `createTooltip(trigger, text)` supports focus and hover, a 450 ms initial delay, a 400 ms warm period for immediate adjacent tips, Escape dismissal, viewport clamping and reduced motion. Destroy it with its owner.
 
-Shared consumers include canvas and library context menus, generated-window actions, the selection More and formatting popovers, island options and model choices, Settings and Customise toolbar, zoom and tools menus, all document/sheet/slide ribbon choices, media caption/crop/link dialogs, colour and icon pickers, project cover menus, confirmations and onboarding. Quick capture inherits the common native dialog material without changing its feature code. Full-screen gallery inspection, presentation and mobile navigation retain their content layouts.
+Shared consumers include canvas and library context menus, generated-window actions, the selection More and formatting popovers, island options and model choices, Settings, AI connections and zoom menus, all document/sheet/slide ribbon choices, media caption/crop/link dialogs, colour and icon pickers, project cover menus, confirmations and the introduction conversation. Quick capture inherits the common native dialog material without changing its feature code. Full-screen gallery inspection, presentation and mobile navigation retain their content layouts.
 
 Run `npm run check`, `npm --workspace @aegis/app run build` and the production `checks/ui/design-system.mjs` journey. The journey uses temporary `AEGIS_DATA`, `AEGIS_UI=app/dist` and the fake model, opens real controls in both themes and records screenshots and a JSON inventory. Run the full UI suite with `AEGIS_PORT_OFFSET=2700` and `PLAYWRIGHT` pointing to the installed Playwright module. For the same production journey in WebKit, run `AEGIS_BROWSER=webkit node checks/ui/design-system.mjs` with the same Playwright and output environment variables. No verification reads real Aegis user data.
 

@@ -19,16 +19,17 @@ export type LibraryChange = z.output<typeof LibraryChangeSchema>;
 export const LibraryResultSchema = z.object({ ok: z.literal(true), created: z.string().nullable(), removed: z.array(BoardIdSchema), nextBoard: BoardIdSchema });
 export type LibraryResult = z.output<typeof LibraryResultSchema>;
 
-export const ProviderSchema = z.enum(['openai', 'anthropic']);
+export const ProviderSchema = z.enum(['openai', 'claude']);
 export type Provider = z.output<typeof ProviderSchema>;
 const AccountStateSchema = z.object({
-  connected: z.boolean(), state: z.string(), error: z.string().nullish(), progress: z.string().nullish(),
+  version: z.string().nullable().optional(), connected: z.boolean(), state: z.string(), error: z.string().nullish(), progress: z.string().nullish(),
   link: z.string().nullish(), prompt: z.object({ placeholder: z.string().optional() }).nullish(),
 });
+export const ClaudeAccountSchema = AccountStateSchema.extend({ state: z.enum(['missing', 'signed-out', 'ready']), version: z.string().nullable() });
 export const AccountSchema = AccountStateSchema.extend({ provider: ProviderSchema });
 export type ProviderAccount = z.output<typeof AccountSchema>;
-export const AccountsSchema = z.object({ openai: AccountStateSchema, anthropic: AccountStateSchema }).transform(value => [
-  { provider: 'openai' as const, ...value.openai }, { provider: 'anthropic' as const, ...value.anthropic },
+export const AccountsSchema = z.object({ openai: AccountStateSchema, claude: ClaudeAccountSchema }).transform(value => [
+  { provider: 'openai' as const, ...value.openai }, { provider: 'claude' as const, ...value.claude },
 ]);
 export const McpSetupSchema = z.object({
   codexCommand: z.string(), codexConfig: z.string(), claudeCommand: z.string(), pluginCommand: z.string(), config: JsonSchema,

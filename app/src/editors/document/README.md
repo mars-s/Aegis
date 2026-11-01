@@ -1,8 +1,8 @@
 # React documents
 
 This folder owns document content, editing sessions, references and exports.
-`cards/document/registration.tsx` exports `documentCard`, `documentEditor` and
-`documentTool` for the app's explicit composition. Import from this folder's
+`cards/document/registration.tsx` exports `documentCard` and `documentEditor`
+for explicit composition. Creation uses board commands. Import from this folder's
 `index.ts` to use `DocumentProvider`, `DocumentContext`, clipboard setup and
 session cleanup.
 

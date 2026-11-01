@@ -23,7 +23,7 @@ try {
   for (const [name, engine] of [['chromium', chromium], ['webkit', webkit]]) {
     browser = await engine.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' }); page.setDefaultTimeout(12000);
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:follow', 'off'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
+    await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:follow', 'off'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
     await page.evaluate(async plot => {

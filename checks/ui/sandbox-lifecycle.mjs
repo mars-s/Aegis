@@ -17,7 +17,7 @@ try {
   const page=await browser.newPage({viewport:{width:1440,height:1000},reducedMotion:'reduce'}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   const checks=[];const check=(actual,expected,label)=>{assert.deepEqual(actual,expected,label);checks.push(label);console.log(name,label);};
   try {
-   await page.addInitScript(()=>{if(self!==top)return;localStorage.setItem('aegis:onboarded','1');localStorage.setItem('aegis:orb-hint-seen','1');});
+   await page.addInitScript(()=>{if(self!==top)return;localStorage.setItem('aegis:introduction-complete','1');localStorage.setItem('aegis:orb-hint-seen','1');});
    await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);await page.waitForFunction(()=>window.aegis?.canvas.board);
    await page.evaluate(async()=>{
     const board=await aegis.host.post('/boards',{name:'Acknowledged sandbox'});aegis.canvas.setBoard(board);

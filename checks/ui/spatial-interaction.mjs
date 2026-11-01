@@ -59,7 +59,7 @@ try {
     browser = await engine.launch();
     page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce', colorScheme: 'dark' }); page.setDefaultTimeout(5000);
     const exceptions = []; page.on('pageerror', error => { exceptions.push(error.message); console.error(error.message); });
-    await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'dark'); });
+    await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'dark'); });
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
     await page.evaluate(async fixtures => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Spatial interaction' })); aegis.apply(fixtures); }, fixtures);

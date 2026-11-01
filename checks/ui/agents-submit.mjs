@@ -14,7 +14,7 @@ export async function verifyAgentSubmission(){
   try{
    const port=await new Promise((done,fail)=>{let log='';const timer=setTimeout(()=>fail(Error(log)),15000);host.stdout.on('data',data=>{log+=data;const m=/"port":(\d+)/.exec(log);if(m){clearTimeout(timer);done(m[1]);}});host.once('exit',fail);});
    browser=await engine.launch();const page=await browser.newPage({viewport:{width:1440,height:1000}});
-   await page.addInitScript(()=>{localStorage.setItem('aegis:onboarded','1');localStorage.setItem('aegis:orb-hint-seen','1');localStorage.setItem('aegis:model','fake|fake');});
+   await page.addInitScript(()=>{localStorage.setItem('aegis:introduction-complete','1');localStorage.setItem('aegis:orb-hint-seen','1');localStorage.setItem('aegis:model','fake|fake');});
    await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);await page.waitForFunction(()=>window.aegis?.canvas.board);
    const gate=new Promise(done=>{release=done;});
    await page.route('**/agents',async route=>{if(route.request().method()!=='POST'){await route.continue();return;}const response=await route.fetch();await gate;await route.fulfill({response});});

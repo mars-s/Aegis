@@ -28,7 +28,7 @@ try {
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(({ legacy, boardId }) => {
-      localStorage.setItem('aegis:onboarded', '1');
+      localStorage.setItem('aegis:introduction-complete', '1');
       localStorage.setItem('aegis:model', 'fake|fake');
       localStorage.setItem('aegis:board', boardId);
       const nativeFetch = window.fetch;

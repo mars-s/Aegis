@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import type { BoardId, Command } from '@aegis/domain';
 import { CommandSchema } from '@aegis/domain/schema';
 import type { FeatureContext } from '../../composition.js';
-import { useCreativeServices, useRecordingStore } from '../media/services.js';
 import type { createRecordingStore } from '../media/recording-store.js';
 import { videoInfo } from '../media/video-info.js';
 import { CardIdSchema } from '@aegis/domain/schema';
@@ -113,8 +111,4 @@ export function createImporter(context: FeatureContext, services: CreativeServic
 }
 export function ImportProgressView({ value }: { readonly value: ImportProgress | null }) {
   return value && <div className="import-progress" role="status" aria-live="polite"><span>{value.filename}: {value.message}</span><div className="import-progress-line" role="progressbar" aria-label={`Importing ${value.filename}`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(value.fraction * 100)}><i style={{ transform: `scaleX(${Math.max(.02, value.fraction)})` }} /></div></div>;
-}
-export function ImportButton({ context }: { readonly context: FeatureContext }) {
-  const services = useCreativeServices(), recordings = useRecordingStore(), [value, setValue] = useState<ImportProgress | null>(null), [importer] = useState(() => createImporter(context, services, setValue, recordings));
-  return <><button data-tool="import-image" onClick={importer.choose}>Import</button><ImportProgressView value={value} /></>;
 }

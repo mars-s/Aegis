@@ -6,7 +6,7 @@ import { required } from './required.ts';
 const AgentSchema = z.object({ id: z.string(), running: z.boolean(), text: z.string(), parent: z.string().nullable(), title: z.string().nullable(), summary: z.string().nullable(), error: z.string().nullable(), history: z.array(z.object({ id: z.string(), finished: z.number().nullable(), canUndo: z.boolean() }).catchall(JsonSchema)) });
 const StartedSchema = z.array(z.object({ id: z.string() }));
 const ProviderSchema = z.object({ state: z.string(), error: z.string().nullable(), link: z.string().nullable(), prompt: z.object({ type: z.string() }).nullable() }).catchall(JsonSchema);
-const AuthSchema = z.object({ openai: ProviderSchema, anthropic: ProviderSchema }).catchall(JsonSchema);
+const AuthSchema = z.object({ openai: ProviderSchema, claude: z.object({ connected: z.boolean(), state: z.string(), version: z.string().nullable() }) }).catchall(JsonSchema);
 const LibraryActionSchema = z.object({ ok: z.literal(true), created: z.string().nullable(), nextBoard: z.string(), removed: z.array(z.string()) });
 const LibrarySchema = z.object({ nodes: z.array(z.unknown()), boards: z.array(BoardListEntrySchema.extend({ parent: z.string().nullable() })) });
 const ErrorSchema = z.object({ error: z.string() });
@@ -16,11 +16,11 @@ const RewriteSchema = z.object({ text: z.string() });
 // Starts the real host with a scripted local model and drives it over HTTP.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-let host: Awaited<ReturnType<typeof hostFixture>>, base = '', data = '', TOKEN = '';
+let host: Awaited<ReturnType<typeof hostFixture>>, base = '', TOKEN = '';
 const call = async <S extends z.ZodType>(method: string, path: string, body: unknown, schema: S): Promise<{ status: number; body: z.output<S> }> => {
   const response = await fetch(base + path, { method, headers: { authorization: `Bearer ${TOKEN}` }, ...(body ? { body: JSON.stringify(body) } : {}) });
   const value: unknown = await response.json(); return { status: response.status, body: schema.parse(value) };
@@ -28,7 +28,7 @@ const call = async <S extends z.ZodType>(method: string, path: string, body: unk
 const until = async <T>(fn: () => Promise<T | null | undefined | false>, ms = 10000): Promise<T> => { const time = Date.now(); for (;;) { const value = await fn(); if (value) return value; if (Date.now() - time > ms) throw new Error('timed out'); await new Promise(resolve => setTimeout(resolve, 100)); } };
 before(async () => {
   host = await hostFixture({ prepare: data => writeFile(join(data, 'device-id'), 'not-a-uuid') });
-  base = host.base; data = host.data; TOKEN = host.token;
+  base = host.base; TOKEN = host.token;
 });
 after(async () => { await host?.close(); });
 
@@ -93,29 +93,16 @@ test('a bad batch from an agent changes nothing', async () => {
 
 test('sign-in state lists both providers', async () => {
   const { body } = await call('GET', '/auth', undefined, AuthSchema);
-  assert.deepEqual(Object.keys(body).sort(), ['anthropic', 'openai']);
+  assert.deepEqual(Object.keys(body).sort(), ['claude', 'openai']);
 });
 
-test('ChatGPT sign-in starts with a login link and a paste box, and the device id is a UUID', async () => {
-  await call('POST', '/auth/start', { provider: 'openai' }, AuthSchema);
-  const s = await until(async () => { const { body } = await call('GET', '/auth', undefined, AuthSchema); return body.openai.link ? body.openai : null; });
-  assert.equal(s.state, 'pending', s.error ?? '');
-  assert.match(required(s.link), /^https:\/\/auth\.openai\.com\//);
-  assert.equal(required(s.prompt).type, 'manual_code');
-  assert.match(await readFile(join(data, 'device-id'), 'utf8'), /^[0-9a-f-]{36}$/);
-  await call('POST', '/auth/cancel', { provider: 'openai' }, AuthSchema);
-  const after = await until(async () => { const { body } = await call('GET', '/auth', undefined, AuthSchema); return body.openai.state !== 'pending' ? body.openai : null; });
-  assert.equal(after.state, 'idle'); assert.equal(after.error, null);
-});
-
-test('starting a sign-in again replaces the unfinished one', async () => {
-  await call('POST', '/auth/start', { provider: 'anthropic' }, AuthSchema);
-  const first = await until(async () => (await call('GET', '/auth', undefined, AuthSchema)).body.anthropic.link);
-  await call('POST', '/auth/start', { provider: 'anthropic' }, AuthSchema);
-  const second = await until(async () => { const l = (await call('GET', '/auth', undefined, AuthSchema)).body.anthropic.link; return l && l !== first ? l : null; });
-  assert.notEqual(first, second);
-  assert.equal((await call('GET', '/auth', undefined, AuthSchema)).body.anthropic.state, 'pending');
-  await call('POST', '/auth/cancel', { provider: 'anthropic' }, AuthSchema);
+test('removed Anthropic OAuth and key credentials are rejected', async () => {
+  for (const path of ['/auth/start', '/auth/cancel', '/auth/logout', '/auth/answer']) {
+    const response = await host.response(path, { provider: 'anthropic', answer: 'unused' });
+    assert.equal(response.status, 400);
+  }
+  for (const field of ['key', 'apiKey', 'api_key']) assert.equal((await host.response('/auth/start', { provider: 'openai', [field]: 'not-a-real-key' })).status, 400);
+  assert.equal((await host.response('/auth/key', { provider: 'openai', key: 'not-a-real-key' })).status, 404);
 });
 
 test('the library files boards under projects and folders, and old boards show as loose', async () => {

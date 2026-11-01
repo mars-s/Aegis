@@ -38,7 +38,7 @@ try {
           await page.addInitScript(({ theme, boardId }) => {
             if (window.top !== window) return;
             localStorage.setItem('aegis:board', boardId);
-            localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme);
+            localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme);
           }, { theme, boardId: board.id });
           await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
           await page.waitForFunction(() => window.aegis?.canvas?.board);
@@ -49,11 +49,7 @@ try {
             return canvas.toDataURL().split(',')[1];
           }), 'base64');
           const fixture = { name: 'crop-fixture.png', mimeType: 'image/png', buffer };
-          {
-            const picker = page.waitForEvent('filechooser');
-            await page.locator('[data-tool="import-image"]').dispatchEvent('click');
-            await (await picker).setFiles(fixture);
-          }
+          await page.locator('#mediaFile').setInputFiles(fixture);
           await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'image'));
           const imageId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'image').id);
           await page.evaluate(id => new Promise(resolve => aegisCtx.apply([{ op: 'update', id, set: { props: { tagText: 'Two forms, one piece of evidence' } } }], resolve)), imageId);

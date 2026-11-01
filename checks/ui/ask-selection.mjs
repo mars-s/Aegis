@@ -22,7 +22,7 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake'); });
+  await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake'); });
   await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && [...document.querySelectorAll('#model option')].some(o => o.value === 'fake|fake'));
   await page.evaluate(() => aegis.apply([0, 1, 2, 3].map(i => ({ op: 'create', type: 'note', newId: `asknote${i}`, text: `Idea ${i}`, x: i * 260, y: 0 }))));

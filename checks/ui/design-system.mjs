@@ -26,7 +26,7 @@ try {
   for (const theme of ['dark', 'light']) {
     page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     page.setDefaultTimeout(12000); page.on('pageerror', e => errors.push(e.message));
-    await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:theme', theme); localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); }, theme);
+    await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:theme', theme); localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); }, theme);
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
     const shot = async (name, target) => {
@@ -45,9 +45,9 @@ try {
     const select = async ids => { await page.evaluate(ids => { aegis.canvas.select(ids); aegis.canvas.frameIds(ids, 1, false, true); document.getElementById('stage').focus(); }, ids); await page.waitForTimeout(350); };
     const settings = page.locator('#settings');
     await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
-    for (const name of ['General', 'Board', 'Toolbar', 'Panels', 'Accounts', 'Integrations', 'About']) {
+    for (const name of ['General', 'Board', 'Panels', 'Accounts', 'Integrations', 'About']) {
       await settings.getByRole('tab', { name, exact: true }).click(); await shot('settings-' + name.toLowerCase(), settings);
-      if (name === 'General' || name === 'Board' || name === 'Toolbar') {
+      if (name === 'General' || name === 'Board') {
         for (const trigger of await settings.getByRole('combobox').all()) {
           const label = await trigger.getAttribute('aria-label'); await trigger.click();
           const menu = await popupFor(trigger); await shot('settings-select-' + label.toLowerCase().replaceAll(' ', '-'), menu);
@@ -164,12 +164,6 @@ try {
     }
     await select(['designlink']); await page.locator('.card[data-id="designlink"]').getByRole('button', { name: 'Edit link', exact: true }).focus(); await page.keyboard.press('Enter');
     await shot('media-link', page.getByRole('dialog', { name: 'Edit link', exact: true })); await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.mouse.move(24, 480); await page.locator('#toolsFold').click();
-    await shot('more-tools', page.locator('#toolsPopover'));
-    await page.locator('#toolsPopover').getByRole('button', { name: 'Customise toolbar', exact: true }).click();
-    await shot('customise-toolbar', settings); await page.locator('#closeSettings').click();
-    await page.mouse.move(24, 480); await page.locator('#toolsFold').click();
-    await page.locator('#tools [data-tool="templates"]').click(); await shot('templates', page.locator('.ctx-menu:not([hidden])')); await dismiss();
     await page.mouse.move(720, 20); await page.locator('#boardName').click();
     const boardRow = page.locator('.tree-row[data-board]').first(); await boardRow.locator('.row-more').click();
     await shot('library-row', page.locator('.ctx-menu:not([hidden])'));
@@ -177,31 +171,12 @@ try {
     const confirm = page.locator('.aegis-confirm'); await shot('confirm', confirm);
     assert.equal(await confirm.getByRole('button', { name: 'Cancel', exact: true }).evaluate(el => el === document.activeElement), true);
     await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
-    const toolsPanel = page.locator('#side > [data-panel=tools]');
-    if (await toolsPanel.getByRole('button', { name: 'Toggle Tools', exact: true }).getAttribute('aria-expanded') === 'false') await toolsPanel.getByRole('button', { name: 'Toggle Tools', exact: true }).click();
-    const paletteTile = toolsPanel.locator('.tile', { hasText: 'Board colours' });
-    if (await paletteTile.getAttribute('aria-expanded') === 'false') await paletteTile.click();
-    const palette = page.locator('[data-panel=board-colours]');
-    await palette.getByRole('button', { name: 'Add colour', exact: true }).click();
-    const colourEditor = page.getByRole('dialog', { name: 'Colour editor', exact: true });
-    await shot('colour-editor', colourEditor);
-    await colourEditor.getByRole('button', { name: 'Save to board colours', exact: true }).click();
-    await colourEditor.getByRole('button', { name: 'Done', exact: true }).click();
-    await palette.locator('.palette-row').first().click({ button: 'right' });
-    await shot('palette-row', page.getByRole('menu', { name: 'Palette colour', exact: true })); await dismiss();
-    await page.mouse.move(325, 480); await page.locator('#toolsFold').click(); await page.locator('#tools [data-tool="wireframe"]').click();
-    await page.locator('.wf-design [data-wf="icon"]').click();
-    const iconPicker = page.getByRole('dialog', { name: 'Choose icon', exact: true });
-    await iconPicker.getByRole('textbox', { name: 'Search icons', exact: true }).fill('settings'); await shot('icon-picker', iconPicker); await dismiss();
     const rowMore = boardRow.locator('.row-more'); await rowMore.focus(); await page.waitForTimeout(30); await shot('row-tooltip');
     if (theme === 'dark') await page.evaluate(() => aegis.host.post('/library', { op: 'create', kind: 'project', name: 'Design system' }));
     await page.getByRole('button', { name: 'Home', exact: true }).click();
     await shot('projects', page.getByRole('dialog', { name: 'All projects', exact: true }));
     const cover = page.getByRole('button', { name: 'Cover for Design system', exact: true }); await cover.click();
     await shot('project-cover', await popupFor(cover)); await dismiss(); await page.getByRole('button', { name: 'Back to board', exact: true }).click();
-    await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click(); await settings.getByRole('tab', { name: 'About', exact: true }).click();
-    await settings.getByRole('button', { name: 'Replay welcome and tour', exact: true }).click();
-    await shot('welcome', page.getByRole('dialog', { name: 'Welcome to Aegis', exact: true })); await dismiss();
     console.log(`PASS ${theme}: shared menus, dialogs, tabs, switches, focus, instant keyboard and viewport containment`);
     await page.close();
   }

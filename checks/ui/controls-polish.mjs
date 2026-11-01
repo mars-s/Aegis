@@ -23,7 +23,7 @@ try {
       for (const theme of ['dark', 'light']) {
         const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
         page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
-        await page.addInitScript(theme => { if (window.top === window) { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); } }, theme);
+        await page.addInitScript(theme => { if (window.top === window) { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); } }, theme);
         await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
         await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
         const shot = async name => { await page.waitForTimeout(220); await page.screenshot({ path: out(`controls-${engine}-${theme}-${name}.png`) }); };
@@ -37,7 +37,7 @@ try {
           await page.setViewportSize({ width, height }); await page.waitForTimeout(220);
           const shell = await rect(settings), tabs = await rect(settings.getByRole('tablist')), done = await rect(settings.getByRole('button', { name: 'Done', exact: true }));
           assert.equal(Math.round(shell.width), Math.min(620, width - 24)); assert.equal(shell.y, 48); assert.equal(Math.round(shell.height), Math.min(760, height - 96));
-          for (const name of ['General', 'Board', 'Toolbar', 'Panels', 'Accounts', 'Integrations', 'About']) {
+          for (const name of ['General', 'Board', 'Panels', 'Accounts', 'Integrations', 'About']) {
             await settings.getByRole('tab', { name, exact: true }).click();
             assert.deepEqual(await rect(settings), shell, `${name}: fixed Settings shell`);
             assert.deepEqual(await rect(settings.getByRole('tablist')), tabs, `${name}: fixed tabs`);

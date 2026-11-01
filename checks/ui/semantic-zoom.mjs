@@ -32,7 +32,7 @@ try {
     browser = await engine.launch();
     page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
     const errors = []; page.on('pageerror', error => errors.push(error.message));
-    await page.addInitScript(() => { if (window.top !== window) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
+    await page.addInitScript(() => { if (window.top !== window) return; localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);
     const boardId = await page.evaluate(async () => { const board = await aegis.host.post('/boards', { name: 'Semantic zoom demo' }); aegis.canvas.setBoard(board); return board.id; });

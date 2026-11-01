@@ -6,9 +6,9 @@ import type { AgentRuntime } from './runtime.js';
 import type { AgentId } from '@aegis/domain/schema';
 
 type Page = 'options' | 'model' | 'status' | 'count';
-export function Options({ runtime, show, addNotes, showAll, changed }: {
+export function Options({ runtime, show, showAll, changed }: {
   readonly runtime: AgentRuntime; readonly show: (id: AgentId) => void;
-  readonly addNotes: () => void; readonly showAll: () => void; readonly changed: () => void;
+  readonly showAll: () => void; readonly changed: () => void;
 }) {
   const state = useSyncExternalStore(runtime.subscribe, runtime.getSnapshot);
   const [page, setPage] = useState<Page>('options');
@@ -52,7 +52,6 @@ export function Options({ runtime, show, addNotes, showAll, changed }: {
         <button type="button" role="menuitem" aria-haspopup="menu" onClick={() => view('count')}><span>Agent count</span><span className="orb-menu-value">{state.count === 1 ? 'One' : state.count}</span></button>
         <button type="button" role="menuitem" aria-haspopup="menu" onClick={() => view('status')}><span>Status model</span><span className="orb-menu-value">{statusLabel}</span></button>
         <hr />
-        <button type="button" role="menuitem" onClick={() => { close(false); addNotes(); }}>Add as notes<span className="orb-menu-value">⌘Return / Ctrl+Return</span></button>
         <button type="button" role="menuitem" onClick={() => { close(false); runtime.newAgent(); changed(); }}>New agent</button>
         <button type="button" role="menuitem" onClick={() => { close(); showAll(); }}>All agents</button>
         {state.agents.map(agent => <button type="button" key={agent.id} role="menuitemradio" aria-checked={runtime.current()?.id === agent.id}

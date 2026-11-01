@@ -36,7 +36,7 @@ try {
   browser = await chromium.launch();
   const context = await browser.newContext({ viewport: { width: 1600, height: 1050 }, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await context.newPage();
-  await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto(`${base}/ui/index.html?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas.board, null, { timeout: 20000 });
@@ -66,11 +66,7 @@ try {
     throw new Error('Board did not settle after five reads.');
   };
   const imports = [repo + '/checks/fixtures/two-pages.pdf', repo + '/checks/fixtures/two-slides.pptx'];
-  {
-    const picker = page.waitForEvent('filechooser');
-    await page.locator('[data-tool="import-image"]').dispatchEvent('click');
-    await (await picker).setFiles(imports);
-  }
+  await page.locator('#mediaFile').setInputFiles(imports);
   await waitForAsync(page, async () => {
     const saved = await aegis.host.get(`/boards/${aegis.canvas.board.id}`);
     return saved.cards.filter(c => c.props?.import).length === 2;

@@ -125,7 +125,7 @@ try {
     for (const [width, height] of [[1440, 900], [1586, 992]]) for (const theme of ['dark', 'light']) {
       page = await browser.newPage({ viewport: { width, height }, reducedMotion: 'reduce', deviceScaleFactor: 2 });
       const errors = []; page.on('pageerror', e => errors.push(e.message));
-      await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
+      await page.addInitScript(theme => { if (window.top !== window) return; localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
       await page.evaluate(async batch => { aegis.canvas.setBoard(await aegis.host.post('/boards', { name: 'Overview model' })); aegis.apply(batch); }, demoBatch);
       await page.waitForFunction(() => window.aegis?.canvas?.board?.cards.length === 9); await page.waitForTimeout(700);

@@ -1,6 +1,7 @@
+import { WELCOME_BRIEF } from '@aegis/domain/profile';
 import { z } from 'zod/v4';
 
-export const displayBrief = (text = ''): string => text.replace(/\n\n\(Work on the selected cards: [^\r\n)]+\)\s*$/, '');
+export const displayBrief = (text = ''): string => text === WELCOME_BRIEF ? 'Introduction' : text.replace(/\n\n\(Work on the selected cards: [^\r\n)]+\)\s*$/, '');
 const BlockSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text'), text: z.string() }),
   z.object({ type: z.literal('toolCall'), id: z.string().optional(), name: z.string(), arguments: z.unknown().optional(), partialJson: z.string().optional() }),

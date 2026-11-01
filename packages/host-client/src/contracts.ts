@@ -1,3 +1,4 @@
+import type { Profile } from '@aegis/domain/profile';
 import type { AgentModel, AgentSnapshot, StartAgent } from '@aegis/protocol/agents';
 import type { AgentId, CardId, RequestId } from '@aegis/domain/schema';
 import type { LibrarySnapshot, LibraryChange, LibraryResult, Provider, ProviderAccount, McpSetup, RewriteRequest, LinkPreview, SandboxRequest } from '@aegis/protocol/services';
@@ -67,6 +68,9 @@ export interface AgentClient {
   readonly undoRequest: (id: AgentId, requestId: RequestId, signal: AbortSignal) => Promise<HostResult<void>>;
 }
 export interface HostClient extends BoardClient {
+  readonly profile: (signal?: AbortSignal) => Promise<HostResult<Profile>>;
+  readonly resetProfile: (signal?: AbortSignal) => Promise<HostResult<Profile>>;
+  readonly refreshClaude: (signal?: AbortSignal) => Promise<HostResult<void>>;
   readonly agents: AgentClient;
   readonly accounts: (signal?: AbortSignal) => Promise<HostResult<readonly ProviderAccount[]>>;
   readonly authenticate: (provider: Provider, action: 'start' | 'cancel' | 'logout', signal?: AbortSignal) => Promise<HostResult<readonly ProviderAccount[]>>;

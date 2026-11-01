@@ -81,7 +81,7 @@ try {
     page.setDefaultTimeout(15000);
     try {
       await page.addInitScript(() => {
-        localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1');
+        localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1');
         localStorage.setItem('aegis:theme', 'dark'); localStorage.setItem('aegis:follow', 'off');
       });
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);

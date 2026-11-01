@@ -1,0 +1,50 @@
+.provider-connections { display: grid; gap: var(--space-6); min-width: 0; color: var(--text-1); }
+.connections-head { display: grid; gap: var(--space-2); padding-right: var(--control-touch); }
+.provider-connections h3, #settings .provider-connections h3 { margin: 0; font: var(--weight-semibold) var(--text-subtitle)/var(--leading-reading) var(--font-display); letter-spacing: var(--tracking-heading); }
+.provider-connections p { margin: 0; font-size: var(--text-body); line-height: var(--leading-body); overflow-wrap: anywhere; }
+.connections-head p { color: var(--text-2); }
+.provider-connections .account { display: grid; gap: var(--space-3); padding: 0 0 var(--space-6); border-bottom: 1px solid var(--border-weak); }
+.provider-connections .account:last-of-type { padding-bottom: 0; border: 0; }
+.provider-connections .acct-row, #settings .provider-connections .acct-row { display: flex; gap: var(--space-4); align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 0; }
+.provider-connections .acct-name { display: grid; gap: var(--space-1); min-width: 0; }
+.provider-connections .acct-name strong { font-size: var(--text-reading); font-weight: var(--weight-semibold); letter-spacing: var(--tracking-heading); }
+.provider-connections .acct-state, #settings .provider-connections .acct-state { display: flex; gap: var(--space-2); align-items: baseline; color: var(--text-2); font-size: var(--text-caption); line-height: var(--leading-body); font-variant-numeric: tabular-nums; }
+.provider-connections .acct-state::before { content: ''; flex: none; width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; }
+.provider-connections [data-state=ready] .acct-state { color: var(--success-deep); }
+.provider-connections [data-state=ready] .acct-state::before { background: currentColor; }
+.provider-connections [data-state=pending] .acct-state { color: var(--warning-deep); }
+.provider-connections [data-state=error] .acct-state { color: var(--danger-deep); }
+.provider-connections button, #settings .provider-connections button { min-height: var(--control-height); height: auto; padding: var(--space-2) var(--space-3); border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface); color: var(--text-1); box-shadow: none; font: var(--weight-medium) var(--text-body)/var(--leading-body) var(--font); cursor: pointer; transition: background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out); }
+.provider-connections button:hover, #settings .provider-connections button:hover { background: var(--fill-hover); border-color: var(--border-strong); }
+.provider-connections button:active { background: var(--fill-active); }
+.provider-connections button:disabled { color: var(--text-3); opacity: .7; cursor: default; }
+.provider-connections .provider-primary, #settings .provider-connections .provider-primary { background: var(--accent); border-color: transparent; color: var(--on-accent); }
+.provider-connections .provider-primary:hover, #settings .provider-connections .provider-primary:hover { background: color-mix(in srgb, var(--accent) 90%, var(--ink)); border-color: transparent; color: var(--on-accent); }
+.provider-connections :is(button, a, input):focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.provider-connections [role=alert] { color: var(--danger-deep); }
+.provider-connections a { width: fit-content; color: var(--text-1); text-decoration: underline; text-underline-offset: 3px; font-size: var(--text-body); }
+.provider-connections a:hover { color: var(--accent); }
+.provider-command { display: grid; gap: var(--space-2); justify-items: start; padding: var(--space-3); border-radius: var(--radius-md); background: var(--fill-secondary); }
+.provider-command code { max-width: 100%; overflow-wrap: anywhere; font: var(--text-caption)/var(--leading-body) var(--font-mono); }
+.provider-connections .acct-flow { display: grid; gap: var(--space-3); margin: 0; padding: var(--space-4); border-radius: var(--radius-lg); background: var(--fill-secondary); }
+.provider-connections .muted { color: var(--text-2); }
+.provider-connections .row { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+.provider-connections input { min-width: 0; flex: 1; padding: var(--space-2); background: var(--surface); color: var(--text-1); caret-color: var(--accent); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+.connect-ai-popover { position: absolute; inset: auto auto calc(100% + var(--space-3)) 50%; transform: translateX(-50%); width: min(400px, calc(100vw - 32px)); max-height: min(680px, calc(100dvh - 140px)); overflow: auto; overscroll-behavior: contain; padding: var(--space-6); border: 1px solid var(--glass-border); border-radius: var(--radius-xl); background: var(--surface-overlay); color: var(--text-1); box-shadow: var(--glass-shadow); scrollbar-width: thin; animation: connect-open var(--motion-base) var(--ease-out); }
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .connect-ai-popover { background: var(--glass-bg); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
+}
+.connect-ai-popover > button { position: absolute; top: var(--space-4); right: var(--space-4); z-index: 1; min-height: var(--control-touch); padding: var(--space-2); border: 0; border-radius: var(--radius-md); color: var(--text-2); background: transparent; font-size: var(--text-caption); }
+.connect-ai-popover > button:hover { background: var(--fill-hover); }
+.connect-ai-popover > button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.connect-ai-label { font-size: var(--text-body); padding-right: var(--space-3); color: var(--text-1); white-space: nowrap; }
+#askPill.ask-orb:has(.connect-ai-label) { width: auto; gap: var(--space-2); padding: var(--space-2); height: var(--space-12); }
+.agent-island:has(.connect-ai-popover) { z-index: 70; }
+@keyframes connect-open { from { opacity: 0; translate: 0 var(--space-1); } to { opacity: 1; translate: 0 0; } }
+@media (max-width: 640px), (pointer: coarse) {
+  .provider-connections button, #settings .provider-connections button { min-height: var(--control-touch); }
+  .connect-ai-popover { padding: var(--space-4); }
+  .provider-connections .acct-row { align-items: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .connect-ai-popover { animation: none; } }
+body.motion-off .connect-ai-popover { animation: none; }

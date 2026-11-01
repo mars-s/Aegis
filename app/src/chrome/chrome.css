@@ -112,8 +112,7 @@
   color: var(--color-text);
 }
 .aegis-chrome .bar-left,
-.aegis-chrome .bar-right,
-.aegis-chrome #tools {
+.aegis-chrome .bar-right {
   opacity: 0;
   pointer-events: none;
   transition: opacity 180ms var(--ease-out);
@@ -121,12 +120,12 @@
 .aegis-chrome .bar > :is(.bar-left, .bar-right) { pointer-events: none; }
 .aegis-chrome .bar > :is(.bar-left, .bar-right).chrome-visible,
 .aegis-chrome .bar > :is(.bar-left, .bar-right):focus-within { pointer-events: auto; }
-.aegis-chrome :is(.bar-left, .bar-right, #tools).chrome-visible,
-.aegis-chrome :is(.bar-left, .bar-right, #tools):focus-within {
+.aegis-chrome :is(.bar-left, .bar-right).chrome-visible,
+.aegis-chrome :is(.bar-left, .bar-right):focus-within {
   opacity: 1;
   pointer-events: auto;
 }
-.aegis-chrome :is(.bar-left, .bar-right, #tools).chrome-instant {
+.aegis-chrome :is(.bar-left, .bar-right).chrome-instant {
   transition-duration: 0ms;
 }
 .aegis-chrome .reveal-arrow {
@@ -275,7 +274,7 @@
   text-align: left;
   cursor: grab;
 }
-.aegis-chrome :is([data-panel="library"], [data-panel="tools"]) > .phead > .ptoggle {
+.aegis-chrome [data-panel="library"] > .phead > .ptoggle {
   cursor: pointer;
 }
 .aegis-chrome .pmark {
@@ -420,85 +419,7 @@
   display: flex;
   flex-direction: column;
 }
-.aegis-chrome [data-panel="tools"] > .pbody {
-  max-height: 42vh;
-}
-.aegis-chrome .capture-reveal > .pbox.folded {
-  flex: none;
-  min-height: 0;
-}
-.aegis-chrome .capture-reveal [data-panel="tools"] > .pbody {
-  max-height: none;
-}
-.aegis-chrome .capture-reveal [data-panel="unsorted"] > .pbody {
-  min-height: 260px;
-  flex-shrink: 0;
-}
-/* Tools is a module grid, drawn as a Bauhaus table: cells share 1px rules, no rounded cards. */
-.aegis-chrome .tool-tiles {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  margin: 0 10px;
-  border: 1px solid var(--side-rule);
-  border-radius: 8px;
-  overflow: hidden;
-  background: var(--side-rule);
-}
-.aegis-chrome #side .tile {
-  --button-bg: var(--side-plate);
-  --button-edge: transparent;
-  --button-shadow: none;
-  --button-ink: var(--muted);
-  --button-hover-ink: var(--text);
-  --button-height: 58px;
-  --button-padding: 10px 10px 9px 12px;
-  position: relative;
-  height: 58px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 10px 10px 9px 12px;
-  border: 0;
-  border-radius: 0;
-  background: var(--button-bg);
-  color: var(--muted);
-  font: 500 12px/1 var(--font);
-  text-align: left;
-  cursor: pointer;
-}
-.aegis-chrome .tile svg {
-  color: var(--faint);
-}
-@media (hover: hover) and (pointer: fine) {
-  .aegis-chrome #side .tile:hover {
-    --button-bg: color-mix(in srgb, var(--side-plate), var(--text) 4%);
-    --button-ink: var(--text);
-  }
-}
-.aegis-chrome #side .tile[aria-expanded="true"] {
-  --button-bg: color-mix(in srgb, var(--side-plate), var(--text) 6%);
-  --button-ink: var(--text);
-}
-.aegis-chrome .tile[aria-expanded="true"] svg {
-  color: var(--text);
-}
-.aegis-chrome .tile[aria-expanded="true"]::after {
-  content: "";
-  position: absolute;
-  top: 11px;
-  right: 10px;
-  width: 9px;
-  height: 8px;
-  background: var(--mark-tools);
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-}
-.aegis-chrome #side .tile.filler {
-  background: var(--side-plate);
-  pointer-events: none;
-}
-/* The open tool body sits under its own 32px subhead, not inside the grid. */
+/* Nested extension panels use compact subheads. */
 .aegis-chrome .pbox.nested {
   margin: 10px 10px 0;
   border-top: 0;
@@ -672,46 +593,6 @@
   gap: 2px;
   padding: 0 2px 4px;
 }
-/* The dock is one quiet capsule of line icons, the same family as the old Svelte rail. */
-.aegis-chrome #tools {
-  position: absolute;
-  top: 56px;
-  left: calc(var(--side-w, 0px) + 12px);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 44px;
-  gap: 2px;
-  padding: 4px;
-  z-index: 34;
-  border-radius: 22px;
-  background: var(--pill);
-  border: 1px solid var(--line);
-  box-shadow: inset 0 1px 0 var(--edge-top);
-}
-.aegis-chrome #tools > button,
-.aegis-chrome #tools > :is(#toolsFold) {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  min-height: 34px;
-  padding: 0;
-  border-radius: 17px;
-  color: var(--muted);
-  transition: background-color 120ms var(--ease-out), color 120ms var(--ease-out), transform 120ms var(--ease-out);
-}
-@media (hover: hover) and (pointer: fine) {
-  .aegis-chrome #tools > button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
-}
-.aegis-chrome #tools > button[aria-pressed="true"],
-.aegis-chrome #tools > #toolsFold[aria-expanded="true"] { color: var(--text); background: var(--press); }
-.aegis-chrome #tools > button[data-tool="select"][aria-pressed="true"] { color: var(--canvas); background: var(--text); }
-.aegis-chrome #tools > button:disabled { opacity: .32; }
-.aegis-chrome #tools svg { width: 16px; height: 16px; stroke-width: 1.4; }
-.aegis-chrome #tools .tools-sep { flex: none; width: 18px; height: 1px; margin: 3px 0; background: var(--line-strong); }
-.aegis-chrome #tools > .tools-history { width: 30px; height: 28px; min-height: 28px; }
-.aegis-chrome #tools > .tools-history svg { width: 14px; height: 14px; }
 /* The selection bar is one row: ask, format or open, then object actions and More. */
 .aegis-chrome .selection-bar {
   position: absolute;
@@ -1053,20 +934,6 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
   .aegis-chrome .side {
     width: min(420px, calc(100vw - 16px)) !important;
   }
-  .aegis-chrome #tools {
-    display: flex !important;
-    top: 50%;
-    left: 8px;
-    right: auto;
-    bottom: auto;
-    flex-direction: column;
-    width: 54px;
-    max-height: calc(100dvh - 180px);
-    overflow-y: auto;
-    transform: translateY(-50%);
-    opacity: 1;
-  }
-  .aegis-chrome #tools > button { flex-shrink: 0; }
   .aegis-chrome .bar-left,
   .aegis-chrome .bar-right {
     opacity: 1;
@@ -1074,8 +941,7 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
 }
 @media (max-width: 700px), (pointer: coarse) {
   .react-stage .window-actions button { min-width: 44px; min-height: 44px; }
-  .aegis-chrome #tools button,
-  .aegis-chrome :is(.row-more, .icon-btn, .ptoggle) {
+    .aegis-chrome :is(.row-more, .icon-btn, .ptoggle) {
     min-height: 44px;
     min-width: 44px;
     opacity: 1;
@@ -1083,9 +949,6 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
   .aegis-chrome .phead,
   .aegis-chrome .side-head {
     min-height: 44px;
-  }
-  .aegis-chrome .tile {
-    height: 64px;
   }
   .aegis-chrome .pchev {
     opacity: 1;
@@ -1105,45 +968,6 @@ body.motion-off .aegis-chrome .selection-bar.selection-enter { animation: none; 
     border-color: var(--color-muted);
   }
 }
-/* More tools: a palette of icon tiles with names, grouped like the dock. */
-.aegis-chrome .tools-popover { width: min(380px, calc(100vw - 80px)); max-height: calc(100dvh - 96px); overflow: auto; padding: 6px; }
-.aegis-chrome .tools-popover section { padding: 6px 2px; }
-.aegis-chrome .tools-popover section + section { border-top: 1px solid var(--line); }
-.aegis-chrome .tools-popover h3 { margin: 2px 8px 6px; color: var(--faint); font-size: 11px; font-weight: 500; letter-spacing: .01em; }
-.aegis-chrome .tools-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px; }
-.aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 44px;
-  padding: 4px 8px;
-  border-radius: 8px;
-  text-align: left;
-  color: var(--ink-2);
-}
-.aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button > svg {
-  box-sizing: content-box;
-  width: 14px;
-  height: 14px;
-  padding: 6px;
-  border-radius: 7px;
-  background: var(--inset);
-  box-shadow: inset 0 0 0 1px var(--line);
-  stroke-width: 1.4;
-  transition: color 120ms var(--ease-out), box-shadow 120ms var(--ease-out);
-}
-@media (hover: hover) and (pointer: fine) {
-  .aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button:hover { color: var(--text); background: var(--hover); }
-  .aegis-chrome .tools-popover :is(.tools-grid, .tools-footer) button:hover > svg { box-shadow: inset 0 0 0 1px var(--line-strong); }
-}
-.aegis-chrome .tools-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.aegis-chrome .tools-grid kbd { position: absolute; right: 8px; top: 50%; translate: 0 -50%; padding: 1px 5px; background: var(--raised); border: 1px solid var(--line); border-radius: 4px; color: var(--faint); font-size: 10px; line-height: 1.4; opacity: 0; transition: opacity 120ms var(--ease-out); }
-.aegis-chrome .tools-grid button:is(:hover, :focus-visible) kbd { opacity: 1; }
-.aegis-chrome .tools-footer { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 6px 2px 2px; border-top: 1px solid var(--line); }
-.aegis-chrome .tools-footer .tools-customise { color: var(--muted); }
-.aegis-chrome .tools-footer .tools-customise > svg { background: transparent; box-shadow: none; }
 .aegis-chrome .side.panel-drop {
   display: flex !important;
   border-color: var(--color-muted);
@@ -1267,11 +1091,6 @@ body.left-open .aegis-chrome .bar-left {
   font-weight: 500;
   color: var(--color-muted);
 }
-body[data-tool-size="small"] .aegis-chrome #tools { width: 38px; border-radius: 19px; }
-body[data-tool-size="small"] .aegis-chrome #tools > :is([data-tool], #toolsFold) { width: 28px; min-height: 28px; height: 28px; }
-body[data-tool-size="large"] .aegis-chrome #tools { width: 50px; border-radius: 25px; }
-body[data-tool-size="large"] .aegis-chrome #tools > :is([data-tool], #toolsFold) { width: 40px; min-height: 40px; height: 40px; border-radius: 20px; }
-
 .aegis-chrome .selection-menu-action { display: flex; align-items: center; justify-content: space-between; width: 100%; }
 .aegis-chrome .selection-value { flex: 0 1 96px; max-width: 96px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px var(--font); }
 
@@ -1299,15 +1118,7 @@ body[data-tool-size="large"] .aegis-chrome #tools > :is([data-tool], #toolsFold)
 
 #toast.toast-leaving[hidden] { display: flex !important; pointer-events: none; }
 
-.chrome-preferences .panel-tools-choices { padding-inline-start: 24px; }
 
-.aegis-chrome .editing-hints { opacity: 0; transition: opacity 150ms var(--ease-out); position: fixed; bottom: 18px; left: 16px; z-index: 45; display: flex; flex-direction: column; gap: 5px; font-size: 10px; color: var(--muted); background: var(--card); padding: 10px 25px 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
-.aegis-chrome .editing-hints:hover, .aegis-chrome .editing-hints:focus-within { opacity: 1; }
-.aegis-chrome .editing-hints button { position: absolute; right: 5px; top: 3px; border: 0; background: none; color: inherit; }
-.aegis-chrome .editing-hints[hidden] { display: none; }
-body.left-open .aegis-chrome .editing-hints { visibility: hidden; }
-@media (max-height: 650px) { .aegis-chrome .editing-hints { display: none; } }
-@media (hover: none) { .aegis-chrome .editing-hints { opacity: .65; } }
 
 
 /* Top bar: quiet round icon buttons, a small Follow switch and a muted save state. */
@@ -1336,3 +1147,5 @@ body.left-open .aegis-chrome .editing-hints { visibility: hidden; }
 .aegis-chrome .reveal-arrow { display: grid; place-items: center; width: 44px; padding: 0; background: transparent !important; }
 .aegis-chrome .reveal-arrow svg { box-sizing: content-box; width: 14px; height: 14px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 50%; background: var(--raised); color: var(--text); }
 .aegis-chrome .reveal-arrow:hover svg { border-color: var(--muted); }
+
+.aegis-chrome .extension-tools { position: absolute; left: 12px; top: 64px; display: grid; gap: 6px; padding: 8px; border-radius: 12px; background: var(--color-float); pointer-events: auto; }

@@ -1,3 +1,4 @@
+import { WELCOME_BRIEF } from '@aegis/domain/profile';
 import { Fragment, useLayoutEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { AgentSnapshot } from './schema.js';
@@ -63,9 +64,12 @@ export function Conversation({ agent, className }: { readonly agent: AgentSnapsh
   if (agent && !turns.length && agent.brief) turns.push({ id: 'request', role: 'user', text: agent.brief });
   if (agent && !agent.turns.length && agent.text) turns.push({ id: 'answer', role: 'assistant', text: agent.text });
   if (agent?.partial) turns.push({ id: 'streaming', role: 'assistant', text: agent.partial });
+  // Only the first request belonging to the local introduction is synthetic. Keep real replies intact.
+  const introduction = agent?.id === localStorage.getItem('aegis:introduction-agent') || agent?.brief === WELCOME_BRIEF;
+  const visibleTurns = introduction && turns[0]?.role === 'user' && ['Introduction', WELCOME_BRIEF].includes(turns[0].text) ? turns.slice(1) : turns;
   return <div ref={element} className={className} role="log" aria-label="Agent conversation" tabIndex={0} hidden={!agent}
     onScroll={event => { const node = event.currentTarget; scroll.current = { top: node.scrollTop, follows: node.scrollHeight - node.scrollTop - node.clientHeight < 36 }; }}>
-    {turns.map(turn => <div key={turn.id} className={`island-turn ${turn.role}${turn.id === 'streaming' ? ' streaming' : ''}`}>
+    {visibleTurns.map(turn => <div key={turn.id} className={`island-turn ${turn.role}${turn.id === 'streaming' ? ' streaming' : ''}`}>
       <span className="turn-author">{turn.role === 'user' ? 'You' : 'Agent'}</span>
       <div className="turn-text">{turn.role === 'user' ? turn.text : <ChatText text={turn.text} />}</div>
     </div>)}

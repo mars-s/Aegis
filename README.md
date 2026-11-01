@@ -2,11 +2,13 @@
 
 # Aegis
 
-A minimal infinite canvas for you and your agents. Brain-dump into the box at the bottom; agents running on [Pi Durable](https://www.npmjs.com/package/@earendil-works/pi-durable) sort it into groups, checklists and links on the board while you watch.
+[DESIGN.md](DESIGN.md) defines the light-first visual system and shared UI tokens.
+
+An open canvas for you and your AI. Start with the empty dot canvas and the small dock at the bottom. Connect a provider, then let the AI learn about your workflow in conversation. Agents use [Pi Durable](https://www.npmjs.com/package/@earendil-works/pi-durable) and shared board commands to work alongside you.
 
 ![Aegis with a document, sheet, slide deck, plot and other windows on one board. The figures are demo data.](docs/screenshot.png)
 
-Agents sign in with your own ChatGPT or Claude subscription (Settings). Boards, sign-in tokens and agent history live in `~/Library/Application Support/Aegis`, never in this repository.
+Connect AI from the dock or Settings > Accounts. ChatGPT uses Sign in with ChatGPT and your ChatGPT plan. Claude uses the official Claude Code CLI, installed and signed in by you in Terminal. Aegis never reads or stores Claude credentials and has no API key entry. Boards, your local profile, ChatGPT tokens and agent history live in `~/Library/Application Support/Aegis`, never in this repository.
 
 ## Run
 
@@ -21,7 +23,7 @@ npm run check:ui   # browser checks for each feature, one after another (needs P
 npm run bench      # pan and zoom over 5,000 cards in the production React scene
 ```
 
-The UI checks start their own agent host on a temporary data folder and a Vite server on ports 5181 to 5189. Screenshots and downloads go to `AEGIS_CHECK_OUT`, or `aegis-check` in the temp folder. Set `PLAYWRIGHT=/path/to/playwright/index.mjs` if Node can't find Playwright. `node checks/ui/run.mjs docs draw` runs only those two.
+The UI checks start their own agent host on a temporary data folder and a Vite server on ports 5181 to 5189. Screenshots and downloads go to `AEGIS_CHECK_OUT`, or `aegis-check` in the temp folder. Set `PLAYWRIGHT=/path/to/playwright/index.mjs` if Node can't find Playwright. `node checks/ui/run.mjs docs open-canvas` runs only those two. The open-canvas suite uses Chromium; set `AEGIS_CHECK_WEBKIT=1` to also try WebKit.
 
 Signed app updates, release setup and rollback are described in [App updates](docs/updates.md).
 
@@ -51,12 +53,14 @@ See [Local MCP for Codex and Claude](docs/local-mcp.md) for tools, setup and lim
 | `app/src/workspace` | The client board store: optimistic batches, Undo, save queue and replication |
 | `app/src/canvas`, `app/src/cards` | React card bodies rendered into scene leases |
 | `app/src/editors` | Document, sheet, deck, dataset and object editors |
-| `app/src/chrome` | Boards, library, layers, tools, selection, composer and settings |
+| `app/src/chrome` | Edge-hover Library and Layers, selection, board navigation and empty extension composition |
 | `app/src/charts` | Charts, adapted from Zephium (MPL-2.0) |
-| `app/src/features` | Agents, drawing, wireframes, colours, media, imports, editing, onboarding and the phone layout |
+| `app/src/features` | AI dock, provider connections, introduction, imports and retained editing primitives |
 | `checks/` | Unit, host, browser, performance and native checks |
 | `agent/src/main.ts` (built as `agent/dist/main.js`) | Agent host: Pi Durable, board and object tools, parts (lead and helpers), skills, sign-in, loopback HTTP and live events |
 | `agent/skills/` | How to do a kind of job (analyse data, explain a flow and so on); your own skills in the data folder override them |
+| `agent/src/claude-code.ts` | Credential-free Claude Code subprocess adapter |
+| `agent/src/profile.ts` | Local profile persistence and the introduction seam |
 | `agent/src/ui-update.ts` | Check, build, swap and roll back the installed UI |
 | `src-tauri` | Tauri shell: starts the agent host with a per-launch token, stops it on quit, and lets WKWebView render at 120 Hz |
 

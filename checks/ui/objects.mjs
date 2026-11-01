@@ -18,7 +18,7 @@ const b = await chromium.launch(); const page = await b.newPage({ viewport: { wi
 const errors = []; page.on('pageerror', e => errors.push('pageerror: ' + e.message)); page.on('console', m => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 const log = (...a) => console.log('•', ...a);
 try {
-  await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   await page.goto(`http://127.0.0.1:${5187 + PORT_OFFSET}/?port=${port}&token=${TOKEN}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board, null, { timeout: 15000 });
   log('loaded', await page.evaluate(() => aegis.canvas.board.name));

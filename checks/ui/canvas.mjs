@@ -1,5 +1,4 @@
 import { assertCameraScale } from './static-geometry.mjs';
-import { choose } from './dropdown.mjs';
 import { chromium } from './playwright.mjs';
 import { out } from './out.mjs';
 import { spawn } from 'node:child_process';
@@ -29,7 +28,7 @@ try {
   web = spawn('npx', ['vite', '--port', String(5190 + offset), '--strictPort'], { cwd: repo + '/app' }); await ready(web, /Local:.*:(\d+)/);
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
   page.on('dialog', d => { nativeDialogs.push(d.message()); d.dismiss(); });
-  page.on('pageerror', e => errors.push(e.message)); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  page.on('pageerror', e => errors.push(e.message)); await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   await page.goto(`http://127.0.0.1:${5190 + offset}/?port=${port}&token=${token}`); await page.waitForFunction(() => window.aegis?.canvas?.board);
   const api = (path, body) => page.evaluate(([path, body]) => body === undefined ? aegis.host.get(path) : aegis.host.post(path, body), [path, body]);
   const settle = () => page.waitForTimeout(180);
@@ -82,22 +81,6 @@ try {
     verify('scrolling a fixed note leaves the canvas still', await fixed.evaluate(el => el.scrollTop > 0) && JSON.stringify(viewBefore) === await page.evaluate(() => JSON.stringify(aegis.canvas.view)));
     await fixed.blur(); await apply([{ op: 'create', newId: 'fixedtodo', type: 'todo', text: 'Fixed checklist', x: 300, y: 450, w: 240, h: 120, props: { fixedHeight: true }, items: Array.from({ length: 12 }, (_, i) => ({ text: `Task ${i}`, done: false })) }]);
     verify('fixed checklists scroll inside their border', await page.locator('.card[data-id="fixedtodo"] .items').evaluate(el => el.scrollHeight > el.clientHeight && getComputedStyle(el).overflowY === 'auto' && getComputedStyle(el).maskImage.includes('gradient')));
-    await page.mouse.move(1400, 20); await page.locator('#settingsBtn').click();
-    const colour = page.getByRole('combobox', { name: 'Default note colour', exact: true });
-    await colour.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('p');
-    verify('dropdown type-ahead focuses a matching option', await page.evaluate(() => document.activeElement.dataset.label.toLowerCase().startsWith('p')));
-    await page.keyboard.press('End'); await page.keyboard.press('Enter');
-    verify('keyboard selection saves and restores trigger focus', await colour.evaluate(el => el.value === 'purple' && document.activeElement === el) && await page.evaluate(() => localStorage.getItem('aegis:note-colour') === 'purple'));
-    await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await colour.click();
-    verify('pointer dropdown opens over 140 ms', await page.locator('.aegis-value-menu:not([hidden])').evaluate(el => el.getAnimations().some(a => a.effect.getTiming().duration === 140)));
-    verify('dropdown checks the current option', await page.locator('.aegis-value-menu:not([hidden]) [aria-selected=true]').evaluate(el => el.dataset.value === 'purple' && getComputedStyle(el.querySelector('svg')).visibility === 'visible'));
-    await page.waitForTimeout(160);
-    await page.screenshot({ path: out(`canvas-settings-dropdown-${Date.now()}.png`) });
-    await page.keyboard.press('Escape'); await page.emulateMedia({ reducedMotion: 'reduce' });
-    await colour.focus(); await page.keyboard.press('ArrowDown');
-    verify('keyboard dropdown opens instantly', await page.locator('.aegis-value-menu:not([hidden])').evaluate(el => el.getAnimations().length === 0));
-    await page.keyboard.press('Escape'); await page.locator('#closeSettings').click();
     await page.evaluate(() => { aegis.canvas.setView({ x: 430, y: 240, z: 1 }); aegis.canvas.select(['canvasnote']); }); await settle();
   }
   await page.getByLabel('More selection controls', { exact: true }).click();
@@ -149,7 +132,7 @@ try {
   }
   const parent = await page.evaluate(() => aegis.canvas.board.id);
   await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); }); await settle();
-  const tool = page.locator('[data-tool="canvas"]'); if (!await tool.isVisible()) { await page.mouse.move(24, 480); await page.locator('#toolsFold').click(); } await tool.click(); await page.locator('#stage').click({ position: { x: 1300, y: 780 } });
+  await api('/boards', { name: 'Child canvas', boardParent: parent, at: { x: 800, y: 450 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
   await page.locator('.canvas-card').hover();
   verify('canvas door has an accessible open button', await page.locator('.canvas-card').getByRole('button', { name: 'Open canvas', exact: true }).count() === 1);

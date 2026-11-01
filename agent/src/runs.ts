@@ -15,6 +15,8 @@ import { DATASET_LIMITS, MEASURES, BUCKETS, FILTER_OPS, parseCsv, profileDataset
 import { OBJECT_KINDS, OBJECT_GUIDE, OBJECT_SIZE, objectSchemas } from '@aegis/domain/objects';
 import type { createBoards, CommitChange } from './boards.js';
 import type { createProviders } from './providers.js';
+import { PROFILE_GUIDANCE } from '@aegis/domain/profile';
+import type { ProfileStore } from './profile.js';
 import { ModelChoiceSchema } from './providers.js';
 import { atomicJson, readJson, errorMessage } from './files.js';
 import type { HostLifetime } from './lifetime.js';
@@ -39,9 +41,9 @@ const ProfileSchema = z.object({ columns: z.array(z.object({ name: z.string(), k
 
 type AgentSnapshot = { id: string; boardId: string; brief: string; model: RunMeta['model']; statusModel: RunMeta['statusModel']; created: number; status: string; running: boolean; parent: string | null; title: string | null; summary: string | null; drafts: ReturnType<typeof draftsFromView>; step: string; turns: ReturnType<typeof conversationFromView>['turns']; text: string; partial: string; history: ReturnType<typeof historyFromView>; error: string | null; revision?: number };
 
-export async function createRuns({ data: DATA, assets: ASSETS, agentRoot, boards, providers, broadcast, timing, lifetime }: {
+export async function createRuns({ data: DATA, assets: ASSETS, agentRoot, boards, providers, profile, broadcast, timing, lifetime }: {
   data: string; assets: string; agentRoot: string; boards: ReturnType<typeof createBoards>;
-  providers: Awaited<ReturnType<typeof createProviders>>; broadcast(event: unknown): void; timing(value: object): void; lifetime: HostLifetime;
+  providers: Awaited<ReturnType<typeof createProviders>>; profile: ProfileStore; broadcast(event: unknown): void; timing(value: object): void; lifetime: HostLifetime;
 }) {
   const { loadBoard, commit, historyBoards } = boards;
   const { credentials, models, fake, modelList } = providers;
@@ -286,7 +288,7 @@ const startPart = defineTool({
     title: Type.String({ maxLength: 24, description: 'The part\'s short name: Research, Numbers, Flow.' }),
     goal: Type.String({ maxLength: 200, description: 'What the part finds or does, shown to the person.' }),
     brief: Type.String({ maxLength: 2000, description: 'Every fact the helper needs and what to return.' }),
-    model: Type.Optional(Type.String({ description: 'A model id for the helper, such as gpt-6.1-sol or claude-sonnet-5-5. Default: the lead\'s own model.' })),
+    model: Type.Optional(Type.String({ description: 'A model id for the helper, such as gpt-6.1-sol or sonnet. Default: the lead\'s own model.' })),
   }),
   execute: async (args, api, invocation) => {
     const leadId = String(api.conversationId ?? ''); const lead = run.get(leadId);
@@ -322,10 +324,14 @@ const finishPart = defineTool({
   },
 });
 
+const updateProfile = defineTool({ name: 'profile_update', description: 'Merge what the person has told you into their local profile. Save only supplied information.',
+  parameters: Type.Object(Object.fromEntries(['name', 'role', 'workflow', 'goals', 'canvasHelp', 'notes'].map(key => [key, Type.Optional(Type.String())]))),
+  execute: async args => text(await profile.update(args)),
+});
 const BoardExtension = defineExtension({
   name: 'aegis-board',
-  tools: [readBoard, editBoard, createObject, reviseObject, dataQuery, startPart, finishPart, loadSkill],
-  sections: [section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
+  tools: [updateProfile, readBoard, editBoard, createObject, reviseObject, dataQuery, startPart, finishPart, loadSkill],
+  sections: [section('aegis-profile', async () => `${PROFILE_GUIDANCE}\nSaved profile: ${JSON.stringify(await profile.read())}`, { tag: false }), section('aegis-skills', async () => 'Skills (load the matching one with load_skill before that kind of job):\n' + [...(await skills()).values()].map(s => `- ${s.name}: ${s.description}`).join('\n'), { tag: false }), section('aegis', () => [
     'You are an agent inside Aegis, a minimal infinite canvas. The user brain-dumps; you sort it into a clear layout.',
     'If the board has a note badged "read me first" (or similar), follow it: it is the user\'s instructions for this board.',
     // item 9
@@ -474,7 +480,7 @@ async function spawnAgent({ boardId, brief, selectedIds, model, statusModel, par
   const board = await loadBoard(boardId); if (!board) throw new Error('no such board');
   const choices = modelList();
   const ready = [];
-  for (const choice of choices) if (choice.provider === 'fake' || await credentials.read(choice.provider)) ready.push(choice);
+  for (const choice of choices) if (await providers.isReady(choice.provider)) ready.push(choice);
   const selection = model ?? (layoutWork(brief) ? ready[0] : ready.find(m => /6\.1-sol|opus/.test(m.modelId)) ?? ready[0]) ?? choices[0];
   if (!selection) throw new Error('no models');
   const target = models.getModel(selection.provider, selection.modelId); if (!target) throw new Error('The selected model is no longer available');
