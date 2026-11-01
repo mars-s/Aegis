@@ -1,6 +1,6 @@
 [package]
 name = "aegis"
-version = "0.3.0"
+version = "0.3.1"
 description = "A minimal infinite canvas where agents sort your brain dump"
 edition = "2021"
 
