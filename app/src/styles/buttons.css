@@ -10,16 +10,16 @@
   box-shadow: var(--button-shadow, inset 0 1px 0 var(--edge-top));
   font: 500 var(--button-font-size, 13px)/1.3 var(--font);
   cursor: pointer;
-  transition: transform 140ms var(--ease-out), background-color 140ms var(--ease-out), border-color 140ms var(--ease-out), color 140ms var(--ease-out);
+  transition: transform var(--motion-fast) var(--ease-out), background-color var(--motion-fast) var(--ease-out), border-color var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
 }
 .aegis-button--m { --button-height: 36px; --button-padding: 7px 12px; }
 .aegis-button--s { --button-height: 32px; --button-padding: 5px 9px; --button-font-size: 12px; }
-.aegis-button--primary { --button-bg: var(--text); --button-ink: var(--canvas); --button-hover-ink: var(--canvas); --button-edge: transparent; --button-shadow: inset 0 1px 0 rgb(255 255 255 / .35); }
+.aegis-button--primary { --button-bg: var(--accent); --button-ink: var(--on-accent); --button-hover-ink: var(--on-accent); --button-edge: transparent; --button-shadow: inset 0 1px 0 var(--glass-highlight); }
 .aegis-button--secondary { --button-bg: var(--inset); }
 .aegis-button--quiet, .aegis-button--icon { --button-bg: transparent; --button-edge: transparent; --button-shadow: none; }
 .aegis-button--icon { display: inline-grid; place-items: center; width: var(--button-height, 36px); --button-padding: 0; flex: none; }
 .aegis-button--destructive { --button-ink: var(--ui-danger); --button-hover-ink: var(--ui-danger); --button-bg: transparent; }
-.aegis-button--primary[data-agent-action] { --button-shadow: inset 0 1px 0 rgb(255 255 255 / .35), 0 0 12px rgb(63 141 253 / .14); }
+.aegis-button--primary[data-agent-action] { --button-shadow: inset 0 1px 0 var(--glass-highlight); }
 :is(.aegis-button, #side button, #sideRight button, #settings button, .aegis-dialog button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):not(:where(.composer *, #mobileHub *, .side-editor *, .docs-bubble *, [data-panel=agents] *, .agents-panel *, .crop-frame > button)):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; transition: none; }
 :is(.aegis-button, #side button, #sideRight button, #settings button, .aegis-dialog button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):not(:where(.composer *, #mobileHub *, .side-editor *, .docs-bubble *, [data-panel=agents] *, .agents-panel *, .crop-frame > button)):active:not(:disabled):not(:focus-visible) { transform: scale(.97); }
 :is(.aegis-button, #side button, #sideRight button, #settings button, .aegis-dialog button, .library-home button, .editing-capture button, .selection-bar button, .media-dialog button, .media-actions button, .recorder-choices button, .wf-design button, .colour-pop button, .library-undo button):disabled { opacity: .45; cursor: default; }

@@ -1,66 +1,16 @@
-/* Two lit ribbons fold around a quiet centre. The gradients are painted once;
-   only their compositor transforms and opacity move. Percentages keep the 16px mark intact. */
-.orb-mark {
-  position: relative; display: inline-block; flex: none; width: 25px; height: 25px;
-  isolation: isolate; overflow: visible; clip-path: none;
-  filter: saturate(.85); transition: filter 160ms var(--ease-out);
-}
-.orb-colours, .orb-light {
-  position: absolute; inset: 5%;
-  border-radius: 38% 62% 58% 42% / 56% 38% 62% 44%;
-  -webkit-mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
-  mask-image: radial-gradient(ellipse at 46% 46%, transparent 23%, #000 43%);
-}
-.orb-colours {
-  background: conic-gradient(from 30deg, #b5dbff, var(--data) 17%, #3466d4 34%, #a6a7ed 48%, #deecff 58%, var(--data) 72%, #6ac8ee 87%, #b5dbff);
-  transform: rotate(-28deg) scale(.94, 1);
-  animation: aegis-orb-fold 8s cubic-bezier(.45, 0, .55, 1) infinite;
-}
-.orb-light {
-  inset: 12% 8%; border-radius: 58% 42% 36% 64% / 42% 62% 38% 58%;
-  background: conic-gradient(from 150deg, transparent 8%, #d2f2ff 24%, #78b9ff 35%, transparent 49%, #8d92e5 66%, #eaf3ff 78%, transparent 94%);
-  transform: rotate(38deg) scale(.82, 1); opacity: .72;
-  animation: aegis-orb-light 6s cubic-bezier(.45, 0, .55, 1) infinite;
-}
-@keyframes aegis-orb-fold {
-  0%, 100% { transform: rotate(-28deg) scale(.94, 1); }
-  35% { transform: rotate(48deg) scale(1, .8); }
-  70% { transform: rotate(138deg) scale(.82, 1); }
-}
-@keyframes aegis-orb-light {
-  0%, 100% { transform: rotate(38deg) scale(.82, 1); opacity: .58; }
-  50% { transform: rotate(-100deg) scale(1.08, .84); opacity: .94; }
-}
-.agent-island.working .orb-mark, .agent-window.running .orb-mark { filter: saturate(1.15) brightness(1.2); }
-.agent-island.working .orb-colours, .agent-window.running .orb-colours { animation-duration: 1.8s; }
-.agent-island.working .orb-light, .agent-window.running .orb-light { animation-duration: 1.4s; }
-.orb-mark.resolved { animation: aegis-orb-resolve 600ms var(--ease-out); }
-@keyframes aegis-orb-resolve {
-  0% { transform: scale(1.12); filter: brightness(1.65) saturate(.6); }
-  100% { transform: scale(1); filter: brightness(1) saturate(.85); }
-}
-.agent-window-strip .orb-mark { width: 16px; height: 16px; margin: 0; transform: none; }
-.agent-window:not(.running) .orb-colours, .agent-window:not(.running) .orb-light,
-.agent-edge .orb-colours, .agent-edge .orb-light { animation-play-state: paused; }
-.agent-edge .orb-mark { width: 13px; height: 13px; transform: none; }
-@media (hover: hover) and (pointer: fine) {
-  #askPill:hover .orb-mark { filter: brightness(1.3) saturate(1.05); }
-}
-body.agents-hidden :is(.orb-colours, .orb-light, .orb-mark.resolved),
-.orb-offscreen :is(.orb-colours, .orb-light),
-.island-ghost :is(.orb-colours, .orb-light) { animation-play-state: paused; }
-body.motion-off :is(.orb-colours, .orb-light, .orb-mark.resolved) { animation: none; }
-body.motion-off .orb-mark { transition: none; }
-@media (prefers-reduced-motion: reduce) {
-  .orb-colours, .orb-light, .orb-mark.resolved { animation: none; }
-  .orb-mark { transition: none; }
-}
-
-/* The orb is the dictation control. A breathing ring says the microphone is live. */
-.orb-button { display: inline-flex; align-items: center; justify-content: center; padding: 0; min-height: 0; background: transparent; border: 0; border-radius: 50%; }
-.orb-button:focus-visible { outline: 2px solid var(--data, #3f8dfd); outline-offset: 3px; }
-.orb-mark.listening { filter: saturate(1.2) brightness(1.25); }
-.orb-mark.listening::after { content: ''; position: absolute; inset: -5px; border-radius: 50%; border: 1px solid var(--data, #3f8dfd); opacity: .65; animation: aegis-orb-listen 1.6s ease-out infinite; }
-@keyframes aegis-orb-listen { 0% { transform: scale(.9); opacity: .7; } 70% { transform: scale(1.18); opacity: 0; } 100% { opacity: 0; } }
-body.motion-off .orb-mark.listening::after { animation: none; opacity: .6; }
-@media (prefers-reduced-motion: reduce) { .orb-mark.listening::after { animation: none; opacity: .6; } }
+/* A geometric instrument mark. Activity is expressed in words beside it. */
+.orb-mark { position: relative; display: inline-block; flex: none; width: 24px; height: 24px; }
+.orb-colours { position: absolute; inset: 3px; border: 1px solid var(--text-2); border-radius: 50%; transition: border-color var(--motion-fast) var(--ease-out); }
+.orb-light { position: absolute; inset: 9px; border-radius: var(--radius-sm); background: var(--text-2); transition: background-color var(--motion-fast) var(--ease-out); }
+:is(.working, .running) .orb-colours, .orb-mark.listening .orb-colours { border-color: var(--accent); }
+:is(.working, .running) .orb-light, .orb-mark.listening .orb-light { background: var(--accent); }
+.orb-mark.resolved .orb-colours { border-color: var(--text-1); }
+.agent-window-strip .orb-mark { width: 16px; height: 16px; }
+.agent-window-strip .orb-colours { inset: 1px; }
+.agent-window-strip .orb-light { inset: 6px; }
+.agent-edge .orb-mark { width: 16px; height: 16px; }
+.agent-edge .orb-colours { inset: 1px; }
+.agent-edge .orb-light { inset: 6px; }
+.orb-button { display: inline-flex; align-items: center; justify-content: center; width: var(--control-touch); height: var(--control-touch); padding: 0; background: transparent; border: 0; border-radius: var(--radius-full); }
+.orb-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.orb-mark.listening::after { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 1px solid var(--accent); }

@@ -15,7 +15,7 @@ body:has(.react-stage.panning) :is(.agent-window, .editing-outline) * { cursor: 
 .react-stage .scene-card[hidden] { display: none; }
 /* Separate card layers avoid rerasterising a large world tile during camera moves. */
 .react-stage .scene-card { will-change: transform; }
-.react-stage .card.glow::after { content: ''; position: absolute; inset: 0; border: 1px solid #3f8dfd; border-radius: inherit; pointer-events: none; animation: scene-card-touch 1.2s ease-out forwards; }
+.react-stage .card.glow::after { content: ''; position: absolute; inset: 0; border: 1px solid var(--accent); border-radius: inherit; pointer-events: none; animation: scene-card-touch 1.2s ease-out forwards; }
 @keyframes scene-card-touch { from { opacity: .8; } to { opacity: 0; } }
 .react-stage .agent-line.spent { opacity: .3; transition: opacity 600ms ease-out; }
 body.motion-off .react-stage .card.glow::after { animation: none; opacity: .8; }
@@ -24,28 +24,22 @@ body.motion-off .react-stage .card.glow::after { animation: none; opacity: .8; }
 .react-stage .scene-card.locked .resize,
 .react-stage .scene-card.title .resize { display: none; }
 .react-stage .scene-card.fixed-height .body,
-.react-stage .scene-card.fixed-height .items { overflow-y: auto; mask-image: linear-gradient(#000 0%, #000 calc(100% - 12px), transparent); }
+.react-stage .scene-card.fixed-height .items { overflow-y: auto; mask-image: linear-gradient(var(--ink) 0%, var(--ink) calc(100% - 12px), transparent); }
 .react-stage .scene-card.fixed-height .scene-body { min-height: 0; overflow: hidden; }
 .react-stage .canvas-orientation { position: absolute; inset: 0; z-index: 12; pointer-events: none; overflow: hidden; }
-.react-stage .canvas-orientation span { position: absolute; box-sizing: border-box; max-width: 160px; padding: 2px 4px; border-radius: 3px; background: rgb(0 0 0 / .8); color: #a6abb4; font: 400 11px/16px var(--font, Inter, sans-serif); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .8; pointer-events: auto; }
-.react-stage .canvas-orientation span:focus-visible { outline: 1px solid #e8eaed; outline-offset: 1px; }
-.react-stage .canvas-orientation span:is(:hover, :focus) { color: #e8eaed; opacity: 1; }
-.react-stage .orientation-more { position: absolute; min-width: 64px; min-height: 44px; padding: 8px 12px; pointer-events: auto; background: #17191c; border: 1px solid #363a40; border-radius: 999px; color: #a6abb4; font: 400 12px/16px var(--font, Inter, sans-serif); }
-.react-stage .orientation-more:is(:hover, :focus-visible) { color: #e8eaed; border-color: #7c828c; }
+.react-stage .canvas-orientation span { position: absolute; box-sizing: border-box; max-width: 160px; padding: 2px 4px; border-radius: 3px; background: var(--surface-overlay); color: var(--text-2); font: 400 var(--text-caption)/var(--leading-caption) var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 1; pointer-events: auto; }
+.react-stage .canvas-orientation span:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.react-stage .canvas-orientation span:is(:hover, :focus) { color: var(--text-1); opacity: 1; }
+.react-stage .orientation-more { position: absolute; min-width: 64px; min-height: 44px; padding: 8px 12px; pointer-events: auto; background: var(--surface-overlay); border: 1px solid var(--border-default); border-radius: 999px; color: var(--text-2); font: 400 12px/16px var(--font, Inter, sans-serif); }
+.react-stage .orientation-more:is(:hover, :focus-visible) { color: var(--text-1); border-color: var(--border-strong); }
 .react-stage .orientation-aid { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.react-stage .orientation-aid rect, .react-stage .orientation-aid line { fill: none; stroke: rgb(63 141 253); stroke-width: 1px; }
+.react-stage .orientation-aid rect, .react-stage .orientation-aid line { fill: none; stroke: var(--accent); stroke-width: 1px; }
 .react-stage .window-actions { position: absolute; display: flex; gap: 4px; z-index: 13; }
 .react-stage .window-actions[hidden], .react-stage .canvas-orientation[hidden], .react-stage .orientation-more[hidden] { display: none; }
 .react-stage .window-actions button { min-height: 32px; padding: 6px 12px; }
 @media (pointer: coarse) { .react-stage .canvas-orientation span { padding-block: 14px; } }
-.scene-orientation-menu {
-  --ui-surface: #24272b; --ui-edge: rgb(255 255 255 / .16); --ui-highlight: rgb(255 255 255 / .14);
-  --ui-shadow: none; --text: #fff; --muted: #b9bdc5; --hover: rgb(255 255 255 / .08); --press: rgb(255 255 255 / .1);
-  --line-strong: rgb(255 255 255 / .16); --focus: #3f8dfd; --text-body: 13px; --text-label: 12px; --text-caption: 12px;
-  --menu-width: 220px; --menu-padding: 5px; --menu-row-height: 34px; --r-menu: 12px;
-}
-.react-stage { background: #000; }
-.react-stage .card.scene-card { background: var(--card, #0d0e0f); border-color: rgb(255 255 255 / .09); border-radius: 8px; }
+.react-stage { background: var(--board-canvas, var(--bg)); }
+.react-stage .card.scene-card { background: var(--surface); border-color: var(--border-default); border-radius: 8px; }
 .react-stage .card.note { font-size: 15px; line-height: 1.45; }
 .react-stage .card.note .scene-body { padding: 12px 14px; }
 .react-stage .card.note .body { padding: 0; line-height: inherit; }

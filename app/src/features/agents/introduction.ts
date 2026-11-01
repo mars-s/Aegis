@@ -23,7 +23,7 @@ export function useIntroduction(runtime: AgentRuntime, service: SettingsService,
       if (controller.signal.aborted) return;
       const saved = localStorage.getItem(agentKey);
       const existing = generation === 0 ? runtime.getSnapshot().agents.find(agent => agent.id === saved || agent.brief === 'Introduction') : undefined;
-      if (existing) runtime.select(existing.id);
+      if (existing) { runtime.select(existing.id); localStorage.setItem(agentKey, existing.id); }
       else if (saved) return;
       else {
         runtime.newAgent(); runtime.count(1); runtime.pin([]);

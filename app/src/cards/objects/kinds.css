@@ -813,7 +813,7 @@
     flex-direction: column;
     gap: 16px;
     padding: 16px;
-    background: #000;
+    background: var(--surface);
     color: var(--text, var(--color-text));
   }
   .gallery-inspection.animated {

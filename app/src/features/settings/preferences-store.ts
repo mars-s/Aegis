@@ -3,7 +3,7 @@ import { gridShapes } from '@aegis/scene';
 import type { Source } from '@aegis/domain/schema';
 
 export const PreferencesSchema = z.object({
-  theme: z.enum(['system', 'light', 'dark']).default('dark'),
+  theme: z.enum(['system', 'light', 'dark']).default('system'),
   motion: z.enum(['on', 'off']).default('on'),
   gridVisible: z.enum(['on', 'off']).default('on'),
   gridShape: z.enum(gridShapes.map(([shape]) => shape)).exclude(['none']).default('dots'),

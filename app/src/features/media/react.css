@@ -1,9 +1,8 @@
 .creative-root { display: contents; }
-:root:has(.creative-root) { --text: var(--color-text); --muted: var(--color-label-secondary); --card: var(--color-surface); --bg: var(--color-surface); --line: var(--color-border); --line-strong: var(--color-border-strong); --hover: var(--color-fill-hover); --press: var(--color-fill); --focus: var(--color-ring); --r-win: var(--radius-surface); --ui-surface: var(--color-float); --ui-edge: var(--color-border-strong); --ui-highlight: var(--color-border); --ui-shadow: none; --ui-scrim: #0006; --inset: var(--color-fill); --data: var(--color-ring); }
 .creative-link { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .card.selected .spotify-embed iframe { pointer-events: auto; }
-.media-dialog { max-width: min(720px, calc(100vw - 32px)); color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
-.media-dialog::backdrop { background: #0006; }
+.media-dialog { max-width: min(720px, calc(100vw - 32px)); color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-dialog); padding: 20px; }
+.media-dialog::backdrop { background: var(--backdrop); }
 .media-dialog input, .crop-field input { background: var(--card); color: var(--text); border: 1px solid var(--line-strong); min-width: 0; padding: 6px; border-radius: 4px; }
 .media-dialog button:focus-visible, .media-dialog input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .card:has(.creative-wireframe) .scene-body { overflow: visible; }
@@ -11,9 +10,6 @@
 .react-stage .card:is(.audio, .video) .scene-body { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .react-stage .card.video .camera-preview { flex-basis: 0; }
 .creative-root .aegis-dialog.colour-pop { width: 284px; max-height: calc(100dvh - 24px); padding: 16px; font: var(--text-label)/1.5 var(--font); }
-:root[data-theme="dark"]:has(.creative-root) { color-scheme: dark; }
-:root[data-theme="dark"]:has(.creative-root) { --canvas: #000000; }
-:root[data-theme="light"]:has(.creative-root) { --canvas: #f5f5f7; }
-.creative-root .react-stage { background: var(--board-canvas, var(--canvas, #000000)); }
+.creative-root .react-stage { background: var(--board-canvas, var(--canvas)); }
 .creative-root .react-stage .card:not(.title) { background: var(--card); color: var(--text); border-color: var(--line); }
 .creative-root .react-editor { background: var(--card); color: var(--text); }

@@ -577,7 +577,7 @@ describe('real scene attachment', () => {
       expect(await p.locator('.agent-line .origin').getAttribute('cy')).toBe('40');
       expect(await p.locator('.agent-line path, .agent-line .station').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).stroke))).toEqual(['rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)', 'rgb(63, 141, 253)']);
       expect(await p.locator('.agent-line .origin').evaluate(node => getComputedStyle(node).fill)).toBe('rgb(63, 141, 253)');
-      expect(await p.locator('.card.glow').evaluate(node => getComputedStyle(node, '::after').borderTopColor)).toBe('rgb(63, 141, 253)');
+      expect(await p.locator('.card.glow').evaluate(node => getComputedStyle(node, '::after').borderTopColor)).toBe('rgb(108, 155, 255)');
       expect(await p.locator('.card.glow').count()).toBe(1);
       await p.evaluate(() => window.sceneHarness.batch([{ op: 'move', id: 'note-0', x: 100, y: 80 }], 'local'));
       await idle(p);
@@ -1263,7 +1263,7 @@ describe('real scene attachment', () => {
     const aid = orientation.locator('.orientation-aid'); await aid.waitFor({ state: 'visible' });
     expect(await aid.evaluate(el => {
       const rep = window.sceneHarness.engine.representations().find(rep => rep.id === el.dataset.cardId), rect = el.querySelector('rect');
-      return !!rep && !!rect && Number(rect.getAttribute('x')) === rep.bounds.x && Number(rect.getAttribute('width')) === rep.bounds.width && getComputedStyle(rect).stroke === 'rgb(63, 141, 253)' && getComputedStyle(el).pointerEvents === 'none';
+      return !!rep && !!rect && Number(rect.getAttribute('x')) === rep.bounds.x && Number(rect.getAttribute('width')) === rep.bounds.width && getComputedStyle(rect).stroke === 'rgb(108, 155, 255)' && getComputedStyle(el).pointerEvents === 'none';
     })).toBe(true);
     const labelId = await label.getAttribute('data-card-id');
     await label.click(); await p.keyboard.press('Tab'); await idle(p);
@@ -1297,7 +1297,7 @@ describe('real scene attachment', () => {
       await chip.focus(); await p.keyboard.press('Enter');
       const menu = p.getByRole('menu', { name: 'More window names', exact: true }); await menu.waitFor();
       expect((await menu.getByRole('menuitem').allTextContents()).sort()).toEqual(Array.from({ length: 9 }, (_, i) => `Supporting window ${i + 1}`).filter(name => !labelled.includes(name)).sort());
-      expect(await menu.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(36, 39, 43)');
+      expect(await menu.evaluate(el => getComputedStyle(el).backgroundColor)).toBe('rgb(36, 36, 36)');
       await p.keyboard.press('Escape'); await menu.waitFor({ state: 'hidden' }); expect(await chip.evaluate(el => el === document.activeElement)).toBe(true);
       await p.keyboard.press('Enter'); await menu.waitFor(); await p.keyboard.press('ArrowDown');
       expect(await menu.getByRole('menuitem').nth(1).evaluate(el => el === document.activeElement)).toBe(true);

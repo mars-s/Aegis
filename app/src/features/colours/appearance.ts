@@ -12,19 +12,20 @@ export function installAppearance(): () => void {
   const set = (key: string, value: string) => { if (!original.has(key)) original.set(key, root.style.getPropertyValue(key)); root.style.setProperty(key, value); owned.add(key); };
   const apply = () => {
     restore(); const values = readAppearanceSettings()[root.dataset.theme === 'dark' ? 'dark' : 'light'];
-    if (values.bg && normHex(values.bg)) set('--canvas', values.bg); if (values.dot && normHex(values.dot)) set('--dot', values.dot);
+    if (values.bg && normHex(values.bg)) set('--bg', values.bg);
+    if (values.dot && normHex(values.dot)) set('--dot', values.dot);
     if (values.panel && normHex(values.panel)) {
-      const text = contrastText(values.panel), light = text === '#111111';
-      for (const key of ['--bg', '--card', '--color-surface']) set(key, values.panel);
-      for (const key of ['--text', '--color-text']) set(key, text);
-      for (const key of ['--muted', '--color-label-secondary']) set(key, light ? '#56565d' : '#c4c4cd');
-      set('--faint', light ? '#73737a' : '#a0a0ac');
-      for (const key of ['--line', '--color-border']) set(key, light ? '#00000020' : '#ffffff30');
-      for (const key of ['--line-strong', '--color-border-strong']) set(key, light ? '#00000040' : '#ffffff50');
-      for (const key of ['--hover', '--color-fill-hover']) set(key, light ? '#0000000a' : '#ffffff12');
-      for (const key of ['--press', '--color-fill']) set(key, light ? '#00000015' : '#ffffff20');
+      const text = contrastText(values.panel);
+      set('--surface', values.panel); set('--surface-overlay', values.panel);
+      set('--glass-bg', `color-mix(in srgb, ${values.panel} 90%, transparent)`);
+      set('--ink', text); set('--text-1', text);
+      set('--text-2', `color-mix(in srgb, ${text} 85%, ${values.panel})`);
+      set('--text-3', `color-mix(in srgb, ${text} 80%, ${values.panel})`);
+      for (const [key, strength] of [['--border-subtle', 6], ['--border-weak', 10], ['--border-default', 15], ['--border-strong', 30], ['--fill-secondary', 6], ['--fill-hover', 5], ['--fill-active', 9], ['--glass-border', 15]] as const) {
+        set(key, `color-mix(in srgb, ${text} ${strength}%, transparent)`);
+      }
     }
-    if (values.accent && normHex(values.accent)) { set('--accent', values.accent); set('--on-accent', contrastText(values.accent)); }
+    if (values.accent && normHex(values.accent)) { set('--accent', values.accent); set('--accent-deep', values.accent); set('--accent-sub', `color-mix(in srgb, ${values.accent} 12%, transparent)`); set('--on-accent', contrastText(values.accent)); }
   };
   const observer = new MutationObserver(apply); observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
   const storage = (event: StorageEvent) => { if (event.key === 'aegis:colour-settings') apply(); };

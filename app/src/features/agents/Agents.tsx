@@ -11,7 +11,7 @@ import { Options } from './Options.js';
 import { AgentActivity, AgentWindows } from './Windows.js';
 import { requestResult } from './results.js';
 import { modelValue } from './model-choice.js';
-import { createMorph, islandTiles } from './island-morph.js';
+import { createMorph } from './island-morph.js';
 import { ProviderConnections } from '../settings/ProviderConnections.js';
 import type { SettingsService } from '../settings/service.js';
 import type { AgentRuntime } from './runtime.js';
@@ -96,14 +96,14 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     const root = island.current;
     const shell = root?.querySelector<HTMLElement>('.island-morph'), content = root?.querySelector<HTMLElement>('.island-content');
     if (!root || !shell || !content) return;
-    const instance = createMorph(shell, content, [...root.querySelectorAll<HTMLElement>('.island-tile')]);
+    const instance = createMorph(shell, content);
     morph.current = instance;
     return () => { instance.dispose(); morph.current = null; };
   }, []);
   useLayoutEffect(() => {
     const node = input.current;
     if (node && expanded) { node.style.height = '0px'; node.style.height = `${Math.min(Math.floor(innerHeight * .4), Math.max(26, node.scrollHeight))}px`; }
-    morph.current?.layout(expanded);
+    morph.current?.layout();
     if (!expanded && pendingOrbFocus.current) {
       pendingOrbFocus.current = false; restoringFocus.current = true;
       orb.current?.focus({ preventScroll: true }); restoringFocus.current = false;
@@ -195,13 +195,13 @@ export function Agents({ runtime, scene, attached, activityOpen = false, closeAc
     {createPortal(<div ref={island} id="agentIsland" className={`agent-island${agent?.running ? ' working' : ''}${agent?.error ? ' failed' : ''}${phase === 'done' && result ? ' has-result' : ''}`} data-state={phase}
       onPointerEnter={event => { if (leave.current) clearTimeout(leave.current); if (connected && !suppressHover.current && event.pointerType !== 'touch' && matchMedia('(hover: hover) and (pointer: fine)').matches && phase === 'idle') change('hover', false); }}
       onPointerLeave={() => { suppressHover.current = false; leave.current = setTimeout(() => { if (island.current?.dataset.state === 'hover') change('idle', false); }, 160); }}>
-      {connections ? <div ref={connectionPanel} id="connectAI" className="connect-ai-popover" role="dialog" aria-label="Connect AI" onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConnections(false); orb.current?.focus({ preventScroll: true }); } }}>
+      {connections ? <div ref={connectionPanel} id="connectAI" className="connect-ai-popover" role="dialog" aria-label="Connect AI" onBlur={event => { if (event.relatedTarget instanceof Node && !event.currentTarget.contains(event.relatedTarget) && !orb.current?.contains(event.relatedTarget)) setConnections(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setConnections(false); orb.current?.focus({ preventScroll: true }); } }}>
         <button type="button" className="text-btn" aria-label="Close AI connections" onClick={() => { setConnections(false); orb.current?.focus({ preventScroll: true }); }}>Close</button>
         <ProviderConnections service={settingsService} agents={runtime} />
       </div> : null}
-      <div className="island-morph"><div className="island-surface" aria-hidden="true">{islandTiles.map(name => <i className={`island-tile island-${name}`} key={name} />)}</div>
+      <div className="island-morph"><div className="island-surface" aria-hidden="true" />
         <div className="island-content">
-          <button ref={orb} id="askPill" type="button" className={`ask-orb${agent?.running ? ' working' : ''}`} hidden={expanded} aria-expanded={connections || expanded} aria-controls={!connected ? 'connectAI' : 'composer'} aria-label={!connected ? 'Connect AI' : phase === 'done' && result ? `${result.label}. Show changed windows.` : 'Ask the agent. Shortcut Cmd+K.'}
+          <button ref={orb} id="askPill" type="button" className={`ask-orb${agent?.running ? ' working' : ''}`} hidden={expanded} aria-expanded={connections || expanded} aria-haspopup={!connected ? 'dialog' : undefined} aria-controls={!connected ? 'connectAI' : 'composer'} aria-label={!connected ? 'Connect AI' : phase === 'done' && result ? `${result.label}. Show changed windows.` : 'Ask the agent. Shortcut Cmd+K.'}
             onFocus={() => { if (connected && !restoringFocus.current && phase !== 'done') open(true); }} onClick={event => {
               if (!connected) { setConnections(value => !value); return; }
               if (event.target instanceof Element && event.target.closest('.orb-mark')) { open(event.detail === 0); void dictation.start(); return; }

@@ -1,7 +1,9 @@
 # Open canvas phase 1
 
-Changes are uncommitted on `codex/open-canvas-providers`. No dependencies were
-installed, no internet requests were made, and `src-tauri` is untouched.
+Made by Sol 6.1 (gpt-6.1-sol, high reasoning) via the Codex CLI on branch
+`codex/open-canvas-providers`. No dependencies were added and `src-tauri` is
+untouched. Verification outside the Codex sandbox is summarised in the pull
+request.
 
 The shipped creation rail, Templates, Tools tiles, toolbar preferences, starter
 actions and tour are removed. Scene, domain commands, editors, selection,

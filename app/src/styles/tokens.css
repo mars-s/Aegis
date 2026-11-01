@@ -1,47 +1,210 @@
-/* Design tokens. Names and values follow Zephium's frame/src/styles/tokens.css (MPL-2.0), so ported
-   object components read the same variables. Dark is set by data-theme="dark" on <html>. */
+/* Aegis: Avi's Page system adapted to a canvas. Canonical source, mirrored in DESIGN.md.
+   Legacy Zephium role names retained for ported components (MPL-2.0). */
 :root {
-  --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
-  --text-caption: 12px; --text-label: 12px; --text-body: 13px; --text-subtitle: 15px; --text-title: 22px;
-  --text-overview-label: 22px; --text-overview-figure: 40px; --text-headline: 26px; --text-reading: 15px;
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 20px; --space-6: 24px;
-  --radius-inset: 4px; --radius-control: 6px; --radius-surface: 10px; --radius-dialog: 14px;
-  --control-height: 32px; --menu-row-height: 34px; --setting-row-height: 44px;
-  --menu-padding: 5px; --menu-width: 220px; --menu-gap: 6px;
-  --motion-menu: 140ms; --motion-dialog: 180ms;
-  --radius-capsule: 999px; --radius-swatch: 3px; --radius-control-compact: 10px;
-  --motion-instant: 0ms; --motion-fast: 120ms; --motion-base: 200ms; --motion-slow: 300ms; --motion-page: 400ms;
-  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
-
-  /* light */
-  --color-text: #1c1c1f; --color-muted: rgb(28 28 31 / 0.62); --color-faint: rgb(28 28 31 / 0.42);
-  --color-label-secondary: #55555c; --color-lit: #222226;
-  --color-surface: #ffffff; --color-float: #ffffff;
-  --color-fill: rgb(24 24 27 / 0.05); --color-fill-hover: rgb(24 24 27 / 0.08);
-  --color-border: rgb(24 24 27 / 0.07); --color-border-strong: rgb(24 24 27 / 0.13);
-  --color-ring: #3f8dfd; --color-tint-graphite: #5e5e64;
-  --color-term: #2b5ea7; --color-code-chip: rgb(24 24 27 / 0.06); --color-code-chip-ink: #3a3a40;
-  --shadow-float: 0 6px 22px rgb(24 24 27 / 0.16), 0 0 0 0.5px rgb(24 24 27 / 0.1);
-  --chart-1: #0a6cff; --chart-2: #a6531e; --chart-3: #449d7a; --chart-4: #7f5f0a;
-  --chart-5: #bc6082; --chart-6: #3e6f25; --chart-7: #7b68af; --chart-8: #9d4547;
+  color-scheme: light;
+  --bg: #f7f7f7;
+  --surface: #ffffff;
+  --surface-overlay: #ffffff;
+  --ink: #0f0f0f;
+  --text-1: rgb(15 15 15 / .94);
+  --text-2: rgb(15 15 15 / .72);
+  --text-3: rgb(15 15 15 / .64);
+  --border-subtle: rgb(15 15 15 / .06);
+  --border-weak: rgb(15 15 15 / .10);
+  --border-default: rgb(15 15 15 / .15);
+  --border-strong: rgb(15 15 15 / .30);
+  --fill-secondary: rgb(15 15 15 / .06);
+  --fill-hover: rgb(15 15 15 / .05);
+  --fill-active: rgb(15 15 15 / .09);
+  --accent: #1c64f2;
+  --accent-deep: #0b3a99;
+  --accent-sub: rgb(28 100 242 / .09);
+  --on-accent: #ffffff;
+  --success: #13834a;
+  --success-deep: #0d6a3b;
+  --success-sub: rgb(19 131 74 / .10);
+  --warning: #a36200;
+  --warning-deep: #824e00;
+  --warning-sub: rgb(163 98 0 / .10);
+  --danger: #d42a2a;
+  --danger-deep: #b21f1f;
+  --danger-sub: rgb(212 42 42 / .10);
+  --chart-1: var(--accent);
+  --chart-2: #555555;
+  --chart-3: #54769e;
+  --chart-4: #757575;
+  --chart-5: #354f70;
+  --chart-6: #676767;
+  --chart-7: #416082;
+  --chart-8: #454545;
+  --glass-bg: rgb(255 255 255 / .88);
+  --glass-border: rgb(15 15 15 / .12);
+  --glass-highlight: rgb(255 255 255 / .90);
+  --shadow-pop: 0 4px 16px rgb(15 15 15 / .08);
+  --shadow-dialog: 0 16px 48px rgb(15 15 15 / .14);
+  --backdrop: rgb(15 15 15 / .32);
+  --dot: rgb(15 15 15 / .18);
+  /* Explicit document page preferences are independent of the app theme. */
+  --paper-light: #ffffff; --paper-ink-light: #1d1d1d; --paper-muted-light: #555555;
+  --paper-dark: #1c1c1c; --paper-ink-dark: #e4e4e4; --paper-muted-dark: #b9b9b9;
+  /* Type: system first, bundled Inter only as a fallback. */
+  --font-sans: -apple-system, "SF Pro Text", "SF Pro Display", system-ui, "Inter Variable", sans-serif;
+  --font-display: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, "Inter Variable", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-caption: 12px; --text-label: 12px; --text-body: 13px;
+  --text-reading: 14px; --text-subtitle: 16px; --text-title: 22px; --text-headline: 26px;
+  --text-overview-label: 22px; --text-overview-figure: 40px;
+  --leading-caption: 16px; --leading-body: 20px; --leading-reading: 24px;
+  --leading-title: 28px; --leading-headline: 32px;
+  --weight-regular: 400; --weight-medium: 500; --weight-semibold: 600;
+  --tracking-heading: -.02em; --tracking-label: .08em;
+  --space-0-5: 2px; --space-1: 4px; --space-2: 8px; --space-3: 12px;
+  --space-4: 16px; --space-5: 20px; --space-6: 24px; --space-8: 32px;
+  --space-10: 40px; --space-12: 48px; --space-16: 64px; --space-24: 96px;
+  --radius-sm: 4px; --radius-md: 8px; --radius-node: 10px;
+  --radius-lg: 12px; --radius-xl: 16px; --radius-full: 999px;
+  --border-width: 1px; --border-width-hair: .5px;
+  --control-height: 36px; --control-touch: 44px;
+  --menu-row-height: 36px; --setting-row-height: 44px;
+  --menu-padding: 4px; --menu-width: 220px; --menu-gap: 8px;
+  --glass-blur: 20px;
+  --glass-shadow: inset 0 1px 0 var(--glass-highlight), var(--shadow-pop);
+  --motion-instant: 0ms; --motion-fast: 120ms; --motion-base: 180ms; --motion-slow: 240ms;
+  --motion-page: var(--motion-slow); --motion-menu: var(--motion-fast); --motion-dialog: var(--motion-base);
+  --ease-out: cubic-bezier(.2, 0, 0, 1);
+  --ease-drawer: var(--ease-out); --ease-in-out: var(--ease-out);
+  --ease-smooth: var(--ease-out); --ease-emphasized: var(--ease-out);
+  --border: var(--border-default);
+  --info: var(--accent); --info-deep: var(--accent-deep); --info-sub: var(--accent-sub);
+  --chart-grid: var(--border-weak); --chart-axis: var(--border-strong);
+  /* Compatibility aliases: all existing app and ported object roles resolve here. */
+  --font: var(--font-sans); --mono: var(--font-mono);
+  --canvas: var(--bg); --card: var(--surface); --raised: var(--surface-overlay); --pill: var(--surface);
+  --strip: color-mix(in srgb, var(--surface) 96%, var(--ink));
+  --inset: color-mix(in srgb, var(--surface) 94%, var(--ink));
+  --text: var(--text-1); --ink-2: var(--text-2); --muted: var(--text-2); --faint: var(--text-3);
+  --line: var(--border-weak); --line-strong: var(--border-default); --edge-top: var(--glass-highlight);
+  --hover: var(--fill-hover); --press: var(--fill-active);
+  --focus: var(--accent); --data: var(--accent); --data-soft: var(--accent-sub);
+  --warn: var(--warning); --ok: var(--success);
+  --color-text: var(--text-1); --color-muted: var(--text-2); --color-faint: var(--text-3);
+  --color-label-secondary: var(--text-2); --color-lit: var(--ink);
+  --color-surface: var(--surface); --color-float: var(--surface-overlay);
+  --color-fill: var(--fill-secondary); --color-fill-hover: var(--fill-hover);
+  --color-border: var(--border-weak); --color-border-strong: var(--border-default);
+  --color-ring: var(--accent); --color-tint-graphite: var(--text-2);
+  --color-term: var(--accent-deep); --color-code-chip: var(--fill-secondary); --color-code-chip-ink: var(--text-2);
+  --shadow: none; --shadow-lift: var(--shadow-dialog); --shadow-float: var(--shadow-pop);
+  --radius: var(--radius-md); --r-win: var(--radius-md); --r-menu: var(--radius-lg); --r-inset: var(--radius-sm);
+  --radius-inset: var(--radius-sm); --radius-control: var(--radius-md); --radius-surface: var(--radius-lg);
+  --radius-dialog: var(--radius-xl); --radius-capsule: var(--radius-full); --radius-swatch: var(--radius-sm);
+  --radius-control-compact: var(--radius-md);
+  --ui-surface: var(--surface-overlay); --ui-edge: var(--border-default); --ui-highlight: var(--glass-highlight);
+  --ui-shadow: inset 0 1px 0 var(--ui-highlight); --ui-scrim: var(--backdrop);
+  --ui-selected: var(--accent-sub); --ui-danger: var(--danger-deep);
+  --dim: .62; --side-w: 300px;
+  --side-plate: var(--surface); --side-rule: var(--border-subtle); --side-rule-strong: var(--border-weak);
+  --side-edge: inset 0 0 0 1px var(--border-weak); --side-hollow: var(--text-3); --side-current: var(--fill-active);
+  --mark-windows: var(--text-2); --mark-library: var(--text-2); --mark-tools: var(--text-2);
+  /* Legacy note tint names remain neutral; authored content may keep its own colours. */
+  --c-gray: var(--fill-secondary); --c-blue: var(--accent-sub); --c-green: var(--fill-secondary);
+  --c-yellow: var(--fill-secondary); --c-orange: var(--fill-secondary); --c-red: var(--fill-secondary); --c-purple: var(--fill-secondary);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  color-scheme: dark;
+  --bg: #141414;
+  --surface: #1c1c1c;
+  --surface-overlay: #242424;
+  --ink: #f2f2f2;
+  --text-1: rgb(242 242 242 / .94);
+  --text-2: rgb(242 242 242 / .78);
+  --text-3: rgb(242 242 242 / .70);
+  --border-subtle: rgb(242 242 242 / .07);
+  --border-weak: rgb(242 242 242 / .12);
+  --border-default: rgb(242 242 242 / .17);
+  --border-strong: rgb(242 242 242 / .32);
+  --fill-secondary: rgb(242 242 242 / .10);
+  --fill-hover: rgb(242 242 242 / .08);
+  --fill-active: rgb(242 242 242 / .13);
+  --accent: #6c9bff;
+  --accent-deep: #b9cfff;
+  --accent-sub: rgb(108 155 255 / .17);
+  --on-accent: #141414;
+  --success: #3fbf7a;
+  --success-deep: #9fe3bd;
+  --success-sub: rgb(63 191 122 / .16);
+  --warning: #e0a530;
+  --warning-deep: #f3d08a;
+  --warning-sub: rgb(224 165 48 / .16);
+  --danger: #ff6b6b;
+  --danger-deep: #ffb8b8;
+  --danger-sub: rgb(255 107 107 / .16);
+  --chart-2: #cccccc;
+  --chart-3: #94b8e0;
+  --chart-4: #a6a6a6;
+  --chart-5: #b5ccec;
+  --chart-6: #bababa;
+  --chart-7: #83a4cf;
+  --chart-8: #dedede;
+  --glass-bg: rgb(36 36 36 / .90);
+  --glass-border: rgb(242 242 242 / .17);
+  --glass-highlight: rgb(242 242 242 / .08);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / .30);
+  --shadow-dialog: 0 16px 48px rgb(0 0 0 / .45);
+  --backdrop: rgb(0 0 0 / .60);
+  --dot: rgb(242 242 242 / .20);
+  }
 }
 :root[data-theme="dark"] {
-  /* Mapped onto the Aegis dark theme in app.css so ported object components share its surfaces. */
-  --color-text: #ffffff; --color-muted: rgb(255 255 255 / 0.74); --color-faint: #959ba4;
-  --color-label-secondary: #d8dbe0; --color-lit: #ffffff;
-  --color-surface: #0d0e0f; --color-float: #1d2024;
-  --color-fill: rgb(255 255 255 / 0.05); --color-fill-hover: rgb(255 255 255 / 0.08);
-  --color-border: rgb(255 255 255 / 0.07); --color-border-strong: rgb(255 255 255 / 0.13);
-  --color-ring: #3f8dfd; --color-tint-graphite: #8e939b;
-  --color-term: #8db8ff; --color-code-chip: rgb(255 255 255 / 0.08); --color-code-chip-ink: #e2e4e8;
-  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.09), 0 16px 40px rgb(0 0 0 / 0.6);
-  /* Charts lead with the data blue; the rest are quiet and only appear in multi-series charts. */
-  --chart-1: #3f8dfd; --chart-2: #9aa3ae; --chart-3: #3dbf9a; --chart-4: #c9a23a;
-  --chart-5: #c27aa0; --chart-6: #7fae4a; --chart-7: #8a7cc4; --chart-8: #d0715f;
+  color-scheme: dark;
+  --bg: #141414;
+  --surface: #1c1c1c;
+  --surface-overlay: #242424;
+  --ink: #f2f2f2;
+  --text-1: rgb(242 242 242 / .94);
+  --text-2: rgb(242 242 242 / .78);
+  --text-3: rgb(242 242 242 / .70);
+  --border-subtle: rgb(242 242 242 / .07);
+  --border-weak: rgb(242 242 242 / .12);
+  --border-default: rgb(242 242 242 / .17);
+  --border-strong: rgb(242 242 242 / .32);
+  --fill-secondary: rgb(242 242 242 / .10);
+  --fill-hover: rgb(242 242 242 / .08);
+  --fill-active: rgb(242 242 242 / .13);
+  --accent: #6c9bff;
+  --accent-deep: #b9cfff;
+  --accent-sub: rgb(108 155 255 / .17);
+  --on-accent: #141414;
+  --success: #3fbf7a;
+  --success-deep: #9fe3bd;
+  --success-sub: rgb(63 191 122 / .16);
+  --warning: #e0a530;
+  --warning-deep: #f3d08a;
+  --warning-sub: rgb(224 165 48 / .16);
+  --danger: #ff6b6b;
+  --danger-deep: #ffb8b8;
+  --danger-sub: rgb(255 107 107 / .16);
+  --chart-2: #cccccc;
+  --chart-3: #94b8e0;
+  --chart-4: #a6a6a6;
+  --chart-5: #b5ccec;
+  --chart-6: #bababa;
+  --chart-7: #83a4cf;
+  --chart-8: #dedede;
+  --glass-bg: rgb(36 36 36 / .90);
+  --glass-border: rgb(242 242 242 / .17);
+  --glass-highlight: rgb(242 242 242 / .08);
+  --shadow-pop: 0 8px 24px rgb(0 0 0 / .30);
+  --shadow-dialog: 0 16px 48px rgb(0 0 0 / .45);
+  --backdrop: rgb(0 0 0 / .60);
+  --dot: rgb(242 242 242 / .20);
+}
+/* Preferences must disable motion in generated UI as well as the app shell. */
+:root:has(body.motion-off) { --motion-fast: 0ms; --motion-base: 0ms; --motion-slow: 0ms; }
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion-fast: 0ms; --motion-base: 0ms; --motion-slow: 0ms; }
 }
 @media (prefers-reduced-motion: reduce) {
-  :root { --motion-fast: 0ms; --motion-base: 0ms; --motion-slow: 0ms; --motion-page: 0ms; }
+  *, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; scroll-behavior: auto !important; }
 }

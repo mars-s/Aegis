@@ -313,7 +313,19 @@
 }
 .docs-paper {
   --paper: var(--card);
-  --ink: var(--text);
+  --ink: var(--text-1);
+  --paper-muted: var(--text-2);
+  --text: var(--ink);
+  --muted: var(--paper-muted);
+  --ink-2: var(--paper-muted);
+  --faint: var(--paper-muted);
+  --color-text: var(--ink);
+  --color-muted: var(--paper-muted);
+  --color-faint: var(--paper-muted);
+  --color-label-secondary: var(--paper-muted);
+  --fill-secondary: color-mix(in srgb, var(--ink) 6%, transparent);
+  --border-default: color-mix(in srgb, var(--ink) 15%, transparent);
+  --line: var(--border-default);
   background: var(--paper);
   color: var(--ink);
   min-height: 100%;
@@ -322,12 +334,14 @@
   padding: 28px 40px 160px;
 }
 .docs-panel[data-page="light"] .docs-paper {
-  --paper: #fff;
-  --ink: #25252b;
+  --paper: var(--paper-light);
+  --ink: var(--paper-ink-light);
+  --paper-muted: var(--paper-muted-light);
 }
 .docs-panel[data-page="dark"] .docs-paper {
-  --paper: #24252b;
-  --ink: #e6e6ec;
+  --paper: var(--paper-dark);
+  --ink: var(--paper-ink-dark);
+  --paper-muted: var(--paper-muted-dark);
 }
 .docs-panel input.docs-title {
   flex: 1;
@@ -403,14 +417,14 @@
   margin-left: 0;
 }
 .docs-prose pre {
-  background: #80808018;
+  background: var(--fill-secondary);
   padding: 14px;
   border-radius: 6px;
   white-space: pre-wrap;
 }
 .docs-prose code {
   font-family: var(--mono);
-  background: #80808018;
+  background: var(--fill-secondary);
 }
 .docs-prose a {
   color: var(--text);
@@ -423,17 +437,17 @@
   height: auto;
 }
 .docs-panel[data-page="dark"] .docs-prose mark {
-  color: #24252b;
+  color: var(--paper-dark);
 }
 .docs-panel[data-page="dark"]
   .docs-prose
   span:is([style*="color: rgb(37, 37, 43)"], [style*="color: rgb(0, 0, 0)"]) {
-  color: #e6e6ec !important;
+  color: var(--paper-ink-dark) !important;
 }
 .docs-panel[data-page="dark"]
   .docs-prose
   span[style*="color: rgb(107, 99, 112)"] {
-  color: #b9b5c0 !important;
+  color: var(--paper-muted-dark) !important;
 }
 .docs-prose ul[data-type="taskList"] {
   list-style: none;
@@ -461,13 +475,13 @@
 .docs-prose td,
 .docs-prose th {
   position: relative;
-  border: 1px solid #aaa6;
+  border: 1px solid var(--border-default);
   vertical-align: top;
   min-width: 40px;
   padding: 6px;
 }
 .docs-prose th {
-  background: #80808018;
+  background: var(--fill-secondary);
   font-weight: 600;
 }
 .docs-prose td p,
@@ -542,7 +556,7 @@
 .docs-colours > div button:empty {
   width: 32px;
   height: 32px;
-  border: 1px solid #8885;
+  border: 1px solid var(--border-default);
 }
 .docs-link-form {
   position: absolute;
@@ -744,7 +758,7 @@
   min-width: 32px;
   padding: 0;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 0 0 1px var(--border-default);
 }
 .docs-ribbon
   .docs-colours
@@ -1121,3 +1135,8 @@ body.motion-off .docs-prose .ai-writing { animation: none; background-image: non
 @media (prefers-reduced-motion: reduce) {
   .docs-prose .ai-writing { animation: none; background-image: none; box-shadow: inset 0 -2px 0 var(--data); }
 }
+
+/* Page preference owns the reading ink, including captions and restored inline text. */
+.docs-paper .docs-prose { color: var(--ink); }
+.docs-paper .docs-prose li::marker,
+.docs-paper .docs-prose [data-kind="caption"] { color: var(--paper-muted); }

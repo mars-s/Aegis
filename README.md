@@ -2,6 +2,8 @@
 
 # Aegis
 
+[DESIGN.md](DESIGN.md) defines the light-first visual system and shared UI tokens.
+
 An open canvas for you and your AI. Start with the empty dot canvas and the small dock at the bottom. Connect a provider, then let the AI learn about your workflow in conversation. Agents use [Pi Durable](https://www.npmjs.com/package/@earendil-works/pi-durable) and shared board commands to work alongside you.
 
 ![Aegis with a document, sheet, slide deck, plot and other windows on one board. The figures are demo data.](docs/screenshot.png)

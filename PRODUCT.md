@@ -64,7 +64,7 @@ it can change its own themes, card types and panels at runtime. (Confirmed)
 ## What sits on the table
 
 - **One infinite canvas.** Pan and zoom move a single transform. Cards are small
-  windows with flat dark surfaces, a faint dot field behind them, and a thin
+  windows with flat theme-aware surfaces, a faint dot field behind them, and a thin
   connection line when two cards are related. (Confirmed)
 - **Card primitives, available to commands and agents.** Notes, titles, checklists, links, images, video, web pages,
   audio recordings, freehand ink, stamps, shapes, vector paths, device frames,
@@ -113,9 +113,10 @@ a name on it, that the person can take back.
 
 ## Operating Context
 
-- **Confirmed:** the locked comp at
-  `.scratch/aegis-redesign/comps/6-zen-dark-LOCKED.png` is the whole app. The
-  quiet Zen look is the default and only look, not a mode.
+- **Confirmed, 2026-11-01:** light is the base design, with a complete dark mode.
+  Follow the system colour scheme unless the person overrides Theme in Settings.
+  The former Zen dark comp is historical, not the only look. Canvas, cards,
+  chrome, editors, dialogs and generated UI share semantic theme tokens.
 - Brain dump by typing into the Ask pill at the bottom. `⌘K` or `/` opens it.
 - Dictation: click the orb on the Ask pill and Apple's on-device recogniser
   streams words into the box. Audio never leaves the Mac. (Observed, added
@@ -166,8 +167,12 @@ a name on it, that the person can take back.
 - Owner's brief, 2026-10-25: minimal, sci-fi, futuristic. Apple's Bauhaus-like
   discipline. "Jarvis made by Apple", as a workbench or table for thinking and
   visualising. It should feel good and proper. (Confirmed)
-- **Confirmed:** true black ground, a faint dot field, flat dark windows, Inter,
-  one blue hue for data and agents, thin line graphs.
+- **Confirmed, 2026-11-01:** Bauhaus geometry, Apple's restraint and a calm Jarvis
+  HUD presence. Light first, generous whitespace, system typography with the
+  existing Inter fallback, hairlines and one blue accent. Keep a good dark mode.
+  Glass belongs on floating dock and greeting surfaces; status colour always
+  carries a word. No decorative gradients or ambient glows.
+- [DESIGN.md](DESIGN.md) defines the canonical tokens and rules for all app and AI-generated UI.
 - The custom reticle cursor was removed on 2026-10-25. Aegis uses the system
   cursor. (Confirmed)
 - Motion is restrained and purposeful: short travel, fast settles, no bounce for
