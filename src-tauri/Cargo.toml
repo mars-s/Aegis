@@ -1,6 +1,6 @@
 [package]
 name = "aegis"
-version = "0.3.0"
+version = "0.3.1"
 description = "A minimal infinite canvas where agents sort your brain dump"
 edition = "2021"
 
@@ -23,8 +23,18 @@ objc2-avf-audio = "0.3.2"
 objc2-speech = "0.3.2"
 block2 = "0.6"
 
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
+
 [profile.release]
 opt-level = "s"
 lto = true
 codegen-units = 1
 strip = true
+
+[dev-dependencies]
+base64 = "0.21.7"
+minisign = "0.10.0"
+tauri = { version = "2", features = ["test"] }
+tempfile = "3.27.0"

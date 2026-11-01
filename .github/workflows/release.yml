@@ -1,0 +1,58 @@
+name: Release macOS
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A rolling nightly prerelease can use the nightly tag and endpoint, with manual
+# dispatch only. Keep it separate from stable releases and give each build a newer version.
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Check release version
+        id: version
+        run: node scripts/check-release-version.mjs
+      - run: npm ci
+      - run: npm run stage:runtime
+      - name: Configure macOS signing
+        env:
+          SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        # Tauri defaults to ad-hoc signing without an identity.
+        run: |
+          if [ -n "$SIGNING_IDENTITY" ]; then
+            printf 'APPLE_SIGNING_IDENTITY=%s\n' "$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+          fi
+      - name: Build signed updater and draft release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tauriScript: npx --yes @tauri-apps/cli@2.12.4
+          args: --bundles app --config src-tauri/tauri.release.conf.json --target aarch64-apple-darwin
+          tagName: v${{ steps.version.outputs.version }}
+          releaseName: Aegis ${{ steps.version.outputs.version }}
+          releaseDraft: true
+          includeUpdaterJson: true
+      - name: Upload manual-install archive
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          archive="Aegis-${VERSION}-macos-arm64.zip"
+          ditto -c -k --keepParent src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Aegis.app "$archive"
+          gh release upload "v${VERSION}" "$archive" --clobber
