@@ -29,7 +29,7 @@ The fake model supports the introduction and profile updates deterministically.
 
 ## Design and limits
 
-The existing quiet Zen dark direction is preserved: Inter, neutral flat surfaces,
+The second pass replaced the dark-only look with light-first tokens (see DESIGN.md): system type, neutral flat surfaces,
 restrained spacing, the existing orb and a compact dock-anchored connection panel.
 The connection panel is nonmodal, closes on Escape or an outside pointer press,
 and restores focus to the dock. No new artwork or external assets were added.
