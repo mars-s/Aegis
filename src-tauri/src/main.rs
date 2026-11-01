@@ -10,6 +10,8 @@ use std::sync::Mutex;
 use tauri::{Manager, RunEvent};
 use tauri_plugin_opener::OpenerExt;
 
+mod updater;
+
 #[cfg(target_os = "macos")]
 mod native_refresh;
 #[cfg(target_os = "macos")]
@@ -211,12 +213,14 @@ fn stop_agent(app: &tauri::AppHandle) {
 extern "C" { #[link_name = "kill"] fn libc_kill(pid: i32, sig: i32) -> i32; }
 
 fn main() {
+    let mut context = tauri::generate_context!();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Agent { child: Mutex::new(None), info: Mutex::new(None) });
     #[cfg(target_os = "macos")]
     let builder = builder.manage(dictation::Dictation::default());
-    builder
+    updater::register(builder, &mut context)
         .invoke_handler(tauri::generate_handler![agent_info, open_url, copy_text, save_download, print_page, speech, speech_poll])
         .setup(|app| {
             // Build from the usual window config, after setting WebKit's rendering preference.
@@ -229,10 +233,11 @@ fn main() {
                 None => window,
             };
             window.build()?;
+            updater::setup(app.handle())?;
             if let Err(e) = start_agent(app.handle()) { eprintln!("aegis: {e}"); }
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("Aegis couldn't start")
         .run(|app, event| {
             if let RunEvent::Exit = event {
