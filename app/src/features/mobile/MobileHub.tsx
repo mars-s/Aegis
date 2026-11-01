@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import './mobile.css';
 
-export type MobileSheet = 'boards' | 'layers' | 'add' | 'unsorted' | 'agents';
+export type MobileSheet = 'boards' | 'layers' | 'agents';
 export function MobileHub({ sheets }: { readonly sheets: Readonly<Record<MobileSheet, (close: () => void) => ReactNode>> }) {
   const [phone, setPhone] = useState(() => matchMedia('(max-width: 700px)').matches);
   const [current, setCurrent] = useState<MobileSheet | null>(null);
@@ -31,7 +31,7 @@ export function MobileHub({ sheets }: { readonly sheets: Readonly<Record<MobileS
     dispatchEvent(new CustomEvent('aegis:mobile-agent-composer', { detail: content.current }));
     return () => { dispatchEvent(new CustomEvent('aegis:mobile-agent-composer', { detail: null })); };
   }, [current]);
-  return <><nav id="mobileHub" aria-label="Board hub" hidden={!phone}>{(['boards', 'layers', 'add', 'unsorted', 'agents'] as const).map(id => <button type="button" key={id} data-sheet={id} aria-expanded={current === id} onClick={() => setCurrent(current === id ? null : id)}>{id === 'layers' ? 'Windows' : `${id[0]?.toUpperCase()}${id.slice(1)}`}</button>)}</nav>
+  return <><nav id="mobileHub" aria-label="Board hub" hidden={!phone}>{(['boards', 'layers', 'agents'] as const).map(id => <button type="button" key={id} data-sheet={id} aria-expanded={current === id} onClick={() => setCurrent(current === id ? null : id)}>{id === 'layers' ? 'Windows' : `${id[0]?.toUpperCase()}${id.slice(1)}`}</button>)}</nav>
     <dialog ref={dialog} className="mobile-sheet aegis-feature" aria-labelledby="mobileTitle" onClose={close} onCancel={event => { event.preventDefault(); close(); }}
       onPointerDownCapture={event => { const pressed = event.target === event.currentTarget && outside(event.currentTarget, event.clientX, event.clientY); backdrop.current = pressed ? event.pointerId : null; if (pressed) event.stopPropagation(); }}
       onPointerUp={event => { const dismiss = backdrop.current === event.pointerId && outside(event.currentTarget, event.clientX, event.clientY); backdrop.current = null; if (dismiss) close(); }}

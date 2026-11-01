@@ -2,7 +2,7 @@
 
 The card preview, editor, filmstrip and presentation use `SlideView` and the same schema-derived slides. Saved value/label charts retain their original axes through `ValueChart`. Charts with an explicit spec or bound source use the data slice's `DeckChart`. Imported pictures keep their asset references; the original presentation remains downloadable.
 
-Integrate `deckCards(services)` and `deckEditors(services)` from `cards/deck/index.tsx` once per runtime. `DeckServices` supplies `assetUrl` and the existing shared `createMenu` control. Canvas Open uses the central `openCardEditor` dispatcher, so the current editor can refuse a switch. The app owns the side editor shell, width controls, motion, camera bookmark and focus return. `deckTools` supplies the discrete create action; `placeDeck(context, point)` supports the shared click-placement dispatcher.
+Integrate `deckCards(services)` and `deckEditors(services)` from `cards/deck/index.tsx` once per runtime. `DeckServices` supplies `assetUrl` and the existing shared `createMenu` control. Canvas Open uses the central `openCardEditor` dispatcher, so the current editor can refuse a switch. The app owns the side editor shell, width controls, motion, camera bookmark and focus return. Deck creation uses domain board commands, independently of chrome.
 
 A session belongs to one Workspace, board and card. It retains pending slide edits across view lifetimes. Closing calls `flushDeck`, which submits one authored transaction and can refuse during IME or after a conflicting remote field edit. Unrelated props and other slide edits survive. Saved means the workspace has no pending or blocked writes. Failed saves expose Retry; conflicting drafts can be copied before choosing the latest slides.
 

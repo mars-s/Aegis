@@ -1,3 +1,5 @@
+import { ProfileFieldsSchema } from '@aegis/domain/profile';
+import type { ProfileStore } from './profile.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CallToolResult, ToolAnnotations } from '@modelcontextprotocol/sdk/types.js';
 import type { Board } from '@aegis/domain/schema';
@@ -6,6 +8,7 @@ import type { LibraryOperation } from './library.js';
 import { LibraryOperationSchema } from './library.js';
 
 export interface McpHost {
+  readonly profile?: ProfileStore;
   loadBoard(id: string): Promise<Board | null>;
   listBoards(): Promise<{ id: string; name: string }[]>;
   commit(boardId: string, batch: { commands: readonly unknown[] }, author: { kind: 'mcp'; name: string }, expectedRev?: number): Promise<BatchResponse>;
@@ -57,6 +60,10 @@ export function createMcpServer(host: McpHost, client = 'Local MCP') {
     };
     server.registerTool<z.ZodRawShape, z.ZodType>(name, { description, inputSchema: schema, annotations }, callback);
   };
+  tool('profile_update', 'Merge information the person has supplied into their local profile.', ProfileFieldsSchema.shape, { ...WRITE, destructiveHint: false }, async args => {
+    if (!host.profile) throw new Error('Profile storage is unavailable.');
+    return json(await host.profile.update(args));
+  });
   tool('board_list', 'List local boards, projects and folders so you can choose the right board.', {}, READ,
     async () => json(await host.library()));
   tool('board_create', 'Create an empty board, optionally in a library project or folder.', {

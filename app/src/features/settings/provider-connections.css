@@ -1,0 +1,25 @@
+.provider-connections { display: grid; gap: 24px; min-width: 0; color: var(--color-text); }
+.provider-connections h3 { margin: 0; font-size: 16px; font-weight: 550; }
+.provider-connections .account { display: grid; gap: 10px; padding: 0; }
+.provider-connections p { margin: 0; font-size: 13px; line-height: 1.5; }
+.provider-connections .acct-row { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.provider-connections .acct-name { display: grid; gap: 4px; }
+.provider-connections .acct-state { color: var(--color-muted); font-size: 13px; }
+.provider-connections button { min-height: 32px; padding: 6px 10px; border-radius: 6px; background: var(--color-fill); color: var(--color-text); font: inherit; font-size: 13px; cursor: pointer; }
+.provider-connections button:hover { background: var(--color-fill-hover); }
+.provider-connections button:disabled { opacity: .5; cursor: default; }
+.provider-connections button:focus-visible, .provider-connections a:focus-visible { outline: 2px solid var(--color-ring); outline-offset: 3px; }
+.provider-connections [role=alert] { color: var(--color-text); }
+.provider-connections a { color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; font-size: 13px; }
+.provider-command { display: grid; gap: 6px; justify-items: start; }
+.provider-command code { max-width: 100%; overflow-wrap: anywhere; font-size: 11px; line-height: 1.5; }
+.provider-connections .acct-flow { display: grid; gap: 10px; }
+.connect-ai-popover { position: absolute; inset: auto auto calc(100% + 12px) 50%; transform: translateX(-50%); width: min(380px, calc(100vw - 32px)); max-height: min(640px, calc(100dvh - 140px)); overflow: auto; padding: 24px; border-radius: 16px; background: var(--color-float); color: var(--color-text); box-shadow: 0 12px 36px #0006; }
+.connect-ai-popover > button { float: right; position: relative; z-index: 1; }
+.connect-ai-label { font-size: 13px; padding-right: 12px; color: var(--color-text); white-space: nowrap; }
+#askPill.ask-orb:has(.connect-ai-label) { width: auto; gap: 8px; padding: 6px; }
+
+.agent-island:has(.connect-ai-popover) { z-index: 70; }
+.provider-connections .muted { color: var(--color-muted); }
+.provider-connections .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.provider-connections input { min-width: 0; flex: 1; padding: 8px; background: var(--color-fill); color: var(--color-text); caret-color: var(--color-ring); border: 1px solid var(--color-border); border-radius: 6px; }

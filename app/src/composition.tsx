@@ -7,8 +7,8 @@ import { creativeCards } from "./cards/creative/index.js";
 import { basicRegistrations, NoteBody } from "./cards/basic/index.js";
 import { objectRegistrations } from "./cards/objects/index.js";
 import type { ObjectServices } from "./cards/objects/index.js";
-import { documentCard, documentEditor, documentTool, documentOpenAction } from "./cards/document/registration.js";
-import { deckCards, deckEditors, deckTools } from "./cards/deck/index.js";
+import { documentCard, documentEditor, documentOpenAction } from "./cards/document/registration.js";
+import { deckCards, deckEditors } from "./cards/deck/index.js";
 import type { DeckServices } from "./cards/deck/index.js";
 import { editingMenus } from "./features/editing/registration.js";
 import { dataCards, dataEditors } from "./cards/data/index.js";
@@ -70,11 +70,14 @@ export function defineComposition(composition: Composition): Composition {
   });
 }
 
+/** Explicit seam for future AI-built chrome. Card bodies and editors remain independent. */
+export const canvasExtensions: Pick<Composition, "tools" | "panels"> = Object.freeze({ tools: Object.freeze([]), panels: Object.freeze([]) });
+
 export function createComposition(services: Pick<DataServices, "assetUrl"> & Pick<DeckServices, "menu"> & Pick<ObjectServices, "registerSandbox">): Composition {
   const objects = objectRegistrations(services);
   return defineComposition({
     cards: [{ kind: "canvas", Body: CanvasBody }, { kind: "agent", Body: NoteBody }, ...basicRegistrations(services).filter(item => !creativeCards.some(creative => creative.kind === item.kind)), ...creativeCards, ...dataCards, ...objects.cards, documentCard, ...deckCards(services)],
-    tools: [documentTool, ...deckTools], panels: [],
+    tools: canvasExtensions.tools, panels: canvasExtensions.panels,
     menus: [...editingMenus, documentOpenAction],
     editors: [...dataEditors(services), ...objects.editors, documentEditor, ...deckEditors(services)],
   });

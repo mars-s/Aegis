@@ -13,4 +13,4 @@ export function defaultStatusModel(models: readonly AgentModel[], ready: (model:
   const available = connected.length ? connected : models;
   return available.find(model => /luna|haiku/.test(model.modelId)) ?? available.find(model => model.provider === 'fake') ?? available.at(-1);
 }
-export const providerName = (provider: string): string => ({ openai: 'OpenAI', anthropic: 'Anthropic', fake: 'Review' })[provider] ?? provider;
+export const providerName = (provider: string): string => ({ openai: 'ChatGPT', claude: 'Claude Code', fake: 'Review' })[provider] ?? provider;

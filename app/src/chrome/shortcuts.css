@@ -1,0 +1,15 @@
+.shortcuts-sheet button { min-height: 44px; padding: 10px 14px; border-radius: 8px; }
+.shortcuts-sheet button:hover { background: var(--hover); }
+.shortcuts-sheet button:active { background: var(--press); }
+.shortcuts-sheet { width: min(650px, calc(100vw - 32px)); max-height: calc(100dvh - 64px); padding: 0 24px 24px; background: var(--card); color: var(--text); border: 1px solid var(--line-strong); border-radius: 16px; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+.shortcuts-sheet::backdrop { background: rgb(0 0 0 / .4); }
+.shortcuts-sheet header { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; background: var(--card); padding: 16px 0; }
+.shortcuts-sheet h2 { margin: 0; font-size: 20px; font-weight: 500; letter-spacing: -.02em; }
+.shortcuts-sheet dl { display: grid; grid-template-columns: 1fr auto; gap: 0 24px; margin: 0; font-size: 13px; }
+.shortcuts-sheet :is(dt, dd) { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.shortcuts-sheet dd { color: var(--muted); text-align: right; }
+@media (max-width: 700px) {
+  .shortcuts-sheet dl { grid-template-columns: 1fr; }
+  .shortcuts-sheet dt { padding-bottom: 0; border: 0; }
+  .shortcuts-sheet dd { text-align: left; }
+}

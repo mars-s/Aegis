@@ -22,7 +22,7 @@ vite.stderr.on('data', d => appendFileSync(out('deck-vite.txt'), d));
 const ready = new Promise((resolve, reject) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) resolve(); }); vite.once('exit', code => reject(new Error('Vite exited ' + code))); });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1600, height: 1050 }, colorScheme: 'dark' });
-await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
 const errors = []; page.on('pageerror', e => errors.push(e.stack));
 page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
 const board = () => page.evaluate(() => aegis.host.get(`/boards/${aegis.canvas.board.id}`));

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
-import type { BoardId } from '@aegis/domain/schema';
 import { AgentIdSchema } from '@aegis/domain/schema';
 import type { AgentLineStyle } from '@aegis/scene';
 import type { FeatureContext } from '../../composition.js';
@@ -13,13 +12,13 @@ import type { AgentRuntime } from './runtime.js';
 import { createAgentScene } from './scene.js';
 import type { AgentScene, AgentFrameSchedule } from './scene.js';
 import type { AgentService } from './service.js';
-import { FirstMinute } from '../first-minute/FirstMinute.js';
+import { useIntroduction } from './introduction.js';
 import { Settings } from '../settings/Settings.js';
 import type { SettingsTab } from '../settings/Settings.js';
 import type { SettingsService } from '../settings/service.js';
 import { createPreferenceStore } from '../settings/preferences-store.js';
-import { Onboarding, Shortcuts } from '../onboarding/Onboarding.js';
-import { shortcutReferences } from '../onboarding/shortcuts.js';
+import { Shortcuts } from '../../chrome/ShortcutDialog.js';
+import { shortcutReferences } from '../../chrome/shortcut-references.js';
 import { agentName, shortTitle } from './results.js';
 import { Presence } from './Presence.js';
 import type { PresenceActivity } from './Presence.js';
@@ -33,16 +32,15 @@ export interface AgentShellControls {
   readonly openAsk: () => void;
   readonly settings: (tab?: SettingsTab) => void;
   readonly shortcuts: () => void;
-  readonly replayTour: () => void;
+  readonly resetIntroduction: () => void;
 }
 export interface AgentShellProps {
   readonly context: FeatureContext;
   readonly service: AgentService;
   readonly settingsService: SettingsService;
   readonly schedule: AgentFrameSchedule;
-  readonly importCsv: (file: File, boardId: BoardId) => Promise<void>;
   readonly attached: (controls: AgentShellControls | null) => void;
-  readonly settingsSlots?: { readonly board?: ReactNode; readonly toolbar?: ReactNode; readonly panels?: ReactNode; readonly appearance?: ReactNode };
+  readonly settingsSlots?: { readonly board?: ReactNode; readonly panels?: ReactNode; readonly appearance?: ReactNode };
   readonly activityInChrome?: boolean;
 }
 
@@ -51,10 +49,9 @@ export function AgentShell(props: AgentShellProps) {
   const id = useSyncExternalStore(props.context.workspace.metadata.subscribe, props.context.workspace.metadata.getSnapshot).id;
   return <BoardAgentShell {...props} key={id} />;
 }
-function BoardAgentShell({ context, service, settingsService, schedule, importCsv, attached, settingsSlots, activityInChrome = false }: AgentShellProps) {
+function BoardAgentShell({ context, service, settingsService, schedule, attached, settingsSlots, activityInChrome = false }: AgentShellProps) {
   const composer = useRef<AgentComposer | null>(null);
   const [settings, setSettings] = useState<{ readonly tab: SettingsTab } | null>(null);
-  const [tour, setTour] = useState(() => !localStorage.getItem('aegis:onboarded'));
   const [help, setHelp] = useState(false);
   const [scene, setScene] = useState<AgentScene | null>(null);
   const [presence, setPresence] = useState<PresenceActivity | null>(null);
@@ -62,6 +59,7 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
   const runtime = useMemo(() => createAgentRuntime({ workspace: context.workspace, service, requireSignIn: () => setSettings({ tab: 'accounts' }) }), [context.workspace, service]);
   const preferences = useMemo(createPreferenceStore, []);
   useEffect(() => runtime.start(), [runtime]);
+  const resetIntroduction = useIntroduction(runtime, settingsService, composer);
   useEffect(() => {
     let previous: string | null = null;
     const notify = (): void => {
@@ -101,7 +99,7 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
       activity: <AgentActivity runtime={runtime} show={scene.show} close={() => context.workspace.act({ kind: 'panel', side: 'right', open: false })} />,
       follow: <FollowControls context={context} runtime={runtime} scene={scene} />,
       ask: text => composer.current?.ask(text) ?? Promise.resolve(false), openAsk: () => composer.current?.open(true),
-      settings: (tab = 'general') => setSettings({ tab }), shortcuts: () => setHelp(true), replayTour: () => setTour(true),
+      settings: (tab = 'general') => setSettings({ tab }), shortcuts: () => setHelp(true), resetIntroduction: () => { void resetIntroduction(); },
     };
     attached(controls); return () => attached(null);
   }, [attached, context, runtime, scene]);
@@ -115,11 +113,9 @@ function BoardAgentShell({ context, service, settingsService, schedule, importCs
   const receiveComposer = useMemo(() => (value: AgentComposer | null): void => { composer.current = value; }, []);
   if (!scene) return null;
   return <>
-    <Agents runtime={runtime} scene={scene} attached={receiveComposer} activityOpen={ui.rightPanel && !activityInChrome} closeActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: false })} openActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: true })} />
+    <Agents runtime={runtime} scene={scene} attached={receiveComposer} activityOpen={ui.rightPanel && !activityInChrome} closeActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: false })} openActivity={() => context.workspace.act({ kind: 'panel', side: 'right', open: true })} settingsService={settingsService} />
     <Presence activity={presence} onShow={ids => context.engine()?.ring(ids, 'var(--data)', 4000, `${presence?.name ?? 'Agent'}: changed the board`, undefined, 'solid')} />
-    <FirstMinute context={context} agents={runtime} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} importCsv={importCsv} />
-    <Settings open={!!settings} initialTab={settings?.tab ?? 'general'} close={() => setSettings(null)} preferences={preferences} agents={runtime} service={settingsService} replayTour={() => setTour(true)} showShortcuts={() => setHelp(true)} {...(settingsSlots ? { slots: settingsSlots } : {})} />
-    <Onboarding open={tour} close={() => setTour(false)} context={context} ask={text => composer.current?.ask(text) ?? Promise.resolve(false)} openAsk={() => composer.current?.open(true)} />
+    <Settings open={!!settings} initialTab={settings?.tab ?? 'general'} close={() => setSettings(null)} preferences={preferences} agents={runtime} service={settingsService} resetIntroduction={() => { void resetIntroduction(); }} showShortcuts={() => setHelp(true)} {...(settingsSlots ? { slots: settingsSlots } : {})} />
     <Shortcuts open={help} close={() => setHelp(false)} shortcuts={shortcutReferences} />
   </>;
 }

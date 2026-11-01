@@ -213,7 +213,7 @@ export function PopupButton({
         aria-label={`${label} controls`}
         onClick={event => {
           const target = event.target;
-          if (target instanceof Element && target.closest('button[data-popup-close],button[data-tool]:not([data-tool="templates"])')) controller.current?.close(true, true);
+          if (target instanceof Element && target.closest('button[data-popup-close],button[data-tool]')) controller.current?.close(true, true);
         }}
         hidden
       >

@@ -11,4 +11,4 @@ export type {
 } from "./library-model.js";
 export { Layers } from "./Windows.js";
 export { Library } from "./LibraryView.js";
-export { ToolbarPreferences, PanelPreferences } from "./Preferences.js";
+export { PanelPreferences } from "./Preferences.js";

@@ -1,14 +1,13 @@
 import { z } from 'zod/v4';
 import { CommandSchema } from '@aegis/domain';
 import type { Board, Command } from '@aegis/domain';
-import { PreferencesSchema } from '../features/settings/preferences-store.js';
 
 const fields = z.record(z.string(), z.unknown());
 const geometry = ['x', 'y', 'w', 'h', 'rot'] as const;
 
 // Geometry repair adapted from Mochiboard (MIT). See LICENSE.mochiboard.
 export function inputCommands(board: Board, input: unknown, noteColour: string | null): Command[] {
-  const preferred = PreferencesSchema.shape.noteColour.safeParse(noteColour);
+  const preferred = z.enum(['plain', 'gray', 'blue', 'green', 'yellow', 'orange', 'red', 'purple']).safeParse(noteColour);
   return fields.array().parse(input).map(command => {
     const previous = board.cards.find(card => card.id === command['id']);
     const fallback = previous ?? { x: 0, y: 0, w: 200, h: 100, rot: 0 };

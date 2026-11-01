@@ -25,10 +25,8 @@ import { createMenu } from "../lib/ui/menu.js";
 import { mountDropdowns } from "../lib/ui/dropdown.js";
 import { deleteCards, duplicateCards, groupCards, submit, undoDeletedCards } from "./actions.js";
 import type { Notice, Notify } from "./actions.js";
-import { MenuButton, PopupButton } from "./controls.js";
-import { Icon, isIconName } from "./icons.js";
-import type { IconName } from "./icons.js";
-import { beginPanelDrag } from "./panel-drag.js";
+import { MenuButton } from "./controls.js";
+import { Icon } from "./icons.js";
 import { Layers } from "./Windows.js";
 import { Library } from "./LibraryView.js";
 import type { LibraryService } from "./library-model.js";
@@ -40,13 +38,8 @@ import { useBoard } from "./model.js";
 import { Panel, SideResize } from "./Panel.js";
 import { MobileHub } from "../features/mobile/MobileHub.js";
 import { useChromeExports } from "./exports.js";
-import { toolOrder, useToolbar } from "./Preferences.js";
-import { Templates } from "./TemplateMenu.js";
-import { armCanvasPlacement, BoardCrumbs } from "./CanvasDoor.js";
-import { MobileTools } from "./MobileTools.js";
-import { createCoreTools } from "./CoreTools.js";
+import { BoardCrumbs } from "./CanvasDoor.js";
 import { restack, stackMenu, stacking } from './Stacking.js';
-import { KeyboardHints, ShortcutReference } from "./Shortcuts.js";
 import "./chrome.css";
 
 function setZoom(
@@ -78,20 +71,9 @@ export interface ChromeProps {
   readonly settings?: () => void;
   readonly ask?: (ids: readonly CardId[]) => void;
   readonly cameraChanged?: () => void;
-  readonly customiseToolbar?: () => void;
   readonly barContent?: ReactNode;
   readonly rightContent?: ReactNode;
-  readonly wireframeSheet?: (close: () => void) => ReactNode;
 }
-
-const toolIcons: Record<string, IconName> = {
-  wireframe: "wireframe",
-  "board-colours": "swatch",
-  "media-devices": "video",
-  draw: "vector",
-  unsorted: "coll",
-  keys: "command",
-};
 
 export function Chrome({
   context,
@@ -102,24 +84,17 @@ export function Chrome({
   settings,
   ask,
   cameraChanged,
-  customiseToolbar,
   barContent,
   rightContent,
-  wireframeSheet,
 }: ChromeProps) {
   const metadata = useWorkspaceMetadata(context.workspace),
     save = useSaveState(context.workspace),
-    ui = useSource(context.workspace.ui),
-    history = useSource(context.workspace.history);
+    ui = useSource(context.workspace.ui);
   const [layout, setLayout] = useState(readLayout),
     [notice, setNotice] = useState<Notice | null>(null),
     [filter, setFilter] = useState({ filtered: false, matches: 0, total: 0 });
   const [captureReveal, setCaptureReveal] = useState<{ readonly id: string; readonly side: 'left' | 'right' } | null>(null);
-  const toolbar = useToolbar();
   const refreshChrome = useRef<() => void>(() => {});
-  useLayoutEffect(() => {
-    document.body.dataset.toolSize = toolbar.size;
-  }, [toolbar.size]);
   useLayoutEffect(() => {
     const stage = document.getElementById('stage');
     let dirty = true, source: HTMLElement | null = null;
@@ -134,7 +109,6 @@ export function Chrome({
         engine.invalidate();
         engine.afterInput(() => {
           refreshChrome.current();
-          for (const button of dock.current?.querySelectorAll<HTMLButtonElement>('[data-tool]') ?? []) button.setAttribute('aria-pressed', String(button.dataset.tool === (engine.toolName() ?? 'select')));
         });
       }
       if (!dirty) return;
@@ -173,10 +147,7 @@ export function Chrome({
     paletteTrigger = useRef<HTMLButtonElement>(null);
   const dock = useRef<HTMLElement>(null),
     leftBar = useRef<HTMLDivElement>(null),
-    rightBar = useRef<HTMLDivElement>(null),
-    tileLifted = useRef(0),
-    dragCleanup = useRef<(() => void) | null>(null);
-  useEffect(() => () => dragCleanup.current?.(), []);
+    rightBar = useRef<HTMLDivElement>(null);
   const previousRightOpen = useRef(ui.rightPanel);
   const arrows = useRef<{
     left: HTMLButtonElement | null;
@@ -205,22 +176,6 @@ export function Chrome({
     };
   }, [context, engine, composition, layout, ui, save, ask, cameraChanged]);
   const notify = useCallback<Notify>((value) => setNotice(value), []);
-  const coreTools = useMemo(() => createCoreTools(context, notify), [context, notify]);
-  useEffect(() => () => coreTools.dispose(), [coreTools]);
-  useEffect(() => {
-    const stage = document.getElementById('stage'); if (!stage) return;
-    let active = true;
-    const double = (event: MouseEvent): void => {
-      if (event.defaultPrevented || engine.toolName() || localStorage.getItem('aegis:double-click-note') === 'off' || !(event.target instanceof Element) || event.target.closest('input,textarea,button,summary,a,[contenteditable],.canvas-orientation,.window-actions,[data-scene-interactive]')) return;
-      const bounds = stage.getBoundingClientRect(), point = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
-      if (engine.hitTest(point)) return;
-      event.preventDefault();
-      const board = context.workspace.metadata.getSnapshot().id, at = engine.screenToWorld(point);
-      engine.afterInput(() => { if (active && context.workspace.metadata.getSnapshot().id === board) coreTools.place('double-note', at); });
-    };
-    stage.addEventListener('dblclick', double);
-    return () => { active = false; stage.removeEventListener('dblclick', double); };
-  }, [coreTools, context, engine]);
   const exportBoard = useChromeExports(context, engine, composition, notify);
   const filtered = useCallback(
     (filtered: boolean, matches: number, total: number) =>
@@ -385,26 +340,8 @@ export function Chrome({
       "keydown",
       (event) => {
         keyboard = true;
-        if (
-          event.key === "Tab" ||
-          (event.code === "KeyT" &&
-            event.shiftKey &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !(
-              event.target instanceof Element &&
-              event.target.closest(
-                "input,textarea,[contenteditable],dialog[open]",
-              )
-            ))
-        ) {
-          groups.forEach((group) => {
-            group.classList.add("chrome-visible", "chrome-instant");
-          });
-          if (event.code === "KeyT") {
-            event.preventDefault();
-            dock.current?.querySelector("button")?.focus();
-          }
+        if (event.key === "Tab") {
+          groups.forEach(group => group.classList.add("chrome-visible", "chrome-instant"));
         }
       },
       { capture: true, signal: lifetime.signal },
@@ -481,25 +418,11 @@ export function Chrome({
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
   }, [captureReveal]);
-  function add(type: "note" | "title" | "todo" | "readme"): void {
-    coreTools.arm(type);
-    refreshChrome.current();
-  }
   function zoom(scale: number): void {
     setZoom(engine, engine.camera().zoom * scale, cameraChanged);
   }
   const actions: readonly ActionRegistration[] = useMemo(
     () => [
-      { id: "note", label: "Note", shortcut: "N", run: () => add("note") },
-      { id: "title", label: "Heading", shortcut: "H", run: () => add("title") },
-      { id: "todo", label: "Checklist", shortcut: "C", run: () => add("todo") },
-      {
-        id: "readme",
-        label: "Read me",
-        shortcut: "R",
-        run: () => add("readme"),
-      },
-      ...(library ? [{ id: "canvas", label: "Canvas", run: () => armCanvasPlacement(context, library, notify) }] : []),
       ...composition.tools,
       ...composition.menus.filter(action => !stacking.some(stack => stack.id === action.id)),
       ...stacking.map(action => ({ id: action.id, label: action.label, shortcut: action.shortcut, run: (target: FeatureContext) => restack(target, target.workspace.selection.getSnapshot(), action.id, notify) })),
@@ -507,67 +430,6 @@ export function Chrome({
     [composition, context, engine, notify],
   );
   const actionRef = useRef(actions);
-  const dockIds = toolOrder(
-    [
-      "select",
-      "note",
-      "title",
-      "todo",
-      "readme",
-      ...["link", "media"].filter(id => composition.tools.some(tool => tool.id === id)),
-      ...(library ? ["templates", "canvas"] : []),
-      ...composition.tools.map((action) => action.id),
-    ],
-    toolbar.order,
-  );
-  const toolbarIdentity = dockIds.join(',');
-  useLayoutEffect(() => {
-    for (const button of dock.current?.querySelectorAll<HTMLElement>('[data-tool]') ?? []) button.hidden = toolbar.hidden.includes(button.dataset.tool ?? '');
-  }, [toolbar.hidden, toolbarIdentity]);
-  const toolButton = (id: string, labelled = false) => {
-    if (id === "templates" && library)
-      return (
-        <Templates
-          key={id}
-          context={context}
-          library={library}
-          notify={notify}
-          labelled={labelled}
-        />
-      );
-    if (id === "select")
-      return (
-        <button
-          key={id}
-          type="button"
-          data-tool={id}
-          aria-label="Select"
-          title="Select (V)"
-          onClick={() => {
-            engine.tool(null);
-            context.workspace.act({ kind: "select", ids: [] });
-          }}
-        >
-          <Icon name="select" />
-          {labelled ? <span className="tools-label">Select</span> : null}
-        </button>
-      );
-    const action = actions.find((item) => item.id === id);
-    return action ? (
-      <button
-        key={id}
-        type="button"
-        data-tool={id}
-        aria-label={action.label}
-        title={`${action.label}${action.shortcut ? ` (${action.shortcut})` : ""}`}
-        onClick={() => { action.run(context); refreshChrome.current(); }}
-      >
-        <Icon name={isIconName(id) ? id : "plus"} />
-        {labelled ? <span className="tools-label">{action.label}</span> : null}
-        {labelled && action.shortcut ? <kbd>{action.shortcut.toUpperCase()}</kbd> : null}
-      </button>
-    ) : null;
-  };
   useEffect(() => {
     actionRef.current = actions;
   }, [actions]);
@@ -734,7 +596,6 @@ export function Chrome({
               },
             ]
           : [
-              { title: "New note here", run: () => { coreTools.place("note", engine.screenToWorld({ x: event.clientX - rect.left, y: event.clientY - rect.top })); } },
               ...actionRef.current.map((action) => ({
                 title: action.label,
                 run: () => action.run(context),
@@ -772,16 +633,16 @@ export function Chrome({
       stage.removeEventListener('layercontext', layer);
       menu.destroy();
     };
-  }, [context, engine, composition, notify, exportBoard, coreTools]);
+  }, [context, engine, composition, notify, exportBoard]);
   const board = useBoard(context.workspace);
   let panelLayout = layout;
   if (captureReveal) {
     const folded = { ...layout.folded, [captureReveal.id]: false };
-    for (const id of layout.columns[captureReveal.side]) folded[id] = id !== 'tools' && id !== captureReveal.id;
-    panelLayout = { ...layout, folded, heights: { ...layout.heights, tools: Math.max(300, innerHeight - 280), [captureReveal.id]: Math.max(220, Math.min(340, innerHeight - 420)) } };
+    for (const id of layout.columns[captureReveal.side]) folded[id] = id !== captureReveal.id;
+    panelLayout = { ...layout, folded, heights: { ...layout.heights, [captureReveal.id]: Math.max(220, Math.min(340, innerHeight - 420)) } };
   }
   const panels = (side: "left" | "right") =>
-    layout.columns[side].map((id) => {
+    [...layout.columns[side], ...composition.panels.filter(panel => panel.side === side && !layout.columns.left.includes(panel.id) && !layout.columns.right.includes(panel.id)).map(panel => panel.id)].map((id) => {
       if (id === "layers")
         return (
           <Panel
@@ -820,70 +681,6 @@ export function Chrome({
             )}
           </Panel>
         );
-      if (id === "tools") {
-        const nested = composition.panels.filter(
-          (panel) =>
-            panel.side === "left" &&
-            !layout.columns.left.includes(panel.id) &&
-            !layout.columns.right.includes(panel.id),
-        );
-        const tiles: { readonly id: string; readonly label: string; readonly icon: IconName; readonly body: ReactNode }[] = [
-          ...nested.map((panel) => ({
-            id: panel.id,
-            label: panel.label ?? panel.id,
-            icon: toolIcons[panel.id] ?? "canvas",
-            body: <panel.Body context={context} />,
-          })),
-          ...(!layout.columns.left.includes("keys") &&
-          !layout.columns.right.includes("keys")
-            ? [{ id: "keys", label: "Shortcuts", icon: "command" as const, body: <ShortcutReference /> }]
-            : []),
-        ];
-        const isFolded = (tile: string): boolean =>
-          panelLayout.folded[tile] ?? true;
-        return (
-          <Panel key={id} id={id} label="Tools" layout={panelLayout} change={change} count={String(tiles.length)}>
-            <div className="tool-tiles" role="group" aria-label="Tools">
-              {tiles.map((tile) => (
-                <button
-                  key={tile.id}
-                  className="tile"
-                  type="button"
-                  data-tool={tile.id}
-                  aria-expanded={!isFolded(tile.id)}
-                  aria-controls={`tool-${tile.id}`}
-                  onPointerDown={(event) => {
-                    dragCleanup.current?.();
-                    dragCleanup.current = beginPanelDrag({
-                      event: event.nativeEvent,
-                      element: event.currentTarget,
-                      id: tile.id,
-                      layout: panelLayout,
-                      change,
-                      onLift: () => {
-                        tileLifted.current = performance.now();
-                      },
-                    });
-                  }}
-                  onClick={() => {
-                    if (performance.now() - tileLifted.current < 250) return;
-                    change({ ...panelLayout, folded: { ...panelLayout.folded, [tile.id]: !isFolded(tile.id) } });
-                  }}
-                >
-                  <Icon name={tile.icon} />
-                  <span>{tile.label}</span>
-                </button>
-              ))}
-              {tiles.length % 2 ? <span className="tile filler" aria-hidden="true" /> : null}
-            </div>
-            {tiles.filter((tile) => !isFolded(tile.id)).map((tile) => (
-              <Panel nested key={tile.id} id={tile.id} label={tile.label} layout={panelLayout} change={change}>
-                {tile.body}
-              </Panel>
-            ))}
-          </Panel>
-        );
-      }
       const registered = composition.panels.find((panel) => panel.id === id);
       return registered ? (
         <Panel
@@ -917,17 +714,6 @@ export function Chrome({
               <p>Library is unavailable.</p>
             ),
           layers: (close) => <Layers context={context} notify={notify} onPick={close} />,
-          add: (close) => <MobileTools actions={actions.filter(action => dockIds.includes(action.id))} context={context} close={close} {...(wireframeSheet ? { wireframe: wireframeSheet } : {})} />,
-          unsorted: () => {
-            const panel = composition.panels.find(
-              (item) => item.id === "unsorted",
-            );
-            return panel ? (
-              <panel.Body context={context} />
-            ) : (
-              <p>No unsorted ideas.</p>
-            );
-          },
           agents: () => rightContent,
         }}
       />
@@ -1112,67 +898,10 @@ export function Chrome({
         {rightContent}
         {panels("right")}
         <SideResize side="right" layout={layout} change={change} />
-        {composition.panels
-          .filter(
-            (panel) =>
-              panel.side === "right" &&
-              !layout.columns.right.includes(panel.id),
-          )
-          .map((panel) => (
-            <panel.Body key={panel.id} context={context} />
-          ))}
       </aside>
-      <nav ref={dock} id="tools" aria-label="Canvas tools">
-        {dockIds.slice(0, 7).map(id => toolButton(id))}
-        <PopupButton
-          label="More tools"
-          triggerId="toolsFold"
-          menuId="toolsPopover"
-          closeOnResize
-          className="tools-popover"
-          caption={<Icon name="more" />}
-          placement="right"
-        >
-          <section>
-            <h3>Create</h3>
-            <div className="tools-grid">{dockIds.slice(7).filter(id => toolbar.order.length || !['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(id => toolButton(id, true))}</div>
-          </section>
-          {!toolbar.order.length && dockIds.slice(7).some(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)) ? <section>
-            <h3>Media</h3>
-            <div className="tools-grid">{dockIds.slice(7).filter(id => ['swatch', 'link', 'audio', 'video', 'import-image'].includes(id)).map(id => toolButton(id, true))}</div>
-          </section> : null}
-          <footer className="tools-footer">
-            <button type="button" className="tools-add-notes" data-popup-close onClick={() => { document.getElementById("composer")?.dispatchEvent(new Event("add-as-notes")); }}><Icon name="note" /><span className="tools-label">Add as notes</span></button>
-            {customiseToolbar ? (
-              <button type="button" className="tools-customise" aria-label="Customise toolbar" data-popup-close onClick={customiseToolbar}>
-                <Icon name="settings" /><span className="tools-label">Customise toolbar</span>
-              </button>
-            ) : null}
-          </footer>
-        </PopupButton>
-        <span className="tools-sep" aria-hidden="true" />
-        <button
-          type="button"
-          className="tools-history"
-          aria-label="Undo"
-          title="Undo (⌘Z)"
-          disabled={!history.undo}
-          onClick={() => context.workspace.undo()}
-        >
-          <Icon name="undo" />
-        </button>
-        <button
-          type="button"
-          className="tools-history"
-          aria-label="Redo"
-          title="Redo (⇧⌘Z)"
-          disabled={!history.redo}
-          onClick={() => context.workspace.redo()}
-        >
-          <Icon name="redo" />
-        </button>
-      </nav>
-      <KeyboardHints />
+      {composition.tools.length ? <nav ref={dock} className="extension-tools" aria-label="Canvas extensions">
+        {composition.tools.map(action => <button type="button" key={action.id} onClick={() => action.run(context)}>{action.label}</button>)}
+      </nav> : null}
       <Selection
         canOpen={card => composition.editors.some(editor => editor.kind === (card.type === "object" ? `object:${card.kind}` : card.type))}
         context={context}

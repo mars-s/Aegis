@@ -79,7 +79,7 @@ export function createAgentRuntime({ workspace, service, requireSignIn }: {
       if (signal.aborted) return;
       const readyProviders = new Set(connections.filter(item => item.ready).map(item => item.provider));
       const ready = (model: AgentModel): boolean => readyProviders.has(model.provider);
-      const model = models.find(model => state.model && modelValue(model) === modelValue(state.model)) ?? models.find(ready) ?? models[0] ?? null;
+      const model = models.find(model => ready(model) && state.model && modelValue(model) === modelValue(state.model)) ?? models.find(ready) ?? models[0] ?? null;
       const statusModel = models.find(model => state.statusModel && modelValue(model) === modelValue(state.statusModel)) ?? defaultStatusModel(models, ready) ?? null;
       if (model) localStorage.setItem('aegis:model', modelValue(model));
       if (statusModel) localStorage.setItem('aegis:status-model', modelValue(statusModel));
@@ -133,7 +133,7 @@ export function createAgentRuntime({ workspace, service, requireSignIn }: {
       update({ sending: true, error: null });
       try {
         if (model.provider !== 'fake' && !await service.connected(model.provider, signal)) {
-          if (!signal.aborted) { update({ error: `Sign in to ${model.provider === 'openai' ? 'ChatGPT' : model.provider === 'anthropic' ? 'Claude' : model.provider} first` }); requireSignIn(model.provider); }
+          if (!signal.aborted) { update({ error: `Sign in to ${model.provider === 'openai' ? 'ChatGPT' : model.provider === 'claude' ? 'Claude' : model.provider} first` }); requireSignIn(model.provider); }
           return false;
         }
         if (signal.aborted) return false;

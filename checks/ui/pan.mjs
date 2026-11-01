@@ -25,7 +25,7 @@ try {
   web = spawn('npx', ['vite', '--port', String(webPort), '--strictPort'], { cwd: repo + '/app' }); await ready(web, /Local:.*:(\d+)/);
   browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 992 }, reducedMotion: 'reduce' });
   page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript(() => { if (window === window.top) localStorage.setItem('aegis:onboarded', '1'); });
+  await page.addInitScript(() => { if (window === window.top) localStorage.setItem('aegis:introduction-complete', '1'); });
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.evaluate(() => aegis.apply([
@@ -90,12 +90,6 @@ try {
   await pan(page.locator('.card[data-id="pannote"] .body'), 'middle mouse over note', 'middle');
   await frame('pangenui');
   await pan(page.locator('.card[data-id="pangenui"]').getByRole('button', { name: 'Tasks', exact: true }), 'generated value control');
-  await page.mouse.move(24, 480);
-  const draw = page.locator('[data-tool="draw-ink"]');
-  if (!await draw.isVisible()) await page.getByRole('button', { name: 'More tools', exact: true }).click();
-  await draw.click();
-  await pan(page.locator('#stage'), 'Space overrides drawing tool');
-  await page.evaluate(() => aegis.canvas.setTool(null));
   await frame('pannote');
   await pan(page.locator('#stage'), 'Space overrides marquee');
   await frame('panhtml', true);

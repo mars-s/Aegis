@@ -1,6 +1,6 @@
-# Colours and media port
+# Colours and media primitives
 
-Inventory coverage: M1 to M10 and M12. M11 is a disabled transcription button with a tooltip because this host has no local transcription service.
+The former placement tools are removed. Existing media cards, their editors, imports and Settings device preferences remain available. Inventory coverage: M1 to M10 and M12. M11 is a disabled transcription button with a tooltip because this host has no local transcription service.
 
 - M1: swatches, the ported colour-name table, HSV wheel, brightness, hex shorthand, custom names and name/hex visibility.
 - M2: Board colours panel, saved palette, colours in use, add, rename, recolour and remove. Saved entries also offer these actions in a right-click menu, with keyboard navigation. Palette edits update matching swatches. Removal keeps the cards.
@@ -33,14 +33,9 @@ Recording sessions, streams, chunks and countdown state are transient. Switching
 
 ## Verification
 
-Required checks from the repository root:
-
-```
-npm run check
-PLAYWRIGHT=/Users/avi/.npm/_npx/6301df25ace19226/node_modules/playwright/index.mjs AEGIS_CHECK_OUT=/tmp/aegis-check-media node checks/ui/run.mjs media docs
-```
-
-The browser script uses a throwaway host with AEGIS_FAKE_MODEL=1, temporary AEGIS_DATA and Vite port 5183. Chromium provides test camera/microphone streams. It records real MediaRecorder files and verifies playback, saved board JSON, palette/background isolation, crop persistence, device persistence, file fallback and a real preview of https://ogp.me/. Physical devices and the packaged macOS app still need a native smoke test.
+Run `npm run check` and `node checks/ui/run.mjs imports docs crop-a11y`.
+The removed `media.mjs` suite exercised the shipped placement tools; imports,
+cropping and card editing retain their own checks with disposable host data.
 
 `node checks/ui/run.mjs crop-a11y` builds the production UI and checks keyboard-only cropping in Chromium and WebKit, in both themes at 1440×900 and 1586×992. It verifies pixel steps, numeric entry, Tab order, focus restoration, bounds, live geometry, saved board data, reload, cancellation and pointer/stepper synchronisation. Screenshots, build output and `crop-a11y.json` go to `AEGIS_CHECK_OUT`.
 

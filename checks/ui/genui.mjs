@@ -76,7 +76,7 @@ try {
   page.on('console', message => { if (message.type() === 'error') logs.push(message.text()); });
   await page.addInitScript(() => {
     if (window.top !== window) return;
-    localStorage.setItem('aegis:onboarded', '1');
+    localStorage.setItem('aegis:introduction-complete', '1');
     window.__genuiReports = [];
     window.__genuiHeights = [];
     window.__genuiViolations = [];

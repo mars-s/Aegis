@@ -60,7 +60,7 @@ try {
       const name = `${engineName}-${width}-${theme}`;
       page = await browser.newPage({ viewport: { width, height: width === 1440 ? 900 : 992 }, reducedMotion: 'reduce', colorScheme: theme }); page.setDefaultTimeout(5000);
       const errors = []; page.on('pageerror', error => errors.push(error.message));
-      await page.addInitScript(theme => { if (window !== window.top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
+      await page.addInitScript(theme => { if (window !== window.top) return; localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', theme); }, theme);
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       await observeLinkPaint(page);

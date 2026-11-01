@@ -35,7 +35,7 @@ try {
       for (const viewport of [{ width: 1440, height: 900 }, { width: 760, height: 800 }]) {
         const page = await browser.newPage({ viewport });
         const errors = []; page.on('pageerror', e => errors.push(e.message));
-        await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
+        await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); });
         await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
         await page.waitForFunction(() => window.aegis?.canvas?.board);
         for (const side of [false, true]) {

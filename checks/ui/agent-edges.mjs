@@ -47,7 +47,7 @@ try {
   browser = await chromium.launch();
   page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   page.on('pageerror', error => errors.push(error.message));
-  await page.addInitScript(() => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:model', 'fake|fake'); });
+  await page.addInitScript(() => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:model', 'fake|fake'); });
   await page.goto(`http://127.0.0.1:${vitePort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board && document.getElementById('model').options.length);
   if (!process.env.AEGIS_EDGES_ONLY) {

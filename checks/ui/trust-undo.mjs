@@ -35,7 +35,7 @@ try {
       const board = await api('/boards', { name: `Trust Undo ${name}` });
       await page.addInitScript(id => {
         if (window.top !== window) return;
-        localStorage.setItem('aegis:board', id); localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake');
+        localStorage.setItem('aegis:board', id); localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:model', 'fake|fake');
       }, board.id);
       await page.route('**/agents', async route => {
         if (route.request().method() !== 'POST') return route.continue();

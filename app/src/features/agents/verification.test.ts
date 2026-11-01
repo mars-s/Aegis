@@ -67,7 +67,7 @@ describe('spatial agent controls', () => {
 
 describe('request presentation', () => {
   it('status model defaults prefer a connected small model', () => {
-    const models = [ {provider:'anthropic',modelId:'haiku',name:'Small'}, {provider:'openai',modelId:'luna',name:'Fast'}, {provider:'fake',modelId:'fake',name:'Review'} ];
+    const models = [ {provider:'claude',modelId:'haiku',name:'Small'}, {provider:'openai',modelId:'luna',name:'Fast'}, {provider:'fake',modelId:'fake',name:'Review'} ];
     expect(defaultStatusModel(models, model => model.provider === 'openai')).toEqual(models[1]);
   });
   it('completion frames every surviving affected card and counts creates, edits and deletes', () => {

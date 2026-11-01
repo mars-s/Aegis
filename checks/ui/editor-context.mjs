@@ -39,7 +39,7 @@ try {
     const errors = []; page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(platform => {
       Object.defineProperty(navigator, 'platform', { get: () => platform });
-      localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'dark'); localStorage.setItem('aegis:follow', 'off');
+      localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'dark'); localStorage.setItem('aegis:follow', 'off');
     }, platform);
     await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
     await page.waitForFunction(() => window.aegis?.canvas?.board);

@@ -51,7 +51,7 @@ try {
       throw Error('The saved connector has no unobstructed painted hit target');
     });
     try {
-      await page.addInitScript(() => { if (window !== window.top) return; localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
+      await page.addInitScript(() => { if (window !== window.top) return; localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); localStorage.setItem('aegis:theme', 'system'); });
       await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
       await page.waitForFunction(() => window.aegis?.canvas?.board);
       // A fresh board per engine keeps persisted-link assertions independent.
@@ -100,13 +100,12 @@ try {
         await page.waitForFunction(() => { const r = document.getElementById('agentIsland').getBoundingClientRect(); return !r.width || Math.abs(r.x + r.width / 2 - innerWidth / 2) <= 1; }, undefined, { timeout: 2000 });
         const geometry = await page.evaluate(() => {
           const rect = selector => document.querySelector(selector).getBoundingClientRect().toJSON();
-          return { toggle: rect('#sideBtn'), tools: rect('#tools'), close: rect('#closeSide'), title: rect('#side .pbox:first-of-type .plabel'), actions: [...document.querySelectorAll('#side [data-panel=library] .pactions .icon-btn')].map(el => el.getBoundingClientRect().toJSON()), icons: [...document.querySelectorAll('#side .phead .ptoggle')].filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect().toJSON()) };
+          return { toggle: rect('#sideBtn'), close: rect('#closeSide'), title: rect('#side .pbox:first-of-type .plabel'), actions: [...document.querySelectorAll('#side [data-panel=library] .pactions .icon-btn')].map(el => el.getBoundingClientRect().toJSON()), icons: [...document.querySelectorAll('#side .phead .ptoggle')].filter(el => el.getClientRects().length).map(el => el.getBoundingClientRect().toJSON()) };
         });
         assert.equal(geometry.toggle.x, 84, 'traffic lights have the first 80px'); assert.equal(geometry.toggle.height, 32);
-        assert.ok(geometry.toggle.bottom <= 44 && geometry.tools.top >= geometry.toggle.bottom);
         assert.equal(geometry.close.width, 28); assert.equal(geometry.close.height, 28);
         assert.ok(Math.abs(geometry.close.y + 14 - (geometry.title.y + geometry.title.height / 2)) <= 2, 'close icon aligns with the first section label');
-        assert.ok(geometry.icons.length >= 3 && geometry.icons.every(r => r.height === 40 && r.width > 100), 'section headers are one quiet 40px toggle');
+        assert.ok(geometry.icons.length >= 2 && geometry.icons.every(r => r.height === 40 && r.width > 100), 'section headers are one quiet 40px toggle');
         assert.equal(geometry.actions.length, 2, 'Home and New live in the Library header');
         assert.ok(geometry.actions.every(r => r.height === 28 && r.y === geometry.actions[0].y));
         assert.ok((await page.locator('#side [data-panel=layers]').boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
@@ -213,7 +212,7 @@ try {
       const touch = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true, colorScheme: 'dark' });
       try {
         const boardId = await page.evaluate(() => aegis.canvas.board.id);
-        await touch.addInitScript(id => { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:board', id); }, boardId); await touch.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await touch.waitForFunction(() => window.aegis?.canvas?.board);
+        await touch.addInitScript(id => { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:board', id); }, boardId); await touch.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`); await touch.waitForFunction(() => window.aegis?.canvas?.board);
         await touch.locator('#sideBtn').click(); await touch.locator('#side.open').waitFor();
         assert.ok(await touch.locator('#side :is(.side-close, .phead .ptoggle, .pactions .icon-btn, .tile)').evaluateAll(nodes => nodes.filter(el => el.getClientRects().length).every(el => el.getBoundingClientRect().height >= 44)));
         await touch.locator('#closeSide').click();

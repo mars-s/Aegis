@@ -4,9 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'draw', 'media', 'imports', 'wireframe', 'editing', 'objects', 'genui', 'parity', 'agent-types', 'agents', 'agent-motion'];
-// fix1: chat context, separate shortcuts and the two notes entry points.
-all.push('polish');
+const all = ['canvas', 'library', 'docs', 'editors', 'deck', 'imports', 'editing', 'objects', 'genui', 'agent-types', 'agents', 'agent-motion'];
 // PM4: pan modifiers take priority over canvas gestures.
 all.push('pan');
 // PM5: menu containment and collision-free spatial agent recovery.
@@ -40,8 +38,8 @@ all.push('fit-finish');
 all.push('canvas-chrome');
 // Data viewer, deletion recovery, typography and sheet units.
 all.push('data-trust');
-// Empty board actions, onboarding, Library home and far-zoom geometry.
-all.push('first-minute');
+// Empty canvas, provider connection, introduction and local profile.
+all.push('open-canvas');
 // Plain camera geometry and original content at every zoom in Chromium and WebKit.
 all.push('semantic-zoom');
 all.push('overview-model');
@@ -68,7 +66,7 @@ if (built.status !== 0) throw new Error('The UI build failed, so no suite can ru
 const failed = [];
 for (const name of names) {
   const t0 = Date.now();
-  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_TEST_FACADE: '1', AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
+  const r = spawnSync(process.execPath, [new URL(`./${name}.mjs`, import.meta.url).pathname], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', env: { ...process.env, AEGIS_TEST_FACADE: '1', AEGIS_CLAUDE_BIN: '/tmp/aegis-ui-check-no-real-claude', AEGIS_VITE_CACHE: process.env.AEGIS_VITE_CACHE || mkdtempSync(join(tmpdir(), 'aegis-vite-')) } });
   const ok = r.status === 0;
   console.log(`${ok ? 'pass' : 'FAIL'} ${name} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
   if (!ok) { failed.push(name); console.log((r.stdout + r.stderr).split('\n').filter(l => !l.includes('\x1b[2m')).slice(-15).join('\n')); }

@@ -3,15 +3,15 @@ import type { FeatureContext } from '../composition.js';
 import { createImporter, ImportProgressView } from '../features/imports/react.js';
 import type { ImportProgress } from '../features/imports/react.js';
 import { useCreativeServices, useRecordingStore } from '../features/media/services.js';
-export function CreativeImports({ context, attached }: { readonly context: FeatureContext; readonly attached: (choose: (() => void) | null) => void }) {
+export function CreativeImports({ context }: { readonly context: FeatureContext }) {
   const services = useCreativeServices(), recordings = useRecordingStore();
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [importer] = useState(() => createImporter(context, services, setProgress, recordings));
   useEffect(() => {
     const stage = document.getElementById('stage');
     if (!stage) throw new Error('Import routing requires the scene stage.');
-    attached(importer.choose); const dispose = importer.install(stage);
-    return () => { attached(null); dispose(); };
-  }, [attached, importer]);
+    const dispose = importer.install(stage);
+    return dispose;
+  }, [importer]);
   return <ImportProgressView value={progress} />;
 }

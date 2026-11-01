@@ -16,7 +16,7 @@ export async function verifyStartupBoard(){
   try{
    const port=await new Promise((done,fail)=>{let log='';const timer=setTimeout(()=>fail(Error(log)),15000);host.stdout.on('data',data=>{log+=data;const m=/"port":(\d+)/.exec(log);if(m){clearTimeout(timer);done(m[1]);}});host.once('exit',fail);});
    browser=await engine.launch();const page=await browser.newPage({viewport:{width:1440,height:1000}});
-   await page.addInitScript(()=>{localStorage.setItem('aegis:onboarded','1');localStorage.setItem('aegis:orb-hint-seen','1');});
+   await page.addInitScript(()=>{localStorage.setItem('aegis:introduction-complete','1');localStorage.setItem('aegis:orb-hint-seen','1');});
    await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);await page.waitForFunction(()=>window.aegis?.canvas.board);
    check(await page.evaluate(()=>aegis.canvas.board.id),'zzzzboard',`${name}: first startup opens the only real board`);
    check(await page.evaluate(()=>localStorage.getItem('aegis:board')),'zzzzboard',`${name}: startup retains the actual loaded board identity`);

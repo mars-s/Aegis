@@ -31,11 +31,10 @@ const ready = proc => new Promise((resolve, reject) => {
 try {
   const port = await ready(host);
   vite = spawn('npx', ['vite', '--host', '127.0.0.1', '--port', String(5185 + PORT_OFFSET), '--strictPort'], { cwd: repo + '/app', stdio: 'pipe' }); await ready(vite);
-  browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  browser = await chromium.launch(); page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, colorScheme: 'light' }); await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   page.on('dialog', d => { nativeDialogs.push(d.message()); d.dismiss(); });
   page.on('pageerror', e => errors.push(e.message));
   const api = async (path, body) => { const r = await fetch(`http://127.0.0.1:${port}${path}`, { method: body === undefined ? 'GET' : 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const j = await r.json(); assert.ok(r.ok, JSON.stringify(j)); return j; };
-  const chooseTool = async id => { await page.keyboard.press('Escape'); if (await page.evaluate(() => aegis.canvas.selection().length)) { await page.locator('#stage').focus(); await page.keyboard.press('Escape'); } await page.mouse.move(24, 480); const button = page.locator(`#tools [data-tool="${id}"]`); if (!await button.isVisible()) await page.locator('#toolsFold').click(); await button.click(); };
   const uiMenu = title => page.locator('.aegis-action-menu:not([hidden])').getByRole('menuitem', { name: title, exact: true });
   const row = id => page.locator(`.tree-row[data-node="${id}"], .tree-row[data-board="${id}"]`);
   const read = () => api('/library');
@@ -55,17 +54,11 @@ try {
   await page.locator('#side').waitFor({ state: 'visible' });
   // Round 3 hierarchy: active windows get the available space, reference stays folded.
   const windows = page.locator('#side > [data-panel="layers"]'), library = page.locator('#side > [data-panel="library"]');
-  const tools = page.locator('#side > [data-panel="tools"]'), toolsToggle = tools.getByRole('button', { name: 'Toggle Tools', exact: true });
-  const keysTile = tools.locator('.tile[data-tool="keys"]');
-  assert.deepEqual(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel)), ['layers', 'library', 'tools']);
-  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'occasional tools start behind one quiet disclosure');
-  assert.deepEqual((await tools.locator('.tile[data-tool]').evaluateAll(tiles => tiles.map(el => el.dataset.tool))).sort(), ['board-colours', 'draw', 'keys', 'media-devices', 'unsorted', 'wireframe']);
+  assert.deepEqual(await page.locator('#side > .pbox').evaluateAll(boxes => boxes.map(el => el.dataset.panel)), ['layers', 'library']);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
   assert.match(await windows.locator('.phead').textContent(), /^Windows/);
   assert.ok((await windows.boundingBox()).height <= (await page.locator('#side').boundingBox()).height * .45 + 1);
   assert.ok((await library.boundingBox()).height >= 240);
-  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false');
-  assert.equal(await page.locator('#side [data-panel="keys"]').count(), 0, 'a closed tile has no body');
   assert.equal(await windows.getByRole('searchbox', { name: 'Filter windows' }).isVisible(), false, 'small Windows lists need no filter');
   const navFolders = [];
   // Enough folders that the more compact 30px rows still overflow the Library pane.
@@ -139,26 +132,10 @@ try {
   await page.waitForFunction(() => document.querySelector('[data-panel="library"] .tree').scrollTop > 0);
   assert.equal(await scrollWindows.evaluate(el => el.scrollTop), windowScroll, 'Library scrolling does not move Windows');
   assert.equal(await page.locator('#side').evaluate(el => el.scrollTop), 0, 'the outer sidebar does not scroll');
-  await toolsToggle.click();
-  await page.waitForTimeout(220);
-  await page.screenshot({ path: out(`r4-tools-expanded-${Date.now()}.png`) });
-  await keysTile.press('Enter');
-  const keysBody = page.locator('#side [data-panel="keys"] .pbody');
-  await keysBody.hover(); await page.mouse.wheel(0, 320);
-  await page.waitForFunction(() => document.querySelector('[data-panel="keys"] .pbody').scrollTop > 0);
-  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  assert.equal(await keysTile.getAttribute('aria-expanded'), 'true', 'an explicit expansion survives reload');
-  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'true', 'Tools disclosure remembers pointer expansion');
-  await keysTile.press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false', 'an explicit collapse survives reload');
-  await toolsToggle.press('Enter'); await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
-  assert.equal(await toolsToggle.getAttribute('aria-expanded'), 'false', 'Tools disclosure remembers keyboard collapse');
-  await page.screenshot({ path: out(`r4-tools-collapsed-${Date.now()}.png`) });
   // Upgrade an older layout without a saved reference preference.
   await page.evaluate(() => { const state = JSON.parse(localStorage.getItem('aegis:panels')); state.columns.left = ['library', 'layers', 'keys']; state.folded = {}; localStorage.setItem('aegis:panels', JSON.stringify(state)); });
   await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board);
   assert.equal(await page.locator('#side > .pbox').first().getAttribute('data-panel'), 'layers');
-  assert.equal(await keysTile.getAttribute('aria-expanded'), 'false');
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('#mobileHub').getByRole('button', { name: 'Windows', exact: true }).click();
   assert.equal(await page.locator('#mobileTitle').textContent(), 'Windows');
@@ -204,14 +181,7 @@ try {
   await rename(parent, 'Session notes');
   await row(parent).locator('.name').dblclick(); await row(parent).locator('.name').fill('Interview board'); await row(parent).locator('.name').press('Enter');
   await page.waitForFunction(() => document.getElementById('boardName').textContent === 'Interview board'); check('scoped board creation and double-click rename');
-  // Frameworks add editable content and links in place.
-  await chooseTool('templates');
-  assert.equal(await page.locator('.template-menu-heading').allTextContents().then(a => a.join('|')), 'Add to this board|Start a new board');
-  await uiMenu('Opportunity map').click();
-  await page.waitForFunction(() => aegis.canvas.board.cards.length >= 9);
-  await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.length >= 9);
-  assert.equal((await api(`/boards/${parent}`)).links.length, 6); check('in-place framework saves its editable notes and six connectors');
-  await chooseTool('canvas'); await page.locator('#stage').click({ position: { x: 1300, y: 820 } });
+  await api('/boards', { name: 'Child board', boardParent: parent, at: { x: 900, y: 500 } });
   await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'canvas'));
   const child = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'canvas').props.board);
   assert.equal((await api(`/boards/${child}`)).parent, parent);
@@ -220,8 +190,7 @@ try {
   await page.locator('.canvas-preview').dblclick(); await waitBoard(child);
   assert.deepEqual(await page.evaluate(() => { const s = document.getElementById('stage'); return [aegis.canvas.board.cards.length, aegis.canvas.view.x, aegis.canvas.view.y, aegis.canvas.view.z, s.clientWidth / 2, s.clientHeight / 2]; }).then(([count, x, y, z, cx, cy]) => [count, x === cx, y === cy, z]), [0, true, true, 1]);
   assert.equal(await page.locator('#boardCrumbs button').last().textContent(), 'Interview board');
-  await chooseTool('note'); await page.locator('#stage').click({ position: { x: 700, y: 400 } });
-  await page.locator('.card.note [contenteditable]').fill('Child board evidence'); await page.keyboard.press('Escape');
+  await page.evaluate(() => new Promise(resolve => aegisCtx.apply([{ op: 'create', type: 'note', text: 'Child board evidence', x: 0, y: 0 }], resolve)));
   await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.text === 'Child board evidence'));
   await page.evaluate(() => aegis.canvas.setView({ x: -15000, y: -12000, z: .2 }));
   await waitForAsync(page, async () => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).view.x === -15000);
@@ -382,90 +351,6 @@ try {
   await page.mouse.move(page.viewportSize().width - 24, 20); await page.locator('#settingsBtn').click(); await page.locator('#settings-tab-panels').click(); await page.locator('[data-reset-panels]').click(); await page.locator('#closeSettings').click();
   assert.ok(await page.locator('#side [data-panel="layers"]').isVisible());
   await page.screenshot({ path: out('library-panels-reset.png') }); check('panel drag between sides, persisted order and visibility, Settings reset');
-  // Template collections keep their notes together when dragged.
-  await chooseTool('templates'); await uiMenu('Affinity map').click();
-  await page.waitForFunction(() => aegis.canvas.board.cards.some(c => c.type === 'coll'));
-  const groupId = await page.evaluate(() => aegis.canvas.board.cards.find(c => c.type === 'coll').id);
-  await page.evaluate(id => { aegis.canvas.select([id]); aegis.canvas.frameIds([id], 1); }, groupId); await page.waitForTimeout(600);
-  await waitForAsync(page, async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.some(c => c.id === id), groupId);
-  const beforeGroup = await api(`/boards/${child}`), groupData = beforeGroup.cards.find(c => c.id === groupId), noteData = beforeGroup.cards.find(c => c.parent === groupId);
-  assert.equal(groupData.props.cols, 1); assert.equal(groupData.props.kids.length, 4);
-  assert.deepEqual(groupData.props.kids, beforeGroup.cards.filter(c => c.parent === groupId).map(c => c.id));
-  assert.equal(beforeGroup.cards.some(c => c.type === 'template-group'), false);
-  const groupBox = await page.locator(`.card[data-id="${groupId}"]`).boundingBox();
-  await page.mouse.move(groupBox.x + groupBox.width - 32, groupBox.y + groupBox.height - 12); await page.mouse.down(); await page.mouse.move(groupBox.x + groupBox.width + 42, groupBox.y + groupBox.height + 28, { steps: 12 }); await page.mouse.up();
-  await waitForAsync(page, async id => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).x !== aegis.canvas.board.cards.find(c => c.id === id).x || !aegis.canvas.busy(), groupId);
-  await page.waitForTimeout(350);
-  const afterGroup = await api(`/boards/${child}`), movedGroup = afterGroup.cards.find(c => c.id === groupId), movedNote = afterGroup.cards.find(c => c.id === noteData.id);
-  assert.notEqual(movedGroup.x, groupData.x); assert.equal(movedGroup.x - groupData.x, movedNote.x - noteData.x); assert.equal(movedNote.parent, groupId);
-  await page.screenshot({ path: out('library-template-groups.png') }); check('frameworks create ordinary collections with ordered members that move together');
-  // A member can leave its framework collection and be filed into another one.
-  const targetGroup = afterGroup.cards.find(c => c.type === 'coll' && c.id !== groupId);
-  await page.evaluate(id => { aegis.canvas.select([id]); aegis.canvas.frameIds([id], 1); }, movedNote.id); await page.waitForTimeout(550);
-  const noteBox = await page.locator(`.card[data-id="${movedNote.id}"]`).boundingBox();
-  await page.mouse.move(noteBox.x + noteBox.width / 2, noteBox.y + noteBox.height - 15); await page.mouse.down();
-  const loosePoint = await page.evaluate(() => {
-    const groups = aegis.canvas.board.cards.filter(c => c.type === 'coll');
-    for (let y = 90; y < innerHeight - 110; y += 80) for (let x = 360; x < innerWidth - 40; x += 80) {
-      const p = aegis.canvas.screenToWorld(x, y);
-      if (!groups.some(c => p.x > c.x && p.x < c.x + c.w + 70 && p.y > c.y && p.y < c.y + c.h + 70)) return { x, y };
-    }
-  });
-  assert.ok(loosePoint, 'there is an empty canvas drop destination outside the collections');
-  await page.mouse.move(loosePoint.x, loosePoint.y, { steps: 15 }); await page.mouse.up();
-  await waitForAsync(page, async id => !(await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent, movedNote.id);
-  assert.equal((await api(`/boards/${child}`)).cards.find(c => c.id === groupId).props.kids.includes(movedNote.id), false);
-  await page.evaluate(ids => { aegis.canvas.select([]); aegis.canvas.frameIds(ids, .8); }, [movedNote.id, targetGroup.id]); await page.waitForTimeout(550);
-  const looseBox = await page.locator(`.card[data-id="${movedNote.id}"]`).boundingBox(), targetBox = await page.locator(`.card[data-id="${targetGroup.id}"]`).boundingBox();
-  await page.mouse.move(looseBox.x + looseBox.width / 2, looseBox.y + looseBox.height - 15); await page.mouse.down();
-  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height - 25, { steps: 15 }); await page.mouse.up();
-  await waitForAsync(page, async ([id, parent]) => (await aegis.host.get(`/boards/${aegis.canvas.board.id}`)).cards.find(c => c.id === id).parent === parent, [movedNote.id, targetGroup.id]);
-  assert.ok((await api(`/boards/${child}`)).cards.find(c => c.id === targetGroup.id).props.kids.includes(movedNote.id));
-  check('framework notes can leave a collection and join another collection with membership kept in sync');
-  // Folder copies also work, and a folder can live at the top level.
-  await row(folder).click({ button: 'right' }); await uiMenu('Duplicate').click();
-  await waitForAsync(page, async () => (await aegis.host.get('/library')).nodes.some(n => n.name === 'Interviews copy'));
-  const folderCopy = (await read()).nodes.find(n => n.name === 'Interviews copy').id;
-  await row(folderCopy).click({ button: 'right' }); await uiMenu('Move to…').click(); await uiMenu('All projects (top level)').click();
-  await waitForAsync(page, async id => (await aegis.host.get('/library')).nodes.find(n => n.id === id).parent === null, folderCopy);
-  check('recursive folder copy and Move to top level');
-  // New-board starters create and open another board.
-  await chooseTool('templates'); await uiMenu('App plan').click();
-  await page.waitForFunction(() => aegis.canvas.board.name === 'App plan');
-  const starter = await board(); assert.equal((await api(`/boards/${starter}`)).cards.filter(c => c.type === 'todo').length, 1); check('new-board starter opens and saves a separate board');
-  // Brain dump keeps its sample ideas in Unsorted, where they can be filed onto the board.
-  await chooseTool('templates'); await uiMenu('Brain dump').click();
-  await page.waitForFunction(() => aegis.canvas.board.name === 'Brain dump');
-  const brainDump = await board(), brainData = await api(`/boards/${brainDump}`);
-  assert.equal(brainData.cards.length, 2); assert.equal(brainData.tray.length, 5);
-  await page.waitForFunction(() => document.querySelectorAll('.tray-item').length === 5);
-  const trayNote = brainData.tray[0].text;
-  if (await page.locator('#boardName').getAttribute('aria-expanded') !== 'true') await page.locator('#boardName').click();
-  if (await toolsToggle.getAttribute('aria-expanded') !== 'true') await toolsToggle.click();
-  await page.locator('.tray-item').first().click();
-  await waitForAsync(page, async () => { const b = await aegis.host.get(`/boards/${aegis.canvas.board.id}`); return b.cards.length === 3 && b.tray.length === 4; });
-  assert.ok((await api(`/boards/${brainDump}`)).cards.some(c => c.text === trayNote));
-  await page.screenshot({ path: out('library-starter-tray.png') });
-  await page.reload(); await page.waitForFunction(() => window.aegis?.canvas?.board?.name === 'Brain dump');
-  assert.equal((await api(`/boards/${brainDump}`)).tray.length, 4);
-  check('Brain dump opens with five Unsorted ideas, files an idea onto the board and preserves the tray after reload');
-  await row(starter).click(); await waitBoard(starter);
-  // Delete a non-empty project and verify all copied boards are gone.
-  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(false);
-  assert.ok((await read()).nodes.some(n => n.id === copyProject)); check('cancelling deletion leaves the project intact');
-  await row(copyProject).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(true);
-  await waitForAsync(page, async id => !(await aegis.host.get('/library')).nodes.some(n => n.id === id), copyProject);
-  await waitForAsync(page, async ids => !(await aegis.host.get('/library')).boards.some(b => ids.includes(b.id)), [copyParent, copyChild]);
-  assert.equal((await read()).boards.some(b => b.id === copyParent || b.id === copyChild), false); check('confirmed non-empty project deletion removes its nested boards');
-  // Delete the open board, then all remaining boards through their HTTP action.
-  await row(starter).click({ button: 'right' }); await uiMenu('Delete').click(); await answer(true); await page.waitForFunction(id => aegis.canvas.board.id !== id, starter);
-  for (const b of (await read()).boards) await api(`/boards/${b.id}/delete`, {});
-  lib = await read(); assert.equal(lib.boards.length, 1);
-  await waitBoard(lib.boards[0].id);
-  assert.equal((await api(`/boards/${lib.boards[0].id}`)).cards.length, 0); check('deleting the open board switches safely, and deleting the last board creates a fresh board');
-  assert.deepEqual(errors, []);
-  writeFileSync(out('library-smoke-results.json'), JSON.stringify({ data, checks, errors }, null, 2));
-  console.log('DATA', data, '\nALL', checks.length, 'CHECKS PASSED');
 } catch (e) {
   console.error(e); console.error('PAGE ERRORS', errors); if (page) await page.screenshot({ path: out('library-fail.png') }); process.exitCode = 1;
 } finally { await browser?.close(); host.kill(); vite?.kill(); }

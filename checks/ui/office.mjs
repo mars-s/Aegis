@@ -23,7 +23,7 @@ const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = []; page.on('pageerror', e => errors.push(e.message));
-  await page.addInitScript(() => { if (window.top === window) { localStorage.setItem('aegis:onboarded', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); } });
+  await page.addInitScript(() => { if (window.top === window) { localStorage.setItem('aegis:introduction-complete', '1'); localStorage.setItem('aegis:orb-hint-seen', '1'); } });
   await page.goto(`http://127.0.0.1:${port}/ui/index.html?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   await page.evaluate(batch => aegis.host.post('/agents', { boardId: aegis.canvas.board.id, brief: 'FAKE ' + JSON.stringify(batch), model: { provider: 'fake', modelId: 'fake' } }), demoBatch);

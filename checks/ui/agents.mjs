@@ -16,7 +16,7 @@ const vite = spawn('npx', ['vite', '--port', String(5193 + PORT_OFFSET), '--stri
 await new Promise((ok, no) => { vite.stdout.on('data', d => { if (/Local/.test(String(d))) ok(); }); vite.on('exit', no); });
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
-await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
 const errors = [], requests = []; page.on('pageerror', e => errors.push(e.message));
 page.on('request', r => { if (r.method() === 'POST' && /\/agents(?:\?|$|\/)/.test(r.url())) requests.push({ path: new URL(r.url()).pathname, data: r.postDataJSON() }); });
 const captureId = Date.now();

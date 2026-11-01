@@ -44,7 +44,7 @@ async function batch(commands) {
   await page.evaluate(() => new Promise(requestAnimationFrame));
 }
 try {
-  await page.addInitScript(() => { if (window.top === window) localStorage.setItem('aegis:onboarded', '1'); });
+  await page.addInitScript(() => { if (window.top === window) localStorage.setItem('aegis:introduction-complete', '1'); });
   await page.goto(`http://127.0.0.1:${webPort}/?port=${port}&token=${token}`);
   await page.waitForFunction(() => window.aegis?.canvas?.board);
   // PM 3: recover a single agent from the left edge with a real centre click.

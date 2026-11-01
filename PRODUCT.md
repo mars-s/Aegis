@@ -2,12 +2,18 @@
 
 <!-- impeccable:product-schema 1 -->
 
-> Status: expanded on 2026-10-28 from the owner's brief and the shipped app.
+> Status: updated on 2026-11-01 for the owner's open-canvas direction, phase 1.
 > **Confirmed** means the owner said it. **Observed** means it is true of the
 > code today. **Open** means still undecided. The earlier draft described a
 > Svelte interface. The app is React now.
 
 ## The short version
+
+Aegis starts as an empty canvas and a small AI dock. The person connects ChatGPT
+or Claude Code, then the AI learns who they are, their workflow, goals and how
+the canvas can help. That profile stays local and informs future runs. Later
+phases will let the AI build tools, sidebars, windows and workflows. Phase 1
+provides an empty typed extension seam and builds none of that system. (Confirmed)
 
 Aegis is a local workbench for thinking and building: one infinite canvas where
 a person and several AI agents work on the same documents, sheets, decks, notes
@@ -60,7 +66,7 @@ it can change its own themes, card types and panels at runtime. (Confirmed)
 - **One infinite canvas.** Pan and zoom move a single transform. Cards are small
   windows with flat dark surfaces, a faint dot field behind them, and a thin
   connection line when two cards are related. (Confirmed)
-- **Capture cards.** Notes, titles, checklists, links, images, video, web pages,
+- **Card primitives, available to commands and agents.** Notes, titles, checklists, links, images, video, web pages,
   audio recordings, freehand ink, stamps, shapes, vector paths, device frames,
   colour swatches, font specimens and icons. (Observed)
 - **Work surfaces.** Editable documents with a Markdown side editor, slide decks
@@ -114,11 +120,19 @@ a name on it, that the person can take back.
 - Dictation: click the orb on the Ask pill and Apple's on-device recogniser
   streams words into the box. Audio never leaves the Mac. (Observed, added
   2026-10-29)
-- Keyboard first: single-key tools, `/` for the composer, `A` for agents, `F`
-  for follow, `\` for the side bar.
+- Keyboard first: `/` for the composer, `A` for agents, `F` for focus,
+  Shift+F for follow, `\` for the side bar, and keyboard Undo/Redo.
+  There are no single-key placement tools.
 - Charts, sheets and documents are built from the same object kinds the person
   can edit by hand, so an agent's chart is never a picture of a chart.
-- Settings hold ChatGPT and Claude sign-in plus appearance.
+- The dock and Settings > Accounts share provider connection controls.
+  ChatGPT keeps its official Sign in with ChatGPT flow and stores tokens only
+  in DATA/auth.json. Claude runs through the official Claude Code CLI, which the
+  person signs into in Terminal. Aegis never reads or stores Claude credentials.
+  There is no API key entry. Settings can reset the introduction and profile.
+- The shipped tool rail, Templates, Tools panel tiles, toolbar preferences,
+  starter actions and three-step tour are removed. Library and Layers remain
+  available through the existing edge-hover chrome.
 
 ## Capabilities and Constraints
 
@@ -131,8 +145,9 @@ a name on it, that the person can take back.
 - **Local and owned.** Boards, assets and agent runs live in the app data
   folder. The MCP endpoint is loopback only and needs a token. The integration
   adds no Aegis cloud service. (Confirmed)
-- **Own models.** The person brings their own ChatGPT or Claude subscription.
-  The app runs on-device models too where a task allows. (Observed)
+- **Own providers.** ChatGPT uses the person's plan. Claude Code manages its
+  own Claude Pro or Max sign-in. Aegis only starts the unmodified CLI with its
+  local MCP tools. (Confirmed)
 - **Dictation on device.** The Ask orb starts Apple's Speech framework with
   on-device recognition and streams partial text into the composer. It needs
   microphone and speech recognition permission; refusing still leaves typing.

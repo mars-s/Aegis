@@ -9,5 +9,5 @@ export const CameraSchema = z.object({ view: z.object({ x: coordinate, y: coordi
 export const InstallSchema = z.object({ from: z.string().optional() });
 export const AgentCreationSchema = z.object({ boardId: z.string(), brief: z.unknown().optional(), selectedIds: z.array(z.string()).optional(), model: ModelChoiceSchema.optional(), statusModel: ModelChoiceSchema.optional(), count: z.unknown().optional() });
 export const MessageSchema = z.object({ content: z.unknown().optional(), selectedIds: z.array(z.string()).optional() });
-export const ProviderSchema = z.object({ provider: z.enum(['openai', 'anthropic']) });
+export const ProviderSchema = z.object({ provider: z.literal('openai') }).strict();
 export const AnswerSchema = ProviderSchema.extend({ answer: z.string().trim().min(1) });

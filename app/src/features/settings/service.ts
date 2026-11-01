@@ -1,7 +1,11 @@
+import type { Profile } from '@aegis/domain/profile';
 import type { McpSetup, Provider, ProviderAccount } from '@aegis/protocol/services';
 export { ProviderSchema, AccountSchema, McpSetupSchema } from '@aegis/protocol/services';
 export type { Provider, ProviderAccount, McpSetup } from '@aegis/protocol/services';
 export interface SettingsService {
+  readonly profile: (signal: AbortSignal) => Promise<Profile>;
+  readonly resetProfile: (signal: AbortSignal) => Promise<void>;
+  readonly refreshClaude: (signal: AbortSignal) => Promise<void>;
   readonly accounts: (signal: AbortSignal) => Promise<readonly ProviderAccount[]>;
   readonly authenticate: (provider: Provider, action: 'start' | 'cancel' | 'logout', signal: AbortSignal) => Promise<void>;
   readonly answer: (provider: Provider, answer: string, signal: AbortSignal) => Promise<void>;

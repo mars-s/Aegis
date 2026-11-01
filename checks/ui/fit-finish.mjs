@@ -37,7 +37,7 @@ try {
         page.setDefaultTimeout(12000); page.on('pageerror', error => errors.push(error.message));
         await page.addInitScript(theme => {
           if (window.top !== window) return;
-          localStorage.setItem('aegis:theme', theme); localStorage.setItem('aegis:orb-hint-seen', '1');
+          localStorage.setItem('aegis:theme', theme); localStorage.setItem('aegis:introduction-complete', '1');
           Object.defineProperty(window, 'MediaRecorder', { value: undefined });
         }, theme);
         const shot = async name => {
@@ -68,7 +68,7 @@ try {
         const settings = page.getByRole('dialog', { name: 'Settings', exact: true });
         for (const [width, height] of [[1440, 900], [1586, 992]]) {
           await page.setViewportSize({ width, height });
-          for (const name of ['General', 'Board', 'Toolbar', 'Panels', 'Accounts', 'Integrations', 'About']) {
+          for (const name of ['General', 'Board', 'Panels', 'Accounts', 'Integrations', 'About']) {
             await settings.getByRole('tab', { name, exact: true }).click();
             await inspect(`settings-${name}-${width}`, settings);
             if (width === 1440) await shot(`settings-${name.toLowerCase()}`);

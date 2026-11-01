@@ -65,7 +65,7 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 900 }, colorScheme: 'dark' });
   // Keep interception enabled before any input. Enabling it per wait can race keyboard.press.
   page.on('filechooser', () => {});
-  await page.addInitScript(() => localStorage.setItem('aegis:onboarded', '1'));
+  await page.addInitScript(() => localStorage.setItem('aegis:introduction-complete', '1'));
   page.on('pageerror', error => errors.push(error.stack));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('response', response => { if (/pdf[.-]worker/.test(response.url())) workerRequests.push({ url: response.url(), status: response.status(), type: response.headers()['content-type'] }); });
@@ -78,17 +78,8 @@ try {
     new MutationObserver(records => { for (const record of records) for (const node of record.type === 'attributes' ? [record.target] : record.addedNodes) if (node instanceof HTMLElement && node.matches('#world > .card[data-id]')) window.__importMotions.push({ id: node.dataset.id, durations: node.getAnimations().map(animation => animation.effect.getTiming().duration) }); }).observe(document.getElementById('world'), { childList: true, subtree: true, attributes: true, attributeFilter: ['data-id'] });
   });
   assert.equal((await cards()).length, 0);
-  assert.equal(await page.locator('#empty .empty-actions button').count(), 3);
-  assert.equal(await page.locator('#empty .empty-mark').count(), 0);
+  assert.equal(await page.locator('#empty, .empty-actions').count(), 0);
   await screenshots('empty');
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  assert.equal(await page.locator('.empty-actions button').first().evaluate(el => getComputedStyle(el).transitionDuration), '0s');
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.evaluate(() => document.body.classList.add('motion-off'));
-  assert.equal(await page.locator('.empty-actions button').first().evaluate(el => getComputedStyle(el).transitionDuration), '0s');
-  await page.evaluate(() => document.body.classList.remove('motion-off'));
-  console.log('PASS quiet empty-board actions at 1440, 1586 and 390, with both reduced-motion settings');
-
   // WKWebView versions supported by the app can lack these newer JS built-ins.
   await page.evaluate(() => { delete Promise.withResolvers; delete Promise.try; delete Math.sumPrecise; delete Uint8Array.fromBase64; });
   await drop(['two-pages.pdf']);
@@ -170,57 +161,9 @@ try {
   assert.deepEqual(readFileSync(await originalDownload.path()), readFileSync(join(repo, 'checks/fixtures/two-previews.key')));
   console.log('PASS synthetic Keynote drop sorts previews numerically, prefers slide previews to QuickLook, and links the unchanged original file');
 
-  // The More tools Import button and the existing Import images tool share the route.
-  await page.evaluate(() => aegis.canvas.select([]));
-  await page.mouse.move(24, 450); await page.locator('#toolsFold').click();
-  assert.equal(await page.locator('#toolsPopover section').filter({ has: page.getByRole('heading', { name: 'Media', exact: true }) }).getByRole('button', { name: 'Import', exact: true }).count(), 1);
-  const picked = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Import', exact: true }).click();
-  const picker = await picked; assert.match(await picker.element().getAttribute('accept'), /\.pdf.*\.pptx.*\.key/);
-  await picker.setFiles(join(repo, 'checks/fixtures/quicklook.key')); await waitCard('quicklook.key');
-  // A selected deck must not steal Enter from the focused import button.
-  await page.evaluate(id => aegis.canvas.select([id]), key.id);
-  await page.locator('#toolsFold').click();
-  await page.locator('#toolsPopover [data-tool="import-image"]').focus();
-  await page.mouse.move(700, 450); await page.waitForTimeout(1400);
-  assert.equal(await page.locator('#toolsPopover [data-tool="import-image"]').evaluate(el => el === document.activeElement), true);
-  const imagesPick = page.waitForEvent('filechooser'); await page.keyboard.press('Enter');
-  const imagesPicker = await imagesPick; assert.match(await imagesPicker.element().getAttribute('accept'), /\.pdf/);
-  await imagesPicker.setFiles(join(repo, 'checks/fixtures/two-slides.pptx'));
+  await page.locator('#mediaFile').setInputFiles(join(repo, 'checks/fixtures/quicklook.key')); await waitCard('quicklook.key');
+  await page.locator('#mediaFile').setInputFiles(join(repo, 'checks/fixtures/two-slides.pptx'));
   await page.waitForFunction(() => aegis.canvas.board.cards.filter(c => c.props?.import?.name === 'two-slides.pptx').length === 2);
-  const keyboardDeck = (await cards()).filter(card => card.props?.import?.name === 'two-slides.pptx').at(-1);
-  await page.locator(`.card[data-id="${keyboardDeck.id}"]`).waitFor();
-  assert.ok(await page.evaluate(id => window.__importMotions.some(motion => motion.id === id && !motion.durations.includes(240)), keyboardDeck.id));
-  await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); });
-  await page.mouse.move(24, 450);
-  const mediaPick = page.waitForEvent('filechooser'); await page.locator('#tools [data-tool="media"]').click();
-  const mediaPicker = await mediaPick; assert.match(await mediaPicker.element().getAttribute('accept'), /\.key/);
-  await mediaPicker.setFiles(join(repo, 'checks/fixtures/quicklook.key'));
-  await page.waitForFunction(() => aegis.canvas.board.cards.filter(c => c.props?.import?.name === 'quicklook.key').length === 2);
-  console.log('PASS More tools Files > Import, keyboard activation of Import images and the media picker accept presentations and use the same importer, including QuickLook fallback');
-
-  // I also opens the picker from a focused deck immediately after its import.
-  const justImported = (await cards()).filter(card => card.props?.import?.name === 'quicklook.key').at(-1);
-  await page.locator(`.card[data-id="${justImported.id}"]`).focus();
-  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [justImported.id]);
-  const selectedPick = page.waitForEvent('filechooser'); await page.keyboard.press('i');
-  const selectedPicker = await selectedPick;
-  assert.match(await selectedPicker.element().getAttribute('accept'), /\.pdf.*\.pptx.*\.key/);
-  await selectedPicker.setFiles([]);
-  assert.deepEqual(await page.evaluate(() => aegis.canvas.selection()), [justImported.id]);
-  console.log('PASS I opens the import picker from a focused, selected deck just after import and preserves selection');
-
-  await page.evaluate(() => { document.activeElement?.blur(); aegis.canvas.select([]); });
-  await page.mouse.move(700, 450);
-  await page.waitForFunction(() => getComputedStyle(document.getElementById('tools')).pointerEvents === 'none');
-  const shortcutPick = page.waitForEvent('filechooser'); await page.keyboard.press('i');
-  await (await shortcutPick).setFiles([]);
-  const programmaticPick = page.waitForEvent('filechooser');
-  await page.locator('#tools [data-tool="import-image"]').evaluate(button => button.click());
-  await (await programmaticPick).setFiles([]);
-  assert.equal(await page.locator('#tools').evaluate(el => getComputedStyle(el).pointerEvents), 'none');
-  console.log('PASS selected deck preserves native Enter on Import images; shortcut and programmatic import work while the rail is idle');
-
   // Exercise the directory-entry route used by Finder's package drops.
   const packageDrop = await page.evaluate(file => {
     const image = new File([Uint8Array.from(atob(file.bytes), c => c.charCodeAt(0))], 'st-1.jpg', { type: 'image/jpeg' });

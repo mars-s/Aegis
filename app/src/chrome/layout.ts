@@ -5,9 +5,9 @@ const LayoutSchema = z.object({
   rightWidth: z.number().min(200).max(420).catch(320),
   columns: z
     .object({ left: z.array(z.string()), right: z.array(z.string()) })
-    .catch({ left: ["layers", "library", "tools"], right: [] }),
+    .catch({ left: ["layers", "library"], right: [] }),
   off: z.record(z.string(), z.boolean()).catch({}),
-  folded: z.record(z.string(), z.boolean()).catch({ keys: true, tools: true }),
+  folded: z.record(z.string(), z.boolean()).catch({}),
   heights: z.record(z.string(), z.number().min(48).max(2000)).catch({}),
   open: z
     .object({ left: z.boolean(), right: z.boolean() })
@@ -23,7 +23,7 @@ const SavedLayoutSchema = LayoutSchema.extend({
 export function normaliseLayout(layout: PanelLayout): PanelLayout {
   return {
     ...layout,
-    folded: { layers: false, library: false, unsorted: false, ...layout.folded },
+    folded: { layers: false, library: false, ...layout.folded },
     columns: {
       left: [
         ...(layout.columns.right.includes("layers")
@@ -32,13 +32,12 @@ export function normaliseLayout(layout: PanelLayout): PanelLayout {
             ? ["layers"]
             : []),
         "library",
-        "tools",
         ...layout.columns.left.filter(
-          (id) => !["layers", "library", "tools"].includes(id),
+          (id) => !["layers", "library", "tools", "keys"].includes(id),
         ),
       ],
       right: layout.columns.right.filter(
-        (id) => !["library", "tools"].includes(id),
+        (id) => !["library", "tools", "keys"].includes(id),
       ),
     },
   };
@@ -52,7 +51,7 @@ export function readLayout(): PanelLayout {
     const parsed = LayoutSchema.parse({
       ...saved,
       columns: saved.columns ?? {
-        left: saved.order ?? ["layers", "library", "tools"],
+        left: saved.order ?? ["layers", "library"],
         right: [],
       },
       open: saved.open ?? { left: saved.hidden === false, right: false },
@@ -63,15 +62,13 @@ export function readLayout(): PanelLayout {
         left: [
           ...(parsed.columns.right.includes("layers") ? [] : ["layers"]),
           "library",
-          "tools",
           ...parsed.columns.left.filter(
             (id) =>
-              !["layers", "library", "tools"].includes(id) &&
-              (id !== "keys" || parsed.columns.left.includes("tools")),
+              !["layers", "library", "tools", "keys"].includes(id),
           ),
         ],
         right: parsed.columns.right.filter(
-          (id) => !["library", "tools"].includes(id),
+          (id) => !["library", "tools", "keys"].includes(id),
         ),
       },
     });
