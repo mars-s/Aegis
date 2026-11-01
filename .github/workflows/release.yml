@@ -35,6 +35,19 @@ jobs:
           if [ -n "$SIGNING_IDENTITY" ]; then
             printf 'APPLE_SIGNING_IDENTITY=%s\n' "$SIGNING_IDENTITY" >> "$GITHUB_ENV"
           fi
+      - name: Add the updater config for the bundler
+        # The bundler needs plugins.updater to sign updater artifacts. The key comes from the
+        # committed public key so there is one source of truth.
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = 'src-tauri/tauri.release.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const pubkey = fs.readFileSync('src-tauri/updater/pubkey.txt', 'utf8').trim();
+          if (!pubkey || pubkey.startsWith('REPLACE_')) throw new Error('No release public key in src-tauri/updater/pubkey.txt');
+          config.plugins = { updater: { pubkey, endpoints: ['https://github.com/mars-s/Aegis/releases/latest/download/latest.json'] } };
+          fs.writeFileSync(path, JSON.stringify(config));
+          "
       - name: Build signed updater and draft release
         uses: tauri-apps/tauri-action@v0
         env:
