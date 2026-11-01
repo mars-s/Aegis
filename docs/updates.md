@@ -15,6 +15,7 @@ The plugin requires a config field before applying its builder key, so Aegis
 supplies a minimal config in memory. No updater config or fake key is stored in
 `tauri.conf.json`. No updater commands have webview permissions, including the
 remote `host-ui` capability. The existing UI hot-swap mechanism is independent.
+On launch, a missing or changed `DATA/ui/app-version` moves any hot-swapped UI aside as `DATA/ui/previous-<UTC YYYYMMDDHHMMSS>-appupd` for existing UI rollback and records the running app version, so the bundled UI takes precedence after an app update or Restore Previous Version.
 
 Every downloaded artifact must pass the plugin's signature verification before
 installation. A missing signature, wrong key or changed artifact fails closed.

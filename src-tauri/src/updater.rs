@@ -188,6 +188,57 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_secs()
 }
 
+fn utc_stamp(seconds: u64) -> String {
+    let mut days = seconds / 86_400;
+    let mut year = 1970;
+    let leap = |year| year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+    loop {
+        let year_days = if leap(year) { 366 } else { 365 };
+        if days < year_days { break; }
+        days -= year_days;
+        year += 1;
+    }
+    let months = [31, if leap(year) { 29 } else { 28 }, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month = 1;
+    for month_days in months {
+        if days < month_days { break; }
+        days -= month_days;
+        month += 1;
+    }
+    let time = seconds % 86_400;
+    format!("{year:04}{month:02}{:02}{:02}{:02}{:02}", days + 1, time / 3600, time / 60 % 60, time % 60)
+}
+
+#[derive(Debug, PartialEq)]
+pub enum UiVersionChange {
+    Unchanged,
+    Recorded,
+    Moved(PathBuf),
+}
+
+// Any app version change, including a downgrade, gives the bundled UI precedence.
+pub fn prepare_ui(ui: &Path, version: &str) -> io::Result<UiVersionChange> {
+    let marker = ui.join("app-version");
+    match fs::read_to_string(&marker) {
+        Ok(recorded) if recorded == version => return Ok(UiVersionChange::Unchanged),
+        Ok(_) => (),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => (),
+        Err(e) => return Err(e),
+    }
+    fs::create_dir_all(ui)?;
+    let current = ui.join("current");
+    let change = if current.try_exists()? {
+        let previous = ui.join(format!("previous-{}-appupd", utc_stamp(now())));
+        fs::rename(current, &previous)?;
+        UiVersionChange::Moved(previous)
+    } else {
+        UiVersionChange::Recorded
+    };
+    // Record only after a successful move so a failed move is retried next launch.
+    fs::write(marker, version)?;
+    Ok(change)
+}
+
 fn check_due(last_check: u64, time: u64) -> bool {
     last_check == 0 || time.saturating_sub(last_check) >= CHECK_INTERVAL
 }
@@ -300,6 +351,62 @@ mod tests {
     use base64::{engine::general_purpose::STANDARD, Engine};
     use std::{io::{Read, Write}, net::TcpListener, sync::Arc, thread};
     use tempfile::tempdir;
+
+    #[test]
+    fn ui_first_run_records_version_without_moving_anything() {
+        let dir = tempdir().unwrap();
+        let ui = dir.path().join("ui");
+        assert_eq!(prepare_ui(&ui, "0.3.0").unwrap(), UiVersionChange::Recorded);
+        assert_eq!(fs::read_to_string(ui.join("app-version")).unwrap(), "0.3.0");
+        assert_eq!(fs::read_dir(&ui).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn ui_same_version_keeps_current() {
+        let dir = tempdir().unwrap();
+        let ui = dir.path();
+        fs::create_dir(ui.join("current")).unwrap();
+        fs::write(ui.join("current/index.html"), "hot-swapped UI").unwrap();
+        fs::write(ui.join("app-version"), "0.3.0").unwrap();
+        assert_eq!(prepare_ui(ui, "0.3.0").unwrap(), UiVersionChange::Unchanged);
+        assert_eq!(fs::read_to_string(ui.join("current/index.html")).unwrap(), "hot-swapped UI");
+        assert_eq!(fs::read_to_string(ui.join("app-version")).unwrap(), "0.3.0");
+        assert_eq!(fs::read_dir(ui).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn ui_version_change_moves_current_and_records_version() {
+        // Restoring an older app version must set the hot-swapped UI aside too.
+        for recorded in [Some("0.2.0"), Some("0.4.0"), None] {
+            let dir = tempdir().unwrap();
+            let ui = dir.path();
+            fs::create_dir(ui.join("current")).unwrap();
+            fs::write(ui.join("current/index.html"), "hot-swapped UI").unwrap();
+            if let Some(version) = recorded {
+                fs::write(ui.join("app-version"), version).unwrap();
+            }
+            let UiVersionChange::Moved(previous) = prepare_ui(ui, "0.3.0").unwrap() else {
+                panic!("expected the hot-swapped UI to be moved");
+            };
+            let name = previous.file_name().unwrap().to_str().unwrap();
+            let stamp = name.strip_prefix("previous-").unwrap().strip_suffix("-appupd").unwrap();
+            assert_eq!(stamp.len(), 14);
+            assert!(stamp.bytes().all(|byte| byte.is_ascii_digit()));
+            assert_eq!(previous.parent(), Some(ui));
+            assert_eq!(fs::read_to_string(previous.join("index.html")).unwrap(), "hot-swapped UI");
+            assert!(!ui.join("current").exists());
+            assert_eq!(fs::read_to_string(ui.join("app-version")).unwrap(), "0.3.0");
+            assert_eq!(fs::read_dir(ui).unwrap().count(), 2);
+        }
+    }
+
+    #[test]
+    fn utc_stamps_use_calendar_dates() {
+        assert_eq!(utc_stamp(0), "19700101000000");
+        assert_eq!(utc_stamp(1_793_533_001), "20261101113641");
+        assert_eq!(utc_stamp(951_782_400), "20000229000000");
+        assert_eq!(utc_stamp(4_107_542_400), "21000301000000");
+    }
 
     #[test]
     fn placeholder_or_empty_key_disables_updates() {

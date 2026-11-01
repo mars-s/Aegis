@@ -234,6 +234,9 @@ fn main() {
             };
             window.build()?;
             updater::setup(app.handle())?;
+            if let Err(e) = updater::prepare_ui(&data_dir().join("ui"), &app.package_info().version.to_string()) {
+                eprintln!("aegis: could not prepare UI for app version: {e}");
+            }
             if let Err(e) = start_agent(app.handle()) { eprintln!("aegis: {e}"); }
             Ok(())
         })
